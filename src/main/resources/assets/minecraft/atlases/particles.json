@@ -1,0 +1,19 @@
+{
+  "sources": [
+    {
+      "type": "minecraft:directory",
+      "prefix": "",
+      "source": "particle"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "dsurround:particles/pixel_ripples",
+      "sprite": "dsurround:particle/pixel_ripples"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "dsurround:particles/footprint",
+      "sprite": "dsurround:particle/footprint"
+    }
+  ]
+}

@@ -1,0 +1,987 @@
+[
+  {
+    "soundEvent": "minecraft:entity.lightning_bolt.thunder",
+    "rules": [
+      {
+        "factory": "dsurround:thunder"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.amethyst_block.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.amethyst_cluster.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.glass"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.ancient_debris.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbox"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.anvil.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbox"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.azalea.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.azalea_leaves.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.leaves_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.bamboo.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.bamboo_wood.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.basalt.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.big_dripleaf.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.bone_block.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.concrete"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.calcite.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.marble"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.candle.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.glass"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.cave_vines.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.chain.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbar"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.cherry_leaves.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.leaves_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.cherry_sapling.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.cherry_wood.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.chiseled_bookshelf.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.copper.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbox"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.copper_bulb.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbox"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.copper_grate.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbar"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.coral_block.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.creaking_heart.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.decorated_pot.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.glass"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.deepslate.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.deepslate_bricks.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.concrete"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.deepslate_tiles.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.concrete"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.polished_deepslate.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.dried_ghast.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.dripstone_block.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.pointed_dripstone.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.dirt.step",
+    "rules": [
+      {
+        "blocks": [
+          "minecraft:rooted_dirt"
+        ],
+        "factory": "dsurround:footsteps.dirt"
+      },
+      {
+        "factory": "dsurround:footsteps.dirt"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.flowering_azalea.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.froglight.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.weakice"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.frogspawn.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.fungus.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.gilded_blackstone.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.concrete"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.glass.step",
+    "rules": [
+      {
+        "blocks": [
+          "#minecraft:ice",
+          "#c:ice"
+        ],
+        "factory": "dsurround:footsteps.stone",
+        "accent": [
+          "dsurround:footstep_accent/muffledice"
+        ]
+      },
+      {
+        "blocks": [
+          "minecraft:glowstone",
+          "minecraft:shroomlight"
+        ],
+        "factory": "dsurround:footsteps.concrete",
+        "accent": [
+          "dsurround:footstep_accent/weakice"
+        ]
+      },
+      {
+        "factory": "dsurround:footsteps.wood",
+        "accent": [
+          "dsurround:footsteps.glass"
+        ]
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.grass.step",
+    "rules": [
+      {
+        "blocks": [
+          "#dsurround:effects/leaves_step"
+        ],
+        "factory": "dsurround:footsteps.dirt",
+        "accent": [
+          "dsurround:footsteps.leaves_through"
+        ]
+      },
+      {
+        "blocks": [
+          "minecraft:hay_block"
+        ],
+        "factory": "dsurround:footsteps.leaves_through"
+      },
+      {
+        "blocks": [
+          "minecraft:dirt_path"
+        ],
+        "factory": "dsurround:footsteps/dirt_path"
+      },
+      {
+        "factory": "dsurround:footsteps.grass",
+        "accent": [
+          "dsurround:footstep_accent/brush"
+        ]
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.gravel.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.gravel"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.hanging_roots.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.hanging_sign.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.heavy_core.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.honey_block.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.iron.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbox"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.ladder.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps/ladder"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.lantern.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbox"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.leaf_litter.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.leaves_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.lodestone.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbox"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.mangrove_roots.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.metal.step",
+    "rules": [
+      {
+        "blocks": [
+          "minecraft:iron_bars"
+        ],
+        "factory": "dsurround:footsteps.metalbar"
+      },
+      {
+        "factory": "dsurround:footsteps.metalbox"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.moss.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.grass"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.moss_carpet.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.rug"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.mud.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.mud"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.mud_bricks.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.mud"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.muddy_mangrove_roots.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.mud"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.nether_bricks.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.concrete"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.nether_gold_ore.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.nether_ore.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.nether_sprouts.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.nether_wood.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.netherite_block.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbox"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.netherrack.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.gravel"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.nylium.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.grass"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.packed_mud.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.mud"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.pink_petals.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.leaves_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.powder_snow.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.snow"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.resin.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.resin_bricks.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.concrete"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.rooted_dirt.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.dirt"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.roots.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.sand.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.sand"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.scaffolding.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.sculk.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.sculk_catalyst.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.sculk_sensor.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.sculk_shrieker.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.sculk_vein.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.shelf.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.shroomlight.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.weakice"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.slime_block.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.small_dripleaf.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.snow.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.snow"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.soul_sand.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.quicksand"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.soul_soil.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.quicksand"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.spawner.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbar"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.sponge.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.spore_blossom.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.stem.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.stone.step",
+    "rules": [
+      {
+        "blocks": [
+          "#minecraft:cauldrons"
+        ],
+        "factory": "dsurround:footsteps.metalbox"
+      },
+      {
+        "blocks": [
+          "minecraft:obsidian",
+          "minecraft:crying_obsidian",
+          "minecraft:respawn_anchor",
+          "minecraft:enchanting_table",
+          "minecraft:ender_chest"
+        ],
+        "factory": "dsurround:footsteps.lino"
+      },
+      {
+        "blocks": [
+          "minecraft:quartz_block",
+          "minecraft:quartz_pillar",
+          "minecraft:quartz_bricks",
+          "minecraft:smooth_quartz",
+          "minecraft:chiseled_quartz_block"
+        ],
+        "factory": "dsurround:footsteps.marble"
+      },
+      {
+        "blocks": [
+          "minecraft:sandstone",
+          "minecraft:smooth_sandstone",
+          "minecraft:cut_sandstone",
+          "minecraft:chiseled_sandstone",
+          "minecraft:red_sandstone",
+          "minecraft:smooth_red_sandstone",
+          "minecraft:cut_red_sandstone",
+          "minecraft:chiseled_red_sandstone"
+        ],
+        "factory": "dsurround:footsteps.concrete",
+        "accent": [
+          "dsurround:footstep_accent/sand"
+        ]
+      },
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.suspicious_gravel.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.gravel"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.suspicious_sand.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.sand"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.trial_spawner.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbar"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.tuff.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.tuff_bricks.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.concrete"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.polished_tuff.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.stone"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.vault.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.metalbar"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.vine.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.wart_block.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.weeping_vines.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.brush_through"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.wet_grass.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.grass"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.wet_sponge.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.mud"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.wood.step",
+    "rules": [
+      {
+        "blocks": [
+          "#minecraft:logs",
+          "#c:logs"
+        ],
+        "factory": "dsurround:footsteps.log"
+      },
+      {
+        "blocks": [
+          "#minecraft:fences",
+          "#c:fences",
+          "minecraft:ladder"
+        ],
+        "factory": "dsurround:footsteps.bluntwood"
+      },
+      {
+        "blocks": [
+          "minecraft:chest",
+          "minecraft:trapped_chest"
+        ],
+        "factory": "dsurround:footsteps.squeakywood"
+      },
+      {
+        "blocks": [
+          "#minecraft:beehives",
+          "minecraft:red_mushroom_block",
+          "minecraft:brown_mushroom_block",
+          "minecraft:mushroom_stem",
+          "minecraft:pumpkin",
+          "minecraft:carved_pumpkin",
+          "minecraft:melon",
+          "minecraft:cocoa",
+          "minecraft:cake"
+        ],
+        "factory": "dsurround:footsteps.organic_dry"
+      },
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.wool.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.rug"
+      }
+    ]
+  }
+]

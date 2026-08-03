@@ -1,0 +1,203 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'com.gradleup.shadow' version '9.2.2'
+    id 'idea'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = "${mod_id}-neoforge-${minecraft_version}"
+}
+
+// Mojang ships Java 25 for Minecraft 26.1
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+
+sourceSets.main.resources {
+    // Exclude common development only resources from finalized outputs
+    exclude("**/*.bbmodel")
+    exclude("src/generated/**/.cache")
+}
+
+repositories {
+    mavenCentral()
+    maven { url "https://maven.neoforged.net/releases" }
+    maven { url "https://maven.architectury.dev/" }
+    maven { url "https://maven.shedaniel.me/" }
+    maven { url "https://maven.isxander.dev/releases" }
+    maven { url "https://api.modrinth.com/maven" }
+    maven { url "https://maven.minecraftforge.net/" }
+}
+
+neoForge {
+    version = project.neo_version
+    validateAccessTransformers = true
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            clientData()
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+configurations {
+    // NeoForge Jar-in-Jar: dependencies shipped inside META-INF/jarjar and unpacked
+    // by the loader as standalone jars (preserving Nashorn's module boundary).
+    jarJar
+}
+
+dependencies {
+    // Architectury API (runtime only, not build plugin)
+    implementation "dev.architectury:architectury-neoforge:${architectury_api_version}"
+
+    // Nashorn JavaScript engine - shipped as Jar-in-Jar so it stays a standalone
+    // modular jar on the classpath (flattening it into the mod jar breaks its Java
+    // modules with a ResolutionException).
+    jarJar "org.openjdk.nashorn:nashorn-core:${nashorn_version}"
+    implementation "org.openjdk.nashorn:nashorn-core:${nashorn_version}"
+
+    // Cloth Config API
+    api("me.shedaniel.cloth:cloth-config-neoforge:${clothapi_version}") {
+        exclude(group: "net.fabricmc.fabric-api")
+    }
+
+    // YACL (Yet Another Config Lib)
+    implementation "dev.isxander:yet-another-config-lib:${yacl_version}"
+
+    // GlitchCore - optional integration
+    compileOnly "maven.modrinth:glitchcore:${glitchcore_version}"
+
+    // TerraBlender - optional integration
+    compileOnly "maven.modrinth:terrablender:${terrablender_version}"
+
+    // SereneSeasons - optional integration (compileOnly: only loaded when the mod is installed)
+    compileOnly files("libs/SereneSeasons-neoforge-26.1.2-26.1.2.0.4.jar")
+    // BiomesOPlenty: not yet available for 26.1 NeoForge
+    // TODO: Add back when updated
+}
+
+// Process resources with property expansion
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_description        : mod_description,
+            mod_author             : mod_author,
+            mod_issues_url         : mod_issues_url,
+            mod_homepage_url       : mod_homepage_url,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+// Copy CREDITS.md into the JAR
+processResources {
+    into('/') {
+        from("$projectDir/CREDITS.md")
+    }
+}
+
+// Nashorn (JavaScript engine) is a hard runtime dependency of the scripting/config
+// subsystem (ExecutionContext). It is shipped as a NeoForge Jar-in-Jar (declared in
+// the jarJar configuration above): moddev's JarJarPlugin copies it into the JAR's
+// META-INF/jarjar/ and the loader unpacks it as a standalone modular JAR. Flattening
+// Nashorn's classes into the mod JAR would break its Java modules (the loader builds
+// org.openjdk.nashorn.* modules at runtime; a flat copy makes module dsurround and
+// org.openjdk.nashorn.structures both claim the same package -> ResolutionException).
+jar {
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_name,
+                'Specification-Vendor'    : mod_author,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.version,
+                'Implementation-Vendor'   : mod_author,
+        ])
+    }
+}
+
+// Shadow Nashorn into the dev JAR (flat, for runClient dev environment)
+shadowJar {
+    configurations = [project.configurations.jarJar]
+    archiveClassifier = 'dev-shadow'
+    mergeServiceFiles()
+    // Exclude ASM: resolved from the game classpath to avoid a loader constraint
+    // violation. Dev runClient provides it via the implementation dependency.
+    exclude("org/objectweb/asm/**")
+}
+
+// Use shadow JAR as input for reobfuscation
+components.java {
+    withVariantsFromConfiguration(configurations.shadowRuntimeElements) {
+        skip()
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}

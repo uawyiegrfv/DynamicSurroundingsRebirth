@@ -1,0 +1,67 @@
+### Gradle ###
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/**/build/
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/**/out/
+
+.run/
+
+### Eclipse ###
+.apt_generated
+.classpath
+.eclipse/
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/**/bin/
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+### Minecraft Modding ###
+run/
+!**/src/**/run/
+**/src/generated/**/.cache/
+repo/
+!**/src/**/repo/
+
+### Project-local backups, references and optional packs ###
+backup/
+backup_good/
+backup_src_before_fix_1515/
+fix_backup/
+mdk-ref/
+packs/
+
+# Extracted 26.1 Minecraft reference sources (javap / decompile lookup)
+.mcref26/
+
+### Superseded fix scripts (kept on disk for reference, not committed) ###
+apply_all_fixes.py
+disable_errors.py
+final_fix.py
+fix_all.py
+fix_all_final.py
+fix_comprehensive.py
+ultimate_fix.py
+
+### Third-party compile-only jars (downloaded, not committed) ###
+libs/
+armor_sounds_test/
+
+### Claude Code session export ###
+*-*-*-*-*-*-*.txt

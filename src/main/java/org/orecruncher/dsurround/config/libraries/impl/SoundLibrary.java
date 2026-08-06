@@ -350,7 +350,15 @@ public final class SoundLibrary implements ISoundLibrary {
             if (!SOUND_REMAP_BLOCKED_MOBS.contains(mobType)) {
                 var level = GameUtils.getWorld().orElseThrow();
                 var pos = BlockPos.containing(soundInstance.getX(), soundInstance.getY(), soundInstance.getZ()).below();
-                soundLocation = level.getBlockState(pos).getSoundType().getStepSound().location();
+                var support = level.getBlockState(pos);
+                // If the block under the mob is air/fluid (e.g. a mob walking along a block
+                // edge with its position sampled over the gap), do NOT convert the mob step
+                // to the block's step sound: air has the default stone sound type, so this
+                // would make edge-walking mobs intermittently play stone steps. Let the
+                // original mob step sound play instead.
+                if (support.isAir() || !support.getFluidState().isEmpty())
+                    return null;
+                soundLocation = support.getSoundType().getStepSound().location();
                 this.logger.debug("Mob sound remapping from %s to %s", soundInstance.getIdentifier(), soundLocation);
                 return soundLocation;
             }

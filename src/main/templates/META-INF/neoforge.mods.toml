@@ -35,3 +35,10 @@ type="required"
 versionRange="[13.0.8,)"
 ordering="AFTER"
 side="CLIENT"
+
+[[dependencies.${mod_id}]]
+modId="cloth_config"
+type="required"
+versionRange="[${clothapi_version},)"
+ordering="AFTER"
+side="CLIENT"

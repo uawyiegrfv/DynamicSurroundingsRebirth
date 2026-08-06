@@ -143,5 +143,46 @@
         "spawnChance": "0.01"
       }
     ]
+  },
+  {
+    "blocks": [
+      "minecraft:waterlily"
+    ],
+    "soundChance": "0.04",
+    "acoustics": [
+      {
+        "factory": "dsurround:frog",
+        "conditions": "!state.isInside() && !weather.canWaterFreeze()",
+        "weight": 30
+      },
+      {
+        "factory": "dsurround:bullfrog",
+        "conditions": "!state.isInside() && !weather.canWaterFreeze()",
+        "weight": 10
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:deadbush"
+    ],
+    "soundChance": "0.005",
+    "acoustics": [
+      {
+        "factory": "dsurround:rattlesnake",
+        "conditions": "weather.isNotRaining() && diurnal.isDay() && !biome.isOneOf(\"COLD\",\"SNOWY\")",
+        "weight": 50
+      },
+      {
+        "factory": "dsurround:hiss",
+        "conditions": "weather.isNotRaining() && diurnal.isDay() && !biome.isOneOf(\"COLD\",\"SNOWY\")",
+        "weight": 35
+      },
+      {
+        "factory": "dsurround:insectcrawl",
+        "conditions": "weather.isNotRaining() && diurnal.isDay() && !biome.isOneOf(\"COLD\",\"SNOWY\")",
+        "weight": 15
+      }
+    ]
   }
 ]

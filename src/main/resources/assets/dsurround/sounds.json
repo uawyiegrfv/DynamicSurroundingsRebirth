@@ -2119,5 +2119,148 @@
       "dsurround:footsteps/marble/marble_run10",
       "dsurround:footsteps/marble/marble_run11"
     ]
+  },
+  "frog": {
+    "subtitle": "dsurround.sound.caption.frog",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/frog/croak1",
+        "volume": 0.4
+      },
+      {
+        "name": "dsurround:ambient/frog/croak2",
+        "volume": 0.4
+      },
+      {
+        "name": "dsurround:ambient/frog/croak3",
+        "volume": 0.4
+      }
+    ]
+  },
+  "bullfrog": {
+    "subtitle": "dsurround.sound.caption.bullfrog",
+    "ds_credits": [
+      {
+        "name": "aNight Crickets & Bullfrogs.wav",
+        "author": "sunsinger",
+        "website": "https://freesound.org/people/sunsinger",
+        "license": "Creative Commons Attribution 3.0 Unported"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/frog/bullfrog1"
+      },
+      {
+        "name": "dsurround:ambient/frog/bullfrog2"
+      },
+      {
+        "name": "dsurround:ambient/frog/bullfrog3"
+      },
+      {
+        "name": "dsurround:ambient/frog/bullfrog4"
+      }
+    ]
+  },
+  "primates": {
+    "subtitle": "dsurround.sound.caption.primates",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/primate/primate1",
+        "volume": 0.3
+      },
+      {
+        "name": "dsurround:ambient/primate/primate2",
+        "volume": 0.3
+      },
+      {
+        "name": "dsurround:ambient/primate/primate3",
+        "volume": 0.3
+      },
+      {
+        "name": "dsurround:ambient/primate/primate4",
+        "volume": 0.3
+      },
+      {
+        "name": "dsurround:ambient/primate/primate5",
+        "volume": 0.3
+      }
+    ]
+  },
+  "bison": {
+    "subtitle": "dsurround.sound.caption.bison",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/bison/bison1",
+        "volume": 0.5
+      },
+      {
+        "name": "dsurround:ambient/bison/bison2",
+        "volume": 0.5
+      },
+      {
+        "name": "dsurround:ambient/bison/bison3",
+        "volume": 0.5
+      },
+      {
+        "name": "dsurround:ambient/bison/bison4",
+        "volume": 0.5
+      }
+    ]
+  },
+  "crocodile": {
+    "subtitle": "dsurround.sound.caption.crocodile",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/crock/crocodile1",
+        "volume": 0.7
+      },
+      {
+        "name": "dsurround:ambient/crock/crocodile2",
+        "volume": 0.7
+      },
+      {
+        "name": "dsurround:ambient/crock/crocodile3",
+        "volume": 0.7
+      },
+      {
+        "name": "dsurround:ambient/crock/crocodile4",
+        "volume": 0.7
+      }
+    ]
+  },
+  "elephant": {
+    "subtitle": "dsurround.sound.caption.elephant",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/elephant/elephant1",
+        "volume": 0.7
+      },
+      {
+        "name": "dsurround:ambient/elephant/elephant2",
+        "volume": 0.7
+      },
+      {
+        "name": "dsurround:ambient/elephant/elephant3",
+        "volume": 0.7
+      }
+    ]
+  },
+  "rattlesnake": {
+    "subtitle": "dsurround.sound.caption.rattlesnake",
+    "sounds": [
+      "dsurround:ambient/snake/rattlesnake1",
+      "dsurround:ambient/snake/rattlesnake2",
+      "dsurround:ambient/snake/rattlesnake3"
+    ]
+  },
+  "hiss": {
+    "subtitle": "dsurround.sound.caption.hiss",
+    "sounds": [
+      "dsurround:ambient/miscblocks/hiss1",
+      "dsurround:ambient/miscblocks/hiss2",
+      "dsurround:ambient/miscblocks/hiss3",
+      "dsurround:ambient/miscblocks/hiss4"
+    ]
   }
 }

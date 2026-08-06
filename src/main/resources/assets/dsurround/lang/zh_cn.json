@@ -309,5 +309,13 @@
   "dsurround.text.soundconfig.volume.help": "计算声音输出音量时应用的音量缩放因子\n增加使得安静声音变大；减少使得大声音变小\n100%代表正常音量。",
   "dsurround.text.toast.music.author": "作者： %1$s",
   "dsurround.text.toast.music.title": "音乐： \"%1$s\"",
-  "key.category.dsurround.keybind": "动态环境"
+  "key.category.dsurround.keybind": "动态环境",
+  "dsurround.sound.caption.frog": "蛙鸣",
+  "dsurround.sound.caption.bullfrog": "牛蛙低鸣",
+  "dsurround.sound.caption.primates": "猴群啼叫",
+  "dsurround.sound.caption.bison": "野牛低吼",
+  "dsurround.sound.caption.crocodile": "鳄鱼咆哮",
+  "dsurround.sound.caption.elephant": "大象长鸣",
+  "dsurround.sound.caption.rattlesnake": "响尾蛇响铃",
+  "dsurround.sound.caption.hiss": "嘶嘶声"
 }

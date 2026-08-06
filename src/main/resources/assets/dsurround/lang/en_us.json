@@ -317,5 +317,13 @@
   "dsurround.text.soundconfig.volume.help": "Volume scaling factor applied when calculating the output volume of a sound. Increase to make quiet sounds louder; reduce to make loud sounds quieter. 100% is normal volume.",
   "dsurround.text.toast.music.author": "by %1$s",
   "dsurround.text.toast.music.title": "Music \"%1$s\"",
-  "key.category.dsurround.keybind": "Dynamic Surroundings"
+  "key.category.dsurround.keybind": "Dynamic Surroundings",
+  "dsurround.sound.caption.frog": "Frogs croaking",
+  "dsurround.sound.caption.bullfrog": "Bullfrogs croaking",
+  "dsurround.sound.caption.primates": "Monkeys calling",
+  "dsurround.sound.caption.bison": "Bison lowing",
+  "dsurround.sound.caption.crocodile": "Crocodile roaring",
+  "dsurround.sound.caption.elephant": "Elephant trumpeting",
+  "dsurround.sound.caption.rattlesnake": "Rattlesnake rattling",
+  "dsurround.sound.caption.hiss": "Snake hissing"
 }

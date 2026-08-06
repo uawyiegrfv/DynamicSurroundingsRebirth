@@ -2,6 +2,7 @@ package org.orecruncher.dsurround.processing;
 
 import it.unimi.dsi.fastutil.Hash;
 import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import org.orecruncher.dsurround.config.libraries.IBiomeLibrary;
@@ -13,6 +14,7 @@ import org.orecruncher.dsurround.eventing.CollectDiagnosticsEvent;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.lib.collections.ObjectArray;
 import org.orecruncher.dsurround.lib.logging.IModLog;
+import org.orecruncher.dsurround.lib.math.MathStuff;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
 import org.orecruncher.dsurround.sound.ISoundFactory;
 
@@ -21,6 +23,11 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     public static final int SCAN_INTERVAL = 4;
     public static final int MOOD_SOUND_MIN_RANGE = 8;
     public static final int MOOD_SOUND_MAX_RANGE = 16;
+
+    // Volume scale applied to biome ambient sounds while the player is inside
+    // (covered ceiling). Reduces outdoor ambience (birds, insects, wind, animal
+    // calls) inside houses and caves while keeping a faint sense of the outside.
+    private static final float INDOOR_VOLUME_SCALE = 0.15F;
 
     private final IBiomeLibrary biomeLibrary;
     private final IAudioPlayer audioPlayer;
@@ -52,9 +59,12 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         // occupied. This will result in the sounds for the most dominant biomes being louder
         // than the others.
         final float area = this.scanner.getBiomeArea();
+        // Indoor ambient sounds are heavily attenuated so outdoor ambience does
+        // not carry through walls and ceilings.
+        final float indoorScale = this.scanner.isInside() ? INDOOR_VOLUME_SCALE : 1.0F;
         for (var kvp : this.scanner.getBiomes().reference2IntEntrySet()) {
             var acoustics = kvp.getKey().findBiomeSoundMatches();
-            final float volume = 0.05F + 0.95F * (kvp.getIntValue() / area);
+            final float volume = indoorScale * (0.05F + 0.95F * (kvp.getIntValue() / area));
             for (var acoustic : acoustics) {
                 this.workMap.addTo(acoustic, volume);
             }
@@ -122,8 +132,9 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private void handleAddOnSounds(Player player, BiomeInfo info) {
         if (info == null)
             return;
+        final float indoorScale = this.scanner.isInside() ? INDOOR_VOLUME_SCALE : 1.0F;
         info.getExtraSound(SoundEventType.MOOD, RANDOM).ifPresent(s -> {
-            var instance = s.createAsMood(player, MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
+            var instance = createMoodInstance(player, s, indoorScale);
             this.audioPlayer.play(instance);
         });
 
@@ -131,6 +142,15 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             var instance = s.createAsAdditional();
             this.audioPlayer.play(instance);
         });
+    }
+
+    private static SimpleSoundInstance createMoodInstance(Player player, ISoundFactory factory, float volumeScale) {
+        if (volumeScale == 1.0F)
+            return factory.createAsMood(player, MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
+        // createAsMood() has no volume control, so rebuild the same random-offset
+        // instance manually with an attenuated volume when inside.
+        var offset = MathStuff.randomPoint(MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
+        return factory.createAtLocation(player.getEyePosition().add(offset), volumeScale);
     }
 
     private void queueAmbientSounds() {

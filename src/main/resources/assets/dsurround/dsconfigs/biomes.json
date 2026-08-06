@@ -340,7 +340,7 @@
     ]
   },
   {
-    "biomeSelector" : "(FOREST || CONIFEROUS || DECIDUOUS) && !(SWAMP || WASTELAND || JUNGLE || DEAD || NETHER || THE_END)",
+    "biomeSelector": "(FOREST || CONIFEROUS || DECIDUOUS) && !(SWAMP || WASTELAND || JUNGLE || DEAD || NETHER || THE_END)",
     "_comment": "Turtledove",
     "acoustics": [
       {
@@ -351,7 +351,7 @@
     ]
   },
   {
-    "biomeSelector" : "(FOREST || CONIFEROUS || DECIDUOUS) && (SNOWY || COLD)",
+    "biomeSelector": "(FOREST || CONIFEROUS || DECIDUOUS) && (SNOWY || COLD)",
     "_comment": "Silent forest",
     "acoustics": [
       {
@@ -502,6 +502,60 @@
         "factory": "biome.village.dogbark",
         "conditions": "state.isInVillage() && !state.isInside() && weather.isNotRaining()",
         "type": "addition"
+      }
+    ]
+  },
+  {
+    "biomeSelector": "JUNGLE && WET && !FOREST",
+    "_comment": "Primates",
+    "acoustics": [
+      {
+        "factory": "primates",
+        "conditions": "weather.isNotRaining() && diurnal.isDay()",
+        "type": "mood"
+      }
+    ]
+  },
+  {
+    "biomeSelector": "PLAINS && !SNOWY",
+    "_comment": "Bison",
+    "acoustics": [
+      {
+        "factory": "bison",
+        "conditions": "weather.isNotRaining() && diurnal.isDay()",
+        "type": "mood"
+      }
+    ]
+  },
+  {
+    "biomeSelector": "SWAMP && !(DEAD || HILLS || MOUNTAIN || COLD || SNOWY || FOREST)",
+    "_comment": "Crocodiles",
+    "acoustics": [
+      {
+        "factory": "crocodile",
+        "type": "mood"
+      }
+    ]
+  },
+  {
+    "biomeSelector": "(SANDY || BADLANDS) && !(COLD || SNOWY)",
+    "_comment": "Rattlesnakes",
+    "acoustics": [
+      {
+        "factory": "rattlesnake",
+        "conditions": "weather.isNotRaining() && diurnal.isDay()",
+        "type": "mood"
+      }
+    ]
+  },
+  {
+    "biomeSelector": "SAVANNA && !DRY",
+    "_comment": "Elephants",
+    "acoustics": [
+      {
+        "factory": "elephant",
+        "conditions": "!weather.canWaterFreeze() && diurnal.isDay()",
+        "type": "mood"
       }
     ]
   }

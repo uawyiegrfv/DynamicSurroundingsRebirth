@@ -8,6 +8,9 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
@@ -191,6 +194,9 @@ public class CritWordHandler {
             return;
 
         var mc = Minecraft.getInstance();
+        if (mc.level == null || mc.player == null)
+            return;
+
         var camera = mc.gameRenderer.getMainCamera();
         final float width = mc.getWindow().getGuiScaledWidth();
         final float height = mc.getWindow().getGuiScaledHeight();
@@ -200,6 +206,11 @@ public class CritWordHandler {
         final var camPos = camera.position();
         final float partialTick = tracker.getGameTimeDeltaPartialTick(false);
 
+        // Occlusion check shared by all words: a word behind any block (wall, terrain)
+        // is hidden, mirroring vanilla name-tag line-of-sight handling.
+        final var level = mc.level;
+        final var eye = camPos;
+
         var pose = graphics.pose();
 
         for (var entry : this.active) {
@@ -208,6 +219,11 @@ public class CritWordHandler {
             final double px = Mth.lerp(partialTick, entry.prevX, entry.x);
             final double py = Mth.lerp(partialTick, entry.prevY, entry.y);
             final double pz = Mth.lerp(partialTick, entry.prevZ, entry.z);
+
+            // Skip words occluded by blocks between the camera and the text.
+            final var hit = level.clip(new ClipContext(eye, new Vec3(px, py, pz), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
+            if (hit.getType() != HitResult.Type.MISS)
+                continue;
 
             this.clip.set(
                     (float) (px - camPos.x),

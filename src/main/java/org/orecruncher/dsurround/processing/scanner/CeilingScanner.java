@@ -23,7 +23,11 @@ public final class CeilingScanner extends AbstractScanner {
 
     private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);
 
-    private static final int SURVEY_INTERVAL = 4;
+    // Survey every 8 ticks (0.4s). Each pass scans up to 3x3 cells from the precipitation
+    // height down to the player's head; underground (caves) that can be dozens of block
+    // lookups per cell, which showed up as periodic 1ms+ spikes in the handler profile.
+    // The indoor flag only gates ambient-sound attenuation, so a 0.4s response is fine.
+    private static final int SURVEY_INTERVAL = 8;
     private static final int INSIDE_SURVEY_RANGE = 3;
     private static final float INSIDE_THRESHOLD = 1.0F - 65.0F / 176.0F;
     private static final Cell[] cells;

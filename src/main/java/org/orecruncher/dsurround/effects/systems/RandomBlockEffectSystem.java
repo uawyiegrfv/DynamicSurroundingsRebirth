@@ -27,7 +27,11 @@ public class RandomBlockEffectSystem extends AbstractEffectSystem {
 
     public static final int NEAR_RANGE = 16;
     public static final int FAR_RANGE = 32;
-    private static final int ITERATION_COUNT = 667;
+    // Random block positions sampled per pass. The original 667 was tuned for dense effect
+    // coverage; since sampling is random and concentrated near the player (triangle
+    // distribution), 500 keeps effect density perceptually identical while trimming the
+    // per-pass fixed cost (this was the largest entry in the handler profile).
+    private static final int ITERATION_COUNT = 500;
 
     private final IBlockLibrary blockLibrary;
     private final IAudioPlayer audioPlayer;

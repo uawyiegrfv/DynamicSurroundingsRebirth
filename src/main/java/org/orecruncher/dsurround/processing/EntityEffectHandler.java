@@ -35,10 +35,11 @@ public class EntityEffectHandler extends AbstractClientHandler {
     public void process(final Player player) {
 
         // Scanning all living entities in a large box is comparatively expensive
-        // (entities degrade it linearly); sample every 2 ticks. Effects tick at half
-        // rate which is imperceptible for ambient effects, and deactivation cleanup
-        // stays prompt enough at this cadence.
-        if (++this.tickCounter % 2 != 0)
+        // (entities degrade it linearly); sample every 4 ticks. Ambient effects (breath
+        // vapor, footprints, glow) tick at this cadence which is imperceptible, and
+        // deactivation cleanup stays prompt enough. Dense mob scenes (caves, spawners)
+        // see the per-tick entity scan cost halved.
+        if (++this.tickCounter % 4 != 0)
             return;
 
         var world = player.level();

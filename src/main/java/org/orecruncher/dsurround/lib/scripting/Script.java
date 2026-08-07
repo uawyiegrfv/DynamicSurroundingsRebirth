@@ -46,6 +46,26 @@ public class Script {
         return this.script;
     }
 
+    /**
+     * Fast path for scripts that are plain numeric or boolean literals (e.g. block
+     * soundChance = "0.05" or the default conditions "true"). These are evaluated very
+     * frequently (every block sample / acoustic hit) and never need the JavaScript engine -
+     * the Nashorn interpretation of a bare literal is a measurable fixed cost. Returns
+     * empty when the script is a real expression.
+     */
+    Optional<Object> getConstant() {
+        final String s = this.script.trim();
+        if (s.equals("true"))
+            return Optional.of(Boolean.TRUE);
+        if (s.equals("false"))
+            return Optional.of(Boolean.FALSE);
+        try {
+            return Optional.of(Double.valueOf(s));
+        } catch (final NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
     @Override
     public String toString() {
         return this.script;

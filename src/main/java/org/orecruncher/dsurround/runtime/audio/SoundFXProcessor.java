@@ -29,6 +29,10 @@ public final class SoundFXProcessor {
 
     private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
     private static final int SOUND_PROCESS_ITERATION = 1000 / 20;   // Match MC client tick rate
+    // Upper bound on how many sources are evaluated per processing pass. Dense sound
+    // scenes (cave full of mobs) otherwise queue every source's ray-trace work at once,
+    // saturating the background pool and stealing CPU from the render thread.
+    private static final int MAX_SOURCES_PER_PASS = 32;
 
     static boolean isAvailable;
     // Sparse array to hold references to the SoundContexts of playing sounds
@@ -213,15 +217,30 @@ public final class SoundFXProcessor {
             final ExecutorService pool = threadPool.get();
             assert pool != null;
 
-            final ObjectArray<Future<?>> tasks = new ObjectArray<>(sources.length);
+            final ObjectArray<Future<?>> tasks = new ObjectArray<>(64);
 
-            // Each source will be examined once per 7 ticks. See
-            // SourceContext.UPDATE_FREQUENCY_TICKS for the current interval.
+            // Collect the sources due for an update this pass. See
+            // SourceContext.UPDATE_FREQUENCY_TICKS for the interval.
+            final ObjectArray<SourceContext> due = new ObjectArray<>(64);
             for (final SourceContext ctx : sources) {
                 if (ctx != null && ctx.shouldExecute()) {
-                    tasks.add(pool.submit(ctx));
+                    due.add(ctx);
                 }
             }
+
+            // In a dense sound scene (e.g. a cave full of mobs) many sources come due at
+            // once; saturating the pool queues work behind distant sources whose reverb is
+            // barely audible anyway. Keep the closest sources first so near-field occlusion
+            // stays responsive, and cap per-pass work to bound pool/CPU usage.
+            if (due.size() > MAX_SOURCES_PER_PASS) {
+                final var listener = worldContext.playerEyePosition;
+                due.sort((a, b) -> Float.compare(
+                        (float) a.getPosition().distanceToSqr(listener),
+                        (float) b.getPosition().distanceToSqr(listener)));
+            }
+            final int limit = Math.min(due.size(), MAX_SOURCES_PER_PASS);
+            for (int i = 0; i < limit; i++)
+                tasks.add(pool.submit(due.get(i)));
 
             diagnosticString = "(ticked: %d)".formatted(tasks.size());
 

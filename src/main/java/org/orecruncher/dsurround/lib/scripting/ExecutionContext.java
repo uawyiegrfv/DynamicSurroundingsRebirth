@@ -55,6 +55,13 @@ public final class ExecutionContext implements IVariableAccess {
     }
 
     public Optional<Object> eval(final Script script) {
+        // Numeric/boolean literal scripts (block soundChance, default conditions) are
+        // evaluated very frequently; resolve them directly instead of going through the
+        // JavaScript engine.
+        var constant = script.getConstant();
+        if (constant.isPresent())
+            return constant;
+
         var cached = script.getCompiledScript();
         var func = cached.orElseGet(() -> {
             var compiled = makeFunction(script.asString());

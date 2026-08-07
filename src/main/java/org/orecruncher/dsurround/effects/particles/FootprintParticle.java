@@ -3,6 +3,8 @@ package org.orecruncher.dsurround.effects.particles;
 import net.minecraft.client.Camera;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.SingleQuadParticle;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.client.renderer.state.level.QuadParticleRenderState;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
@@ -102,6 +104,27 @@ public class FootprintParticle extends SingleQuadParticle {
 
         if (this.age++ >= this.lifetime) {
             this.remove();
+            return;
+        }
+
+        // The print rests on a block's surface; if that block was removed (mined, moved,
+        // exploded) or its surface dropped (a multi-layer snow stack partially removed),
+        // the print would otherwise keep floating in mid-air until its lifetime expires.
+        // Probe just below the print - the particle sits ~0.02 above the surface, so the
+        // block under y-0.05 is the supporting block. Compare against the visual surface
+        // (getShape, same convention as spawnPrint's snow-layer handling): a print is
+        // unsupported if the surface is more than a third of a block below it.
+        final var below = BlockPos.containing(this.x, this.y - 0.05D, this.z);
+        final var belowState = this.level.getBlockState(below);
+        if (belowState.isAir()) {
+            this.remove();
+        } else {
+            final var shape = belowState.getShape(this.level, below);
+            if (!shape.isEmpty()) {
+                final double surfaceY = below.getY() + shape.max(Direction.Axis.Y);
+                if (this.y - surfaceY > 0.35D)
+                    this.remove();
+            }
         }
     }
 }

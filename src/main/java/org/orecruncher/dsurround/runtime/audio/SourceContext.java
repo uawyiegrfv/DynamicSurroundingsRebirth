@@ -15,8 +15,12 @@ import java.util.concurrent.Callable;
 
 public final class SourceContext implements Callable<Void> {
 
-    // Frequency of sound effect updates in thread schedule ticks.  Works out to be 3 times a second.
-    private static final int UPDATE_FEQUENCY_TICKS = 7;
+    // Frequency of sound effect updates in thread schedule ticks.  Works out to be roughly once a
+    // second. Occlusion/reverb parameters are slow-varying environmental values - a full ray-trace
+    // pass (32 rays x up to 4 bounces each) per source is expensive, and at 7 ticks (~3/s) the
+    // background threads saturate in dense sound scenes (e.g. a cave full of mobs), stealing CPU
+    // from the render thread. Once per second is imperceptible for reverb/occlusion.
+    private static final int UPDATE_FEQUENCY_TICKS = 20;
 
     private final Object sync = new Object();
     private final LowPassData lowPass0;

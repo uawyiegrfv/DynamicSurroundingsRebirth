@@ -3,6 +3,7 @@ package org.orecruncher.dsurround.processing;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -105,7 +106,10 @@ public class FootstepGenerator extends AbstractClientHandler {
             // unlike most materials which use dots — the key must match the resolved
             // material path exactly.
             Map.entry("footsteps/dirt_path", GRASS_LAND),
-            Map.entry("footsteps.leaves_through", new LandComposition(fs("footsteps.dirt_land"), fs("footsteps.dirt"), fs("footsteps.dirt_run"))));
+            Map.entry("footsteps.leaves_through", new LandComposition(fs("footsteps.dirt_land"), fs("footsteps.dirt"), fs("footsteps.dirt_run"))),
+            // Leaf litter lands with a crisp crunch - a single short step sound for the
+            // primary (no layered secondary), with a delayed echo of the same crunch.
+            Map.entry("footsteps.leaves_crunch", new LandComposition(fs("footsteps.leaves_crunch"), null, fs("footsteps.leaves_crunch"))));
 
     private final IAudioPlayer audioPlayer;
 
@@ -119,6 +123,11 @@ public class FootstepGenerator extends AbstractClientHandler {
     private double dmwBase = 0D;
     private double yPosition = 0D;
     private Vec3 lastPos;
+    // Leaf-litter steps play once per block position (mirroring the brush-step "messyPos"
+    // dedup in StepThroughBrushEffect): lingering on the same litter cell does not
+    // re-trigger the crunch on every stride - it fires again only after leaving the
+    // cell and re-entering (the position changes).
+    private BlockPos lastLeafLitterPos;
 
     // Delayed landing echo: the landing sound plays again ~1 tick (50ms) later at lower
     // volume, matching the original 1.12.2 delayed land composition.
@@ -265,6 +274,17 @@ public class FootstepGenerator extends AbstractClientHandler {
             }
         }
 
+        // Leaf litter follows the brush-step "messyPos" convention: play only once per
+        // block position so an entity walking around within the same litter cell does not
+        // re-trigger the crunch every stride. It fires again only after the entity leaves
+        // the cell and re-enters (the position changes).
+        if (state.getBlock() instanceof net.minecraft.world.level.block.LeafLitterBlock) {
+            var feetPos = player.blockPosition();
+            if (feetPos.equals(this.lastLeafLitterPos))
+                return;
+            this.lastLeafLitterPos = feetPos;
+        }
+
         var feetPos = player.blockPosition();
         // Resolve the factory by its location (sound_factories.json maps the location to
         // a sound event). Some step materials have a dedicated factory whose location is
@@ -372,10 +392,11 @@ public class FootstepGenerator extends AbstractClientHandler {
      */
     private static BlockState resolveSurfaceBlock(Player player, Level level, BlockPos pos) {
         // Priority order (see the footstep material resolution):
-        // 1. A snow layer the player's feet are in (pos.above()). The player stands on
-        //    snow and its step sound must win over the grass below. Vanilla's
-        //    mainSupportingBlockPos cannot be used for this: a 1-layer snow has an almost
-        //    empty collision box, so collision detection reports the block underneath.
+        // 1. A snow layer or leaf litter the player's feet are in (pos.above()). The player
+        //    stands on these and their step sound must win over the block below. Vanilla's
+        //    mainSupportingBlockPos cannot be used for this: a 1-layer snow and leaf litter
+        //    are registered noCollision() (an almost empty collision box), so collision
+        //    detection reports the block underneath.
         // 2. Vanilla's collision-derived support block (mainSupportingBlockPos). This is the
         //    most reliable "what is the player actually standing on" answer: it uses the
         //    entity's collision box against block shapes, so thin/partial blocks
@@ -389,9 +410,35 @@ public class FootstepGenerator extends AbstractClientHandler {
         // 5. Horizontal scan for the nearest solid block when the player is over an edge.
 
         var footState = level.getBlockState(pos.above());
-        if (footState.getBlock() instanceof net.minecraft.world.level.block.SnowLayerBlock
-                && footState.getFluidState().isEmpty())
+        if (footState.getFluidState().isEmpty()
+                && (footState.getBlock() instanceof net.minecraft.world.level.block.SnowLayerBlock
+                        || footState.getBlock() instanceof net.minecraft.world.level.block.LeafLitterBlock))
             return footState;
+
+        // The single pos.above() probe above misses the block-edge case: standing at the
+        // edge of a snow layer / leaf litter patch, the feet overlap two cells and
+        // blockPosition() (floor of the feet centre) can land on the snow-free neighbour,
+        // so the surface falls through to the block underneath. A 1-layer snow has a
+        // zero-height collision shape (getCollisionShape uses SHAPES[LAYERS-1]) and leaf
+        // litter is noCollision(), so vanilla's collision-derived mainSupportingBlockPos
+        // can't see them either. Scan every cell the feet actually overlap, like vanilla's
+        // findSupportingBlock does with the entity AABB, but using the visual surface.
+        var feetBox = player.getBoundingBox();
+        int xMin = Mth.floor(feetBox.minX);
+        int xMax = Mth.floor(feetBox.maxX - 1.0E-3D);
+        int zMin = Mth.floor(feetBox.minZ);
+        int zMax = Mth.floor(feetBox.maxZ - 1.0E-3D);
+        int feetY = pos.getY() + 1;
+        for (int x = xMin; x <= xMax; x++) {
+            for (int z = zMin; z <= zMax; z++) {
+                var cell = level.getBlockState(new BlockPos(x, feetY, z));
+                if (cell.getFluidState().isEmpty()
+                        && (cell.getBlock() instanceof net.minecraft.world.level.block.SnowLayerBlock
+                                || cell.getBlock() instanceof net.minecraft.world.level.block.LeafLitterBlock)) {
+                    return cell;
+                }
+            }
+        }
 
         var supportPos = player.mainSupportingBlockPos.orElse(null);
         if (supportPos != null && player.onGround()) {

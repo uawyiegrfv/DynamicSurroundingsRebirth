@@ -38,6 +38,7 @@
   "dsurround.sound.caption.footsteps.water_through": "Woda pluska",
   "dsurround.sound.caption.footsteps.brush_through": "Liście szeleszczą",
   "dsurround.sound.caption.footsteps.leaves_through": "Liście trzeszczą",
+  "dsurround.sound.caption.footsteps.leaves_crunch": "Chrzęst suchych liści",
   "dsurround.sound.caption.footsteps.floor_squeak": "Podłoga skrzypi",
   "dsurround.format.TimeOfDay": "Dzień %1$d, %2$d:%3$s %4$s (%5$s)",
   "dsurround.format.AM": "AM",

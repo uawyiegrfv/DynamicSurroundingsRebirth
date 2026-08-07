@@ -448,7 +448,7 @@
     "soundEvent": "minecraft:block.leaf_litter.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.leaves_through"
+        "factory": "dsurround:footsteps.leaves_crunch"
       }
     ]
   },

@@ -1280,6 +1280,20 @@
       "dsurround:footsteps/leaves/leaves_through7"
     ]
   },
+  "footsteps.leaves_crunch": {
+    "ds_category": "player",
+    "subtitle": "dsurround.sound.caption.footsteps.leaves_crunch",
+    "sounds": [
+      "dsurround:footsteps/leaves_crunch/leaves_crunch1",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch2",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch3",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch4",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch5",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch6",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch7",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch8"
+    ]
+  },
   "footsteps.bluntwood": {
     "ds_category": "player",
     "subtitle": "dsurround.sound.caption.footsteps.bluntwood",

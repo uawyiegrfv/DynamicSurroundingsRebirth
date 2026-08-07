@@ -25,6 +25,7 @@
     "core.MixinClothAbstractConfigEntry",
     "core.MixinEntity",
     "core.MixinEntityArrow",
+    "core.MixinFallingBlockEntity",
     "core.MixinLivingEntity",
     "core.MixinParticleManager",
     "core.MixinParticleResources",

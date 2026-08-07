@@ -20,6 +20,8 @@
   "dsurround.config.blockEffects.bubbleColumnEnabled.tooltip": "Enable/disable bubble columns generated underwater",
   "dsurround.config.blockEffects.dustJetEnabled": "Dust Jets",
   "dsurround.config.blockEffects.dustJetEnabled.tooltip": "Enable/disable dust falling from floating blocks (like dirt ledges)",
+  "dsurround.config.blockEffects.fallingBlockDustEnabled": "Falling Block Dust",
+  "dsurround.config.blockEffects.fallingBlockDustEnabled.tooltip": "Enable/disable dust clouds kicked up when sand or gravel lands",
   "dsurround.config.blockEffects.enableMagmaSteam": "Magma Steam",
   "dsurround.config.blockEffects.enableMagmaSteam.tooltip": "Enable/disable steam/smoke when rain hits magma or netherrack",
   "dsurround.config.blockEffects.enableWaterfallParticles": "Waterfall Particles",

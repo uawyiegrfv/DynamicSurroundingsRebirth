@@ -14,6 +14,8 @@
   "dsurround.config.blockEffects.bubbleColumnEnabled.tooltip": "启用/禁用 在水下生成气泡柱",
   "dsurround.config.blockEffects.dustJetEnabled": "落灰",
   "dsurround.config.blockEffects.dustJetEnabled.tooltip": "启用/禁用 浮空方块（如泥土悬空边沿）飘落的尘土",
+  "dsurround.config.blockEffects.fallingBlockDustEnabled": "落块扬尘",
+  "dsurround.config.blockEffects.fallingBlockDustEnabled.tooltip": "启用/禁用 沙子或砂砾落地时扬起的尘雾",
   "dsurround.config.blockEffects.enableMagmaSteam": "岩浆蒸汽",
   "dsurround.config.blockEffects.enableMagmaSteam.tooltip": "启用/禁用 雨水落在岩浆或下界岩上产生的蒸汽/烟雾",
   "dsurround.config.blockEffects.enableWaterfallParticles": "瀑布粒子",

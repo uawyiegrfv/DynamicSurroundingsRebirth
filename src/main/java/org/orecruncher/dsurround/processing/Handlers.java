@@ -91,6 +91,10 @@ public class Handlers {
         this.register(FogHandler.class);
         this.register(WeatherStormHandler.class);
 
+        // Smoke kicked up by falling sand/gravel - not per-tick, resolve to force
+        // construction so its EntityJoinLevelEvent listener is registered.
+        ContainerManager.resolve(FallDustCloudHandler.class);
+
         ClientState.TICK_END.register(this::tick);
         ClientState.ON_CONNECT.register(this::onConnect);
         ClientState.ON_DISCONNECT.register(this::onDisconnect);
@@ -205,6 +209,7 @@ public class Handlers {
             .registerSingleton(StepAccentGenerator.class)
             .registerSingleton(FogHandler.class)
             .registerSingleton(WeatherStormHandler.class)
+            .registerSingleton(FallDustCloudHandler.class)
             .registerSingleton(AuroraEffectHandler.class)
             .registerSingleton(Handlers.class);
     }

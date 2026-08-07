@@ -2,7 +2,9 @@ package org.orecruncher.dsurround.eventing;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.Level;
 import org.orecruncher.dsurround.lib.events.EventingFactory;
 import org.orecruncher.dsurround.lib.events.IPhasedEvent;
 
@@ -35,6 +37,21 @@ public final class ClientEventHooks {
             callback.onStep(entity, blockPos, blockState);
         }
     });
+
+    /**
+     * Fired when a FallingBlockEntity settles on the client (the reliable landing moment,
+     * observed in the entity's own tick before the server removes it).
+     */
+    public static final IPhasedEvent<IFallingBlockLand> FALLING_BLOCK_LAND_EVENT = EventingFactory.createPrioritizedEvent(callbacks -> (entity, level, blockPos) -> {
+        for (var callback : callbacks) {
+            callback.onLand(entity, level, blockPos);
+        }
+    });
+
+    @FunctionalInterface
+    public interface IFallingBlockLand {
+        void onLand(FallingBlockEntity entity, Level level, BlockPos blockPos);
+    }
 
     @FunctionalInterface
     public interface IBlockUpdates {

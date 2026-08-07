@@ -211,6 +211,10 @@ public class Configuration extends ConfigurationData {
         public boolean dustJetEnabled = true;
 
         @Property
+        @Comment("Enable/disable dust clouds kicked up when sand or gravel lands")
+        public boolean fallingBlockDustEnabled = true;
+
+        @Property
         @Comment("Enable/disable waterfall effect from flowing water")
         public boolean waterfallsEnabled = true;
 

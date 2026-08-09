@@ -94,6 +94,24 @@
       }
     ]
   },
+  "biome.leaf_wind": {
+    "subtitle": "dsurround.sound.caption.leaf_wind",
+    "ds_credits": [
+      {
+        "name": "Leaves rustle in the wind (50.5s-60.5s excerpt)",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/leaf_wind",
+        "stream": true,
+        "volume": 1.5
+      }
+    ]
+  },
   "biome.wind.hills": {
     "subtitle": "dsurround.sound.caption.wind",
     "ds_credits": [
@@ -1289,9 +1307,14 @@
       "dsurround:footsteps/leaves_crunch/leaves_crunch3",
       "dsurround:footsteps/leaves_crunch/leaves_crunch4",
       "dsurround:footsteps/leaves_crunch/leaves_crunch5",
-      "dsurround:footsteps/leaves_crunch/leaves_crunch6",
-      "dsurround:footsteps/leaves_crunch/leaves_crunch7",
-      "dsurround:footsteps/leaves_crunch/leaves_crunch8"
+      "dsurround:footsteps/leaves_crunch/leaves_crunch6"
+    ]
+  },
+  "footsteps.leaves_crunch_land": {
+    "ds_category": "player",
+    "subtitle": "dsurround.sound.caption.footsteps.leaves_crunch",
+    "sounds": [
+      "dsurround:footsteps/leaves_crunch/leaves_crunch_land"
     ]
   },
   "footsteps.bluntwood": {

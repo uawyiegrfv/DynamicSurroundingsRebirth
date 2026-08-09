@@ -107,9 +107,9 @@ public class FootstepGenerator extends AbstractClientHandler {
             // material path exactly.
             Map.entry("footsteps/dirt_path", GRASS_LAND),
             Map.entry("footsteps.leaves_through", new LandComposition(fs("footsteps.dirt_land"), fs("footsteps.dirt"), fs("footsteps.dirt_run"))),
-            // Leaf litter lands with a crisp crunch - a single short step sound for the
-            // primary (no layered secondary), with a delayed echo of the same crunch.
-            Map.entry("footsteps.leaves_crunch", new LandComposition(fs("footsteps.leaves_crunch"), null, fs("footsteps.leaves_crunch"))));
+            // Leaf litter lands with a single heavier crunch - a dedicated landing recording
+            // for the primary, no secondary layer and no delayed echo.
+            Map.entry("footsteps.leaves_crunch", new LandComposition(fs("footsteps.leaves_crunch_land"), null, null)));
 
     private final IAudioPlayer audioPlayer;
 
@@ -329,10 +329,12 @@ public class FootstepGenerator extends AbstractClientHandler {
                         .build();
                 this.audioPlayer.play(secondary.createAtLocation(feetPos, 1.0F));
             }
-            var echo = SoundFactoryBuilder.create(comp.echo())
-                    .category(net.minecraft.sounds.SoundSource.PLAYERS)
-                    .build();
-            this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(feetPos, LAND_ECHO_VOLUME), this.tickCount + LAND_ECHO_DELAY_TICKS));
+            if (comp.echo() != null) {
+                var echo = SoundFactoryBuilder.create(comp.echo())
+                        .category(net.minecraft.sounds.SoundSource.PLAYERS)
+                        .build();
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(feetPos, LAND_ECHO_VOLUME), this.tickCount + LAND_ECHO_DELAY_TICKS));
+            }
         } else {
             // Fallback: material's own land/run + walk@50 + echo.
             var landLoc = resolveLandSound(player);

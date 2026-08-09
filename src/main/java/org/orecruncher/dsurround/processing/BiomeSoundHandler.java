@@ -4,19 +4,25 @@ import it.unimi.dsi.fastutil.Hash;
 import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Player;
 import org.orecruncher.dsurround.config.libraries.IBiomeLibrary;
 import org.orecruncher.dsurround.Configuration;
+import org.orecruncher.dsurround.Constants;
+import org.orecruncher.dsurround.config.BiomeTrait;
 import org.orecruncher.dsurround.config.SyntheticBiome;
 import org.orecruncher.dsurround.config.SoundEventType;
 import org.orecruncher.dsurround.config.biome.BiomeInfo;
 import org.orecruncher.dsurround.eventing.CollectDiagnosticsEvent;
+import org.orecruncher.dsurround.lib.DayCycle;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.lib.collections.ObjectArray;
+import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.lib.math.MathStuff;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
 import org.orecruncher.dsurround.sound.ISoundFactory;
+import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 
 public final class BiomeSoundHandler extends AbstractClientHandler {
 
@@ -33,6 +39,15 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private final IAudioPlayer audioPlayer;
     private final ITickCount tickCount;
     private final Scanners scanner;
+
+    // Leaf-wind gust in wooded biomes: an independent intermittent sound so it does not
+    // share the mood chance with bird calls etc. Scanned every 4 ticks (~0.2s), so a
+    // gust every ~3 minutes in daytime and ~1 minute at night:
+    //   day   = 1 / (180s / 0.2s) = 1/900  ~ 0.0011
+    //   night = 1 / (60s  / 0.2s) = 1/300  ~ 0.0033
+    private static final Identifier LEAF_WIND = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.leaf_wind");
+    private static final float LEAF_WIND_DAY_CHANCE = 0.0011F;
+    private static final float LEAF_WIND_NIGHT_CHANCE = 0.0033F;
 
     // Scratch map used for calculating what sounds need to be playing
     private final Object2FloatOpenHashMap<ISoundFactory> workMap = new Object2FloatOpenHashMap<>(8, Hash.DEFAULT_LOAD_FACTOR);
@@ -121,6 +136,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                     handleAddOnSounds(player, internalPlayerBiomeInfo);
                 if (internalVillageBiomeInfo != null)
                     handleAddOnSounds(player, internalVillageBiomeInfo);
+                handleLeafWindGust(player);
             }
         }
 
@@ -142,6 +158,42 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             var instance = s.createAsAdditional();
             this.audioPlayer.play(instance);
         });
+    }
+
+    /**
+     * Intermittent gust of wind rustling the leaves in any wooded biome. Independent of the
+     * mood chance (which is shared across all mood sounds in a biome), so it never inflates
+     * the frequency of bird calls etc. More likely at night. Fires once per scan interval
+     * (4 ticks) with its own probability; plays a short gust at a random spot near the player.
+     */
+    private void handleLeafWindGust(Player player) {
+        if (this.config.soundOptions.enableBiomeSounds && !this.scanner.isInside()) {
+            var biome = this.scanner.playerLogicBiomeInfo();
+            if (biome != null && isWooded(biome)) {
+                // Rain and snow cover the sound; skip then.
+                var level = player.level();
+                if (level.isRaining())
+                    return;
+
+                float chance = DayCycle.isNighttime(level) ? LEAF_WIND_NIGHT_CHANCE : LEAF_WIND_DAY_CHANCE;
+                if (RANDOM.nextDouble() < chance) {
+                    var factory = ContainerManager.resolve(ISoundLibrary.class)
+                            .getSoundFactoryOrDefault(LEAF_WIND);
+                    var offset = MathStuff.randomPoint(MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
+                    var instance = factory.createAtLocation(player.getEyePosition().add(offset), 1.0F);
+                    this.audioPlayer.play(instance);
+                }
+            }
+        }
+    }
+
+    /** True if the biome is wooded (any tree-bearing biome). */
+    private static boolean isWooded(BiomeInfo biome) {
+        var traits = biome.getTraits();
+        return traits.contains(BiomeTrait.FOREST)
+                || traits.contains(BiomeTrait.CONIFEROUS)
+                || traits.contains(BiomeTrait.DECIDUOUS)
+                || traits.contains(BiomeTrait.JUNGLE);
     }
 
     private static SimpleSoundInstance createMoodInstance(Player player, ISoundFactory factory, float volumeScale) {

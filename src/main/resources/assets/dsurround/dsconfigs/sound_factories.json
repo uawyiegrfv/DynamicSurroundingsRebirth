@@ -578,6 +578,15 @@
     }
   },
   {
+    "location": "dsurround:footsteps.leaves_crunch_land",
+    "soundEvent": "dsurround:footsteps.leaves_crunch_land",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.9,
+      "max": 1.1
+    }
+  },
+  {
     "location": "dsurround:footsteps.brush_through",
     "soundEvent": "dsurround:footsteps.brush_through",
     "category": "PLAYER",

@@ -47,6 +47,10 @@ public class Configuration extends ConfigurationData {
     public final CompassAndClockOptions compassAndClockOptions = new CompassAndClockOptions();
 
     @Property
+    @Comment("Configuration options for the map distance overlay")
+    public final MapOptions mapOptions = new MapOptions();
+
+    @Property
     @Comment("Configuration options for fog effects")
     public final FogOptions fogOptions = new FogOptions();
 
@@ -378,6 +382,12 @@ public class Configuration extends ConfigurationData {
         @Comment("Scales the display by the specified amount")
         @DoubleRange(min = 0.5D, max = 4D)
         public double scale = 1D;
+    }
+
+    public static class MapOptions {
+        @Property
+        @Comment("Enable/disable showing the distance to the treasure target on explorer maps")
+        public boolean enableTreasureDistance = true;
     }
 
     public static class WeatherOptions {

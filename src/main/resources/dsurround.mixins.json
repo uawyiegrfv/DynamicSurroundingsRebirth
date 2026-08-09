@@ -27,6 +27,7 @@
     "core.MixinEntityArrow",
     "core.MixinFallingBlockEntity",
     "core.MixinLivingEntity",
+    "core.MixinMapRenderer",
     "core.MixinParticleManager",
     "core.MixinParticleResources",
     "core.MixinRainSplashParticle",

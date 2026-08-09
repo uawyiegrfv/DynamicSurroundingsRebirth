@@ -372,8 +372,20 @@
     "fogDensity": "heavy"
   },
   {
-    "biomeSelector": "UNDERGROUND",
-    "_comment": "Caves and being underground",
+    "biomeSelector": "biome.id == 'minecraft:deep_dark'",
+    "_comment": "Deep Dark: drone + faint heartbeat loops",
+    "acoustics": [
+      {
+        "factory": "biome.deep_dark"
+      },
+      {
+        "factory": "biome.deep_dark_heartbeat"
+      }
+    ]
+  },
+  {
+    "biomeSelector": "UNDERGROUND && biome.id != 'minecraft:deep_dark'",
+    "_comment": "Caves and being underground (Deep Dark has its own ambience below)",
     "acoustics": [
       {
         "factory": "biome.underground",

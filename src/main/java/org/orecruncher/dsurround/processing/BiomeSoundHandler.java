@@ -49,6 +49,15 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final float LEAF_WIND_DAY_CHANCE = 0.0011F;
     private static final float LEAF_WIND_NIGHT_CHANCE = 0.0033F;
 
+    // Intermittent sculk clicking in the Deep Dark, reminiscent of sculk sensors.
+    // Independent of the shared mood chance. Scanned every 4 ticks (~0.2s), so a
+    // burst every ~2 minutes: 1 / (120s / 0.2s) = 1/600 ~ 0.0017
+    private static final Identifier SCULK_CLICK = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.sculk_click");
+    private static final float SCULK_CLICK_CHANCE = 0.0017F;
+    private static final Identifier DEEP_DARK_BIOME = Identifier.fromNamespaceAndPath("minecraft", "deep_dark");
+    private static final Identifier DEEP_DARK_DRONE = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.deep_dark");
+    private static final Identifier DEEP_DARK_HEARTBEAT = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.deep_dark_heartbeat");
+
     // Scratch map used for calculating what sounds need to be playing
     private final Object2FloatOpenHashMap<ISoundFactory> workMap = new Object2FloatOpenHashMap<>(8, Hash.DEFAULT_LOAD_FACTOR);
     // List of emitters that are managing the currently playing biome-related sounds
@@ -74,14 +83,17 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         // occupied. This will result in the sounds for the most dominant biomes being louder
         // than the others.
         final float area = this.scanner.getBiomeArea();
+        final boolean inside = this.scanner.isInside();
         // Indoor ambient sounds are heavily attenuated so outdoor ambience does
         // not carry through walls and ceilings.
-        final float indoorScale = this.scanner.isInside() ? INDOOR_VOLUME_SCALE : 1.0F;
         for (var kvp : this.scanner.getBiomes().reference2IntEntrySet()) {
             var acoustics = kvp.getKey().findBiomeSoundMatches();
-            final float volume = indoorScale * (0.05F + 0.95F * (kvp.getIntValue() / area));
+            final float areaScale = 0.05F + 0.95F * (kvp.getIntValue() / area);
             for (var acoustic : acoustics) {
-                this.workMap.addTo(acoustic, volume);
+                // The Deep Dark is a naturally underground biome; its own ambience loops
+                // must not be attenuated as if they were outdoor sound leaking inside.
+                final float scale = (inside && !isDeepDarkAmbience(acoustic)) ? INDOOR_VOLUME_SCALE : 1.0F;
+                this.workMap.addTo(acoustic, scale * areaScale);
             }
         }
     }
@@ -137,6 +149,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 if (internalVillageBiomeInfo != null)
                     handleAddOnSounds(player, internalVillageBiomeInfo);
                 handleLeafWindGust(player);
+                handleSculkClick(player);
             }
         }
 
@@ -185,6 +198,31 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 }
             }
         }
+    }
+
+    /**
+     * Intermittent sculk clicking in the Deep Dark, reminiscent of sculk sensors.
+     * Independent of the shared mood chance, so it never inflates other mood sounds.
+     * Plays a short burst of clicks at a random spot near the player.
+     */
+    private void handleSculkClick(Player player) {
+        if (this.config.soundOptions.enableBiomeSounds) {
+            var biome = this.scanner.playerLogicBiomeInfo();
+            if (biome != null && DEEP_DARK_BIOME.equals(biome.getBiomeId())
+                    && RANDOM.nextDouble() < SCULK_CLICK_CHANCE) {
+                var factory = ContainerManager.resolve(ISoundLibrary.class)
+                        .getSoundFactoryOrDefault(SCULK_CLICK);
+                var offset = MathStuff.randomPoint(MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
+                var instance = factory.createAtLocation(player.getEyePosition().add(offset), 1.0F);
+                this.audioPlayer.play(instance);
+            }
+        }
+    }
+
+    /** True if this acoustic is one of the Deep Dark's own ambience loops (drone or heartbeat). */
+    private static boolean isDeepDarkAmbience(ISoundFactory acoustic) {
+        var loc = acoustic.getLocation();
+        return DEEP_DARK_DRONE.equals(loc) || DEEP_DARK_HEARTBEAT.equals(loc);
     }
 
     /** True if the biome is wooded (any tree-bearing biome). */

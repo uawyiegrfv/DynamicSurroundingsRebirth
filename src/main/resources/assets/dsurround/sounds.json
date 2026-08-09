@@ -112,6 +112,40 @@
       }
     ]
   },
+  "biome.deep_dark": {
+    "subtitle": "dsurround.sound.caption.deep_dark",
+    "ds_credits": [
+      {
+        "name": "Deep Dark drone ambience (war drone ambience + all-comments)",
+        "author": "bowesy / the_odds",
+        "website": "https://www.freesound.org",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/deep_dark/drone",
+        "stream": true
+      }
+    ]
+  },
+  "biome.sculk_click": {
+    "subtitle": "dsurround.sound.caption.sculk_click",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/deep_dark/sculk_click"
+      }
+    ]
+  },
+  "biome.deep_dark_heartbeat": {
+    "subtitle": "dsurround.sound.caption.deep_dark_heartbeat",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/deep_dark/heartbeat",
+        "stream": true
+      }
+    ]
+  },
   "biome.wind.hills": {
     "subtitle": "dsurround.sound.caption.wind",
     "ds_credits": [

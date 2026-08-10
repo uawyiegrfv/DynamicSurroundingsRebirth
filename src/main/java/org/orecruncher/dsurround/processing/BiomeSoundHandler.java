@@ -93,7 +93,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 // The Deep Dark is a naturally underground biome; its own ambience loops
                 // must not be attenuated as if they were outdoor sound leaking inside.
                 final float scale = (inside && !isDeepDarkAmbience(acoustic)) ? INDOOR_VOLUME_SCALE : 1.0F;
-                this.workMap.addTo(acoustic, scale * areaScale);
+                this.workMap.addTo(acoustic, scale * areaScale * dsBiomeVolume());
             }
         }
     }
@@ -193,7 +193,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                     var factory = ContainerManager.resolve(ISoundLibrary.class)
                             .getSoundFactoryOrDefault(LEAF_WIND);
                     var offset = MathStuff.randomPoint(MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
-                    var instance = factory.createAtLocation(player.getEyePosition().add(offset), 1.0F);
+                    var instance = factory.createAtLocation(player.getEyePosition().add(offset), dsBiomeVolume());
                     this.audioPlayer.play(instance);
                 }
             }
@@ -213,7 +213,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 var factory = ContainerManager.resolve(ISoundLibrary.class)
                         .getSoundFactoryOrDefault(SCULK_CLICK);
                 var offset = MathStuff.randomPoint(MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
-                var instance = factory.createAtLocation(player.getEyePosition().add(offset), 1.0F);
+                var instance = factory.createAtLocation(player.getEyePosition().add(offset), dsBiomeVolume());
                 this.audioPlayer.play(instance);
             }
         }
@@ -234,14 +234,18 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 || traits.contains(BiomeTrait.JUNGLE);
     }
 
-    private static SimpleSoundInstance createMoodInstance(Player player, ISoundFactory factory, float volumeScale) {
-        if (volumeScale == 1.0F)
+    private SimpleSoundInstance createMoodInstance(Player player, ISoundFactory factory, float volumeScale) {
+        var scale = volumeScale * dsBiomeVolume();
+        if (scale == 1.0F)
             return factory.createAsMood(player, MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
         // createAsMood() has no volume control, so rebuild the same random-offset
         // instance manually with an attenuated volume when inside.
         var offset = MathStuff.randomPoint(MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
-        return factory.createAtLocation(player.getEyePosition().add(offset), volumeScale);
+        return factory.createAtLocation(player.getEyePosition().add(offset), scale);
     }
+
+    // Config-driven volume multiplier applied to biome ambience (sound-options slider).
+    private float dsBiomeVolume() { return (float) this.config.soundOptions.biomeVolume; }
 
     private void queueAmbientSounds() {
         // Iterate through the existing emitters:

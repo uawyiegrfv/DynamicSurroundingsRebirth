@@ -7,6 +7,7 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -259,6 +260,23 @@ public final class SoundLibrary implements ISoundLibrary {
         } else if (!this.config.soundOptions.remapSounds) {
             // If it is not a thunder sound and remap is disabled
             return Optional.empty();
+        }
+
+        // When the footstep volume slider is at zero, don't remap step sounds so the
+        // vanilla footsteps play instead of the DS replacements.
+        if (soundLocation.getPath().endsWith(".step") && this.config.soundOptions.footstepVolume <= 0)
+            return Optional.empty();
+
+        // Climbing surfaces (ladder, vine, bamboo, scaffolding, ...) keep their vanilla
+        // step sound: the FootstepGenerator plays the original event for climbing steps
+        // (louder), and this would otherwise remap it back to the DS material sound.
+        if (soundLocation.getPath().endsWith(".step")) {
+            var world = GameUtils.getWorld().orElse(null);
+            if (world != null) {
+                var pos = BlockPos.containing(soundInstance.getX(), soundInstance.getY(), soundInstance.getZ());
+                if (world.getBlockState(pos).is(BlockTags.CLIMBABLE))
+                    return Optional.empty();
+            }
         }
 
         // Mob step sounds (entity.<type>.step) are converted to the surface block's step

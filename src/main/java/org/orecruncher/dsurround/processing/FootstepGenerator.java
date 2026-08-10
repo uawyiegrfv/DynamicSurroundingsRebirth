@@ -51,12 +51,17 @@ public class FootstepGenerator extends AbstractClientHandler {
     // Landing echo: delay in ticks (2 = ~100ms) and volume of the second "thud".
     private static final int LAND_ECHO_DELAY_TICKS = 2;
     private static final float LAND_ECHO_VOLUME = 1.0F;
+    // Climbing steps play the vanilla surface step sound; the boost was left at 1.0
+    // (no amplification) after user feedback that louder values were too strong.
+    private static final float CLIMB_VOLUME_BOOST = 1.0F;
 
     private static float strideWalk() { return VARIATORS.getPlayerVariator().stride(); }
     private static float strideRun() { return VARIATORS.getPlayerVariator().stride() * 1.06F; }
     private static float strideLadder() { return VARIATORS.getPlayerVariator().strideLadder(); }
     private static float landHardDistanceMin() { return VARIATORS.getPlayerVariator().landHardDistanceMin(); }
     private static float footstepVolume() { return VARIATORS.getPlayerVariator().volumeScale(); }
+    // Config-driven volume multiplier applied to every footstep sound (sound-options slider).
+    private float dsFootstepVolume() { return (float) this.config.soundOptions.footstepVolume; }
 
     // Per-material landing composition ported from the original 1.12.2 mcp.json land
     // entries: primary "thud" + optional walk layer at 50% + delayed echo. Keyed on the
@@ -145,9 +150,10 @@ public class FootstepGenerator extends AbstractClientHandler {
     public void process(final Player player) {
         this.tickCount++;
 
-        // Master switch: when footsteps are disabled, drop any pending echoes so
-        // they don't fire after re-enabling.
-        if (!this.config.entityEffects.enableFootstepSounds) {
+        // Master switch: when footsteps are disabled (or the footstep volume slider is
+        // at zero, restoring the vanilla footsteps), drop any pending echoes so they
+        // don't fire after re-enabling.
+        if (!this.config.entityEffects.enableFootstepSounds || this.config.soundOptions.footstepVolume <= 0) {
             this.pendingEchoes.clear();
             return;
         }
@@ -207,6 +213,10 @@ public class FootstepGenerator extends AbstractClientHandler {
                 final double dx = pos.x - this.lastPos.x;
                 final double dz = pos.z - this.lastPos.z;
                 step = Math.hypot(dx, dz);
+                // Climbing a ladder is mostly vertical motion; the horizontal distance
+                // alone never accumulates enough to trigger a step while climbing.
+                if (onLadder)
+                    step += Math.abs(pos.y - this.lastPos.y);
                 this.distanceWalked += step * 0.6D;
             }
             this.lastPos = pos;
@@ -242,8 +252,13 @@ public class FootstepGenerator extends AbstractClientHandler {
         if (player.isSpectator() || player.isSilent())
             return;
 
+        final boolean climbing = player.onClimbable() && !player.onGround();
         final var pos = player.blockPosition().below();
-        final var state = resolveSurfaceBlock(player, player.level(), pos);
+        // While climbing, the surface is the climbable block the player is inside
+        // (ladder/vine/bamboo/...), not whatever resolveSurfaceBlock finds below.
+        final var state = climbing
+                ? player.level().getBlockState(player.blockPosition())
+                : resolveSurfaceBlock(player, player.level(), pos);
         if (this.logger.isDebugging())
             this.logger.debug("Step at %s, pos %s, state %s, footY %.3f", player.blockPosition(), pos, state, player.position().y);
         if (state.isAir() || !state.getFluidState().isEmpty())
@@ -258,19 +273,23 @@ public class FootstepGenerator extends AbstractClientHandler {
         Identifier soundLoc = stepSound.location();
         var accents = List.<Identifier>of();
 
-        // If the step sound is remapped to a DS footstep material, play that material
-        // sound directly so we can pick the walk/run variant. Running uses the material's
-        // *_run sound event when one exists, giving the heavier cadence of the original.
-        var remap = SOUND_LIBRARY.getRemappedSound(stepSound, state);
-        if (remap.isPresent()) {
-            soundLoc = remap.get().factory();
-            accents = remap.get().accents();
-            if (running) {
-                // getSound() returns the MISSING placeholder for unregistered sounds, so use
-                // isSoundRegistered() to detect the run variant actually exists.
-                var runLoc = materialVariant(soundLoc, "_run");
-                if (runLoc != null)
-                    soundLoc = runLoc;
+        // Climbing (ladder/vine/bamboo/...) plays the vanilla surface step sound louder,
+        // matching the original 1.12.2 mod, instead of the DS per-material replacement.
+        if (!climbing) {
+            // If the step sound is remapped to a DS footstep material, play that material
+            // sound directly so we can pick the walk/run variant. Running uses the material's
+            // *_run sound event when one exists, giving the heavier cadence of the original.
+            var remap = SOUND_LIBRARY.getRemappedSound(stepSound, state);
+            if (remap.isPresent()) {
+                soundLoc = remap.get().factory();
+                accents = remap.get().accents();
+                if (running) {
+                    // getSound() returns the MISSING placeholder for unregistered sounds, so use
+                    // isSoundRegistered() to detect the run variant actually exists.
+                    var runLoc = materialVariant(soundLoc, "_run");
+                    if (runLoc != null)
+                        soundLoc = runLoc;
+                }
             }
         }
 
@@ -296,7 +315,7 @@ public class FootstepGenerator extends AbstractClientHandler {
                 // below the sound position) resolves the surface block we are standing on.
                 // Base footstep volume is below the landing volume so the landing stands out
                 // (the original played steps at ~0.4 scale and the landing at full).
-                .createAtLocation(feetPos, footstepVolume());
+                .createAtLocation(feetPos, footstepVolume() * dsFootstepVolume() * (climbing ? CLIMB_VOLUME_BOOST : 1.0F));
         this.audioPlayer.play(sound);
 
         // Layer the simultaneous accents on top of the main step sound (e.g. subtle brush
@@ -304,7 +323,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // simultaneous acoustic compositions.
         for (var accent : accents) {
             var accentSound = SOUND_LIBRARY.getSoundFactoryOrDefault(accent)
-                    .createAtLocation(feetPos, 1.0F);
+                    .createAtLocation(feetPos, dsFootstepVolume());
             this.audioPlayer.play(accentSound);
         }
     }
@@ -321,19 +340,19 @@ public class FootstepGenerator extends AbstractClientHandler {
             var primary = SoundFactoryBuilder.create(comp.primary())
                     .category(net.minecraft.sounds.SoundSource.PLAYERS)
                     .build();
-            this.audioPlayer.play(primary.createAtLocation(feetPos, 1.0F));
+            this.audioPlayer.play(primary.createAtLocation(feetPos, dsFootstepVolume()));
             if (comp.secondary() != null) {
                 var secondary = SoundFactoryBuilder.create(comp.secondary())
                         .category(net.minecraft.sounds.SoundSource.PLAYERS)
                         .volume(0.5F)
                         .build();
-                this.audioPlayer.play(secondary.createAtLocation(feetPos, 1.0F));
+                this.audioPlayer.play(secondary.createAtLocation(feetPos, dsFootstepVolume()));
             }
             if (comp.echo() != null) {
                 var echo = SoundFactoryBuilder.create(comp.echo())
                         .category(net.minecraft.sounds.SoundSource.PLAYERS)
                         .build();
-                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(feetPos, LAND_ECHO_VOLUME), this.tickCount + LAND_ECHO_DELAY_TICKS));
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(feetPos, LAND_ECHO_VOLUME * dsFootstepVolume()), this.tickCount + LAND_ECHO_DELAY_TICKS));
             }
         } else {
             // Fallback: material's own land/run + walk@50 + echo.
@@ -347,15 +366,15 @@ public class FootstepGenerator extends AbstractClientHandler {
             var primary = SoundFactoryBuilder.create(landLoc)
                     .category(net.minecraft.sounds.SoundSource.PLAYERS)
                     .build();
-            this.audioPlayer.play(primary.createAtLocation(feetPos, 1.0F));
+            this.audioPlayer.play(primary.createAtLocation(feetPos, dsFootstepVolume()));
             if (!baseLoc.equals(landLoc)) {
                 var secondary = SoundFactoryBuilder.create(baseLoc)
                         .category(net.minecraft.sounds.SoundSource.PLAYERS)
                         .volume(0.5F)
                         .build();
-                this.audioPlayer.play(secondary.createAtLocation(feetPos, 1.0F));
+                this.audioPlayer.play(secondary.createAtLocation(feetPos, dsFootstepVolume()));
             }
-            this.pendingEchoes.add(new PendingEcho(primary.createAtLocation(feetPos, LAND_ECHO_VOLUME), this.tickCount + LAND_ECHO_DELAY_TICKS));
+            this.pendingEchoes.add(new PendingEcho(primary.createAtLocation(feetPos, LAND_ECHO_VOLUME * dsFootstepVolume()), this.tickCount + LAND_ECHO_DELAY_TICKS));
         }
 
         // Armor clank on landing - play the effective armor's walk accent now and a delayed
@@ -367,9 +386,9 @@ public class FootstepGenerator extends AbstractClientHandler {
         if (armor.isEmpty())
             armor = player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST);
         ITEM_LIBRARY.getEquipableStepAccentSound(armor)
-                .ifPresent(f -> this.audioPlayer.play(f.createAtLocation(feetPos, 1.0F)));
+                .ifPresent(f -> this.audioPlayer.play(f.createAtLocation(feetPos, dsFootstepVolume())));
         ITEM_LIBRARY.getEquipableStepAccentSoundRun(armor)
-                .ifPresent(f -> this.pendingEchoes.add(new PendingEcho(f.createAtLocation(feetPos, LAND_ECHO_VOLUME), this.tickCount + LAND_ECHO_DELAY_TICKS)));
+                .ifPresent(f -> this.pendingEchoes.add(new PendingEcho(f.createAtLocation(feetPos, LAND_ECHO_VOLUME * dsFootstepVolume()), this.tickCount + LAND_ECHO_DELAY_TICKS)));
     }
 
     /**
@@ -529,7 +548,7 @@ public class FootstepGenerator extends AbstractClientHandler {
                 var wander = SoundFactoryBuilder.create(wanderLoc)
                         .category(net.minecraft.sounds.SoundSource.PLAYERS)
                         .build();
-                this.audioPlayer.play(wander.createAtLocation(feetPos, 1.0F));
+                this.audioPlayer.play(wander.createAtLocation(feetPos, dsFootstepVolume()));
             }
         });
     }

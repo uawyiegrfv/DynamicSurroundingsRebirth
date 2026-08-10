@@ -43,6 +43,8 @@
   "dsurround.config.compassAndClockOptions.scale": "渲染缩放比例",
   "dsurround.config.compassAndClockOptions.scale.tooltip": "按指定数值调整指南针的渲染",
   "dsurround.config.mapOptions": "地图距离选项",
+  "dsurround.options.footstepVolume": "脚步",
+  "dsurround.options.biomeVolume": "环境音",
   "dsurround.config.mapOptions.enableTreasureDistance": "藏宝图距离显示",
   "dsurround.config.mapOptions.enableTreasureDistance.tooltip": "启用/禁用 手持探险者地图时在右上角显示到宝藏的水平距离",
   "dsurround.config.compassAndClockOptions.tooltip": "指南针和时钟叠加配置选项",

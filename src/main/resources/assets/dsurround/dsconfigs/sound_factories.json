@@ -429,8 +429,8 @@
     "soundEvent": "dsurround:footsteps.log",
     "category": "PLAYER",
     "pitch": {
-      "min": 0.8,
-      "max": 1.2
+      "min": 0.55,
+      "max": 0.65
     }
   },
   {

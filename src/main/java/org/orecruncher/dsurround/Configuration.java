@@ -184,6 +184,18 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable ambient biome and village sounds (forest, plains, crickets, etc.)")
         public boolean enableBiomeSounds = true;
+
+        @Property
+        @Slider
+        @DoubleRange(min = 0, max = 2)
+        @Comment("Footstep sounds will be multiplied by this factor")
+        public double footstepVolume = 1.0D;
+
+        @Property
+        @Slider
+        @DoubleRange(min = 0, max = 2)
+        @Comment("Biome ambient sounds will be multiplied by this factor")
+        public double biomeVolume = 1.0D;
     }
 
     public static class BlockEffects {

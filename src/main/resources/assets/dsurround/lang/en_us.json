@@ -49,6 +49,8 @@
   "dsurround.config.compassAndClockOptions.scale": "Render scaling",
   "dsurround.config.compassAndClockOptions.scale.tooltip": "Scales the compass rendering by the specified amount",
   "dsurround.config.mapOptions": "Map Distance Options",
+  "dsurround.options.footstepVolume": "Footsteps",
+  "dsurround.options.biomeVolume": "Biomes",
   "dsurround.config.mapOptions.enableTreasureDistance": "Treasure Distance",
   "dsurround.config.mapOptions.enableTreasureDistance.tooltip": "Enable/disable showing the horizontal distance to the treasure target on explorer maps",
   "dsurround.config.compassAndClockOptions.tooltip": "Configuration options for the compass and clock overlay",

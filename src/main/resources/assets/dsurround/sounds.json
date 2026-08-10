@@ -1528,17 +1528,17 @@
     "ds_category": "player",
     "subtitle": "dsurround.sound.caption.footsteps.log",
     "sounds": [
-      "dsurround:footsteps/wood/log_walk1",
-      "dsurround:footsteps/wood/log_walk10",
-      "dsurround:footsteps/wood/log_walk11",
-      "dsurround:footsteps/wood/log_walk2",
-      "dsurround:footsteps/wood/log_walk3",
-      "dsurround:footsteps/wood/log_walk4",
-      "dsurround:footsteps/wood/log_walk5",
-      "dsurround:footsteps/wood/log_walk6",
-      "dsurround:footsteps/wood/log_walk7",
-      "dsurround:footsteps/wood/log_walk8",
-      "dsurround:footsteps/wood/log_walk9"
+      "dsurround:footsteps/wood/wood_walk1",
+      "dsurround:footsteps/wood/wood_walk10",
+      "dsurround:footsteps/wood/wood_walk11",
+      "dsurround:footsteps/wood/wood_walk2",
+      "dsurround:footsteps/wood/wood_walk3",
+      "dsurround:footsteps/wood/wood_walk4",
+      "dsurround:footsteps/wood/wood_walk5",
+      "dsurround:footsteps/wood/wood_walk6",
+      "dsurround:footsteps/wood/wood_walk7",
+      "dsurround:footsteps/wood/wood_walk8",
+      "dsurround:footsteps/wood/wood_walk9"
     ]
   },
   "footsteps.metalbox": {

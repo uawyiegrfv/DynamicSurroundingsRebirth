@@ -14,7 +14,7 @@ version = mod_version
 group = mod_group_id
 
 base {
-    archivesName = "${mod_id}-neoforge-${minecraft_version}"
+    archivesName = "DynamicSurroundingsRebirth-${minecraft_version}"
 }
 
 // Mojang ships Java 25 for Minecraft 26.1
@@ -95,9 +95,6 @@ dependencies {
     api("me.shedaniel.cloth:cloth-config-neoforge:${clothapi_version}") {
         exclude(group: "net.fabricmc.fabric-api")
     }
-
-    // YACL (Yet Another Config Lib)
-    implementation "dev.isxander:yet-another-config-lib:${yacl_version}"
 
     // GlitchCore - optional integration
     compileOnly "maven.modrinth:glitchcore:${glitchcore_version}"

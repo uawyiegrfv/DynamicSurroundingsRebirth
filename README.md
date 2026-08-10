@@ -8,6 +8,11 @@ This is an independent port by **deepsleep114** (with development assistance fro
 Anthropic's Claude Code). It is **not** affiliated with the original author,
 OreCruncher. All credit for the original design and code goes to OreCruncher.
 
+> **AI Disclosure:** This port is developed and maintained with the assistance of
+> AI tools (Anthropic's Claude Code). AI-assisted code is provided "as is" and may
+> contain bugs or unexpected behaviour; please report issues on the GitHub tracker
+> and use at your own risk.
+
 * Original: [Dynamic Surroundings (OreCruncher)](https://github.com/OreCruncher/DynamicSurroundingsFabric)
 * License: MIT (see below)
 
@@ -26,10 +31,22 @@ OreCruncher. All credit for the original design and code goes to OreCruncher.
 * **Particles** — fireflies, frost breath, water ripples, footprints and more.
 * **Crit words & damage numbers**, background thunder, waterfall effects, and
   much of the classic Dynamic Surroundings feature set.
+* **Deep Dark ambience** — a low drone, a faint persistent heartbeat and
+  intermittent Sculk clicks in the Deep Dark.
+* **Leaf-wind gusts** — intermittent leaf rustling in wooded biomes, more
+  frequent at night.
+* **Treasure distance** — the horizontal distance to the target is shown on
+  explorer maps.
+* **Sound-options sliders** — Footsteps and Biomes volume in the vanilla Sound
+  Options menu (0% restores the vanilla footstep sounds).
+* **Compass & clock HUD** — shown while holding the corresponding item.
+* **Sand & gravel dust** — dust clouds kick up when falling blocks land.
+* **Individual sound configuration** — fine-tune every sound from the config
+  screen.
 
 ## Install
 
-* Requires **Minecraft 26.1** + **NeoForge 26.1.2.93**
+* Requires **Minecraft 26.1** + **NeoForge 26.1.2.78**
 * 100% client-side — works on vanilla servers.
 
 ## Building
@@ -38,7 +55,7 @@ OreCruncher. All credit for the original design and code goes to OreCruncher.
 ./gradlew build
 ```
 
-Output jar: `build/libs/dsurround-neoforge-26.1.2-<version>.jar`
+Output jar: `build/libs/DynamicSurroundingsRebirth-26.1.2-<version>.jar`
 
 ## Configuration
 

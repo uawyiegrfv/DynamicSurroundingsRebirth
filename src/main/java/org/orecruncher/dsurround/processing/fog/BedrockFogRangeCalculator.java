@@ -48,8 +48,10 @@ public class BedrockFogRangeCalculator extends VanillaFogRangeCalculator {
         factor *= factor;
 
         // The original only pulled the far plane in; the Holistic combiner rejects
-        // ranges where start > end, so bring the near plane along with it.
-        final float end = Math.max(5F, Math.min(data.renderDistanceEnd, MAX_FOG_END * (float) factor));
+        // ranges where start > end, so bring the near plane along with it. The hard
+        // 5-block floor made the deepest bedrock fog near-impenetrable; raise it so the
+        // deepest gradient still leaves some visibility.
+        final float end = Math.max(20F, Math.min(data.renderDistanceEnd, MAX_FOG_END * (float) factor));
         final float start = Math.min(data.renderDistanceStart, end * 0.5F);
 
         var result = new FogData();

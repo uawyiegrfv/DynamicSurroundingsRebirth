@@ -50,8 +50,10 @@ public class ToolbarEffect extends EntityEffectBase {
 
         // Held item change without a slot change (e.g. moving an item from the
         // inventory into the selected hotbar slot, or swapping the offhand).
+        // isSameItem only compares the item type, so durability loss (which changes
+        // the stack's components) does not falsely trigger the equip sound.
         final ItemStack mainHand = player.getMainHandItem();
-        if (!ItemStack.matches(mainHand, this.lastMainHand)) {
+        if (!ItemStack.isSameItem(mainHand, this.lastMainHand)) {
             if (!mainHand.isEmpty() && !player.isSpectator()) {
                 this.playEquipSound(info, player, mainHand);
             }
@@ -59,7 +61,7 @@ public class ToolbarEffect extends EntityEffectBase {
         }
 
         final ItemStack offHand = player.getOffhandItem();
-        if (!ItemStack.matches(offHand, this.lastOffHand)) {
+        if (!ItemStack.isSameItem(offHand, this.lastOffHand)) {
             if (!offHand.isEmpty() && !player.isSpectator()) {
                 this.playEquipSound(info, player, offHand);
             }

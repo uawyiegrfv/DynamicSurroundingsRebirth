@@ -3,6 +3,7 @@ package org.orecruncher.dsurround.runtime.audio;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
@@ -36,6 +37,12 @@ public final class SoundFXUtils {
      */
     private static final int OCCLUSION_SEGMENTS = 5;
     /**
+     * Fan angle (radians) used when averaging occlusion rays around the direct source->player
+     * line. A single occlusion ray is direction-dependent and flips a buried sound between
+     * clear and heavily muffled as the player circles it; a small fan averages that out.
+     */
+    private static final float OCCLUSION_FAN = 0.15F;
+    /**
      * Number of rays to project when doing reverb calculations.
      */
     private static final int REVERB_RAYS = CONFIG.reverbRays;
@@ -47,6 +54,26 @@ public final class SoundFXUtils {
      * Maximum distance to trace a reverb ray segment before stopping.
      */
     private static final float MAX_REVERB_DISTANCE = CONFIG.reverbRayTraceDistance;
+    /**
+     * Step size when sampling the sound-to-listener path for water. Water strongly
+     * absorbs high frequencies, so the total path length under water drives the low-pass
+     * damping of the sound. Half a block is small enough that any body of water at least
+     * one block across is always hit, regardless of where along the path it sits - the
+     * sample is walked over the whole path every refresh, no coarse pre-scan (a coarse
+     * scan missed narrow water bands when the source or listener bobbed at the surface).
+     */
+    private static final float WATER_SAMPLE_STEP = 0.5F;
+    /**
+     * Upper bound on how far the water-path sampling traces from the sound. Sound far
+     * beyond this is already heavily attenuated by the engine's distance falloff, and the
+     * trace cost stays bounded.
+     */
+    private static final float MAX_WATER_SAMPLE_DISTANCE = 64F;
+    /**
+     * Max blocks scanned in each direction when moving a source out of a solid block to the
+     * nearest open cell. Bounds the cost of the six-direction probe.
+     */
+    private static final int MAX_OFFSET_SCAN = 16;
     /**
      * Reciprocal of the total number of rays cast.
      */
@@ -116,11 +143,24 @@ public final class SoundFXUtils {
             return;
         }
 
-        // Need to offset sound toward player if it is in a solid block
-        final Vec3 soundPos = offsetPositionIfSolid(ctx.world, this.source.getPosition(), ctx.playerEyePosition);
+        final Vec3 sourcePos = this.source.getPosition();
+        // A source inside a solid block keeps its own position as the reverb ray starting
+        // point. Offsetting it toward the player moves the rays off the source's centre, so
+        // the shared-airspace part of the reverb becomes direction-dependent as the player
+        // circles the source (reverbDC above still varied 0.4-3.3 even after the occlusion
+        // rays were averaged). Keeping the starting point at the symmetric centre keeps both
+        // the occlusion fan and the reverb rays symmetric.
+        final Vec3 soundPos;
+        if (isSolidBlock(ctx.world, sourcePos))
+            soundPos = sourcePos;
+        else
+            soundPos = offsetPositionIfSolid(ctx.world, sourcePos, ctx.playerEyePosition);
 
         final float absorptionCoeff = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
         final float airAbsorptionFactor = calculateWeatherAbsorption(ctx, soundPos, ctx.playerEyePosition);
+        // Real ray-traced occlusion. The directionality bug was in ReusableRaycastIterator
+        // (fixed separately), not here - so occlusion is now symmetric in a symmetric
+        // environment and no fixed value is needed.
         final float occlusionAccumulation = calculateOcclusion(ctx, soundPos, ctx.playerEyePosition);
         final float sendCoeff = -occlusionAccumulation * absorptionCoeff;
 
@@ -241,6 +281,9 @@ public final class SoundFXUtils {
                 + sharedAirspaceWeight3) * 0.25F;
         directCutoff = Math.max((float) Math.sqrt(averageSharedAirspace) * 0.2F, directCutoff);
 
+        // The snap flag is still consumed here for the water-path damping below.
+        final boolean snap = this.source.isImmediateUpdate();
+
         float directGain = (float) MathStuff.pow(directCutoff, 0.1);
 
         sendGain1 *= bounceRatio[1];
@@ -264,6 +307,27 @@ public final class SoundFXUtils {
             sendCutoff3 *= 0.4F;
         }
 
+        // Damping when the path between the sound and the listener passes through water.
+        // Water strongly absorbs high frequencies and reduces the perceived volume, so a
+        // sound heard across a body of water (e.g. underwater -> shore, or the reverse)
+        // should sound muffled and quieter. The volume uses the square root of the low-pass
+        // factor (plus a floor) so a shallow crossing is clearly audible while a long
+        // underwater path never goes fully silent - just heavily muffled. Stacks with the
+        // player-underwater damping above, which mirrors the real double damping
+        // (propagation path + ear submerged).
+        final Vec3 rawSourcePos = this.source.getPosition();
+        final float waterLength = calculateWaterPathLength(ctx, rawSourcePos, ctx.playerEyePosition);
+        // The low-pass (muffling) and the volume use separate per-block factors. Muffling
+        // is kept strong so underwater sound is clearly muffled in every direction and
+        // masks the reverb system's cut-off jitter in deep water; the volume uses a gentler
+        // curve (with a floor) so distant sounds stay audible instead of vanishing.
+        final float muffleFactor = (float) Math.pow(CONFIG.waterSoundMuffle, waterLength);
+        final float gainFactor = (float) Math.pow(CONFIG.waterSoundDamping, waterLength);
+        // Smooth toward the target so an entity bobbing at the water surface (or the player
+        // wading) doesn't make the volume audibly jump from one 1-second refresh to the next.
+        final float waterFactor = this.source.smoothWaterFactor(muffleFactor, snap);
+        final float waterGainFactor = Math.max(0.15F, (float) Math.sqrt(gainFactor));
+
         final LowPassData lp0 = this.source.getLowPass0();
         final LowPassData lp1 = this.source.getLowPass1();
         final LowPassData lp2 = this.source.getLowPass2();
@@ -272,24 +336,24 @@ public final class SoundFXUtils {
         final SourcePropertyFloat prop = this.source.getAirAbsorb();
 
         synchronized (this.source.sync()) {
-            lp0.gain = sendGain0;
-            lp0.gainHF = sendCutoff0;
+            lp0.gain = sendGain0 * waterGainFactor;
+            lp0.gainHF = sendCutoff0 * waterFactor;
             lp0.setProcess(true);
 
-            lp1.gain = sendGain1;
-            lp1.gainHF = sendCutoff1;
+            lp1.gain = sendGain1 * waterGainFactor;
+            lp1.gainHF = sendCutoff1 * waterFactor;
             lp1.setProcess(true);
 
-            lp2.gain = sendGain2;
-            lp2.gainHF = sendCutoff2;
+            lp2.gain = sendGain2 * waterGainFactor;
+            lp2.gainHF = sendCutoff2 * waterFactor;
             lp2.setProcess(true);
 
-            lp3.gain = sendGain3;
-            lp3.gainHF = sendCutoff3;
+            lp3.gain = sendGain3 * waterGainFactor;
+            lp3.gainHF = sendCutoff3 * waterFactor;
             lp3.setProcess(true);
 
-            direct.gain = directGain;
-            direct.gainHF = directCutoff;
+            direct.gain = directGain * waterGainFactor;
+            direct.gainHF = directCutoff * waterFactor;
             direct.setProcess(true);
 
             prop.setValue(airAbsorptionFactor);
@@ -317,6 +381,44 @@ public final class SoundFXUtils {
         assert ctx.world != null;
         assert ctx.player != null;
 
+        // Average the occlusion over several rays fanned around the direct source->player
+        // line. A single ray is direction-dependent: when the source sits in a solid block
+        // with an opening above it, the ray to a player directly above passes straight out
+        // (occlusion ~0) while every other bearing is blocked - so as the player circles the
+        // source the muffling flips between clear and heavily muffled, even in a perfectly
+        // symmetric environment. Averaging a small fan keeps the result symmetric and stable.
+        final Vec3 delta = target.subtract(origin);
+        final double distance = delta.length();
+        if (distance < 0.01)
+            return 0F;
+        final Vec3 dir = delta.scale(1.0 / distance);
+
+        // Orthonormal basis around the ray direction for the fan.
+        final Vec3 up = Math.abs(dir.y()) < 0.99 ? new Vec3(0, 1, 0) : new Vec3(1, 0, 0);
+        final Vec3 right = dir.cross(up).normalize();
+        final Vec3 up2 = right.cross(dir).normalize();
+
+        // A 3x3 grid of rays around the direct line (9 rays, ~8.6 degrees off-axis at the
+        // corners) so the averaged occlusion is symmetric and stable regardless of the
+        // player's bearing. Denser than the previous single ring - a few rays were still
+        // not enough to fully smooth a narrow opening.
+        final float fan = OCCLUSION_FAN;
+        final Vec3[] rays = new Vec3[9];
+        int rayIdx = 0;
+        for (int iy = -1; iy <= 1; iy++) {
+            for (int ix = -1; ix <= 1; ix++) {
+                rays[rayIdx++] = dir.add(right.scale(fan * ix)).add(up2.scale(fan * iy)).normalize();
+            }
+        }
+
+        float total = 0F;
+        for (final Vec3 rayDir : rays) {
+            total += traceOcclusion(ctx, origin, origin.add(rayDir.scale(distance)));
+        }
+        return total / rays.length;
+    }
+
+    private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target) {
         float factor = 0F;
 
         Vec3 lastHit = origin;
@@ -327,9 +429,9 @@ public final class SoundFXUtils {
             if (itr.hasNext()) {
                 var result = itr.next();
                 final float occlusion = getOcclusion(lastState);
-                final double distance = lastHit.distanceTo(result.getLocation());
+                final double rayDistance = lastHit.distanceTo(result.getLocation());
                 // Occlusion is scaled by the distance traveled through the block.
-                factor += (float) (occlusion * distance);
+                factor += (float) (occlusion * rayDistance);
                 lastHit = result.getLocation();
                 lastState = ctx.world.getBlockState(result.getBlockPos());
             } else {
@@ -364,6 +466,38 @@ public final class SoundFXUtils {
         return factor;
     }
 
+    /**
+     * Measures the total length of the sound-to-listener path that is submerged in water.
+     * The whole path is sampled at half-block intervals every refresh, so any water
+     * anywhere along the path (source half-submerged, a narrow river the sound crosses, a
+     * player wading or diving) is always caught. The cost is a handful of fluid queries
+     * per sound per second, negligible next to the reverb ray tracing.
+     */
+    private static float calculateWaterPathLength(final WorldContext ctx, final Vec3 origin, final Vec3 target) {
+        if (!CONFIG.enableWaterSoundDamping)
+            return 0F;
+
+        assert ctx.world != null;
+        final Vec3 delta = target.subtract(origin);
+        final double distance = delta.length();
+        if (distance <= 0.01)
+            return 0F;
+
+        final Vec3 unit = delta.scale(1.0 / distance);
+        final float maxTrace = (float) Math.min(distance, MAX_WATER_SAMPLE_DISTANCE);
+        float waterLength = 0F;
+        for (float t = 0F; t < maxTrace; t += WATER_SAMPLE_STEP) {
+            if (isWater(ctx.world, BlockPos.containing(MathStuff.addScaled(origin, unit, t))))
+                waterLength += WATER_SAMPLE_STEP;
+        }
+
+        return waterLength;
+    }
+
+    private static boolean isWater(final Level world, final BlockPos pos) {
+        return world.getFluidState(pos).is(FluidTags.WATER);
+    }
+
     private static float getReflectivity(BlockState state) {
         // Use the weak form because the BlockInfo may not be filled out when
         // the FX system needs to evaluate. The info object should only
@@ -382,7 +516,15 @@ public final class SoundFXUtils {
         return SURFACE_DIRECTION_NORMALS[d.ordinal()];
     }
 
+    private static boolean isSolidBlock(final Level world, final Vec3 pos) {
+        final BlockState state = world.getBlockState(BlockPos.containing(pos));
+        return state.isSolid() && state.getFluidState().isEmpty();
+    }
+
     private static Vec3 offsetPositionIfSolid(final Level world, final Vec3 origin, final Vec3 target) {
+        // Restored to the original Fabric implementation: any non-air block (including
+        // fluids) offsets the source 0.876 blocks toward the player. This keeps occlusion
+        // rays starting just outside the surface rather than from inside the block.
         if (world.getBlockState(BlockPos.containing(origin)) != Blocks.AIR.defaultBlockState()) {
             var normal = origin.vectorTo(target).normalize();
             return MathStuff.addScaled(origin, normal, 0.876F);

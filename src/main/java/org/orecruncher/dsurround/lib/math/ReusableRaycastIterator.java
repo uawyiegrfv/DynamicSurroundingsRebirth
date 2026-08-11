@@ -42,7 +42,12 @@ public class ReusableRaycastIterator implements Iterator<BlockHitResult> {
         if (this.hitResult == null || this.hitResult.getType() == HitResult.Type.MISS)
             throw new IllegalStateException("No more blocks in trace");
         var result = this.hitResult;
-        this.traceContext.setStart(new Vec3(this.hitResult.getBlockPos().getX() + this.normal.x(), this.hitResult.getBlockPos().getY() + this.normal.y(), this.hitResult.getBlockPos().getZ() + this.normal.z()));
+        // Advance from the actual hit point along the ray direction. Using the hit block's
+        // integer corner (getBlockPos) instead made the next trace start from an
+        // angle-dependent position around the block corner, so the amount of material
+        // crossed varied with the ray's direction - occlusion became direction-dependent even
+        // in a perfectly symmetric environment. Restored to the original Fabric behaviour.
+        this.traceContext.setStart(this.hitResult.getLocation().add(this.normal));
         doTrace();
         return result;
     }

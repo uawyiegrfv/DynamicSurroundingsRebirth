@@ -33,25 +33,30 @@ public class BedrockFogRangeCalculator extends VanillaFogRangeCalculator {
         if (player == null)
             return data;
 
+        final var level = player.level();
+
         // Reference height: the top of the bedrock gradient. In 1.12.2 bedrock was at
         // y=0 and the fog began to clear 32 blocks above; modern worlds put bedrock at
         // the minimum build height (y=-64 in the overworld), so the equivalent clearing
         // height is minY + 32. Use the world's actual minimum so any dimension/version
         // gets the right gradient.
-        final double baseY = player.level().getMinY() + BASE_Y;
+        final double baseY = level.getMinY() + BASE_Y;
         if (player.getY() >= baseY)
             return data;
 
-        double factor = (player.getY() + 4D - player.level().getMinY()) / BASE_Y;
-        if (factor < 0D)
-            factor = 0D;
-        factor *= factor;
+        final double factor = (player.getY() + 4D - level.getMinY()) / BASE_Y;
 
-        // The original only pulled the far plane in; the Holistic combiner rejects
-        // ranges where start > end, so bring the near plane along with it. The hard
-        // 5-block floor made the deepest bedrock fog near-impenetrable; raise it so the
-        // deepest gradient still leaves some visibility.
-        final float end = Math.max(20F, Math.min(data.renderDistanceEnd, MAX_FOG_END * (float) factor));
+        // Original 1.12.2 logic: the fog also depends on local brightness. The bright open
+        // surface - e.g. a superflat world whose surface sits at y=0..3, right inside the
+        // gradient - pushes d0 above 1.0 and suppresses the fog; only dark, deep mining
+        // spots trigger it. The port originally dropped this brightness term, which made the
+        // fog appear even on the bright open ground of a superflat world.
+        final double brightnessTerm = level.getRawBrightness(player.blockPosition(), 0) / 16.0D;
+        final double d0 = brightnessTerm + factor;
+        if (d0 >= 1.0D)
+            return data;
+        final double d0Sq = Math.max(0D, d0);
+        final float end = Math.max(20F, Math.min(data.renderDistanceEnd, MAX_FOG_END * (float) (d0Sq * d0Sq)));
         final float start = Math.min(data.renderDistanceStart, end * 0.5F);
 
         var result = new FogData();

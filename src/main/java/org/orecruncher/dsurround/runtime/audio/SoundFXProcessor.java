@@ -39,6 +39,11 @@ public final class SoundFXProcessor {
     private static SourceContext[] sources;
     private static Worker soundProcessor;
     private static String diagnosticString = StringUtils.EMPTY;
+    // Set on the client thread when the player enters or leaves water. The background
+    // processor drains it, re-evaluates every source immediately and snaps the water
+    // damping, so entering/exiting water reacts with no audible lag.
+    private static volatile boolean immediateUpdateRequested;
+    private static boolean lastPlayerUnderWater;
 
     // Use our own thread pool avoiding the common pool.  Thread allocation is better controlled, and we won't run
     // into/cause any problems with other tasks in the common pool.
@@ -205,6 +210,11 @@ public final class SoundFXProcessor {
     public static void clientTick(Minecraft client) {
         if (isAvailable()) {
             worldContext = new WorldContext();
+            final boolean underWater = worldContext.player != null && worldContext.player.isUnderWater();
+            if (underWater != lastPlayerUnderWater) {
+                lastPlayerUnderWater = underWater;
+                immediateUpdateRequested = true;
+            }
         }
     }
 
@@ -220,10 +230,14 @@ public final class SoundFXProcessor {
             final ObjectArray<Future<?>> tasks = new ObjectArray<>(64);
 
             // Collect the sources due for an update this pass. See
-            // SourceContext.UPDATE_FREQUENCY_TICKS for the interval.
+            // SourceContext.UPDATE_FREQUENCY_TICKS for the interval. If the player just
+            // entered/left water every source is due so the damping snaps immediately.
+            final boolean immediate = immediateUpdateRequested;
+            immediateUpdateRequested = false;
+
             final ObjectArray<SourceContext> due = new ObjectArray<>(64);
             for (final SourceContext ctx : sources) {
-                if (ctx != null && ctx.shouldExecute()) {
+                if (ctx != null && (immediate || ctx.shouldExecute())) {
                     due.add(ctx);
                 }
             }
@@ -239,8 +253,11 @@ public final class SoundFXProcessor {
                         (float) b.getPosition().distanceToSqr(listener)));
             }
             final int limit = Math.min(due.size(), MAX_SOURCES_PER_PASS);
-            for (int i = 0; i < limit; i++)
+            for (int i = 0; i < limit; i++) {
+                if (immediate)
+                    due.get(i).markImmediate();
                 tasks.add(pool.submit(due.get(i)));
+            }
 
             diagnosticString = "(ticked: %d)".formatted(tasks.size());
 

@@ -21,6 +21,12 @@ public final class SourceContext implements Callable<Void> {
     // background threads saturate in dense sound scenes (e.g. a cave full of mobs), stealing CPU
     // from the render thread. Once per second is imperceptible for reverb/occlusion.
     private static final int UPDATE_FEQUENCY_TICKS = 20;
+    // Time-smoothing for the water damping factor. The sampled underwater path length can jump
+    // by a block when an entity bobs at the water surface (or the player wades), and the reverb
+    // pass only refreshes once per second - without smoothing the volume would audibly step up
+    // and down. Alpha picks a ~1.5 second settle time: fast enough that entering/exiting water
+    // does not feel laggy, slow enough to hide the per-second reverb jumps.
+    private static final float WATER_SMOOTH_ALPHA = 0.7F;
 
     private final Object sync = new Object();
     private final LowPassData lowPass0;
@@ -39,6 +45,14 @@ public final class SourceContext implements Callable<Void> {
 
     private boolean isEnabled;
     private int updateCount;
+    private float smoothedWaterFactor = 1.0F;
+    private boolean waterFactorInitialized;
+    private float smoothedDirectCutoff = 1.0F;
+    private boolean directCutoffInitialized;
+    // Set by the sound processor when the player just entered/left water. The next
+    // evaluation snaps the smoothing state straight to its target instead of easing, so
+    // entering/exiting water responds with no audible lag.
+    private volatile boolean immediateUpdate;
 
     public SourceContext(int sourceId) {
         this.sourceId = sourceId;
@@ -112,6 +126,56 @@ public final class SourceContext implements Callable<Void> {
 
     public SoundSource getCategory() {
         return this.category;
+    }
+
+    /**
+     * Time-smooths the water damping factor toward the target, snapping to it on the first
+     * evaluation so a freshly played sound is not initially over-damped. When {@code snap}
+     * is true (the player just entered/left water) the value is set directly so the change
+     * is audible immediately. Called from the background sound-processing thread.
+     */
+    public float smoothWaterFactor(final float target, final boolean snap) {
+        if (!this.waterFactorInitialized || snap) {
+            this.smoothedWaterFactor = target;
+            this.waterFactorInitialized = true;
+        } else {
+            this.smoothedWaterFactor += (target - this.smoothedWaterFactor) * WATER_SMOOTH_ALPHA;
+        }
+        return this.smoothedWaterFactor;
+    }
+
+    /**
+     * Time-smooths the reverb direct-path cut-off. The occlusion path multiplies a water
+     * (or block) occlusion value by the distance the ray travelled through it, and the
+     * reverb pass only recomputes once per second - so a few blocks of player movement can
+     * make this value jump sharply between refreshes, audibly flipping a sound from muffled
+     * to clear. Smoothing it turns those jumps into a fade, like the water factor above.
+     */
+    public float smoothDirectCutoff(final float target, final boolean snap) {
+        if (!this.directCutoffInitialized || snap) {
+            this.smoothedDirectCutoff = target;
+            this.directCutoffInitialized = true;
+        } else {
+            this.smoothedDirectCutoff += (target - this.smoothedDirectCutoff) * WATER_SMOOTH_ALPHA;
+        }
+        return this.smoothedDirectCutoff;
+    }
+
+    /**
+     * Requests the next evaluation to snap its smoothing state instead of easing. Set when
+     * the player enters or leaves water so the damping reacts with no lag.
+     */
+    public void markImmediate() {
+        this.immediateUpdate = true;
+    }
+
+    /**
+     * Consumes the immediate-update flag (set by {@link #markImmediate()}).
+     */
+    public boolean isImmediateUpdate() {
+        final boolean result = this.immediateUpdate;
+        this.immediateUpdate = false;
+        return result;
     }
 
     public void attachSound(final SoundInstance sound) {

@@ -146,6 +146,22 @@ public class Configuration extends ConfigurationData {
         @RestartRequired
         @Comment("Total distance a reverb ray will traverse before ending calculation")
         public int reverbRayTraceDistance = 256;
+
+        @Property
+        @Comment("Enable/disable damping for sounds whose path to the player passes through water. Reduces both volume and high frequencies (muffling)")
+        public boolean enableWaterSoundDamping = true;
+
+        @Property
+        @Slider
+        @DoubleRange(min = 0.1D, max = 1D)
+        @Comment("Fraction of the sound's volume that passes through each block of water between the sound and the player (lower = quieter, 1.0 = no volume change). The volume never drops below a minimum so distant sounds stay audible")
+        public double waterSoundDamping = 0.9D;
+
+        @Property
+        @Slider
+        @DoubleRange(min = 0.1D, max = 1D)
+        @Comment("High-frequency (muffling) cut-off per block of water between the sound and the player (lower = more muffled, 1.0 = no muffling). Kept strong so underwater sounds are clearly muffled regardless of direction")
+        public double waterSoundMuffle = 0.6D;
     }
 
     public static class SoundOptions {

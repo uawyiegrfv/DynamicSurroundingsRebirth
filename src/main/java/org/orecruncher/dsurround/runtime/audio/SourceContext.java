@@ -25,6 +25,9 @@ public final class SourceContext implements Callable<Void> {
     // ~0.8 second settle time: fast enough that a change is not laggy, slow enough to smooth
     // the per-update jumps.
     private static final float WATER_SMOOTH_ALPHA = 0.85F;
+    // Diffraction restore settles on its own time constant so it can be tuned
+    // independently of the water/occlusion smoothing. Same 0.85 (~0.8s) baseline.
+    private static final float DIFFRACTION_SMOOTH_ALPHA = 0.85F;
 
     private final Object sync = new Object();
     private final LowPassData lowPass0;
@@ -172,7 +175,7 @@ public final class SourceContext implements Callable<Void> {
             this.smoothedDiffraction = target;
             this.diffractionInitialized = true;
         } else {
-            this.smoothedDiffraction += (target - this.smoothedDiffraction) * WATER_SMOOTH_ALPHA;
+            this.smoothedDiffraction += (target - this.smoothedDiffraction) * DIFFRACTION_SMOOTH_ALPHA;
         }
         return this.smoothedDiffraction;
     }

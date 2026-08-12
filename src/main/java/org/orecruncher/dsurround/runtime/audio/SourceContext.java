@@ -15,18 +15,16 @@ import java.util.concurrent.Callable;
 
 public final class SourceContext implements Callable<Void> {
 
-    // Frequency of sound effect updates in thread schedule ticks.  Works out to be roughly once a
-    // second. Occlusion/reverb parameters are slow-varying environmental values - a full ray-trace
-    // pass (32 rays x up to 4 bounces each) per source is expensive, and at 7 ticks (~3/s) the
-    // background threads saturate in dense sound scenes (e.g. a cave full of mobs), stealing CPU
-    // from the render thread. Once per second is imperceptible for reverb/occlusion.
-    private static final int UPDATE_FEQUENCY_TICKS = 20;
+    // Frequency of sound effect updates in thread schedule ticks. Twice a second (10 ticks):
+    // occlusion/reverb follow the player quickly enough that a wall crossing or terrain
+    // boundary does not feel laggy, while the background ray-trace load stays bounded by
+    // MAX_SOURCES_PER_PASS in SoundFXProcessor.
+    private static final int UPDATE_FEQUENCY_TICKS = 10;
     // Time-smoothing for the water damping factor. The sampled underwater path length can jump
-    // by a block when an entity bobs at the water surface (or the player wades), and the reverb
-    // pass only refreshes once per second - without smoothing the volume would audibly step up
-    // and down. Alpha picks a ~1.5 second settle time: fast enough that entering/exiting water
-    // does not feel laggy, slow enough to hide the per-second reverb jumps.
-    private static final float WATER_SMOOTH_ALPHA = 0.7F;
+    // by a block when an entity bobs at the water surface (or the player wades). Alpha picks a
+    // ~0.8 second settle time: fast enough that a change is not laggy, slow enough to smooth
+    // the per-update jumps.
+    private static final float WATER_SMOOTH_ALPHA = 0.85F;
 
     private final Object sync = new Object();
     private final LowPassData lowPass0;
@@ -47,8 +45,8 @@ public final class SourceContext implements Callable<Void> {
     private int updateCount;
     private float smoothedWaterFactor = 1.0F;
     private boolean waterFactorInitialized;
-    private float smoothedDirectCutoff = 1.0F;
-    private boolean directCutoffInitialized;
+    private float smoothedOcclusion = 0F;
+    private boolean occlusionInitialized;
     // Set by the sound processor when the player just entered/left water. The next
     // evaluation snaps the smoothing state straight to its target instead of easing, so
     // entering/exiting water responds with no audible lag.
@@ -145,20 +143,19 @@ public final class SourceContext implements Callable<Void> {
     }
 
     /**
-     * Time-smooths the reverb direct-path cut-off. The occlusion path multiplies a water
-     * (or block) occlusion value by the distance the ray travelled through it, and the
-     * reverb pass only recomputes once per second - so a few blocks of player movement can
-     * make this value jump sharply between refreshes, audibly flipping a sound from muffled
-     * to clear. Smoothing it turns those jumps into a fade, like the water factor above.
+     * Time-smooths the ray-traced occlusion value. The occlusion ray can jump sharply when
+     * the player crosses a geometric boundary (e.g. a ray starting to clip the ground a few
+     * blocks away), which makes the muffling flip abruptly; smoothing it turns the jump into
+     * a fade.
      */
-    public float smoothDirectCutoff(final float target, final boolean snap) {
-        if (!this.directCutoffInitialized || snap) {
-            this.smoothedDirectCutoff = target;
-            this.directCutoffInitialized = true;
+    public float smoothOcclusion(final float target, final boolean snap) {
+        if (!this.occlusionInitialized || snap) {
+            this.smoothedOcclusion = target;
+            this.occlusionInitialized = true;
         } else {
-            this.smoothedDirectCutoff += (target - this.smoothedDirectCutoff) * WATER_SMOOTH_ALPHA;
+            this.smoothedOcclusion += (target - this.smoothedOcclusion) * WATER_SMOOTH_ALPHA;
         }
-        return this.smoothedDirectCutoff;
+        return this.smoothedOcclusion;
     }
 
     /**

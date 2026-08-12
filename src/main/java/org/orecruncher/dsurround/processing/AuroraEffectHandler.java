@@ -32,10 +32,16 @@ public class AuroraEffectHandler extends AbstractClientHandler {
     protected static final float AURORA_WINDOW_START = 150F;
     protected static final float AURORA_WINDOW_END = 210F;
 
+    // A forward jump in the celestial angle larger than this between two updates means time
+    // was skipped (sleeping in a bed, or a /time command): natural progression is only
+    // ~0.015 deg/tick, so anything over 30 degrees is an unambiguous skip.
+    protected static final float TIME_SKIP_THRESHOLD = 30F;
+
     private final Scanners scanners;
 
     private IAurora current;
     private Identifier dimensionId;
+    private float lastCelestialAngle = -1F;
 
     public AuroraEffectHandler(Configuration config, Scanners scanners, IModLog logger) {
         super("Aurora Effect", config, logger);
@@ -47,11 +53,13 @@ public class AuroraEffectHandler extends AbstractClientHandler {
     @Override
     public void onConnect() {
         this.current = null;
+        this.lastCelestialAngle = -1F;
     }
 
     @Override
     public void onDisconnect() {
         this.current = null;
+        this.lastCelestialAngle = -1F;
     }
 
     private boolean canAuroraStay() {
@@ -88,6 +96,18 @@ public class AuroraEffectHandler extends AbstractClientHandler {
 
     @Override
     public void process(final Player player) {
+
+        // Sleeping skips straight to morning, so the celestial angle jumps far beyond the
+        // natural ~0.015 deg/tick progression. Without this the aurora would keep fading
+        // for the next 20-25 seconds under a fully bright sky; kill it outright instead
+        // (the wake-up fade covers the pop).
+        final float angle = DayCycle.getCelestialAngleDegrees(player.level());
+        if (this.current != null && this.lastCelestialAngle >= 0F
+                && angle - this.lastCelestialAngle > TIME_SKIP_THRESHOLD) {
+            this.logger.debug("Time skip detected, killing aurora");
+            this.current = null;
+        }
+        this.lastCelestialAngle = angle;
 
         // Process the current aurora
         final Identifier currentDimension = player.level().dimension().identifier();

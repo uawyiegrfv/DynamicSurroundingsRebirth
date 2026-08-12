@@ -37,12 +37,6 @@ public final class SoundFXUtils {
      */
     private static final int OCCLUSION_SEGMENTS = 5;
     /**
-     * Fan angle (radians) used when averaging occlusion rays around the direct source->player
-     * line. A single occlusion ray is direction-dependent and flips a buried sound between
-     * clear and heavily muffled as the player circles it; a small fan averages that out.
-     */
-    private static final float OCCLUSION_FAN = 0.15F;
-    /**
      * Number of rays to project when doing reverb calculations.
      */
     private static final int REVERB_RAYS = CONFIG.reverbRays;
@@ -69,11 +63,6 @@ public final class SoundFXUtils {
      * trace cost stays bounded.
      */
     private static final float MAX_WATER_SAMPLE_DISTANCE = 64F;
-    /**
-     * Max blocks scanned in each direction when moving a source out of a solid block to the
-     * nearest open cell. Bounds the cost of the six-direction probe.
-     */
-    private static final int MAX_OFFSET_SCAN = 16;
     /**
      * Reciprocal of the total number of rays cast.
      */
@@ -156,12 +145,17 @@ public final class SoundFXUtils {
         else
             soundPos = offsetPositionIfSolid(ctx.world, sourcePos, ctx.playerEyePosition);
 
+        // Snap flag read once at the top for all smoothing (occlusion + water factor).
+        final boolean snap = this.source.isImmediateUpdate();
+
+        // Fabric 原版值：GLOBAL_BLOCK_ABSORPTION * 3.0。曾临时抬到 4.0 让单块羊毛墙更明显，
+        // 但用户要求恢复原版（见 2.25）。
         final float absorptionCoeff = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
         final float airAbsorptionFactor = calculateWeatherAbsorption(ctx, soundPos, ctx.playerEyePosition);
-        // Real ray-traced occlusion. The directionality bug was in ReusableRaycastIterator
-        // (fixed separately), not here - so occlusion is now symmetric in a symmetric
-        // environment and no fixed value is needed.
-        final float occlusionAccumulation = calculateOcclusion(ctx, soundPos, ctx.playerEyePosition);
+        // Real ray-traced occlusion, time-smoothed so a geometric boundary (a ray starting
+        // to clip the ground a few blocks away) fades instead of snapping the muffling.
+        final float occlusionAccumulation = this.source.smoothOcclusion(
+                calculateOcclusion(ctx, soundPos, ctx.playerEyePosition), snap);
         final float sendCoeff = -occlusionAccumulation * absorptionCoeff;
 
         float directCutoff = (float) MathStuff.exp(sendCoeff);
@@ -281,9 +275,6 @@ public final class SoundFXUtils {
                 + sharedAirspaceWeight3) * 0.25F;
         directCutoff = Math.max((float) Math.sqrt(averageSharedAirspace) * 0.2F, directCutoff);
 
-        // The snap flag is still consumed here for the water-path damping below.
-        final boolean snap = this.source.isImmediateUpdate();
-
         float directGain = (float) MathStuff.pow(directCutoff, 0.1);
 
         sendGain1 *= bounceRatio[1];
@@ -381,41 +372,13 @@ public final class SoundFXUtils {
         assert ctx.world != null;
         assert ctx.player != null;
 
-        // Average the occlusion over several rays fanned around the direct source->player
-        // line. A single ray is direction-dependent: when the source sits in a solid block
-        // with an opening above it, the ray to a player directly above passes straight out
-        // (occlusion ~0) while every other bearing is blocked - so as the player circles the
-        // source the muffling flips between clear and heavily muffled, even in a perfectly
-        // symmetric environment. Averaging a small fan keeps the result symmetric and stable.
-        final Vec3 delta = target.subtract(origin);
-        final double distance = delta.length();
-        if (distance < 0.01)
-            return 0F;
-        final Vec3 dir = delta.scale(1.0 / distance);
-
-        // Orthonormal basis around the ray direction for the fan.
-        final Vec3 up = Math.abs(dir.y()) < 0.99 ? new Vec3(0, 1, 0) : new Vec3(1, 0, 0);
-        final Vec3 right = dir.cross(up).normalize();
-        final Vec3 up2 = right.cross(dir).normalize();
-
-        // A 3x3 grid of rays around the direct line (9 rays, ~8.6 degrees off-axis at the
-        // corners) so the averaged occlusion is symmetric and stable regardless of the
-        // player's bearing. Denser than the previous single ring - a few rays were still
-        // not enough to fully smooth a narrow opening.
-        final float fan = OCCLUSION_FAN;
-        final Vec3[] rays = new Vec3[9];
-        int rayIdx = 0;
-        for (int iy = -1; iy <= 1; iy++) {
-            for (int ix = -1; ix <= 1; ix++) {
-                rays[rayIdx++] = dir.add(right.scale(fan * ix)).add(up2.scale(fan * iy)).normalize();
-            }
-        }
-
-        float total = 0F;
-        for (final Vec3 rayDir : rays) {
-            total += traceOcclusion(ctx, origin, origin.add(rayDir.scale(distance)));
-        }
-        return total / rays.length;
+        // Single ray along the direct source->player line - this measures the actual direct
+        // sound path. A fan of rays was added earlier to smooth out the directionality bug,
+        // but that bug is now fixed in ReusableRaycastIterator, and the fan rays (which
+        // deviate a few degrees off the player's bearing) would clip distant terrain around
+        // the player and inflate the occlusion with material the direct sound never crosses.
+        // Directional changes are instead smoothed in time via SourceContext.smoothOcclusion.
+        return traceOcclusion(ctx, origin, target);
     }
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target) {

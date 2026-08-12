@@ -62,10 +62,14 @@ public class FootprintParticle extends SingleQuadParticle {
     @Override
     public void extract(QuadParticleRenderState state, Camera camera, float partialTick) {
         // Turn the print to face the direction of travel, then lay it flat on the
-        // ground. rotationY applies in world space first (so the yaw is preserved),
-        // then rotationX(-90) folds the quad down with its normal up (particle
-        // pipelines cull back faces by default).
-        Quaternionf rotation = new Quaternionf().rotationY(this.yaw)
+        // ground. The 26.1 quad is built in the XY plane with the texture top (+Y) at the
+        // toe; folding it flat with rotationX(-90) and then rotating by rotationY(yaw)
+        // would point the toe at (-sin yaw, -cos yaw) - mirrored across the N/S axis, so
+        // walking east/west looked right but north/south prints pointed backwards (the
+        // original 1.12.2 MoteFootprint compensated with -rotation + 180). Rotating by
+        // (PI - yaw) maps texture top onto the true forward (-sin yaw, cos yaw) in every
+        // world direction.
+        Quaternionf rotation = new Quaternionf().rotationY((float) (Math.PI - this.yaw))
                 .mul(new Quaternionf().rotationX(-Mth.HALF_PI));
 
         // Fade out quadratically over the lifetime.

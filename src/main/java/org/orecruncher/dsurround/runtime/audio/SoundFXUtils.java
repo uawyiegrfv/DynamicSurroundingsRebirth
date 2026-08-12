@@ -68,6 +68,13 @@ public final class SoundFXUtils {
      */
     private static final float RECIP_TOTAL_RAYS = 1F / (REVERB_RAYS * REVERB_RAY_BOUNCES);
     /**
+     * Divisor for the reflected-path direct restore. ~40 reflectivity-weighted reflected
+     * paths that reach the player (detected by the sharedAirspace check) = full direct
+     * restoration. Lower values leak more sound around walls/pits, higher keeps them
+     * more muffled.
+     */
+    private static final float REFLECTED_DIRECT_DIVISOR = 40F;
+    /**
      * Sound reflection energy coefficient
      */
     private static final float ENERGY_COEFF = 0.75F * 0.25F * RECIP_TOTAL_RAYS;
@@ -178,6 +185,11 @@ public final class SoundFXUtils {
         final float[] bounceRatio = new float[REVERB_RAY_BOUNCES];
 
         float sharedAirspace = 0F;
+        // Reflectivity-weighted count of reflected paths that can reach the player (the
+        // sharedAirspace check below). A wall or pit wall between source and player is not
+        // a hard mute - sound diffracts around it - so these paths restore the direct
+        // signal below.
+        float reflectedDirectCount = 0F;
 
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
@@ -229,6 +241,7 @@ public final class SoundFXUtils {
                     var finalRayHit = traceContext.trace(finalRayStart, ctx.playerEyePosition);
                     if (isMiss(finalRayHit)) {
                         sharedAirspace += 1.0F;
+                        reflectedDirectCount += blockReflectivity;
                     }
                 }
 
@@ -274,6 +287,14 @@ public final class SoundFXUtils {
         final float averageSharedAirspace = (sharedAirspaceWeight0 + sharedAirspaceWeight1 + sharedAirspaceWeight2
                 + sharedAirspaceWeight3) * 0.25F;
         directCutoff = Math.max((float) Math.sqrt(averageSharedAirspace) * 0.2F, directCutoff);
+
+        // Restore the direct signal from reflected paths that reach the player. The
+        // occlusion ray above is single-shot: it mutes the direct line even when sound can
+        // diffract around a wall or out of a pit's opening. The reverb rays already detect
+        // those alternate paths (sharedAirspace check); here their reflectivity-weighted
+        // count raises directCutoff so the sound comes back, capped at full openness.
+        final float reflectedDirect = MathStuff.clamp1(reflectedDirectCount / REFLECTED_DIRECT_DIVISOR);
+        directCutoff = Math.max(reflectedDirect, directCutoff);
 
         float directGain = (float) MathStuff.pow(directCutoff, 0.1);
 
@@ -372,13 +393,38 @@ public final class SoundFXUtils {
         assert ctx.world != null;
         assert ctx.player != null;
 
-        // Single ray along the direct source->player line - this measures the actual direct
-        // sound path. A fan of rays was added earlier to smooth out the directionality bug,
-        // but that bug is now fixed in ReusableRaycastIterator, and the fan rays (which
-        // deviate a few degrees off the player's bearing) would clip distant terrain around
-        // the player and inflate the occlusion with material the direct sound never crosses.
-        // Directional changes are instead smoothed in time via SourceContext.smoothOcclusion.
-        return traceOcclusion(ctx, origin, target);
+        // A single ray along the direct source->player line is binary: a block muffles only
+        // when it lies exactly on that one line, so a small obstacle (a 1x1 block near the
+        // source) or a pit wall flips the sound on/off as the player moves a block. Averaging
+        // a tight cone of rays around the player's eye instead makes the value track the
+        // fraction of the sound cone that actually reaches the player: a solid wall still
+        // blocks all of them, an opening lets some through, and a small block only occludes
+        // the part of the cone it occupies.
+        //
+        // The fan is built around the source->player bearing (the rays diverge perpendicular
+        // to it), so it stays meaningful at any relative position - sideways, above, or
+        // below the source. A world-axis fan would collapse to a single ray when the player
+        // stands directly over/under the source. The spread is small (0.6 blocks around the
+        // eye) and the results are time-smoothed, so a stray ray clipping the ground near
+        // the player barely moves the averaged value. Kept to 5 rays so the added cost stays
+        // a small fraction of the reverb trace (32x4).
+        float factor = traceOcclusion(ctx, origin, target);
+        int rays = 1;
+
+        final Vec3 dir = target.subtract(origin).normalize();
+        // Two orthogonal axes perpendicular to the bearing; the fan targets are points in
+        // that plane around the player's eye. Use the world Y axis (or X if the bearing is
+        // nearly vertical) to seed the cross product so the axes stay well-defined.
+        final Vec3 seed = Math.abs(dir.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
+        final Vec3 axis1 = dir.cross(seed).normalize();
+        final Vec3 axis2 = dir.cross(axis1).normalize();
+        for (final float s : new float[]{-1F, 1F}) {
+            factor += traceOcclusion(ctx, origin, target.add(axis1.scale(0.6F * s)));
+            factor += traceOcclusion(ctx, origin, target.add(axis2.scale(0.6F * s)));
+            rays += 2;
+        }
+
+        return factor / rays;
     }
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target) {

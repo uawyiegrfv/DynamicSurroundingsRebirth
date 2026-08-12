@@ -37,6 +37,27 @@ public final class SoundFXUtils {
      */
     private static final int OCCLUSION_SEGMENTS = 5;
     /**
+     * Length of the source-enclosure / player-openness probe rays. Must reach the
+     * walls of a normal room - a 4-block probe could not see the room's walls from a
+     * source in its centre, so a closed room still read as open and the compensation
+     * stayed active. 12 blocks covers ordinary building scale at a fraction of the
+     * reverb trace cost.
+     */
+    private static final float PROBE_RAY_DISTANCE = 12F;
+    /**
+     * Strength of the diffraction compensation. Multiplied by the player's openness
+     * and the source's un-enclosure; a thin wall in open terrain restores roughly
+     * this fraction of the direct and reverb high-frequency content.
+     */
+    private static final float DIFFRACTION_BASE = 0.75F;
+    /**
+     * Fraction of the diffraction compensation kept even when the source reads fully
+     * enclosed. A closed door or a room muffles the direct path, but sound still
+     * bleeds through walls and gaps - kept low so a sealed source stays faintly
+     * audible rather than snapping to silence or clearly passing the compensation.
+     */
+    private static final float SEALED_LEAK = 0.12F;
+    /**
      * Number of rays to project when doing reverb calculations.
      */
     private static final int REVERB_RAYS = CONFIG.reverbRays;
@@ -118,6 +139,23 @@ public final class SoundFXUtils {
         }
 
     }
+
+    /**
+     * Position of the first solid occlusion hit from the most recent occlusion
+     * calculation. Only used as a gate: when null, no occluder lies on the fan this
+     * frame and the diffraction compensation eases back to zero.
+     */
+    @Nullable
+    private Vec3 lastOccluderPos;
+    /**
+     * Occlusion accumulation along the centre fan ray only (the direct
+     * source-to-player line). Unlike the full-fan average, which clips incidental
+     * terrain off to the side and climbs to 5-10 in the open world, this tracks how
+     * much solid the straight path truly passes through (a thin wall ~0.8, a few
+     * blocks of rock between the surface and a cave ~3+). Used to close the
+     * compensation for genuinely thick path obstacles such as the ground over a cave.
+     */
+    private float lastCenterOcclusion;
 
     private final SourceContext source;
 
@@ -296,6 +334,61 @@ public final class SoundFXUtils {
         final float reflectedDirect = MathStuff.clamp1(reflectedDirectCount / REFLECTED_DIRECT_DIVISOR);
         directCutoff = Math.max(reflectedDirect, directCutoff);
 
+        final Vec3 occluderPos = this.lastOccluderPos;
+        if (occluderPos != null) {
+            // Diffraction compensation. A wall mutes the straight line to the player,
+            // but sound still bends around it - unless one end is genuinely sealed in.
+            // The occlusion accumulation is NOT used to gate this: in the open world
+            // the fan rays clip plenty of incidental terrain, so occ climbs to 5-10
+            // even behind a single thin wall, and gating on it mutes exactly the
+            // walled-off sounds that need the help. Instead probe the geometry at both
+            // ends with short world-axis rays:
+            //   - enclosure: a source buried in a 6x6x6 cube scores 1.0 on every side
+            //     no matter the player's direction - the leak closes symmetrically. A
+            //     source in open ground scores ~0.17 (just the floor below).
+            //   - openness: a player in open terrain keeps most directions free even
+            //     hugging a thin wall, so diffraction can still reach them; a player
+            //     in a sealed room stays muffled even with the source outside.
+            //   - distBoost: the farther the source, the narrower the direct beam is
+            //     at the wall and the larger the wall's shadow, while the engine's own
+            //     distance falloff fades the volume too - bending weakens but does not
+            //     stop, so the compensation rises with distance to keep a far walled
+            //     sound audible but muffled.
+            // The compensation lifts the reverb sends as well as the direct signal:
+            // they fail on the same straight-line visibility, and a hugged wall stayed
+            // muffled through the reverb path even after the direct was restored.
+            final float enclosure = calculateSourceEnclosure(ctx, soundPos);
+            final float openness = calculatePlayerOpenness(ctx, ctx.playerEyePosition);
+            final float distToPlayer = (float) soundPos.distanceTo(ctx.playerEyePosition);
+            final float distBoost = 1F + MathStuff.clamp1(distToPlayer / 24F) * 0.6F;
+            // Blend the enclosure with a base leak: a fully enclosed source (closed
+            // door, buried) keeps a residual audibility instead of snapping to silence.
+            // Straight (1-enc) zeroes the compensation at enc=1, making the
+            // door-open/door-closed toggle jump from nearly open to silent.
+            final float sealedFactor = (1F - enclosure) * (1F - SEALED_LEAK) + SEALED_LEAK;
+            // Path thickness: how much solid the straight source->player line truly
+            // passes through (the centre fan ray). The full-fan average clips terrain
+            // and climbs to 5-10 in the open world, so gating on it muffled open
+            // scenes; but the centre ray stays ~0.8 behind a thin wall and ~3+ through
+            // a few blocks of rock, which is exactly the ground-over-a-cave case that
+            // must stay muffled. A genuinely thick path obstacle closes the leak.
+            final float pathFactor = MathStuff.clamp1(2F - this.lastCenterOcclusion);
+            final float compensation = MathStuff.clamp1(
+                    DIFFRACTION_BASE * openness * sealedFactor * pathFactor * distBoost);
+            // Time-smooth the restore so crossing a room boundary (openness and
+            // enclosure both step at once) fades the muffling instead of snapping it.
+            final float smoothedComp = this.source.smoothDiffraction(compensation, snap);
+            directCutoff = Math.max(smoothedComp, directCutoff);
+            sendCutoff0 = Math.max(sendCutoff0, smoothedComp);
+            sendCutoff1 = Math.max(sendCutoff1, smoothedComp);
+            sendCutoff2 = Math.max(sendCutoff2, smoothedComp);
+            sendCutoff3 = Math.max(sendCutoff3, smoothedComp);
+        } else {
+            // No occluder this frame: ease the compensation back to zero so a wall
+            // moved aside, or leaving the shadow, fades rather than pops.
+            this.source.smoothDiffraction(0F, snap);
+        }
+
         float directGain = (float) MathStuff.pow(directCutoff, 0.1);
 
         sendGain1 *= bounceRatio[1];
@@ -387,8 +480,10 @@ public final class SoundFXUtils {
     private float calculateOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target) {
 
         // Shortcut if occlusion isn't to happen for this sound
-        if (skipOcclusion(this.source.getCategory()))
+        if (skipOcclusion(this.source.getCategory())) {
+            this.lastOccluderPos = null;
             return 0F;
+        }
 
         assert ctx.world != null;
         assert ctx.player != null;
@@ -408,7 +503,11 @@ public final class SoundFXUtils {
         // eye) and the results are time-smoothed, so a stray ray clipping the ground near
         // the player barely moves the averaged value. Kept to 5 rays so the added cost stays
         // a small fraction of the reverb trace (32x4).
-        float factor = traceOcclusion(ctx, origin, target);
+        // First solid occlusion hit across the fan, used for the diffraction
+        // compensation (how far the blocking wall sits from the player).
+        final Vec3[] firstOccluder = new Vec3[]{null};
+        float factor = traceOcclusion(ctx, origin, target, firstOccluder);
+        this.lastCenterOcclusion = factor;
         int rays = 1;
 
         final Vec3 dir = target.subtract(origin).normalize();
@@ -419,15 +518,17 @@ public final class SoundFXUtils {
         final Vec3 axis1 = dir.cross(seed).normalize();
         final Vec3 axis2 = dir.cross(axis1).normalize();
         for (final float s : new float[]{-1F, 1F}) {
-            factor += traceOcclusion(ctx, origin, target.add(axis1.scale(0.6F * s)));
-            factor += traceOcclusion(ctx, origin, target.add(axis2.scale(0.6F * s)));
+            factor += traceOcclusion(ctx, origin, target.add(axis1.scale(0.6F * s)), firstOccluder);
+            factor += traceOcclusion(ctx, origin, target.add(axis2.scale(0.6F * s)), firstOccluder);
             rays += 2;
         }
 
+        this.lastOccluderPos = firstOccluder[0];
         return factor / rays;
     }
 
-    private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target) {
+    private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target,
+                                 final Vec3[] firstOccluder) {
         float factor = 0F;
 
         Vec3 lastHit = origin;
@@ -441,6 +542,11 @@ public final class SoundFXUtils {
                 final double rayDistance = lastHit.distanceTo(result.getLocation());
                 // Occlusion is scaled by the distance traveled through the block.
                 factor += (float) (occlusion * rayDistance);
+                if (occlusion > 0F && firstOccluder[0] == null) {
+                    // Record the centre of the first solid segment: this is where the
+                    // wall sits along the path, driving the diffraction compensation.
+                    firstOccluder[0] = MathStuff.addScaled(lastHit, result.getLocation(), 0.5F);
+                }
                 lastHit = result.getLocation();
                 lastState = ctx.world.getBlockState(result.getBlockPos());
             } else {
@@ -449,6 +555,54 @@ public final class SoundFXUtils {
         }
 
         return factor;
+    }
+
+    /**
+     * Measures how sealed the sound source is: a short ray up each world axis from
+     * the source counts the directions blocked by solid geometry. A source buried in
+     * a 6x6x6 cube scores ~1.0 no matter which way the player stands, which removes
+     * the per-direction asymmetry of the player-facing occlusion fan; a source on
+     * open ground scores ~0.17 (just the ground below).
+     * <p>
+     * The probe starts on the source's own surface, not its centre: a source that is
+     * itself a solid block (a jukebox) would otherwise read every axis as blocked by
+     * its own body and report as fully enclosed, silently killing the compensation
+     * for that sound.
+     */
+    private float calculateSourceEnclosure(final WorldContext ctx, final Vec3 origin) {
+        int blocked = 0;
+        final BlockPos originPos = BlockPos.containing(origin);
+        final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
+        for (final Direction d : Direction.values()) {
+            final Vec3 dir = SURFACE_DIRECTION_NORMALS[d.ordinal()];
+            // Step outwards until leaving the source's own block before probing, so
+            // the source body itself never counts as enclosure. Any further solid
+            // (earth around a buried jukebox, a wool mass) still blocks the ray.
+            Vec3 probeStart = origin;
+            for (int step = 0; step < 8 && BlockPos.containing(probeStart).equals(originPos); step++)
+                probeStart = probeStart.add(dir.scale(0.5));
+            final Vec3 target = probeStart.add(dir.scale(PROBE_RAY_DISTANCE));
+            if (!isMiss(traceContext.trace(probeStart, target)))
+                blocked++;
+        }
+        return blocked / (float) Direction.values().length;
+    }
+
+    /**
+     * Measures how open the space around the player's ear is, the mirror of the
+     * source enclosure. A player hugging a thin wall in open terrain still has most
+     * directions open, so sound can diffract around the wall to reach them; a player
+     * in a sealed room does not, and stays muffled even when the source is outside.
+     */
+    private float calculatePlayerOpenness(final WorldContext ctx, final Vec3 eye) {
+        int open = 0;
+        final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
+        for (final Direction d : Direction.values()) {
+            final Vec3 target = eye.add(SURFACE_DIRECTION_NORMALS[d.ordinal()].scale(PROBE_RAY_DISTANCE));
+            if (isMiss(traceContext.trace(eye, target)))
+                open++;
+        }
+        return open / (float) Direction.values().length;
     }
 
     private static float calculateWeatherAbsorption(final WorldContext ctx, final Vec3 pt1, final Vec3 pt2) {

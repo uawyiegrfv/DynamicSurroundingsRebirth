@@ -47,6 +47,8 @@ public final class SourceContext implements Callable<Void> {
     private boolean waterFactorInitialized;
     private float smoothedOcclusion = 0F;
     private boolean occlusionInitialized;
+    private float smoothedDiffraction = 0F;
+    private boolean diffractionInitialized;
     // Set by the sound processor when the player just entered/left water. The next
     // evaluation snaps the smoothing state straight to its target instead of easing, so
     // entering/exiting water responds with no audible lag.
@@ -156,6 +158,23 @@ public final class SourceContext implements Callable<Void> {
             this.smoothedOcclusion += (target - this.smoothedOcclusion) * WATER_SMOOTH_ALPHA;
         }
         return this.smoothedOcclusion;
+    }
+
+    /**
+     * Time-smooths the diffraction compensation toward the target. The compensation
+     * jumps when the player crosses a room boundary - the openness and enclosure
+     * probes change in a single step, so the direct restore would snap. Easing it
+     * turns the indoor/outdoor toggle into a fade. Snaps on the first evaluation so
+     * a freshly played sound is not initially damped.
+     */
+    public float smoothDiffraction(final float target, final boolean snap) {
+        if (!this.diffractionInitialized || snap) {
+            this.smoothedDiffraction = target;
+            this.diffractionInitialized = true;
+        } else {
+            this.smoothedDiffraction += (target - this.smoothedDiffraction) * WATER_SMOOTH_ALPHA;
+        }
+        return this.smoothedDiffraction;
     }
 
     /**

@@ -77,6 +77,31 @@
       }
     ]
   },
+  "block.torch_burn": {
+    "subtitle": "dsurround.sound.caption.torch_burn",
+    "ds_credits": [
+      {
+        "name": "Fire crackling cozy campfire fireplace SFX",
+        "author": "LilMati",
+        "website": "https://freesound.org/people/LilMati",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/torch_burn/crackle1",
+        "volume": 0.55
+      },
+      {
+        "name": "dsurround:ambient/torch_burn/crackle2",
+        "volume": 0.55
+      },
+      {
+        "name": "dsurround:ambient/torch_burn/crackle3",
+        "volume": 0.55
+      }
+    ]
+  },
   "biome.wind": {
     "subtitle": "dsurround.sound.caption.wind",
     "ds_credits": [

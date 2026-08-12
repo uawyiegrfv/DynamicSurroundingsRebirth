@@ -81,6 +81,10 @@ public class Handlers {
         // Footprints ride on the vanilla step event rather than being a per-tick handler.
         ContainerManager.resolve(FootprintHandler.class);
 
+        // Crackling for a torch held in hand - not a per-tick handler, resolve to force
+        // construction so its tick listener is registered.
+        ContainerManager.resolve(HeldTorchBurnHandler.class);
+
         // Crit words listen for damage events and render via a GUI layer.
         ContainerManager.resolve(CritWordHandler.class);
 
@@ -202,6 +206,7 @@ public class Handlers {
             .registerSingleton(CraftingSoundEffectHandler.class)
             .registerSingleton(PotionParticleHandler.class)
             .registerSingleton(FootprintHandler.class)
+            .registerSingleton(HeldTorchBurnHandler.class)
             .registerSingleton(CritWordHandler.class)
             .registerSingleton(ThunderHandler.class)
             .registerSingleton(AreaBlockEffects.class)

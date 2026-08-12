@@ -636,5 +636,11 @@
       "min": 0.8,
       "max": 1.2
     }
+  },
+  {
+    "location": "dsurround:held_torch_burn",
+    "soundEvent": "dsurround:block.torch_burn",
+    "category": "AMBIENT",
+    "volume": 0.85
   }
 ]

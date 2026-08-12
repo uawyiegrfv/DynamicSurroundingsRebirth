@@ -56,6 +56,20 @@
   },
   {
     "blocks": [
+      "minecraft:torch",
+      "minecraft:wall_torch",
+      "minecraft:soul_torch",
+      "minecraft:soul_wall_torch"
+    ],
+    "soundChance": "0.01",
+    "acoustics": [
+      {
+        "factory": "dsurround:block.torch_burn"
+      }
+    ]
+  },
+  {
+    "blocks": [
       "minecraft:soul_sand"
     ],
     "soundChance": "0.000125",
@@ -74,7 +88,7 @@
     "soundChance": "0.000125",
     "acoustics": [
       {
-        "factory": "netherbrick.breathing",
+        "factory": "dsurround:netherbrick.breathing",
         "conditions": "dim.getId() == 'minecraft:the_nether'"
       }
     ]

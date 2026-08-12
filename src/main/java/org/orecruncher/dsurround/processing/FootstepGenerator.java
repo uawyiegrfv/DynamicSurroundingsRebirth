@@ -207,7 +207,10 @@ public class FootstepGenerator extends AbstractClientHandler {
         // Walking / running: accumulate horizontal distance (scaled like the original's
         // distanceWalkedOnStepModified *= 0.6) and step at stride intervals. Stepping DOWN
         // one block is detected explicitly below (reliable) rather than via distance.
-        if (onGround || inWater || onLadder) {
+        // Water is deliberately excluded: swimming/suspending a block off the riverbed
+        // (onGround == false) must not generate footsteps, only actually walking on the
+        // ground (onGround) or climbing does.
+        if (onGround || onLadder) {
             double step = 0D;
             if (this.lastPos != null) {
                 final double dx = pos.x - this.lastPos.x;

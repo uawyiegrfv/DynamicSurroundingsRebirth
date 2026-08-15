@@ -36,7 +36,7 @@ public final class ReverbData extends EffectData {
         this.reflectionsGain = Mth.clamp(this.reflectionsGain, EXTEfx.AL_EAXREVERB_MIN_REFLECTIONS_GAIN, EXTEfx.AL_EAXREVERB_MAX_REFLECTIONS_GAIN);
         this.reflectionsDelay = Mth.clamp(this.reflectionsDelay, EXTEfx.AL_EAXREVERB_MIN_REFLECTIONS_DELAY, EXTEfx.AL_EAXREVERB_MAX_REFLECTIONS_DELAY);
         this.lateReverbGain = Mth.clamp(this.lateReverbGain, EXTEfx.AL_EAXREVERB_MIN_LATE_REVERB_GAIN, EXTEfx.AL_EAXREVERB_MAX_LATE_REVERB_GAIN);
-        this.lateReverbDelay = Mth.clamp(this.reflectionsDelay, EXTEfx.AL_EAXREVERB_MIN_LATE_REVERB_DELAY, EXTEfx.AL_EAXREVERB_MAX_LATE_REVERB_DELAY);
+        this.lateReverbDelay = Mth.clamp(this.lateReverbDelay, EXTEfx.AL_EAXREVERB_MIN_LATE_REVERB_DELAY, EXTEfx.AL_EAXREVERB_MAX_LATE_REVERB_DELAY);
         this.airAbsorptionGainHF = Mth.clamp(this.airAbsorptionGainHF, EXTEfx.AL_EAXREVERB_MIN_AIR_ABSORPTION_GAINHF, EXTEfx.AL_EAXREVERB_MAX_AIR_ABSORPTION_GAINHF);
         this.roomRolloffFactor = Mth.clamp(this.roomRolloffFactor, EXTEfx.AL_EAXREVERB_MIN_ROOM_ROLLOFF_FACTOR, EXTEfx.AL_EAXREVERB_MAX_ROOM_ROLLOFF_FACTOR);
         this.decayHFLimit = Mth.clamp(this.decayHFLimit, AL10.AL_FALSE, AL10.AL_TRUE);

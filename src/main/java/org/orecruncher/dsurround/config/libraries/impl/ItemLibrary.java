@@ -49,13 +49,15 @@ public class ItemLibrary implements IItemLibrary {
 
     @Override
     public void reload(ResourceUtilities resourceUtilities, IReloadEvent.Scope scope) {
-        if (scope != IReloadEvent.Scope.RESOURCES) {
-            this.version++;
-            this.itemEquipFactories.clear();
-            this.itemSwingFactories.clear();
-            this.itemArmorStepFactories.clear();
-            this.logger.info("[ItemLibrary] Configured; version is now %d", this.version);
+        this.version++;
+        if (scope == IReloadEvent.Scope.TAGS) {
+            this.logger.info("[ItemLibrary] received tag update notification; version is now %d", this.version);
+            return;
         }
+        this.itemEquipFactories.clear();
+        this.itemSwingFactories.clear();
+        this.itemArmorStepFactories.clear();
+        this.logger.info("[ItemLibrary] Configured; version is now %d", this.version);
     }
 
     @Override

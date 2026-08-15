@@ -10,13 +10,6 @@ public interface IStopwatch {
     void reset();
 
     /**
-     * Indicates if the stopwatch has had reset() called on it prior.
-     *
-     * @return True if reset has been called, false otherwise.
-     */
-    boolean isNew();
-
-    /**
      * Time duration since last reset.  Value is converted based on TimeUnit value.
      *
      * @return Elapsed time

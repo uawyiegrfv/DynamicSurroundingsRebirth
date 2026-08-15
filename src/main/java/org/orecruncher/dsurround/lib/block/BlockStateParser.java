@@ -70,7 +70,7 @@ final class BlockStateParser {
         }
 
         final Identifier resource = Identifier.tryParse(temp);
-        if (temp == null) {
+        if (resource == null) {
             throw new BlockStateParseException(String.format("Invalid block name '%s' for entry '%s'", temp, blockName));
         }
 

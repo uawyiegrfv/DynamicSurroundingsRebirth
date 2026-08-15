@@ -1,6 +1,5 @@
 package org.orecruncher.dsurround.commands.handlers;
 
-import com.google.common.collect.ImmutableList;
 import net.minecraft.network.chat.Component;
 import org.orecruncher.dsurround.config.libraries.*;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
@@ -8,7 +7,6 @@ import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.lib.platform.IMinecraftDirectories;
 
 import java.io.PrintStream;
-import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -81,8 +79,4 @@ public class DumpCommandHandler {
         }
     }
 
-    private static Stream<String> tbd() {
-        final List<String> result = ImmutableList.of("Not hooked up");
-        return result.stream();
-    }
 }

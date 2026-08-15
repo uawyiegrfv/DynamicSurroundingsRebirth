@@ -64,11 +64,23 @@ public final class SoundFXUtils {
      */
     private static final float DIFFRACTION_REVERB_SCALE = 0.5F;
     /**
+     * Auxiliary floor for the diffraction restore. A wide/thick obstacle has a
+     * reachable edge but a long detour, so the geometric ΔL falloff drives the
+     * diffraction toward 0 and the sound behind it to near-silence. As long as an
+     * edge IS reachable (diffraction > 0) and neither end is sealed (the openness/
+     * enclosure gates below), this floor keeps a faint-but-audible low-frequency
+     * restore instead of letting a large-but-finite obstacle mute the sound entirely.
+     * Thin walls (small ΔL) already exceed this value, so their behaviour is unchanged.
+     */
+    private static final float DIFFRACTION_FLOOR = 0.3F;
+    /**
      * Radii (blocks) of the detour rings probed around the occluder, smallest first.
      * A thin wall clears at the smallest radius; a wide wall needs a larger ring to
      * reach past its edge. The probe stops at the first radius that finds a path.
+     * Extended to 16 so a wall roughly 30 blocks wide still has a reachable edge;
+     * beyond that the obstacle is treated as terrain and stays muffled.
      */
-    private static final float[] DETOUR_RADII = {1.5F, 3F, 5F, 8F};
+    private static final float[] DETOUR_RADII = {1.5F, 3F, 5F, 8F, 12F, 16F};
     /**
      * Waypoints per detour ring. 8 samples the perpendicular directions (around the
      * sides, over the top, under) densely enough to find the shortest edge while
@@ -344,7 +356,13 @@ public final class SoundFXUtils {
         // same straight-line failure mode, and a hugged wall stayed muffled through the
         // reverb path even after the direct was restored.
         if (this.lastCenterOcclusion > 0F) {
-            final float diffraction = calculateDiffraction(ctx, soundPos, ctx.playerEyePosition, this.lastOccluderPos);
+            final float geometricDiffraction = calculateDiffraction(ctx, soundPos, ctx.playerEyePosition, this.lastOccluderPos);
+            // Auxiliary factor: a wide obstacle still has a reachable edge, but the
+            // long detour makes the geometric falloff inaudible. Floor it (only when an
+            // edge was actually found) so a large-but-open obstacle stays faintly
+            // audible; a buried source / sealed player is still muted by the gates
+            // below. With no edge (diffraction 0) the floor must NOT lift it.
+            final float diffraction = geometricDiffraction > 0F ? Math.max(geometricDiffraction, DIFFRACTION_FLOOR) : 0F;
             final float enclosure = calculateSourceEnclosure(ctx, soundPos);
             final float openness = calculatePlayerOpenness(ctx, ctx.playerEyePosition);
             // Gate the restore on true sealing only. A linear (1-enclosure) or raw

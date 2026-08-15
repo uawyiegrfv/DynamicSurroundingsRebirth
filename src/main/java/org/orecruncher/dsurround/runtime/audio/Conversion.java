@@ -1,30 +1,13 @@
 package org.orecruncher.dsurround.runtime.audio;
 
 import com.mojang.blaze3d.audio.SoundBuffer;
-import net.minecraft.client.sounds.AudioStream;
-import org.jetbrains.annotations.NotNull;
 import org.orecruncher.dsurround.mixins.audio.MixinSoundBuffer;
 
 import javax.sound.sampled.AudioFormat;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 @SuppressWarnings("unused")
 public final class Conversion {
-
-    /**
-     * Handles the conversion of the incoming IAudioStream into mono format as needed.
-     *
-     * @param inputStream The audio stream that is to be played
-     * @return An IAudioStream that is in mono format
-     */
-    public static AudioStream convert(final AudioStream inputStream) {
-        final AudioFormat format = inputStream.getFormat();
-        if (format.getChannels() == 1)
-            return inputStream;
-
-        return new MonoStream(inputStream);
-    }
 
     /**
      * Converts the AudioStreamBuffer into mono if needed.
@@ -83,22 +66,4 @@ public final class Conversion {
         source.rewind();
         source.limit(sourceLength >> 1);
     }
-
-    private record MonoStream(AudioStream source) implements AudioStream {
-
-        @Override
-            public @NotNull AudioFormat getFormat() {
-                return this.source.getFormat();
-            }
-
-            @Override
-            public @NotNull ByteBuffer read(int i) throws IOException {
-                return this.source.read(i);
-            }
-
-            @Override
-            public void close() throws IOException {
-                this.source.close();
-            }
-        }
 }

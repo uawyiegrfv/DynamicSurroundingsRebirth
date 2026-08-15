@@ -1,6 +1,5 @@
 package org.orecruncher.dsurround.lib;
 
-import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.StringSplitter;
@@ -83,10 +82,6 @@ public final class GameUtils {
     public static boolean isSinglePlayer()
     {
         return getMC().isSingleplayer();
-    }
-
-    public static boolean isFirstPersonView() {
-        return getGameSettings().getCameraType() == CameraType.FIRST_PERSON;
     }
 
     public static Minecraft getMC() {

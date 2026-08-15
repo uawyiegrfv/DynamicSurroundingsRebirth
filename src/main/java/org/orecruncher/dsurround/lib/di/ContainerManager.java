@@ -49,14 +49,14 @@ public final class ContainerManager {
 
     public void registerContainer(@NotNull IServiceContainer container) {
         Preconditions.checkNotNull(container);
-        this.validiateContainerName(container.getName());
+        this.validateContainerName(container.getName());
         this.containers.put(container.getName(), container);
     }
 
-    private void validiateContainerName(String containerName) {
+    private void validateContainerName(String containerName) {
         Preconditions.checkNotNull(containerName);
         Preconditions.checkArgument(containerName.length() > 3, "Container name must be > 3 characters");
-        Preconditions.checkArgument(ROOT_CONTAINER_NAME.equalsIgnoreCase(containerName), String.format("Container name cannot be '%s'", ROOT_CONTAINER_NAME));
-        Preconditions.checkArgument(this.containers.containsKey(containerName), "A container with that name already exists");
+        Preconditions.checkArgument(!ROOT_CONTAINER_NAME.equalsIgnoreCase(containerName), String.format("Container name cannot be '%s'", ROOT_CONTAINER_NAME));
+        Preconditions.checkArgument(!this.containers.containsKey(containerName), "A container with that name already exists");
     }
 }

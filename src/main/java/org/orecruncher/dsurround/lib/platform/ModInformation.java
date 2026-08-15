@@ -19,7 +19,7 @@ public final class ModInformation implements IMinecraftDirectories {
     // TODO: Move into external resources?
     // Version-check URL: points at the ported mod's own update feed (create a
     // versions.json in the repo root, mirroring the upstream format).
-    private static final URI modUpdate = URI.create("https://raw.githubusercontent.com/deepsleep114/DynamicSurroundingsRebirth/main/versions.json");
+    private static final URI modUpdate = URI.create("https://raw.githubusercontent.com/uawyiegrfv/DynamicSurroundingsRebirth/main/versions.json");
     private static final String modCurseForge = "https://www.curseforge.com/minecraft/mc-mods/dynamic-surroundings-rebirth";
     private static final String modModrinth = "https://modrinth.com/mod/dynamic-surroundings-rebirth";
 

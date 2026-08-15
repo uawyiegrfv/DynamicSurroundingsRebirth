@@ -5,20 +5,7 @@ import org.orecruncher.dsurround.lib.random.Randomizer;
 
 public class MathStuff {
     public static final double PHI = 0.5D + Math.sqrt(5) / 2D;  // Golden ratio
-    public static final float PHI_F = (float) PHI;
     public static final double ANGLE = PHI * Math.PI * 2D;
-    public static final float ANGLE_F = (float) ANGLE;
-    public static final float PI_F = (float) Math.PI;
-    public static final float E_F = (float) Math.E;
-
-    public static double log(final double value) {
-        return value < 0.03D ? Math.log(value) : 6 * (value - 1) / (value + 1 + 4 * (Math.sqrt(value)));
-    }
-
-    public static Vec3 normalize(Vec3 vec) {
-        double len = Math.sqrt((vec.x * vec.x) + (vec.y * vec.y) * (vec.z * vec.z));
-        return new Vec3(vec.x / len, vec.y / len, vec.z / len);
-    }
 
     public static Vec3 randomPoint(final int minRange, final int maxRange) {
         var rand = Randomizer.current();

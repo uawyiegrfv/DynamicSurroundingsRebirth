@@ -18,14 +18,7 @@ final class Stopwatch implements IStopwatch {
     }
 
     @Override
-    public boolean isNew() {
-        return this._timeMark == 0;
-    }
-
-    @Override
     public long elapsed(TimeUnit timeUnit) {
-        if (this.isNew())
-            return 0;
         return timeUnit.convert(this._systemClock.getUtcNanosNow() - this._timeMark, TimeUnit.NANOSECONDS);
     }
 }

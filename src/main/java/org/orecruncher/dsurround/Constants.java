@@ -27,9 +27,7 @@ public final class Constants {
     public static final String MOD_SOUND_PHYSICS_REMASTERED = "sound_physics_remastered";
     public static final String MOD_PARTICLE_RAIN = "particlerain";
     public static final String CLOTH_CONFIG_FABRIC = "cloth-config";
-    public static final String CLOTH_CONFIG_NEOFORGE = "cloth_config";  // Yeah...
-    public static final String YACL = "yet_another_config_lib_v3";
-    public static final String SINYTRA_CONNECTOR = "connectormod";
+    public static final String CLOTH_CONFIG_NEOFORGE = "cloth_config";  // NeoForge build uses underscore mod id
     public static final String SERENE_SEASONS = "sereneseasons";
     public static final String QUILTED_LOADER = "quilt_loader";
     public static final String MODMENU = "modmenu";
@@ -52,8 +50,6 @@ public final class Constants {
                 MOD_PARTICLE_RAIN,
                 CLOTH_CONFIG_FABRIC,
                 CLOTH_CONFIG_NEOFORGE,
-                YACL,
-                SINYTRA_CONNECTOR,
                 SERENE_SEASONS,
                 QUILTED_LOADER);
 

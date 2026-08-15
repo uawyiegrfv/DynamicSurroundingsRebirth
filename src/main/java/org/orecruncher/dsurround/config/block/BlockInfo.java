@@ -83,7 +83,7 @@ public class BlockInfo {
     }
 
     public boolean isDefault() {
-        return this.sounds == null && this.blockEffects == null
+        return this.sounds.isEmpty() && this.blockEffects.isEmpty()
                 && this.soundReflectivity == Reflectance.DEFAULT
                 && (this.soundOcclusion == Occlusion.DEFAULT
                         || this.soundOcclusion == Occlusion.DEFAULT_TRANSLUCENT);
@@ -131,7 +131,7 @@ public class BlockInfo {
     }
 
     public boolean hasSoundsOrEffects() {
-        return this.sounds != null || this.blockEffects != null;
+        return !this.sounds.isEmpty() || !this.blockEffects.isEmpty();
     }
 
     public Optional<ISoundFactory> getSoundToPlay(final IRandomizer random) {
@@ -218,7 +218,7 @@ public class BlockInfo {
             result = Reflectance.NONE;
         else if (TAG_LIBRARY.is(BlockTags.STONE_ORE_REPLACEABLES, state))
             // Assume stone equivalent
-            result = Occlusion.MAX;
+            result = Reflectance.MAX;
         else if (TAG_LIBRARY.is(BlockTags.DAMPENS_VIBRATIONS, state))
             result = Reflectance.VIBRATION;
         else if (TAG_LIBRARY.is(BlockTags.SWORD_EFFICIENT, state))

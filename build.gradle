@@ -96,12 +96,6 @@ dependencies {
         exclude(group: "net.fabricmc.fabric-api")
     }
 
-    // GlitchCore - optional integration
-    compileOnly "maven.modrinth:glitchcore:${glitchcore_version}"
-
-    // TerraBlender - optional integration
-    compileOnly "maven.modrinth:terrablender:${terrablender_version}"
-
     // SereneSeasons - optional integration (compileOnly: only loaded when the mod is installed)
     compileOnly files("libs/SereneSeasons-neoforge-26.1.2-26.1.2.0.4.jar")
     // BiomesOPlenty: not yet available for 26.1 NeoForge

@@ -14,6 +14,10 @@ import org.orecruncher.dsurround.lib.GameUtils;
 
 public class BiomeFogRangeCalculator extends VanillaFogRangeCalculator {
 
+    // Reused per frame; render() always overwrites both range fields before returning.
+    private final FogData reusableResult = new FogData();
+
+
     private static final float SCALE_ADJUST = 0.002F;
 
     private final IBiomeLibrary biomeLibrary;
@@ -55,7 +59,7 @@ public class BiomeFogRangeCalculator extends VanillaFogRangeCalculator {
             return data;
 
         var scale = 1F - this.activeScale;
-        var result = new FogData();
+        final FogData result = this.reusableResult;
         result.renderDistanceEnd = data.renderDistanceEnd * scale;
         result.renderDistanceStart = data.renderDistanceStart * scale * scale;
         return result;

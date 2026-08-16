@@ -107,6 +107,19 @@ public final class ModLog implements IModLog {
     }
 
     @Override
+    public void debug(final Throwable e, final String msg, @Nullable final Object... params) {
+        if (isDebugging()) {
+            outputLines(this.logger::info, msg, params);
+            this.logger.info(e.toString());
+        }
+    }
+
+    @Override
+    public void debug(final Throwable e, final Supplier<String> message) {
+        this.debug(e, message.get());
+    }
+
+    @Override
     public void error(final Throwable e, final String msg, @Nullable final Object... params) {
         outputLines(this.logger::error, msg, params);
         this.logger.error(e.toString());

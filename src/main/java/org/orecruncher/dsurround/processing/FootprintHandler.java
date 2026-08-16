@@ -38,7 +38,6 @@ public class FootprintHandler {
             Blocks.CLAY);
 
     private final Configuration config;
-    private final IModLog logger;
 
     // Distance to travel before dropping the next footprint (~one vanilla step).
     private static final double STEP_DISTANCE = 0.9D;
@@ -55,7 +54,6 @@ public class FootprintHandler {
 
     public FootprintHandler(Configuration config, IModLog logger) {
         this.config = config;
-        this.logger = logger;
         ClientState.TICK_END.register(this::onTick);
         ClientState.ON_CONNECT.register(this::onConnect);
         ClientState.ON_DISCONNECT.register(this::onDisconnect);

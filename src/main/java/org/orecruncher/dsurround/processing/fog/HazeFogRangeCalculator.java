@@ -6,7 +6,6 @@ import org.jetbrains.annotations.NotNull;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.config.libraries.IDimensionInformation;
 import org.orecruncher.dsurround.lib.GameUtils;
-import org.orecruncher.dsurround.lib.di.ContainerManager;
 
 /**
  * Adds haze when the player is near the cloud layer, ported from the original
@@ -14,6 +13,10 @@ import org.orecruncher.dsurround.lib.di.ContainerManager;
  * (15 below to 25 above, with a 10-tall core) scales the fog distance down.
  */
 public class HazeFogRangeCalculator extends VanillaFogRangeCalculator {
+
+    // Reused per frame; render() always overwrites both range fields before returning.
+    private final FogData reusableResult = new FogData();
+
 
     private static final int BAND_OFFSETS = 15;
     private static final int BAND_CORE_SIZE = 10;
@@ -31,8 +34,13 @@ public class HazeFogRangeCalculator extends VanillaFogRangeCalculator {
         }
     }
 
-    public HazeFogRangeCalculator(Configuration.FogOptions fogOptions) {
+    private final IDimensionInformation dimensionInformation;
+
+    public HazeFogRangeCalculator(Configuration.FogOptions fogOptions, IDimensionInformation dimensionInformation) {
         super("Haze", fogOptions);
+        // Injected once instead of resolving through the (synchronized) container on
+        // every rendered frame.
+        this.dimensionInformation = dimensionInformation;
     }
 
     @Override
@@ -47,8 +55,7 @@ public class HazeFogRangeCalculator extends VanillaFogRangeCalculator {
         if (player == null)
             return data;
 
-        final IDimensionInformation dimInfo = ContainerManager.resolve(IDimensionInformation.class);
-        final float cloudY = dimInfo.getCloudHeight();
+        final float cloudY = this.dimensionInformation.getCloudHeight();
 
         final FogBand cloudBand = FogBand.cloudBand(cloudY);
         final FogBand highBand = new FogBand(HIGH_BAND_LOW, HIGH_BAND_CORE - 5, HIGH_BAND_CORE + 5, HIGH_BAND_HIGH);
@@ -62,7 +69,7 @@ public class HazeFogRangeCalculator extends VanillaFogRangeCalculator {
         if (bestEnd >= data.renderDistanceEnd)
             return data;
 
-        var result = new FogData();
+        final FogData result = this.reusableResult;
         result.renderDistanceEnd = bestEnd;
         // Start is always half the end so the Holistic combiner never rejects it
         // (start > end) even when the vanilla renderDistanceStart is large.

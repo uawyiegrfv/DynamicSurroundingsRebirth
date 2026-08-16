@@ -1124,3 +1124,37 @@ compensation = DIFFRACTION_BASE × openness × sealedFactor × pathFactor × dis
 
 ### 性能
 绕射探针仅在中心线被挡时跑，最多 4 半径 × 8 点 × 2 射线 = 64 次短 raycast（薄墙首半径即停，~16 次），与 2.27 的 12 探针 + 5 扇射线同量级。诊断日志（`[DIFFDBG]`/`[TRACEDBG]`）已全部清理。
+
+## 2.29 极光 shader clean-room 重写（2026-08-16）
+
+2.17.1 的结论被推翻：用 26.1 原生管线机制重新实现了 shader 版极光并通过七轮用户实测调优。**与 2.17.1 不同，这次没有回退**。
+
+- **文件**：`assets/dsurround/shaders/core/aurora.vsh/.fsh`（自写值噪声 FBM，MIT 可分发，无 Mattenii 代码）、`AuroraRenderPipelines`（ASPECT 4.5/9 双管线，modBus 注册）、`AuroraShader`（QUADS 连续幕帘 + 前/背双层 + X/Z 独立缩放）、`AuroraFactory` 异常回退 Classic、`AuroraEffectHandler` 双渲染器分发。可见窗口延至晚 10 点—凌晨 3 点（225°）。
+- **七轮调优的关键参数**（完整记录见 `docs/aurora-shader-rewrite-notes.md` 第 8 节）：亮度 1.0；SCALE_X 0.50 / SCALE_Z 0.26 / SCALE_Y 120；射线 smoothstep(0.24,0.76) + rayMask 0.52+0.48；顶部渐隐必须保证 top+fade < 几何边（否则硬切）；sweep x 频率 1.6；底部 rim 宽过渡 × curtain 调制（频率对高度恒定，否则"木星纹"）；高度呼吸 sin(t*0.126)≈25s；每带色相 128±14 经顶点色 ×2 居中。
+- **坑**：`@OnlyIn` 注解在 26.1 会被 OnlyInWarningsHandler 打成启动 ERROR——不要用；顶点 y=0–1 时 SCALE_Y 即幕帘总高度。
+
+## 2.30 全项目代码审查修复（2026-08-16，四个并行只读 agent 审查 + 人工复核）
+
+**声音系统（行为修正类）**：
+- `Effects` **共享滤波器串扰**（最重要）：`filter0-3`/`direct` 是全局唯一 OpenAL filter 对象，多声源并发时只有"最后写入者"的遮挡/混响参数生效（`direct` 共享意味着一个被遮挡声源会把所有声音一起闷掉；单声源测试发现不了）。修复：滤波器改为**每源持有**（`SourceContext.zoneFilters/directFilter`，声音引擎线程懒初始化、`stop()` 释放），zone→send 改**固定绑定**（send i 恒载 zone i，删除按源排序重绑）。2-send 设备上长混响 zone2/3 不再被动态提升（mixin 请求 4 发送后实际都有 4，影响面极小）。
+- `Slot.deinitialize` 现在**真正删除** AL 对象（alDeleteFilters/AuxiliaryEffectSlots/Effects），修复设备重建时 aux slot/effect/filter 泄漏。
+- `SoundFXProcessor` 线程池改守护线程（防 JVM 退出挂起）；`sources/worldContext/diagnosticString` 加 volatile。
+- `REVERB_RAY_BOUNCES` 钳制 `max(4, config)`——配置 <4 时 bounceRatio[0..3] 越界、异常被 updateImpl 吞掉、**整个混响静默失效**。
+- `SourceContext.updateImpl` 吞 Throwable 改为 debug 级留痕（此前它掩盖了上一条 bug 数月）。
+- `MixinMusicManager.dsurround_whatsPlaying` 补 credits 空列表判断（title 有 credits 无时越界崩命令）。
+- `SoundInstanceHandler.inRange` 异步 resolve 后立即解引用 getSound() 的 NPE——改为放行并等下轮。
+
+**状态复位（换世界残留）**：`FootstepGenerator.onDisconnect` 补齐 lastPos/isFlying/fallDistance/didJump/distanceWalked/dmwBase/yPosition 复位（此前换世界第一 tick 用旧坐标算出巨大位移→幻影脚步）；`WeatherStormHandler` connect/disconnect 归零 dustIntensity（黄雾残留 ~2s）；沙尘暴加 `isInside()` 矿洞判定（沙漠下洞穴不再灌沙）；`CompassOverlay.spinRandomly` 每 tick 复位。
+
+**死代码清理**：`Client.java` 的 HolisticFogRangeCalculator 死 DI 单例（与 FogHandler 自建实例构成双计算器树）；5 处死 `@SubscribeEvent` 注解（AuroraEffectHandler/CritWord×2/CraftingSound/PotionParticle/FogHandler）；死字段方法（FootstepGenerator.wasOnGround、FootprintHandler.logger、DiagnosticsOverlay.serverBranding、WeatherStormHandler.getDustIntensity、HeldTorchBurnHandler.config/logger、AuroraShader.renderType、AuroraBase 四个未用 helper、NeoForgeMod.onInitializeClient 空监听、WaterRippleStyle.resource/getTexture）；`UPDATE_FEQUENCY_TICKS` 拼写修正；`SourceContext` 三个 smooth* 收敛为 ease() 辅助 + OCCLUSION_SMOOTH_ALPHA 独立常量；`SoundFXUtils.calculate()` 277 行拆为 traceReverb/applyDiffraction/finalizeSendGains/uploadSettings 四方法（表达式逐行保留）。
+
+**性能（观感不变）**：CritWordHandler 先做投影深度剔除再遮挡 raycast（镜头背后的词不再白做体素射线）；FootprintParticle 旋转四元数缓存为字段、WaterRippleParticle 提为 static final（每帧每粒子的分配清零）；fog 六个计算器复用 FogData 实例；HazeFog 每帧的 synchronized DI resolve 改构造注入。
+
+**未做（留待决策）**：SoundLibrary.postProcess 的 startupSounds/culledSounds 在 F3+T 重载时累积不清空；无引用素材清理（研究结论见下）；zh_cn 缺 8 个 dsmm 命令键；mods.toml architectury 版本范围硬编码 `[13.0.8,)`；minecraft 版本精确锁定是否放宽。
+
+**无引用素材研究结论**（对照 1.12.2 源码逐一验证）：`sounds/ambient/items/`（27 个）、`log_walk1-11`、`ambient/miscblocks/floorsqueak1-3`、`items/pageflip1-3`、`droplets/drop4`、`armor/heavy_foot4`、`textures/particles/none.png` 为纯冗余副本或 1.12.2 本来就无引用，**可删**；`ambient/insects/gnatt1+grasshopper1`（insectbuzz 群系音效）、`rainsplash.png`（水花粒子）、`ripple/ripple1/ripple2.png`（3 种涟漪风格）是**未移植功能的原始素材**，建议保留。
+
+### 2.30.1 待用户拍板的"需确认"项说明
+
+- `SoundFXUtils.offsetPositionIfSolid` 用 `!=AIR` 判断（水/花草都推移声源 0.876 格）是 2.24 修过又按"Fabric 原版语义"回退的现状；水路径采样已用 rawSourcePos 绕开，实际可闻影响极小。
+- `MixinSoundEngine` 被 block/cull 的声音仍会走 remap 播放替换声——若用户在个体声音配置里屏蔽了某原版声音且该声音有 remap 规则（脚步/雷声），替换声仍会播放。

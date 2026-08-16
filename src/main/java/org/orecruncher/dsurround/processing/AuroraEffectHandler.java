@@ -3,7 +3,6 @@ package org.orecruncher.dsurround.processing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import org.orecruncher.dsurround.Configuration;
@@ -144,7 +143,6 @@ public class AuroraEffectHandler extends AbstractClientHandler {
         this.dimensionId = currentDimension;
     }
 
-    @SubscribeEvent
     public void doRender(final RenderLevelStageEvent.AfterSky event) {
         // Both renderers need the level-render PoseStack; dispatch on the
         // concrete type since IAurora.render(partialTick) cannot carry it.

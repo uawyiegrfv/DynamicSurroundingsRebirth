@@ -30,7 +30,6 @@ import org.orecruncher.dsurround.lib.version.IVersionChecker;
 import org.orecruncher.dsurround.lib.version.VersionChecker;
 import org.orecruncher.dsurround.lib.version.VersionResult;
 import org.orecruncher.dsurround.processing.Handlers;
-import org.orecruncher.dsurround.processing.fog.HolisticFogRangeCalculator;
 import org.orecruncher.dsurround.runtime.ConditionEvaluator;
 import org.orecruncher.dsurround.runtime.IConditionEvaluator;
 import org.orecruncher.dsurround.sound.AudioPlayerDebug;
@@ -178,10 +177,6 @@ public final class Client {
             var resourceUtilities = ResourceUtilities.createForCurrentState();
             AssetLibraryEvent.RELOAD.raise().onReload(resourceUtilities, IReloadEvent.Scope.TAGS);
         }, HandlerPriority.VERY_HIGH);
-
-        // Force instantiation of the fog calculator so its event registrations are active
-        container.registerSingleton(HolisticFogRangeCalculator.class);
-        ContainerManager.resolve(HolisticFogRangeCalculator.class);
 
         // Force instantiation of the core Handler. This should cause the rest
         // of the dependencies to be initialized.

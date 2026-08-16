@@ -74,7 +74,6 @@ public class DiagnosticsOverlay extends AbstractOverlay {
     private final ObjectArray<FormattedCharSequence> right = new ObjectArray<>(64);
     private boolean showHud;
     private boolean enableCollection;
-    private String serverBranding;
 
     public DiagnosticsOverlay(ModInformation modInformation) {
         var platformName = Platform.isFabric() ? "Fabric" : "NeoForge";

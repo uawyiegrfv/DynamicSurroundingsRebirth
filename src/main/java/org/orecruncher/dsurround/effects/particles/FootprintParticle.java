@@ -32,6 +32,9 @@ public class FootprintParticle extends SingleQuadParticle {
     private final float texV1;
     private final float texV2;
     private final float yaw;
+    // Computed once: the yaw never changes after construction, and caching avoids
+    // two Quaternionf allocations per frame per active print.
+    private final Quaternionf rotation;
 
     public FootprintParticle(FootprintStyle style, boolean isRight, float yaw, ClientLevel world, double x, double y, double z) {
         super(world, x, y, z, ParticleUtils.getSprite(FOOTPRINT_TEXTURE));
@@ -40,6 +43,17 @@ public class FootprintParticle extends SingleQuadParticle {
         this.quadSize = 0.12F;
         this.alpha = 0.4F;
         this.yaw = yaw;
+
+        // Turn the print to face the direction of travel, then lay it flat on the
+        // ground. The 26.1 quad is built in the XY plane with the texture top (+Y) at the
+        // toe; folding it flat with rotationX(-90) and then rotating by rotationY(yaw)
+        // would point the toe at (-sin yaw, -cos yaw) - mirrored across the N/S axis, so
+        // walking east/west looked right but north/south prints pointed backwards (the
+        // original 1.12.2 MoteFootprint compensated with -rotation + 180). Rotating by
+        // (PI - yaw) maps texture top onto the true forward (-sin yaw, cos yaw) in every
+        // world direction.
+        this.rotation = new Quaternionf().rotationY((float) (Math.PI - yaw))
+                .mul(new Quaternionf().rotationX(-Mth.HALF_PI));
 
         // Sit just above the block face to avoid z-fighting.
         this.y += 0.02D;
@@ -61,23 +75,12 @@ public class FootprintParticle extends SingleQuadParticle {
 
     @Override
     public void extract(QuadParticleRenderState state, Camera camera, float partialTick) {
-        // Turn the print to face the direction of travel, then lay it flat on the
-        // ground. The 26.1 quad is built in the XY plane with the texture top (+Y) at the
-        // toe; folding it flat with rotationX(-90) and then rotating by rotationY(yaw)
-        // would point the toe at (-sin yaw, -cos yaw) - mirrored across the N/S axis, so
-        // walking east/west looked right but north/south prints pointed backwards (the
-        // original 1.12.2 MoteFootprint compensated with -rotation + 180). Rotating by
-        // (PI - yaw) maps texture top onto the true forward (-sin yaw, cos yaw) in every
-        // world direction.
-        Quaternionf rotation = new Quaternionf().rotationY((float) (Math.PI - this.yaw))
-                .mul(new Quaternionf().rotationX(-Mth.HALF_PI));
-
         // Fade out quadratically over the lifetime.
         float f = (this.age + partialTick) / ((float) this.lifetime + 1F);
         f = f * f;
         this.alpha = Mth.clamp(1.0F - f, 0F, 1F) * 0.4F;
 
-        this.extractRotatedQuad(state, camera, rotation, partialTick);
+        this.extractRotatedQuad(state, camera, this.rotation, partialTick);
     }
 
     @Override

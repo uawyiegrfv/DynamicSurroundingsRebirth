@@ -14,6 +14,10 @@ import org.orecruncher.dsurround.lib.GameUtils;
  */
 public class BedrockFogRangeCalculator extends VanillaFogRangeCalculator {
 
+    // Reused per frame; render() always overwrites both range fields before returning.
+    private final FogData reusableResult = new FogData();
+
+
     private static final float BASE_Y = 32F;
     private static final float MAX_FOG_END = 100F;
 
@@ -59,7 +63,7 @@ public class BedrockFogRangeCalculator extends VanillaFogRangeCalculator {
         final float end = Math.max(20F, Math.min(data.renderDistanceEnd, MAX_FOG_END * (float) (d0Sq * d0Sq)));
         final float start = Math.min(data.renderDistanceStart, end * 0.5F);
 
-        var result = new FogData();
+        final FogData result = this.reusableResult;
         result.renderDistanceStart = start;
         result.renderDistanceEnd = end;
         return result;

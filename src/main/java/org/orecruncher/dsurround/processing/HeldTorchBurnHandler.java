@@ -35,14 +35,10 @@ public class HeldTorchBurnHandler {
     // (dsurround:held_torch_burn) so its volume is independent of the block-placed torch.
     private static final float TRIGGER_CHANCE = 0.012F;
 
-    private final Configuration config;
-    private final IModLog logger;
     private final ISoundLibrary soundLibrary;
     private final IAudioPlayer audioPlayer;
 
     public HeldTorchBurnHandler(Configuration config, IModLog logger) {
-        this.config = config;
-        this.logger = logger;
         this.soundLibrary = ContainerManager.resolve(ISoundLibrary.class);
         this.audioPlayer = ContainerManager.resolve(IAudioPlayer.class);
         ClientState.TICK_END.register(this::onTick);

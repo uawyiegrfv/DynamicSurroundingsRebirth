@@ -1,13 +1,11 @@
 package org.orecruncher.dsurround.config;
 
-import net.minecraft.resources.Identifier;
-import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.lib.random.Randomizer;
 
 public enum WaterRippleStyle {
 
-    NONE("none"),
-    PIXELATED_CIRCLE("textures/particles/pixel_ripples.png") {
+    NONE,
+    PIXELATED_CIRCLE {
         private final int FRAMES = 7;
         private final float DELTA = 1F / this.FRAMES;
         private final int MAX_AGE = this.FRAMES * 2;
@@ -32,16 +30,6 @@ public enum WaterRippleStyle {
             return this.MAX_AGE;
         }
     };
-
-    private final Identifier resource;
-
-    WaterRippleStyle(final String texture) {
-        this.resource = Identifier.fromNamespaceAndPath(Constants.MOD_ID, texture);
-    }
-
-    public Identifier getTexture() {
-        return this.resource;
-    }
 
     public float getU1(final int age) {
         return 0F;

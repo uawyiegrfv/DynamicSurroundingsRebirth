@@ -12,6 +12,10 @@ import org.orecruncher.dsurround.lib.seasons.ISeasonalInformation;
 // 26.1: SimpleWeightedRandomList was removed; use a small weighted table instead.
 public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
 
+    // Reused per frame; render() always overwrites both range fields before returning.
+    private final FogData reusableResult = new FogData();
+
+
     // Morning fog time window, in celestial degrees (tick0 = 6AM = 270deg).
     // Matches the 1.12.2 behaviour the user observed:
     //   fog starts at tick 23000 (5AM, 255deg)
@@ -108,7 +112,7 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
                 final float gradient = Math.max(newEnd * GRADIENT_FRACTION, 1F);
                 final float newStart = Math.max(newEnd - gradient, 0F);
 
-                var result = new FogData();
+                final FogData result = this.reusableResult;
                 result.renderDistanceStart = newStart;
                 result.renderDistanceEnd = newEnd;
                 return result;

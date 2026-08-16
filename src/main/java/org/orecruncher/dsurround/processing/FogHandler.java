@@ -3,7 +3,6 @@ package org.orecruncher.dsurround.processing;
 import net.minecraft.client.renderer.fog.FogData;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.material.FogType;
-import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import org.orecruncher.dsurround.Configuration;
@@ -44,7 +43,6 @@ public class FogHandler extends AbstractClientHandler {
         this.fogCalculator.disconnect();
     }
 
-    @SubscribeEvent
     private void renderFog(ViewportEvent.RenderFog event) {
         // Only terrain (atmospheric) fog is modified; water/lava/powdered-snow keep vanilla.
         if (event.getType() != FogType.ATMOSPHERIC)

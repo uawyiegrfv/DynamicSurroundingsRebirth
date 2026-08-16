@@ -118,7 +118,6 @@ public class FootstepGenerator extends AbstractClientHandler {
 
     private final IAudioPlayer audioPlayer;
 
-    private boolean wasOnGround = true;
     private boolean isFlying = false;
     private boolean wasRunning = false;
     private boolean didJump = false;
@@ -559,7 +558,18 @@ public class FootstepGenerator extends AbstractClientHandler {
     @Override
     public void onDisconnect() {
         this.pendingEchoes.clear();
+        // Reset the motion state as well: this handler is a singleton, and the first tick
+        // of the next world would otherwise compute the stride from the old world's
+        // coordinates - a phantom step and possibly a bogus hard-landing sound.
         this.wasRunning = false;
+        this.didJump = false;
+        this.isFlying = false;
+        this.fallDistance = 0D;
+        this.distanceWalked = 0D;
+        this.dmwBase = 0D;
+        this.yPosition = 0D;
+        this.lastPos = null;
+        this.lastLeafLitterPos = null;
     }
 
     @Override

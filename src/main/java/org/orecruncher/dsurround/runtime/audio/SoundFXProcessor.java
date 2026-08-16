@@ -24,6 +24,7 @@ import org.orecruncher.dsurround.mixinutils.ISourceContext;
 
 import java.util.Arrays;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class SoundFXProcessor {
 
@@ -34,11 +35,12 @@ public final class SoundFXProcessor {
     // saturating the background pool and stealing CPU from the render thread.
     private static final int MAX_SOURCES_PER_PASS = 32;
 
-    static boolean isAvailable;
-    // Sparse array to hold references to the SoundContexts of playing sounds
-    private static SourceContext[] sources;
+    static volatile boolean isAvailable;
+    // Sparse array to hold references to the SoundContexts of playing sounds. Written by the
+    // sound engine thread, read by the background processing worker - hence volatile.
+    private static volatile SourceContext[] sources;
     private static Worker soundProcessor;
-    private static String diagnosticString = StringUtils.EMPTY;
+    private static volatile String diagnosticString = StringUtils.EMPTY;
     // Set on the client thread when the player enters or leaves water. The background
     // processor drains it, re-evaluates every source immediately and snaps the water
     // damping, so entering/exiting water reacts with no audible lag.
@@ -46,17 +48,25 @@ public final class SoundFXProcessor {
     private static boolean lastPlayerUnderWater;
 
     // Use our own thread pool avoiding the common pool.  Thread allocation is better controlled, and we won't run
-    // into/cause any problems with other tasks in the common pool.
+    // into/cause any problems with other tasks in the common pool. Daemon threads so a pool that outlives the
+    // sound system teardown (the pool itself is cached in a Singleton and reused) never blocks JVM shutdown.
     private static final Singleton<ExecutorService> threadPool = new Singleton<>(() -> {
         var config = ContainerManager.resolve(Configuration.EnhancedSounds.class);
         int threads = config.backgroundThreadWorkers;
         if (threads == 0)
             threads = 2;
         LOGGER.info("Threads allocated to enhanced sound processor: %d", threads);
-        return Executors.newFixedThreadPool(threads);
+        final AtomicInteger counter = new AtomicInteger(1);
+        return Executors.newFixedThreadPool(threads, r -> {
+            final var t = new Thread(r, "dsurround-soundfx-" + counter.getAndIncrement());
+            t.setDaemon(true);
+            return t;
+        });
     });
 
-    private static WorldContext worldContext = new WorldContext();
+    // Snapshot of world/player state for the background threads. Rebuilt every client tick;
+    // volatile so the worker always observes a fully constructed snapshot.
+    private static volatile WorldContext worldContext = new WorldContext();
 
     static {
         ClientEventHooks.COLLECT_DIAGNOSTICS.register(SoundFXProcessor::onGatherText);
@@ -171,13 +181,18 @@ public final class SoundFXProcessor {
 
     /**
      * Injected into SoundSource and will be invoked when a sound source is being terminated.
+     * Runs on the sound engine thread, which makes it the right place to release the
+     * source's OpenAL filter objects.
      *
-     * @param source The sound source that is stopping
+     * @param source SoundSource that is stopping
      */
     public static void stopSoundPlay(final Channel source) {
         var sourceContext = (ISourceContext) source;
         var data = sourceContext.dsurround_getData();
-        data.ifPresent(sc -> sources[sc.getId() - 1] = null);
+        data.ifPresent(sc -> {
+            sc.stop();
+            sources[sc.getId() - 1] = null;
+        });
     }
 
     /**
@@ -272,7 +287,7 @@ public final class SoundFXProcessor {
             });
 
         } catch (final Throwable t) {
-            LOGGER.error(t, "Error in SoundContext ForkJoinPool");
+            LOGGER.error(t, "Error in enhanced sound processor worker");
         }
     }
 

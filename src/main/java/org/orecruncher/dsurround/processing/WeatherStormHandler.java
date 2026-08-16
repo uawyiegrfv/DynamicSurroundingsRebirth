@@ -9,8 +9,6 @@ import org.orecruncher.dsurround.effects.particles.StormDustParticle;
 import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
-import org.orecruncher.dsurround.lib.random.IRandomizer;
-import org.orecruncher.dsurround.lib.random.Randomizer;
 import org.orecruncher.dsurround.config.libraries.ITagLibrary;
 import org.orecruncher.dsurround.tags.BiomeTags;
 
@@ -22,12 +20,24 @@ import org.orecruncher.dsurround.tags.BiomeTags;
 public class WeatherStormHandler extends AbstractClientHandler {
 
     private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);
-    private static final IRandomizer RANDOM = Randomizer.current();
 
+    private final Scanners scanners;
     private float dustIntensity = 0F;
 
-    public WeatherStormHandler(Configuration config, IModLog logger) {
+    public WeatherStormHandler(Configuration config, IModLog logger, Scanners scanners) {
         super("Weather Storm", config, logger);
+        this.scanners = scanners;
+    }
+
+    @Override
+    public void onConnect() {
+        this.dustIntensity = 0F;
+    }
+
+    @Override
+    public void onDisconnect() {
+        // Reset so the yellow haze does not linger into the next world/session.
+        this.dustIntensity = 0F;
     }
 
     @Override
@@ -49,20 +59,17 @@ public class WeatherStormHandler extends AbstractClientHandler {
         } else if (desert && this.config.weatherOptions.enableDesertSandstorm) {
             // Desert yellow haze, stronger while it rains (a sandstorm). The original's
             // storm rendered a dense dust screen, so the rainy state gets a heavy tint
-            // and a thick stream of particles.
-            target = raining ? 0.7F : 0.12F;
-            spawnStorm(clientLevel, player, 0.85F, 0.7F, 0.4F, true, raining ? 12 : 1);
+            // and a thick stream of particles. Underground there is no airborne dust:
+            // the ceiling scanner suppresses both the tint and the particles so a cave
+            // under a desert does not fill with sand.
+            if (!this.scanners.isInside()) {
+                target = raining ? 0.7F : 0.12F;
+                spawnStorm(clientLevel, player, 0.85F, 0.7F, 0.4F, true, raining ? 12 : 1);
+            }
         }
 
         // Smoothly transition the overlay intensity.
         this.dustIntensity += (target - this.dustIntensity) * 0.1F;
-    }
-
-    /**
-     * Overlay alpha (0..1) used by the desert yellow tint GUI layer.
-     */
-    public float getDustIntensity() {
-        return this.dustIntensity;
     }
 
     /**

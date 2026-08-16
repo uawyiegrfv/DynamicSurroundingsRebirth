@@ -11,7 +11,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingHealEvent;
@@ -98,7 +97,6 @@ public class CritWordHandler {
         ClientState.TICK_END.register(this::onTick);
     }
 
-    @SubscribeEvent
     public void onLivingDamage(LivingDamageEvent.Pre event) {
         if (!this.config.entityEffects.showCritWords)
             return;
@@ -142,7 +140,6 @@ public class CritWordHandler {
         }
     }
 
-    @SubscribeEvent
     public void onLivingHeal(LivingHealEvent event) {
         if (!this.config.entityEffects.showCritWords)
             return;
@@ -220,11 +217,8 @@ public class CritWordHandler {
             final double py = Mth.lerp(partialTick, entry.prevY, entry.y);
             final double pz = Mth.lerp(partialTick, entry.prevZ, entry.z);
 
-            // Skip words occluded by blocks between the camera and the text.
-            final var hit = level.clip(new ClipContext(eye, new Vec3(px, py, pz), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
-            if (hit.getType() != HitResult.Type.MISS)
-                continue;
-
+            // Cheap projection first: words behind the camera or beyond the render depth
+            // are dropped before the (comparatively expensive) occlusion raycast runs.
             this.clip.set(
                     (float) (px - camPos.x),
                     (float) (py - camPos.y),
@@ -233,6 +227,11 @@ public class CritWordHandler {
             this.viewProj.transform(this.clip);
             if (this.clip.w <= 0.001F || this.clip.w > MAX_RENDER_DEPTH)
                 continue; // behind the camera or too far away
+
+            // Skip words occluded by blocks between the camera and the text.
+            final var hit = level.clip(new ClipContext(eye, new Vec3(px, py, pz), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
+            if (hit.getType() != HitResult.Type.MISS)
+                continue;
 
             final float depth = this.clip.w;
             final float sx = (this.clip.x / depth * 0.5F + 0.5F) * width;

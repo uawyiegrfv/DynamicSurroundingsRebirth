@@ -7,7 +7,12 @@ import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
 public class AuxSlot extends Slot {
 
     public AuxSlot() {
-        super(EXTEfx::alGenAuxiliaryEffectSlots);
+        super(EXTEfx::alDeleteAuxiliaryEffectSlots);
+    }
+
+    @Override
+    protected int factory() {
+        return EXTEfx.alGenAuxiliaryEffectSlots();
     }
 
     @Override

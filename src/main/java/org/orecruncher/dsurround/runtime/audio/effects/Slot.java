@@ -3,15 +3,15 @@ package org.orecruncher.dsurround.runtime.audio.effects;
 import org.lwjgl.openal.EXTEfx;
 import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
 
-import java.util.function.Supplier;
+import java.util.function.IntConsumer;
 
 public abstract class Slot {
 
-    private final Supplier<Integer> factory;
+    private final IntConsumer deleter;
     private int slot = EXTEfx.AL_EFFECTSLOT_NULL;
 
-    public Slot(final Supplier<Integer> slotFactory) {
-        this.factory = slotFactory;
+    public Slot(final IntConsumer deleter) {
+        this.deleter = deleter;
     }
 
     public boolean isInitialized() {
@@ -20,14 +20,24 @@ public abstract class Slot {
 
     public final void initialize() {
         if (this.slot == EXTEfx.AL_EFFECTSLOT_NULL) {
-            AudioUtilities.execute(() -> this.slot = this.factory.get(), () -> "Slot factory get");
+            AudioUtilities.execute(() -> this.slot = this.factory(), () -> "Slot factory get");
             AudioUtilities.execute(this::init0, () -> "Slot init0");
         }
     }
 
+    /**
+     * Deletes the underlying OpenAL object. Must be called on the sound engine
+     * thread; merely dropping the handle would leak the object in the device.
+     */
     public final void deinitialize() {
-        this.slot = EXTEfx.AL_EFFECTSLOT_NULL;
+        if (this.slot != EXTEfx.AL_EFFECTSLOT_NULL) {
+            final int handle = this.slot;
+            this.slot = EXTEfx.AL_EFFECTSLOT_NULL;
+            AudioUtilities.execute(() -> this.deleter.accept(handle), () -> "Slot delete");
+        }
     }
+
+    protected abstract int factory();
 
     protected abstract void init0();
 

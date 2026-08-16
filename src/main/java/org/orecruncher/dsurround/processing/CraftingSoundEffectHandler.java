@@ -3,7 +3,6 @@ package org.orecruncher.dsurround.processing;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import org.orecruncher.dsurround.Configuration;
@@ -39,7 +38,6 @@ public class CraftingSoundEffectHandler {
         NeoForge.EVENT_BUS.addListener(this::onItemCrafted);
     }
 
-    @SubscribeEvent
     public void onItemCrafted(PlayerEvent.ItemCraftedEvent event) {
         if (!this.config.entityEffects.enableCraftingSound)
             return;

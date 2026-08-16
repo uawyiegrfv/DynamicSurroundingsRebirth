@@ -39,6 +39,14 @@ public interface IModLog {
             debug(message.get());
     }
 
+    /** Debug with a throwable stack; implementations print it only when debugging is on. */
+    default void debug(final Throwable e, final String msg, @Nullable final Object... parms) {
+    }
+
+    default void debug(final Throwable e, final Supplier<String> message) {
+        debug(e, message.get());
+    }
+
     default void error(final Throwable e, final String msg, @Nullable final Object... parms) {
     }
 

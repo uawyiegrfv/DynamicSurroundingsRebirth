@@ -1,7 +1,6 @@
 package org.orecruncher.dsurround.processing;
 
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.living.EffectParticleModificationEvent;
 import org.orecruncher.dsurround.Configuration;
@@ -24,7 +23,6 @@ public class PotionParticleHandler {
         NeoForge.EVENT_BUS.addListener(this::onEffectParticles);
     }
 
-    @SubscribeEvent
     public void onEffectParticles(EffectParticleModificationEvent event) {
         if (!this.config.entityEffects.suppressPotionParticles)
             return;

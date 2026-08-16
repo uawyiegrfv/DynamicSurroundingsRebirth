@@ -7,6 +7,10 @@ import org.orecruncher.dsurround.lib.GameUtils;
 
 public class WeatherFogRangeCalculator extends VanillaFogRangeCalculator {
 
+    // Reused per frame; render() always overwrites both range fields before returning.
+    private final FogData reusableResult = new FogData();
+
+
     protected static final float START_IMPACT = 0.9F;
     protected static final float END_IMPACT = 0.4F;
     // Cap the rain fog so it stays close to the player (the render-distance basis alone
@@ -36,7 +40,7 @@ public class WeatherFogRangeCalculator extends VanillaFogRangeCalculator {
             // and logged every frame).
             final float end = Math.min(data.renderDistanceEnd * endScale, MAX_RAIN_FOG_END);
             final float start = Math.min(data.renderDistanceStart * startScale, end);
-            var result = new FogData();
+            final FogData result = this.reusableResult;
             result.renderDistanceStart = start;
             result.renderDistanceEnd = end;
             return result;

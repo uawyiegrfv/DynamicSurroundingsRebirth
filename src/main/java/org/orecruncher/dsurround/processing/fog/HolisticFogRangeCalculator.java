@@ -4,6 +4,7 @@ import net.minecraft.client.renderer.fog.FogData;
 import org.jetbrains.annotations.NotNull;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.config.libraries.IBiomeLibrary;
+import org.orecruncher.dsurround.config.libraries.IDimensionInformation;
 import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.collections.ObjectArray;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
@@ -16,6 +17,10 @@ import java.util.stream.Collectors;
 
 public class HolisticFogRangeCalculator implements IFogRangeCalculator {
 
+    // Reused per frame; render() always overwrites both range fields before returning.
+    private final FogData reusableResult = new FogData();
+
+
     protected final IModLog logger;
     protected final Configuration.FogOptions fogOptions;
     protected final ObjectArray<IFogRangeCalculator> calculators = new ObjectArray<>(3);
@@ -26,12 +31,13 @@ public class HolisticFogRangeCalculator implements IFogRangeCalculator {
 
         var biomeLibrary = ContainerManager.resolve(IBiomeLibrary.class);
         var seasonInfo = ContainerManager.resolve(ISeasonalInformation.class);
+        var dimensionInfo = ContainerManager.resolve(IDimensionInformation.class);
 
         this.calculators.add(new BiomeFogRangeCalculator(biomeLibrary, this.fogOptions));
         this.calculators.add(new MorningFogRangeCalculator(seasonInfo, this.fogOptions));
         this.calculators.add(new WeatherFogRangeCalculator(this.fogOptions));
         this.calculators.add(new BedrockFogRangeCalculator(this.fogOptions));
-        this.calculators.add(new HazeFogRangeCalculator(this.fogOptions));
+        this.calculators.add(new HazeFogRangeCalculator(this.fogOptions, dimensionInfo));
     }
 
     @Override
@@ -69,7 +75,7 @@ public class HolisticFogRangeCalculator implements IFogRangeCalculator {
             }
         }
 
-        var result = new FogData();
+        final FogData result = this.reusableResult;
         result.renderDistanceStart = start;
         result.renderDistanceEnd = end;
         return result;

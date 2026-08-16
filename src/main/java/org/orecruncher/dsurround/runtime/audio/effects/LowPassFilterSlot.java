@@ -7,7 +7,12 @@ import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
 public class LowPassFilterSlot extends Slot {
 
     public LowPassFilterSlot() {
-        super(EXTEfx::alGenFilters);
+        super(EXTEfx::alDeleteFilters);
+    }
+
+    @Override
+    protected int factory() {
+        return EXTEfx.alGenFilters();
     }
 
     @Override

@@ -92,9 +92,11 @@ public final class SoundFXUtils {
      */
     private static final int REVERB_RAYS = CONFIG.reverbRays;
     /**
-     * Number of bounces a sound wave will make when projecting.
+     * Number of bounces a sound wave will make when projecting. Clamped to at least 4:
+     * the zone gain math indexes bounceRatio[0..3], so a smaller config value would
+     * throw out of bounds and silently disable reverb for every sound.
      */
-    private static final int REVERB_RAY_BOUNCES = CONFIG.reverbBounces;
+    private static final int REVERB_RAY_BOUNCES = Math.max(4, CONFIG.reverbBounces);
     /**
      * Maximum distance to trace a reverb ray segment before stopping.
      */
@@ -187,6 +189,19 @@ public final class SoundFXUtils {
         this.source = source;
     }
 
+    /** Scratch result of the reverb ray trace; filled in by {@link #traceReverb}. */
+    private static final class ReverbTrace {
+        float sendGain0;
+        float sendGain1;
+        float sendGain2;
+        float sendGain3;
+        float sendCutoff0;
+        float sendCutoff1;
+        float sendCutoff2;
+        float sendCutoff3;
+        final float[] bounceRatio = new float[REVERB_RAY_BOUNCES];
+    }
+
     public void calculate(final @NotNull WorldContext ctx) {
 
         assert ctx.player != null;
@@ -217,8 +232,8 @@ public final class SoundFXUtils {
         // Snap flag read once at the top for all smoothing (occlusion + water factor).
         final boolean snap = this.source.isImmediateUpdate();
 
-        // Fabric 原版值：GLOBAL_BLOCK_ABSORPTION * 3.0。曾临时抬到 4.0 让单块羊毛墙更明显，
-        // 但用户要求恢复原版（见 2.25）。
+        // Fabric original value: GLOBAL_BLOCK_ABSORPTION * 3.0. Temporarily raised to 4.0
+        // to make a single wool wall more obvious, but the user asked for the original back.
         final float absorptionCoeff = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
         final float airAbsorptionFactor = calculateWeatherAbsorption(ctx, soundPos, ctx.playerEyePosition);
         // Real ray-traced occlusion, time-smoothed so a geometric boundary (a ray starting
@@ -232,19 +247,65 @@ public final class SoundFXUtils {
         // Handle any dampening effects from the player, like head in water
         directCutoff *= 1F - ctx.auralDampening;
 
-        // Calculate reverb parameters for this sound
-        float sendGain0 = 0F;
-        float sendGain1 = 0F;
-        float sendGain2 = 0F;
-        float sendGain3 = 0F;
+        final ReverbTrace reverb = new ReverbTrace();
+        traceReverb(ctx, soundPos, sendCoeff, reverb);
 
-        float sendCutoff0;
-        float sendCutoff1;
-        float sendCutoff2;
-        float sendCutoff3;
+        // Diffraction compensation. A wall mutes the straight line to the player, but
+        // sound bends around its edges - unless one end is genuinely sealed in. The
+        // restore is driven by a single physical quantity, the detour length of the
+        // shortest unobstructed path around the occluder, so it needs no per-scenario
+        // fudge factors (see applyDiffraction). The compensation also lifts the reverb
+        // sends (scaled down): they share the same straight-line failure mode, and a
+        // hugged wall stayed muffled through the reverb path even after the direct was
+        // restored.
+        if (this.lastCenterOcclusion > 0F) {
+            directCutoff = applyDiffraction(ctx, soundPos, ctx.playerEyePosition, directCutoff, snap, reverb);
+        } else {
+            // Direct line is clear (or occlusion is skipped): ease the compensation
+            // back to zero so leaving a shadow fades rather than pops.
+            this.source.smoothDiffraction(0F, snap);
+        }
 
-        // Shoot rays around sound
-        final float[] bounceRatio = new float[REVERB_RAY_BOUNCES];
+        float directGain = (float) MathStuff.pow(directCutoff, 0.1);
+
+        finalizeSendGains(reverb);
+
+        if (ctx.player.isUnderWater()) {
+            reverb.sendCutoff0 *= 0.4F;
+            reverb.sendCutoff1 *= 0.4F;
+            reverb.sendCutoff2 *= 0.4F;
+            reverb.sendCutoff3 *= 0.4F;
+        }
+
+        // Damping when the path between the sound and the listener passes through water.
+        // Water strongly absorbs high frequencies and reduces the perceived volume, so a
+        // sound heard across a body of water (e.g. underwater -> shore, or the reverse)
+        // should sound muffled and quieter. The volume uses the square root of the low-pass
+        // factor (plus a floor) so a shallow crossing is clearly audible while a long
+        // underwater path never goes fully silent - just heavily muffled. Stacks with the
+        // player-underwater damping above, which mirrors the real double damping
+        // (propagation path + ear submerged).
+        final Vec3 rawSourcePos = this.source.getPosition();
+        final float waterLength = calculateWaterPathLength(ctx, rawSourcePos, ctx.playerEyePosition);
+        // The low-pass (muffling) and the volume use separate per-block factors. Muffling
+        // is kept strong so underwater sound is clearly muffled in every direction and
+        // masks the reverb system's cut-off jitter in deep water; the volume uses a gentler
+        // curve (with a floor) so distant sounds stay audible instead of vanishing.
+        final float muffleFactor = (float) Math.pow(CONFIG.waterSoundMuffle, waterLength);
+        final float gainFactor = (float) Math.pow(CONFIG.waterSoundDamping, waterLength);
+        // Smooth toward the target so an entity bobbing at the water surface (or the player
+        // wading) doesn't make the volume audibly jump from one 1-second refresh to the next.
+        final float waterFactor = this.source.smoothWaterFactor(muffleFactor, snap);
+        final float waterGainFactor = Math.max(0.15F, (float) Math.sqrt(gainFactor));
+
+        uploadSettings(reverb, directCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
+    }
+
+    /**
+     * Projects the reverb rays from the sound position and accumulates the four zone
+     * send gains/cutoffs plus the per-bounce reflection ratios.
+     */
+    private void traceReverb(final WorldContext ctx, final Vec3 soundPos, final float sendCoeff, final ReverbTrace out) {
 
         float sharedAirspace = 0F;
 
@@ -284,7 +345,7 @@ public final class SoundFXUtils {
                 if (missed) {
                     totalRayDistance += lastHitPos.distanceTo(ctx.playerEyePosition);
                 } else {
-                    bounceRatio[j] += blockReflectivity;
+                    out.bounceRatio[j] += blockReflectivity;
                     totalRayDistance += lastHitPos.distanceTo(rayHit.getLocation());
 
                     lastHitPos = rayHit.getLocation();
@@ -309,10 +370,10 @@ public final class SoundFXUtils {
                 final float cross2 = 1.0F - MathStuff.clamp1(Math.abs(reflectionDelay - 2.0F));
                 final float cross3 = MathStuff.clamp1(reflectionDelay - 2.0F);
 
-                sendGain0 += cross0 * energyTowardsPlayer * 6.4F;
-                sendGain1 += cross1 * energyTowardsPlayer * 12.8F;
-                sendGain2 += cross2 * energyTowardsPlayer * 12.8F;
-                sendGain3 += cross3 * energyTowardsPlayer * 12.8F;
+                out.sendGain0 += cross0 * energyTowardsPlayer * 6.4F;
+                out.sendGain1 += cross1 * energyTowardsPlayer * 12.8F;
+                out.sendGain2 += cross2 * energyTowardsPlayer * 12.8F;
+                out.sendGain3 += cross3 * energyTowardsPlayer * 12.8F;
 
                 // Nowhere to bounce off of, stop bouncing!
                 if (missed) {
@@ -321,10 +382,10 @@ public final class SoundFXUtils {
             }
         }
 
-        bounceRatio[0] = bounceRatio[0] / REVERB_RAYS;
-        bounceRatio[1] = bounceRatio[1] / REVERB_RAYS;
-        bounceRatio[2] = bounceRatio[2] / REVERB_RAYS;
-        bounceRatio[3] = bounceRatio[3] / REVERB_RAYS;
+        out.bounceRatio[0] = out.bounceRatio[0] / REVERB_RAYS;
+        out.bounceRatio[1] = out.bounceRatio[1] / REVERB_RAYS;
+        out.bounceRatio[2] = out.bounceRatio[2] / REVERB_RAYS;
+        out.bounceRatio[3] = out.bounceRatio[3] / REVERB_RAYS;
 
         sharedAirspace *= RECIP_TOTAL_RAYS * 64F;
 
@@ -335,103 +396,80 @@ public final class SoundFXUtils {
 
         final float exp1 = (float) MathStuff.exp(sendCoeff);
         final float exp2 = (float) MathStuff.exp(sendCoeff * 1.5F);
-        sendCutoff0 = exp1 * (1.0F - sharedAirspaceWeight0) + sharedAirspaceWeight0;
-        sendCutoff1 = exp1 * (1.0F - sharedAirspaceWeight1) + sharedAirspaceWeight1;
-        sendCutoff2 = exp2 * (1.0F - sharedAirspaceWeight2) + sharedAirspaceWeight2;
-        sendCutoff3 = exp2 * (1.0F - sharedAirspaceWeight3) + sharedAirspaceWeight3;
+        out.sendCutoff0 = exp1 * (1.0F - sharedAirspaceWeight0) + sharedAirspaceWeight0;
+        out.sendCutoff1 = exp1 * (1.0F - sharedAirspaceWeight1) + sharedAirspaceWeight1;
+        out.sendCutoff2 = exp2 * (1.0F - sharedAirspaceWeight2) + sharedAirspaceWeight2;
+        out.sendCutoff3 = exp2 * (1.0F - sharedAirspaceWeight3) + sharedAirspaceWeight3;
+    }
 
-        // Diffraction compensation. A wall mutes the straight line to the player, but
-        // sound bends around its edges - unless one end is genuinely sealed in. The
-        // restore is driven by a single physical quantity, the detour length ΔL of the
-        // shortest unobstructed path around the occluder, so it needs no per-scenario
-        // fudge factors:
-        //   - a thin wall (or a hugged 1x2 wall) clears at a small ring radius -> small
-        //     ΔL -> strong restore;
-        //   - a wide wall needs a larger ring -> longer detour -> weaker restore;
-        //   - a cave roof finds no edge at any radius -> no diffraction -> the base
-        //     occlusion keeps it muffled;
-        //   - a buried source (enclosure ~1) or a sealed-in player (openness ~0) has no
-        //     free edge to bend around, so the restore is gated off.
-        // The compensation also lifts the reverb sends (scaled down): they share the
-        // same straight-line failure mode, and a hugged wall stayed muffled through the
-        // reverb path even after the direct was restored.
-        if (this.lastCenterOcclusion > 0F) {
-            final float geometricDiffraction = calculateDiffraction(ctx, soundPos, ctx.playerEyePosition, this.lastOccluderPos);
-            // Auxiliary factor: a wide obstacle still has a reachable edge, but the
-            // long detour makes the geometric falloff inaudible. Floor it (only when an
-            // edge was actually found) so a large-but-open obstacle stays faintly
-            // audible; a buried source / sealed player is still muted by the gates
-            // below. With no edge (diffraction 0) the floor must NOT lift it.
-            final float diffraction = geometricDiffraction > 0F ? Math.max(geometricDiffraction, DIFFRACTION_FLOOR) : 0F;
-            final float enclosure = calculateSourceEnclosure(ctx, soundPos);
-            final float openness = calculatePlayerOpenness(ctx, ctx.playerEyePosition);
-            // Gate the restore on true sealing only. A linear (1-enclosure) or raw
-            // openness over-penalises normal partial occlusion - a source sitting next
-            // to a wall (enclosure ~0.5) or a player hugging one (openness ~0.67) still
-            // has free edges to diffract around. Cubing keeps those mid-values nearly
-            // un-penalised and only shuts the gate off as one end becomes genuinely
-            // sealed (enclosure -> 1 / openness -> 0), which the ring probe also sees.
-            final float enclGate = 1F - (float) Math.pow(enclosure, 3.0);
-            final float openGate = 1F - (float) Math.pow(1.0 - openness, 3.0);
-            final float compensation = MathStuff.clamp1(diffraction * openGate * enclGate);
-            // Time-smooth the restore so crossing a room boundary (openness and
-            // enclosure both step at once) fades the muffling instead of snapping it.
-            final float smoothedComp = this.source.smoothDiffraction(compensation, snap);
-            directCutoff = Math.max(smoothedComp, directCutoff);
-            final float reverbComp = smoothedComp * DIFFRACTION_REVERB_SCALE;
-            sendCutoff0 = Math.max(sendCutoff0, reverbComp);
-            sendCutoff1 = Math.max(sendCutoff1, reverbComp);
-            sendCutoff2 = Math.max(sendCutoff2, reverbComp);
-            sendCutoff3 = Math.max(sendCutoff3, reverbComp);
-        } else {
-            // Direct line is clear (or occlusion is skipped): ease the compensation
-            // back to zero so leaving a shadow fades rather than pops.
-            this.source.smoothDiffraction(0F, snap);
-        }
+    /**
+     * Diffraction compensation. A wall mutes the straight line to the player, but
+     * sound bends around its edges - unless one end is genuinely sealed in. The
+     * restore is driven by a single physical quantity, the detour length of the
+     * shortest unobstructed path around the occluder, so it needs no per-scenario
+     * fudge factors:
+     *   - a thin wall (or a hugged 1x2 wall) clears at a small ring radius -> small
+     *     detour -> strong restore;
+     *   - a wide wall needs a larger ring -> longer detour -> weaker restore;
+     *   - a cave roof finds no edge at any radius -> no diffraction -> the base
+     *     occlusion keeps it muffled;
+     *   - a buried source (enclosure ~1) or a sealed-in player (openness ~0) has no
+     *     free edge to bend around, so the restore is gated off.
+     *
+     * @return the updated direct cutoff; the reverb cutoffs are lifted in place.
+     */
+    private float applyDiffraction(final WorldContext ctx, final Vec3 soundPos, final Vec3 listener,
+            float directCutoff, final boolean snap, final ReverbTrace reverb) {
+        final float geometricDiffraction = calculateDiffraction(ctx, soundPos, listener, this.lastOccluderPos);
+        // Auxiliary factor: a wide obstacle still has a reachable edge, but the
+        // long detour makes the geometric falloff inaudible. Floor it (only when an
+        // edge was actually found) so a large-but-open obstacle stays faintly
+        // audible; a buried source / sealed player is still muted by the gates
+        // below. With no edge (diffraction 0) the floor must NOT lift it.
+        final float diffraction = geometricDiffraction > 0F ? Math.max(geometricDiffraction, DIFFRACTION_FLOOR) : 0F;
+        final float enclosure = calculateSourceEnclosure(ctx, soundPos);
+        final float openness = calculatePlayerOpenness(ctx, listener);
+        // Gate the restore on true sealing only. A linear (1-enclosure) or raw
+        // openness over-penalises normal partial occlusion - a source sitting next
+        // to a wall (enclosure ~0.5) or a player hugging one (openness ~0.67) still
+        // has free edges to diffract around. Cubing keeps those mid-values nearly
+        // un-penalised and only shuts the gate off as one end becomes genuinely
+        // sealed (enclosure -> 1 / openness -> 0), which the ring probe also sees.
+        final float enclGate = 1F - (float) Math.pow(enclosure, 3.0);
+        final float openGate = 1F - (float) Math.pow(1.0 - openness, 3.0);
+        final float compensation = MathStuff.clamp1(diffraction * openGate * enclGate);
+        // Time-smooth the restore so crossing a room boundary (openness and
+        // enclosure both step at once) fades the muffling instead of snapping it.
+        final float smoothedComp = this.source.smoothDiffraction(compensation, snap);
+        directCutoff = Math.max(smoothedComp, directCutoff);
+        final float reverbComp = smoothedComp * DIFFRACTION_REVERB_SCALE;
+        reverb.sendCutoff0 = Math.max(reverb.sendCutoff0, reverbComp);
+        reverb.sendCutoff1 = Math.max(reverb.sendCutoff1, reverbComp);
+        reverb.sendCutoff2 = Math.max(reverb.sendCutoff2, reverbComp);
+        reverb.sendCutoff3 = Math.max(reverb.sendCutoff3, reverbComp);
+        return directCutoff;
+    }
 
-        float directGain = (float) MathStuff.pow(directCutoff, 0.1);
+    /** Applies the bounce-ratio scaling and clamps the send gains. */
+    private static void finalizeSendGains(final ReverbTrace reverb) {
+        reverb.sendGain1 *= reverb.bounceRatio[1];
+        reverb.sendGain2 *= (float) MathStuff.pow(reverb.bounceRatio[2], 3.0);
+        reverb.sendGain3 *= (float) MathStuff.pow(reverb.bounceRatio[3], 4.0);
 
-        sendGain1 *= bounceRatio[1];
-        sendGain2 *= (float) MathStuff.pow(bounceRatio[2], 3.0);
-        sendGain3 *= (float) MathStuff.pow(bounceRatio[3], 4.0);
+        reverb.sendGain0 = MathStuff.clamp1(reverb.sendGain0);
+        reverb.sendGain1 = MathStuff.clamp1(reverb.sendGain1);
+        reverb.sendGain2 = MathStuff.clamp1(reverb.sendGain2 * 1.05F - 0.05F);
+        reverb.sendGain3 = MathStuff.clamp1(reverb.sendGain3 * 1.05F - 0.05F);
 
-        sendGain0 = MathStuff.clamp1(sendGain0);
-        sendGain1 = MathStuff.clamp1(sendGain1);
-        sendGain2 = MathStuff.clamp1(sendGain2 * 1.05F - 0.05F);
-        sendGain3 = MathStuff.clamp1(sendGain3 * 1.05F - 0.05F);
+        reverb.sendGain0 *= (float) MathStuff.pow(reverb.sendCutoff0, 0.1);
+        reverb.sendGain1 *= (float) MathStuff.pow(reverb.sendCutoff1, 0.1);
+        reverb.sendGain2 *= (float) MathStuff.pow(reverb.sendCutoff2, 0.1);
+        reverb.sendGain3 *= (float) MathStuff.pow(reverb.sendCutoff3, 0.1);
+    }
 
-        sendGain0 *= (float) MathStuff.pow(sendCutoff0, 0.1);
-        sendGain1 *= (float) MathStuff.pow(sendCutoff1, 0.1);
-        sendGain2 *= (float) MathStuff.pow(sendCutoff2, 0.1);
-        sendGain3 *= (float) MathStuff.pow(sendCutoff3, 0.1);
-
-        if (ctx.player.isUnderWater()) {
-            sendCutoff0 *= 0.4F;
-            sendCutoff1 *= 0.4F;
-            sendCutoff2 *= 0.4F;
-            sendCutoff3 *= 0.4F;
-        }
-
-        // Damping when the path between the sound and the listener passes through water.
-        // Water strongly absorbs high frequencies and reduces the perceived volume, so a
-        // sound heard across a body of water (e.g. underwater -> shore, or the reverse)
-        // should sound muffled and quieter. The volume uses the square root of the low-pass
-        // factor (plus a floor) so a shallow crossing is clearly audible while a long
-        // underwater path never goes fully silent - just heavily muffled. Stacks with the
-        // player-underwater damping above, which mirrors the real double damping
-        // (propagation path + ear submerged).
-        final Vec3 rawSourcePos = this.source.getPosition();
-        final float waterLength = calculateWaterPathLength(ctx, rawSourcePos, ctx.playerEyePosition);
-        // The low-pass (muffling) and the volume use separate per-block factors. Muffling
-        // is kept strong so underwater sound is clearly muffled in every direction and
-        // masks the reverb system's cut-off jitter in deep water; the volume uses a gentler
-        // curve (with a floor) so distant sounds stay audible instead of vanishing.
-        final float muffleFactor = (float) Math.pow(CONFIG.waterSoundMuffle, waterLength);
-        final float gainFactor = (float) Math.pow(CONFIG.waterSoundDamping, waterLength);
-        // Smooth toward the target so an entity bobbing at the water surface (or the player
-        // wading) doesn't make the volume audibly jump from one 1-second refresh to the next.
-        final float waterFactor = this.source.smoothWaterFactor(muffleFactor, snap);
-        final float waterGainFactor = Math.max(0.15F, (float) Math.sqrt(gainFactor));
+    /** Writes the computed effect parameters onto the source under its sync lock. */
+    private void uploadSettings(final ReverbTrace reverb, final float directCutoff, final float directGain,
+            final float waterFactor, final float waterGainFactor, final float airAbsorptionFactor) {
 
         final LowPassData lp0 = this.source.getLowPass0();
         final LowPassData lp1 = this.source.getLowPass1();
@@ -441,20 +479,20 @@ public final class SoundFXUtils {
         final SourcePropertyFloat prop = this.source.getAirAbsorb();
 
         synchronized (this.source.sync()) {
-            lp0.gain = sendGain0 * waterGainFactor;
-            lp0.gainHF = sendCutoff0 * waterFactor;
+            lp0.gain = reverb.sendGain0 * waterGainFactor;
+            lp0.gainHF = reverb.sendCutoff0 * waterFactor;
             lp0.setProcess(true);
 
-            lp1.gain = sendGain1 * waterGainFactor;
-            lp1.gainHF = sendCutoff1 * waterFactor;
+            lp1.gain = reverb.sendGain1 * waterGainFactor;
+            lp1.gainHF = reverb.sendCutoff1 * waterFactor;
             lp1.setProcess(true);
 
-            lp2.gain = sendGain2 * waterGainFactor;
-            lp2.gainHF = sendCutoff2 * waterFactor;
+            lp2.gain = reverb.sendGain2 * waterGainFactor;
+            lp2.gainHF = reverb.sendCutoff2 * waterFactor;
             lp2.setProcess(true);
 
-            lp3.gain = sendGain3 * waterGainFactor;
-            lp3.gainHF = sendCutoff3 * waterFactor;
+            lp3.gain = reverb.sendGain3 * waterGainFactor;
+            lp3.gainHF = reverb.sendCutoff3 * waterFactor;
             lp3.setProcess(true);
 
             direct.gain = directGain * waterGainFactor;

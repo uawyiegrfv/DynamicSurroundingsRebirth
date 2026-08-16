@@ -8,7 +8,6 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterRenderPipelinesEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
@@ -27,7 +26,6 @@ public final class NeoForgeMod {
     private final Client client;
 
     public NeoForgeMod(ModContainer container, IEventBus modBus) {
-        modBus.addListener(this::onInitializeClient);
         modBus.addListener(this::onRegisterGuiLayersEvent);
         modBus.addListener(AuroraRenderPipelines::onRegisterPipelines);
 
@@ -62,11 +60,5 @@ public final class NeoForgeMod {
         // Desert yellow dust haze overlay (A17).
         var weatherStormHandler = ContainerManager.resolve(org.orecruncher.dsurround.processing.WeatherStormHandler.class);
         event.registerBelowAll(Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/weatherstorm"), weatherStormHandler::renderGui);
-    }
-
-    @SubscribeEvent
-    public void onInitializeClient(FMLClientSetupEvent setupEvent) {
-        // Boot the mod
-        //this.client.initializeClient();
     }
 }

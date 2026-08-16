@@ -81,6 +81,9 @@ public class WaterRippleParticle extends SingleQuadParticle {
     // pixels which the particle shader (alpha < 0.1 -> discard) drops entirely.
     private static final int START_FRAME_INDEX = 2;
 
+    // Constant rotation - cached instead of allocating a Quaternionf every frame.
+    private static final Quaternionf FLAT_ROTATION = new Quaternionf().rotationX(-Mth.HALF_PI);
+
     @Override
     public SingleQuadParticle.Layer getLayer() {
         return SingleQuadParticle.Layer.TRANSLUCENT;
@@ -95,8 +98,7 @@ public class WaterRippleParticle extends SingleQuadParticle {
      */
     @Override
     public void extract(QuadParticleRenderState state, Camera camera, float partialTick) {
-        Quaternionf rotation = new Quaternionf().rotationX(-Mth.HALF_PI);
-        this.extractRotatedQuad(state, camera, rotation, partialTick);
+        this.extractRotatedQuad(state, camera, FLAT_ROTATION, partialTick);
     }
 
     @Override

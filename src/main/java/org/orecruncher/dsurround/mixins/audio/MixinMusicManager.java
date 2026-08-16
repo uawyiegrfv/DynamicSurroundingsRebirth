@@ -77,7 +77,13 @@ public class MixinMusicManager implements IMusicManager {
             return Component.literal(this.currentMusic.getIdentifier().toString());
 
         var title = metaData.getTitle().copy().withColor(ColorPalette.PUMPKIN_ORANGE.getValue());
-        var author = metaData.getCredits().get(0).author().copy().withColor(ColorPalette.WHEAT.getValue());
+        // credits may be absent even when a title is configured (SoundMetadata defaults to
+        // an empty list) - fall back instead of throwing out of bounds.
+        var credits = metaData.getCredits();
+        if (credits.isEmpty())
+            return Component.translatable("dsurround.text.musicmanager.playing", title,
+                    Component.literal("?"), Component.translationArg(this.currentMusic.getIdentifier()));
+        var author = credits.get(0).author().copy().withColor(ColorPalette.WHEAT.getValue());
         return Component.translatable("dsurround.text.musicmanager.playing", title, author, Component.translationArg(this.currentMusic.getIdentifier()));
     }
 

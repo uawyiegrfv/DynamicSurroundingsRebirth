@@ -48,6 +48,9 @@ public class CompassOverlay extends AbstractOverlay {
 
     public void tick(Minecraft client) {
         this.showCompass = false;
+        // Reset alongside showCompass: a stale true from the previous tick would make the
+        // off-hand check below skip its spin evaluation when only the off-hand compass shows.
+        this.spinRandomly = false;
 
         if (this.config.compassAndClockOptions.enableCompass && GameUtils.isInGame()) {
             this.scale = (float) this.config.compassAndClockOptions.scale;

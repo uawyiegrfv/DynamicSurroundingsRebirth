@@ -120,6 +120,11 @@ public final class SoundInstanceHandler {
             } catch (Throwable t) {
                 Library.LOGGER.error(t, "Unable to set sound on sound instance");
             }
+            // Resolution is asynchronous - the sound will not be available on this pass.
+            // Let it through conservatively; the next evaluation re-checks with the
+            // resolved sound instead of dereferencing null below.
+            if (sound.getSound() == null)
+                return true;
         }
 
         // If it is a loud sound, let it through

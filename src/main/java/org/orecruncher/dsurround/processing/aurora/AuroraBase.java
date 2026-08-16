@@ -1,6 +1,5 @@
 package org.orecruncher.dsurround.processing.aurora;
 
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import org.orecruncher.dsurround.lib.GameUtils;
@@ -118,18 +117,6 @@ public abstract class AuroraBase implements IAurora {
         return this.colors.fadeColor;
     }
 
-    protected AuroraColor.ColorF getMiddleColor() {
-        return this.colors.middleColor;
-    }
-
-    protected int getBandCount() {
-        return this.bandCount;
-    }
-
-    protected float getBandOffset() {
-        return this.offset;
-    }
-
     @Override
     public abstract void render(final float partialTick);
 
@@ -147,9 +134,5 @@ public abstract class AuroraBase implements IAurora {
         else if (this.tracker.isFading())
             builder.append(", FADING");
         return builder.toString();
-    }
-
-    protected static float clamp(final float v, final float min, final float max) {
-        return Mth.clamp(v, min, max);
     }
 }

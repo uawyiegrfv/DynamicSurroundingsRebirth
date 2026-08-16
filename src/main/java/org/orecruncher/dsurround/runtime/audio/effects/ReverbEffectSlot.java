@@ -7,7 +7,12 @@ import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
 public class ReverbEffectSlot extends Slot {
 
     public ReverbEffectSlot() {
-        super(EXTEfx::alGenEffects);
+        super(EXTEfx::alDeleteEffects);
+    }
+
+    @Override
+    protected int factory() {
+        return EXTEfx.alGenEffects();
     }
 
     @Override

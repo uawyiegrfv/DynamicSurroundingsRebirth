@@ -5,7 +5,6 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.util.Mth;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Shader-driven aurora renderer. Clean-room rewrite for 26.1 (MIT).
@@ -168,11 +167,5 @@ public final class AuroraShader extends AuroraBase {
     @Override
     public String toString() {
         return "<SHADER> " + super.toString();
-    }
-
-    /** @return the render type in use, for diagnostics. */
-    @Nullable
-    RenderType renderType() {
-        return this.renderType;
     }
 }

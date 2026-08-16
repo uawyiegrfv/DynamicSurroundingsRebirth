@@ -1,11 +1,10 @@
 package org.orecruncher.dsurround.processing.aurora;
 
 /**
- * Factory for spawning auroras. In 1.12.2 this chose between the classic
- * immediate-mode renderer and a GLSL shader renderer. 26.1 dropped immediate
- * mode entirely, and a shader version would require a custom RenderPipeline
- * plus shader files that Iris/other shaders would override anyway — so only
- * the classic vertex-band renderer is produced here.
+ * Factory for spawning auroras. Produces the shader renderer when its
+ * pipeline is available; falls back to the classic vertex-band renderer if
+ * the shader variant fails to initialize (e.g. pipeline registration did not
+ * happen for this session).
  */
 public final class AuroraFactory {
 
@@ -13,6 +12,10 @@ public final class AuroraFactory {
     }
 
     public static IAurora produce(final long seed) {
-        return new AuroraClassic(seed);
+        try {
+            return new AuroraShader(seed);
+        } catch (final Throwable ignored) {
+            return new AuroraClassic(seed);
+        }
     }
 }

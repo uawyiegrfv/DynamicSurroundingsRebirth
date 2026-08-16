@@ -10,6 +10,7 @@ import net.neoforged.fml.common.Mod;
 
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
+import net.neoforged.neoforge.client.event.RegisterRenderPipelinesEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
@@ -18,6 +19,7 @@ import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.eventing.ClientState;
 import org.orecruncher.dsurround.gui.overlay.OverlayManager;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
+import org.orecruncher.dsurround.processing.aurora.AuroraRenderPipelines;
 
 @Mod(value = Constants.MOD_ID, dist = Dist.CLIENT)
 public final class NeoForgeMod {
@@ -27,6 +29,7 @@ public final class NeoForgeMod {
     public NeoForgeMod(ModContainer container, IEventBus modBus) {
         modBus.addListener(this::onInitializeClient);
         modBus.addListener(this::onRegisterGuiLayersEvent);
+        modBus.addListener(AuroraRenderPipelines::onRegisterPipelines);
 
         this.client = new Client();
         this.client.construct();

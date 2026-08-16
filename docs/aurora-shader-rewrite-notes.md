@@ -333,3 +333,66 @@ void main() {
    - 阶段 C：是否有小瓣动态？是否无亮斑？
    - 阶段 D：颜色/亮度/宽度是否满意？
 6. 每次只问一个变化点，避免多个变量混在一起无法定位。
+
+---
+
+## 8. 26.1 clean-room 重写实施记录（2026-08-16 第二轮）
+
+### 8.1 已落地的文件
+
+- `assets/dsurround/shaders/core/aurora.vsh` — POSITION_TEX_COLOR 直通
+- `assets/dsurround/shaders/core/aurora.fsh` — 全部视觉逻辑（值噪声 FBM 自写）
+- `AuroraRenderPipelines` — 2 个 pipeline（ASPECT=4/8，按 band.length 64/128），
+  在 `NeoForgeMod` 构造器经 modBus 注册；SRC_ALPHA/SRC_ALPHA 加色混合、
+  只测深度不写深度、无剔除
+- `AuroraShader` — QUADS 连续幕帘（顶点 y 0–1，v=0 底/1 顶），
+  背层+前层两遍；`AuroraFactory` 异常回退 `AuroraClassic`
+- `AuroraEffectHandler.doRender` 同时分发两种渲染器
+
+### 8.2 第一轮测试修掉的问题
+
+- **幕帘只有 ~10 格高**：顶点 y=0–1 时 `SCALE_Y` 就是幕帘总高度，
+  10 是错的；改为 120（经典版等效 56–144）。这是"效果不太行"的主因。
+- **启动 ERROR 警告**：`@OnlyIn(Dist.CLIENT)` 注解在 26.1 会被
+  OnlyInWarningsHandler 打成 ERROR——不要给类加 `@OnlyIn`。
+
+### 8.3 第二轮用户反馈与对策
+
+| 反馈 | 对策（当前值） |
+|---|---|
+| 层间分隔太大、纵向分层严重 | 背层 `SCALE_XZ 0.58→0.50`、`Z_BIAS 10→6`；带间距乘 `BAND_OFFSET_FACTOR=0.5` |
+| 上边缘太锐利 | 根因：`top=0.55+0.35*curtain`（最大 0.9）+ 渐隐 0.38 超出几何边 → 硬切。改 `top=0.45+0.25*curtain`、渐隐 0.42，另加 `skyFade=1-smoothstep(0.80,0.97,p.y)` 保底归零 |
+| 竖线不明显 | `rayShaped=smoothstep(0.28,0.72,ray)` 对比度整形，`rayMask=0.35+0.65*rayShaped`；射线 x 频率 4.5→5.0 |
+| 想要少数竖线沿幕帘扫过 | `sweepBoost=0.85+0.45*smoothstep(0.45,0.90,fbm(低频漂移))`，局部竖线增亮并缓慢平移 |
+| 蒜瓣明暗几乎看不到 | `lobeMask=0.80+0.35*lobe`（中频慢漂移）直接调制亮度，幅度保守防亮斑 |
+| （附加）顶部暖白化 | `mix(color, color*vec3(1.06,0.96,0.90), 0.35*smoothstep(0.60,1.0,p.y))` |
+
+### 8.4 第三轮：回调到中间态（用户定性"改过头"）
+
+| 反馈 | 调整（第二轮 → 第三轮） |
+|---|---|
+| 竖线太过明显、幕帘像断成几截 | `rayShaped` smoothstep 0.28–0.72 → **0.24–0.76**；`rayMask` 0.35+0.65 → **0.45+0.55**（暗缝不再太暗，保证连续性优先） |
+| 扫过的竖线太宽 | sweep x 频率 0.8 → **1.6**（亮区宽度减半）；boost 0.85+0.45 → **0.85+0.35** |
+| 整体太短太暗 | `top` 0.45+0.25 → **0.50+0.30\*curtain**；skyFade 0.80–0.97 → **0.82–0.98**；`BRIGHTNESS` 1.0 → **1.1** |
+
+教训：射线对比度是"连续性 vs 结构感"的直接权衡，smoothstep 区间宽度比阈值更敏感；
+改对比度后必须连同 rayMask 下限一起抬，否则暗缝变"断口"。
+
+### 8.5 第四轮：几何宽度/长度独立缩放
+
+反馈：宽度削一些、整体长度加一些、暗线最低亮度提高。
+
+- `AuroraShader` 拆分 `SCALE_X`（沿幕帘长度）/`SCALE_Z`（侧向宽度）：
+  X 0.45→**0.55**（更长），Z 0.45→**0.26**（更窄，第五轮又从 0.32 削减）；
+  背层 0.60/0.30
+- `ASPECT` define 4/8→**5/10**：补偿长度 +22%，同时单条射线物理宽度变窄
+- `rayMask` 下限 0.45→**0.52**（暗线更亮，连续性更好）
+
+教训：长度与宽度必须拆 X/Z 缩放单独调；改 X 长度后 ASPECT 要同比放大，
+否则射线会被水平拉宽。
+
+### 8.6 亮度预算提醒
+
+峰值系数 ≈ lobeMask(≤1.15) × rayMask(≤1.0) × sweepBoost(≤1.30) × flicker(≤1.0)
+× BRIGHTNESS(1.0) ≈ 1.5，但各最大值几乎不同时出现，典型均值 ≈ 0.6–0.8。
+若嫌暗，先加 `BRIGHTNESS` +0.1 再动别的。

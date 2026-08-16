@@ -14,6 +14,7 @@ import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.processing.aurora.AuroraClassic;
 import org.orecruncher.dsurround.processing.aurora.AuroraFactory;
+import org.orecruncher.dsurround.processing.aurora.AuroraShader;
 import org.orecruncher.dsurround.processing.aurora.IAurora;
 import org.orecruncher.dsurround.processing.Scanners;
 
@@ -145,13 +146,15 @@ public class AuroraEffectHandler extends AbstractClientHandler {
 
     @SubscribeEvent
     public void doRender(final RenderLevelStageEvent.AfterSky event) {
-        // Currently only the classic renderer exists; guard the cast so a future
-        // renderer implementation can't crash the frame with a ClassCastException.
-        if (!(this.current instanceof AuroraClassic classic))
-            return;
-
+        // Both renderers need the level-render PoseStack; dispatch on the
+        // concrete type since IAurora.render(partialTick) cannot carry it.
         final float partialTick = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
-        classic.render(event.getPoseStack(), partialTick);
+
+        if (this.current instanceof AuroraShader shader) {
+            shader.render(event.getPoseStack(), partialTick);
+        } else if (this.current instanceof AuroraClassic classic) {
+            classic.render(event.getPoseStack(), partialTick);
+        }
     }
 
     @Override

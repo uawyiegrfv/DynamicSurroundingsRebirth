@@ -1,8 +1,13 @@
 # Dynamic Surroundings — Fabric → NeoForge 26.1 迁移状态文档
 
-> 更新时间：2026-07-31
-> 项目目录：`E:\claude code\dsurround-neoforge-26.1`
+> 更新时间：2026-08-16
+> 项目目录：`D:\claude code\dsurround-neoforge-26.1`（2026-08-16 起由 E 盘迁至 D 盘，历史条目中的 E 盘路径为当时记录）
 > 原始源码：`E:\下载\DynamicSurroundingsFabric-main.zip`（解压于 `E:\claude code\dynamic-surroundings-migration`）
+> 1.12.2 参考源码：`D:\claude code\dsurround-1.12.2-src\DynamicSurroundings-1.12.2`
+>
+> **文档结构**：一~七章为迁移总览（概述/修复历程/构建/功能状态/配置/已知问题/Git）；
+> `2.19` 之后的 `## 2.x` 是按时间追加的开发日志（插在第七章之后）；
+> **代码审查记录统一收录在「八、代码审查记录」**，不再散落在时间线里。
 
 ---
 
@@ -586,8 +591,6 @@ Dynamic Surroundings（简称 DS）是一个氛围增强类客户端模组，为
 
 ## 三、构建与运行
 
-## 三、构建与运行
-
 ### 环境要求
 - **JDK 21**（moddev `downloadAssets` 任务需要）：`D:\minecraft\jdk-21.0.11+10`
 - **JDK 25**（编译工具链）：已注册于 gradle.properties
@@ -687,6 +690,7 @@ Dynamic Surroundings（简称 DS）是一个氛围增强类客户端模组，为
 ## 六、已知问题与后续计划
 
 ### 已知问题
+- **代码审查遗留清单（13 项）与待拍板项（3 项）统一见「八、代码审查记录」8.4/8.5**（2026-08-16 全项目审查产出）
 - 日志中 `No root paths defined for ResourceLookupHelper` 警告（客户端无服务端数据包磁盘根，**无害**）
 - `Unknown block 'biomesoplenty:glowshroom_block'` 警告（用户装了 Biomes O' Plenty，DS 映射里 BOP 条目版本差异，**无害**）
 - ~~**增强音效处理（混响）**~~ ✅ 2026-07-31 已修复并**用户确认正常**（根因：OpenAL Soft 新版本默认只给 2 辅助发送，见 2.6）
@@ -1133,28 +1137,137 @@ compensation = DIFFRACTION_BASE × openness × sealedFactor × pathFactor × dis
 - **七轮调优的关键参数**（完整记录见 `docs/aurora-shader-rewrite-notes.md` 第 8 节）：亮度 1.0；SCALE_X 0.50 / SCALE_Z 0.26 / SCALE_Y 120；射线 smoothstep(0.24,0.76) + rayMask 0.52+0.48；顶部渐隐必须保证 top+fade < 几何边（否则硬切）；sweep x 频率 1.6；底部 rim 宽过渡 × curtain 调制（频率对高度恒定，否则"木星纹"）；高度呼吸 sin(t*0.126)≈25s；每带色相 128±14 经顶点色 ×2 居中。
 - **坑**：`@OnlyIn` 注解在 26.1 会被 OnlyInWarningsHandler 打成启动 ERROR——不要用；顶点 y=0–1 时 SCALE_Y 即幕帘总高度。
 
-## 2.30 全项目代码审查修复（2026-08-16，四个并行只读 agent 审查 + 人工复核）
+## 2.30 全项目代码审查修复（2026-08-16）
 
-**声音系统（行为修正类）**：
-- `Effects` **共享滤波器串扰**（最重要）：`filter0-3`/`direct` 是全局唯一 OpenAL filter 对象，多声源并发时只有"最后写入者"的遮挡/混响参数生效（`direct` 共享意味着一个被遮挡声源会把所有声音一起闷掉；单声源测试发现不了）。修复：滤波器改为**每源持有**（`SourceContext.zoneFilters/directFilter`，声音引擎线程懒初始化、`stop()` 释放），zone→send 改**固定绑定**（send i 恒载 zone i，删除按源排序重绑）。2-send 设备上长混响 zone2/3 不再被动态提升（mixin 请求 4 发送后实际都有 4，影响面极小）。
-- `Slot.deinitialize` 现在**真正删除** AL 对象（alDeleteFilters/AuxiliaryEffectSlots/Effects），修复设备重建时 aux slot/effect/filter 泄漏。
-- `SoundFXProcessor` 线程池改守护线程（防 JVM 退出挂起）；`sources/worldContext/diagnosticString` 加 volatile。
-- `REVERB_RAY_BOUNCES` 钳制 `max(4, config)`——配置 <4 时 bounceRatio[0..3] 越界、异常被 updateImpl 吞掉、**整个混响静默失效**。
-- `SourceContext.updateImpl` 吞 Throwable 改为 debug 级留痕（此前它掩盖了上一条 bug 数月）。
-- `MixinMusicManager.dsurround_whatsPlaying` 补 credits 空列表判断（title 有 credits 无时越界崩命令）。
-- `SoundInstanceHandler.inRange` 异步 resolve 后立即解引用 getSound() 的 NPE——改为放行并等下轮。
+本轮审查的完整记录（发现清单、改动明细、遗留项、素材研究、待拍板项）集中收录在
+**「八、代码审查记录」**章节，对应提交 `52ddaf8`。
 
-**状态复位（换世界残留）**：`FootstepGenerator.onDisconnect` 补齐 lastPos/isFlying/fallDistance/didJump/distanceWalked/dmwBase/yPosition 复位（此前换世界第一 tick 用旧坐标算出巨大位移→幻影脚步）；`WeatherStormHandler` connect/disconnect 归零 dustIntensity（黄雾残留 ~2s）；沙尘暴加 `isInside()` 矿洞判定（沙漠下洞穴不再灌沙）；`CompassOverlay.spinRandomly` 每 tick 复位。
+---
 
-**死代码清理**：`Client.java` 的 HolisticFogRangeCalculator 死 DI 单例（与 FogHandler 自建实例构成双计算器树）；5 处死 `@SubscribeEvent` 注解（AuroraEffectHandler/CritWord×2/CraftingSound/PotionParticle/FogHandler）；死字段方法（FootstepGenerator.wasOnGround、FootprintHandler.logger、DiagnosticsOverlay.serverBranding、WeatherStormHandler.getDustIntensity、HeldTorchBurnHandler.config/logger、AuroraShader.renderType、AuroraBase 四个未用 helper、NeoForgeMod.onInitializeClient 空监听、WaterRippleStyle.resource/getTexture）；`UPDATE_FEQUENCY_TICKS` 拼写修正；`SourceContext` 三个 smooth* 收敛为 ease() 辅助 + OCCLUSION_SMOOTH_ALPHA 独立常量；`SoundFXUtils.calculate()` 277 行拆为 traceReverb/applyDiffraction/finalizeSendGains/uploadSettings 四方法（表达式逐行保留）。
+## 八、代码审查记录
 
-**性能（观感不变）**：CritWordHandler 先做投影深度剔除再遮挡 raycast（镜头背后的词不再白做体素射线）；FootprintParticle 旋转四元数缓存为字段、WaterRippleParticle 提为 static final（每帧每粒子的分配清零）；fog 六个计算器复用 FogData 实例；HazeFog 每帧的 synchronized DI resolve 改构造注入。
+> 代码/工程审查的统一归档章节。时间线日志（2.x）只留一句话指引，细节都在这里，
+> 避免审查发现散落在各处难以追溯。
 
-**未做（留待决策）**：SoundLibrary.postProcess 的 startupSounds/culledSounds 在 F3+T 重载时累积不清空；无引用素材清理（研究结论见下）；zh_cn 缺 8 个 dsmm 命令键；mods.toml architectury 版本范围硬编码 `[13.0.8,)`；minecraft 版本精确锁定是否放宽。
+### 8.1 历次审查索引
 
-**无引用素材研究结论**（对照 1.12.2 源码逐一验证）：`sounds/ambient/items/`（27 个）、`log_walk1-11`、`ambient/miscblocks/floorsqueak1-3`、`items/pageflip1-3`、`droplets/drop4`、`armor/heavy_foot4`、`textures/particles/none.png` 为纯冗余副本或 1.12.2 本来就无引用，**可删**；`ambient/insects/gnatt1+grasshopper1`（insectbuzz 群系音效）、`rainsplash.png`（水花粒子）、`ripple/ripple1/ripple2.png`（3 种涟漪风格）是**未移植功能的原始素材**，建议保留。
+| 日期 | 审查 | 结果去处 |
+|---|---|---|
+| 2026-08-02 | 穿草/脚印轮 simplify 四角度审查（4 并行 agent） | 2.15.4（历史条目，保留原地） |
+| 2026-08-10 | 发布前工程清理（AI 审查） | 2.23 工程清理小节（历史条目，保留原地） |
+| 2026-08-16 | 全项目审查（本轮，3 并行只读 agent + 1 素材研究 agent + 人工复核高严重度发现） | **本章 8.2 起**，提交 `52ddaf8` |
 
-### 2.30.1 待用户拍板的"需确认"项说明
+### 8.2 审查方法与范围（2026-08-16）
 
-- `SoundFXUtils.offsetPositionIfSolid` 用 `!=AIR` 判断（水/花草都推移声源 0.876 格）是 2.24 修过又按"Fabric 原版语义"回退的现状；水路径采样已用 rawSourcePos 绕开，实际可闻影响极小。
-- `MixinSoundEngine` 被 block/cull 的声音仍会走 remap 播放替换声——若用户在个体声音配置里屏蔽了某原版声音且该声音有 remap 规则（脚步/雷声），替换声仍会播放。
+- **声音系统**：runtime/audio 全部、mixins/audio、FootstepGenerator、Variator、SoundLibrary
+- **处理器/渲染**：processing 包全部 Handler、粒子、雾计算器、GUI overlay、Client/DI 初始化
+- **资源与配置一致性**：sounds.json 引用完整性、Configuration↔lang 键对齐、配置项死字段、mods.toml/gradle 一致性、纹理引用
+- **素材溯源**：无引用 ogg/纹理 对照 1.12.2 源码（`D:\claude code\dsurround-1.12.2-src`）逐一验证用途，含 MD5 对比
+- 高严重度发现（Effects 共享滤波器、credits 越界）经人工读源码复核后才动手修
+
+### 8.3 已修复（提交 52ddaf8）
+
+#### A. 声音系统缺陷（行为修正类，修后需实测多声源场景）
+
+| # | 位置 | 问题 | 修复 |
+|---|---|---|---|
+| A1 | `runtime/audio/effects/Effects.java` | **共享滤波器串扰（本轮最重要）**：`filter0-3`/`direct` 是全局唯一 OpenAL filter 对象，OpenAL filter 是共享参数块，多声源并发时只有"最后写入者"的遮挡/混响参数对所有人生效；`direct` 共享意味着一个被遮挡声源会把**所有**声音一起闷掉。单声源测试（埋唱片机）发现不了 | 滤波器改**每源持有**（`SourceContext.zoneFilters[4]/directFilter`，声音引擎线程 `ensureFilters()` 懒初始化、`stop()` 释放）；zone→send 改**固定绑定**（send i 恒载 zone i），删除按源排序重绑（同时消掉了每 tick 的 Integer[] 装箱排序）。注意：2-send 设备上长混响 zone2/3 不再被动态提升到 send0/1——mixin 请求 4 发送后实际设备都有 4，影响面极小 |
+| A2 | `effects/Slot.java` 及子类 | `deinitialize()` 只置空句柄不删对象，设备重建（资源重载/切输出设备）泄漏 4 aux slot + 4 effect + 5 filter | `deinitialize()` 现在调用 alDeleteAuxiliaryEffectSlots/alDeleteEffects/alDeleteFilters 真正删除 |
+| A3 | `runtime/audio/SoundFXUtils.java` | `REVERB_RAY_BOUNCES = CONFIG.reverbBounces` 可被配置改小，`bounceRatio[0..3]` 硬编码索引越界 → 异常被 updateImpl 吞掉 → **整个混响静默失效** | 钳制 `max(4, config)` 并注释原因 |
+| A4 | `SourceContext.updateImpl` | 吞掉**所有** Throwable 且零日志——A3 这类 bug 被它掩盖数月 | 改 debug 级留痕（`IModLog` 新增 `debug(Throwable,...)` 重载，默认关不刷屏） |
+| A5 | `mixins/audio/MixinMusicManager` | `credits.get(0)` 无空判——sounds.json 配了 title 没配 credits 时 `/dsmm whatsplaying` 越界崩命令 | 空列表回退 |
+| A6 | `sound/SoundInstanceHandler.inRange` | `getSound()==null` 时异步 resolve 后**立即**解引用 `getSound().getAttenuationDistance()` → NPE | 放行并等下轮复查 |
+| A7 | `SoundFXProcessor` | 自建线程池非守护线程（JVM 退出可被挂起）；`sources/worldContext/diagnosticString` 跨线程无 volatile | 守护线程 + 命名工厂；三字段 volatile；错误消息里过时的 "ForkJoinPool" 字样修正 |
+
+#### B. 换世界/重连状态残留
+
+| # | 位置 | 问题 | 修复 |
+|---|---|---|---|
+| B1 | `FootstepGenerator.onDisconnect` | 单例 handler 未复位 lastPos/isFlying/fallDistance/didJump/distanceWalked/dmwBase/yPosition——换世界第一 tick 用旧世界坐标算出巨大位移 → 幻影脚步/假落地声 | 补齐全量复位 |
+| B2 | `WeatherStormHandler` | `dustIntensity` 未在 connect/disconnect 归零，沙漠/下界退出后黄雾残留 ~2 秒 | 覆写两个钩子归零 |
+| B3 | `CompassOverlay.tick` | `spinRandomly` 不随 `showCompass` 一起复位，主副手切换时副手罗盘被陈旧状态错误乱转 | 每 tick 复位 |
+
+#### C. 行为调整（用户批准的需确认项）
+
+| # | 位置 | 改动 |
+|---|---|---|
+| C1 | `WeatherStormHandler` 沙尘暴分支 | 加 `scanners.isInside()` 矿洞判定：沙漠下洞穴不再灌沙粒/黄雾（下界尘雨不受影响——下界本就是洞穴维度） |
+
+#### D. 死代码/混乱清理（零功能影响）
+
+| # | 内容 |
+|---|---|
+| D1 | `Client.java` 的 HolisticFogRangeCalculator 死 DI 单例（FogHandler 自建实例才是活的，两套计算器树并存且注释误导） |
+| D2 | 死 `@SubscribeEvent` 注解×6：AuroraEffectHandler、CritWordHandler×2、CraftingSoundEffectHandler、PotionParticleHandler、FogHandler（实际都走 addListener，注解纯误导） |
+| D3 | 死字段/方法：FootstepGenerator.wasOnGround、FootprintHandler.logger、DiagnosticsOverlay.serverBranding、WeatherStormHandler.getDustIntensity、HeldTorchBurnHandler.config/logger、AuroraShader.renderType()+@Nullable、AuroraBase 四个未用 helper（getMiddleColor/getBandCount/getBandOffset/clamp）、NeoForgeMod.onInitializeClient 空监听、WaterRippleStyle.resource/getTexture |
+| D4 | `UPDATE_FEQUENCY_TICKS` 拼写 → `UPDATE_FREQUENCY_TICKS` |
+| D5 | `SourceContext` 三个 smooth* 三份复制收敛为 `ease()` 辅助；`smoothOcclusion` 误用 WATER_SMOOTH_ALPHA → 独立 OCCLUSION_SMOOTH_ALPHA（值不变） |
+| D6 | `SoundFXUtils.calculate()` 277 行拆为 traceReverb / applyDiffraction / finalizeSendGains / uploadSettings 四方法（表达式逐行保留，行为等价） |
+
+#### E. 性能优化（观感不变）
+
+| # | 位置 | 改动 |
+|---|---|---|
+| E1 | `CritWordHandler.renderGui` | 先做投影深度剔除（镜头背后/超距直接跳过）再做遮挡 raycast——此前每个词条每帧白做一次完整体素射线 + 分配 |
+| E2 | `FootprintParticle` / `WaterRippleParticle` | 恒定旋转四元数缓存（字段 / static final），消除每帧每粒子 1-2 个 Quaternionf 分配 |
+| E3 | fog 六个计算器 | 复用成员 FogData 实例（render() 返回前必然覆写两个字段，复用安全） |
+| E4 | `HazeFogRangeCalculator` | 每帧走 synchronized `ContainerManager.resolve` 改构造注入（经 HolisticFogRangeCalculator 传入） |
+
+### 8.4 已知未修（遗留清单，按建议优先级）
+
+| # | 位置 | 问题 | 备注 |
+|---|---|---|---|
+| L1 | `SoundLibrary.postProcess` | F3+T 资源重载时 `startupSounds` 无界翻倍累积、`culledSounds` 残留（用户取消屏蔽后仍被屏蔽） | 修法：postProcess 开头清三个集合 |
+| L2 | `zh_cn.json` | 缺 8 个运行时键（dsmm pause/unpause/failure/success、musicmanager nothing/playing）——中文环境命令显示原始键名 | en_us 已有，照抄翻译即可 |
+| L3 | `neoforge.mods.toml` | architectury 版本范围硬编码 `[13.0.8,)`（旧时代版本号），与 gradle 的 20.0.12 脱节 | 改用 `${architectury_api_version}` 并注册 replaceProperties |
+| L4 | 版本策略 | `minecraft_version_range=[26.1.2]` 精确锁定，26.1.3 补丁版直接拒载 | 是否放宽待定 |
+| L5 | `packs/Seasons sound_factories.json` | 坏 JSON（3 个冬季音乐条目缺 `},`），整个文件解析失败 | packs 不入库；单独分发前必须修 |
+| L6 | `HeldTorchBurnHandler` | 无配置开关（手持火把噼啪声关不掉） | 需新增配置项+翻译 |
+| L7 | `config/Variator` | 16 字段仅 5 个有消费者（四足脚步/wander/脚印缩放等未移植） | 建议类注释标明哪些当前无效果 |
+| L8 | `BiomeScanner.surveyedDimension` | 初始 null，靠求值顺序巧合避免 NPE | 建议哨兵值初始化 |
+| L9 | `BiomeFogRangeCalculator` | `withinManhattan(6,6,6)` 实际遍历整个 13³ 盒 ≈2197 采样/跨格 | 原 1.12.2 为稀疏采样；受量化缓存缓冲，实测可控 |
+| L10 | `SoundFXProcessor.onSoundPlay` | `sources[id-1]` 无上界检查（驱动分配超 MAX_SOUNDS 时 AIOOBE 被吞） | 防御性补丁 |
+| L11 | `AudioUtilities` | 初始化 catch 只打 getMessage()（常为 null），丢堆栈 | 排查信息不足 |
+| L12 | `ThunderHandler` | 背景雷声用 info 级日志 | 降 debug |
+| L13 | `AreaBlockEffects.blockUpdateCount` | 每 tick 清零导致诊断面板大多显示 0 | 显示时序小瑕疵 |
+
+### 8.5 待用户拍板项（含效果影响说明）
+
+**P1 `SoundFXUtils.offsetPositionIfSolid` 用 `!=AIR` 判断**（水/花草都会把声源朝玩家偏移 0.876 格）
+- 现状来源：2.24 修成 `isSolid()&&fluidEmpty`，后按"Fabric 原版语义"回退
+- 实际影响：**极小**——偏移不到一格，只影响遮挡/混响射线起点，音色差异人耳难辨；水的部分已用 rawSourcePos 独立采样绕开
+- 建议：维持现状（保留原版行为）
+
+**P2 `MixinSoundEngine` 被 block/cull 的声音仍播放 remap 替换声**
+- 实际影响：在个体声音配置里**屏蔽**某原版声音、且该声音有替换映射（DS 材质脚步/远处雷声）时，替换声**照常播放**——"屏蔽原版劣质声、保留 DS 增强声"
+- 若期望"屏蔽=完全无声"则脚步类关不干净；修复只需在 setReturnValue 后补 return
+- 待定语义选择
+
+**P3 无引用素材删除**（详见 8.6 研究结论）：45 个纯冗余可删，6 个未移植功能素材建议保留
+
+### 8.6 无引用素材研究结论（对照 1.12.2 源码 + MD5 验证，2026-08-16）
+
+**可安全删除（纯冗余副本或本就无引用，共 45 个）**：
+
+| 组 | 文件 | 结论 |
+|---|---|---|
+| A | `sounds/ambient/items/` 27 个（blunt/bow/sword/tool/utility/potion/swoosh 系列） | 1.12.2 物品音效原始路径；26.1 的 `sounds.json` 已全部改用 `sounds/items/` 下**字节级相同副本**（MD5 全量对比一致），旧路径零引用 |
+| B | `sounds/footsteps/wood/log_walk1-11` | **1.12.2 里不存在**（原木一直复用 wood_walk，见 mcp.json log acoustic）；疑似移植时误加 |
+| C | `sounds/ambient/miscblocks/floorsqueak1-3` | 26.1 用 `footsteps/floor_squeak/` 副本（MD5 相同）；同目录 breathing/hiss **仍在用勿删** |
+| D | `sounds/items/pageflip1-3` | 1.12.2 就在 `ambient/book/`（26.1 同路径在用）；`items/` 副本无引用 |
+| E | `ambient/droplets/drop4`、`footsteps/armor/heavy_foot4`、`textures/particles/none.png` | 1.12.2 本来就是零引用孤儿（waterdrips 事件重复列 drop3 两次、armor.heavy_foot 只列 1-3） |
+
+**建议保留（未移植功能的原始素材，共 6 个）**：
+
+| 文件 | 对应功能 |
+|---|---|
+| `ambient/insects/gnatt1`、`grasshopper1` | 1.12.2 **insectbuzz 昆虫嗡嗡群系音效**（普通陆地群系、非结冰不下雨时随机播放）——26.1 未移植 |
+| `textures/particles/rainsplash.png` | 雨滴砸水面**水花粒子**（MoteWaterSpray/MoteRainSplash）——26.1 只做了涟漪没做溅射 |
+| `textures/particles/ripple.png`、`ripple1.png`、`ripple2.png` | 原版 3 种涟漪风格（ORIGINAL/CIRCLE/SQUARE）——26.1 只移植了像素圆一种 |
+
+（另：`textures/particles/` 下的 footprint.png、pixel_ripples.png 也是 `textures/particle/` 的未用副本，删冗余时可一并处理。）
+
+### 8.7 验证
+
+`./gradlew build` 通过；runClient 启动、进世界运行无 DS 错误/警告（仅既有的版本检查 SSL 噪音）；
+多声源音频场景、换世界状态复位、沙尘暴矿洞判定待用户日常游玩确认。

@@ -1,7 +1,8 @@
-# 极光 Shader 重写备忘
+# 极光 Shader 重写备忘（完整版）
 
-> 本文记录 26.1 极光 shader 从移植、重写、回退到经典版的完整经验和用户视觉要求，
-> 供下一次 clean-room 重写时直接参考。最后更新：2026-08-16。
+> 本文记录 26.1 极光 shader 从移植、重写、回退到经典版的完整经验、技术结论、
+> 参数-视觉映射和用户视觉需求，供下一次 clean-room 重写时直接参考。
+> 最后更新：2026-08-16。
 
 ---
 
@@ -10,10 +11,13 @@
 - **D 盘是唯一工作区**：`D:\claude code\dsurround-neoforge-26.1`
 - git HEAD：`c3c4371 保存极光 shader 重制前的当前状态`
 - 极光功能已回退到 **经典版**：`AuroraFactory.produce()` 只返回 `AuroraClassic`
-- 仓库中**没有** shader 文件（`AuroraShader.java`、`AuroraRenderPipelines.java`、`assets/dsurround/shaders/` 均已移除）
+- 仓库中**没有** shader 文件（`AuroraShader.java`、`AuroraRenderPipelines.java`、
+  `assets/dsurround/shaders/` 均已移除）
 - 已验证编译产物：`build/classes` 和 jar 内只有经典版类，无 shader 残留
+- 经典版行为说明：`bandCount = random.nextInt(3) + 1`，即经典版会随机生成
+  **1–3 条极光带**，每条带在 Z 轴上有 20–40 格偏移。这是原版行为，不是 bug。
 
-### 构建 / 测试标准操作
+### 1.1 构建 / 测试标准操作
 
 ```powershell
 # 在 D 盘项目根目录执行
@@ -27,12 +31,18 @@
   历史问题：D 盘克隆自 E 盘时带过来旧 configuration cache，里面嵌有 E 盘绝对路径，
   导致 D 盘 Gradle 构建实际落到 E 盘。
 
+### 1.2 启动日志中可忽略的噪音
+
+- `MouseHandler ... FramerateLimitTracker is null` 的 NPE：NeoForge 早期显示窗口
+  收到鼠标事件的常见噪音，游戏会继续正常加载，不影响测试。
+- `Unable to fetch version information ... versions.json`：版本检查网络失败，无害。
+
 ---
 
 ## 2. 视觉需求规格（重写提示词）
 
 > 目标：clean-room 重写极光 shader，达到或超过 Mattenii 版观感，同时可 MIT 分发。
-> 下面这段可直接作为重写任务的核心提示词使用。
+> 本节可以直接作为重写任务的核心提示词使用。
 
 ### 2.1 核心画面
 
@@ -40,36 +50,94 @@
 ray structure：无数条沿高度方向拉长的光带，整体又像被风吹动的丝绸，
 既有大范围的连续起伏，也有局部“小瓣样”的明暗与形状动态。
 
-### 2.2 必须做到（MUST）
+### 2.2 结构要求（几何）
 
-1. **必须有竖直射线**：画面主体是清晰的竖直条纹/射线，沿高度方向拉长，
-   不是水平横条，也不是单纯的一团雾。
-2. **竖直射线要有机变化**：竖直线不能像直尺一样死直。射线需要有**轻微**
-   的弯曲、倾斜、摆动；幅度要小，让人第一眼仍觉得是竖直射线，细看有
-   自然卷曲。
-3. **连续大片银幕**：幕帘沿 ribbon 连续，**不能中间断开**、不能变成孤立的
-   几段。整体要像一整片幕布，而不是几条细线。
-4. **局部“小瓣”动态**：要有原版 Mattenii 版那种小瓣状/褶皱状的局部明暗
-   变化，让幕帘有布料感；但瓣状必须柔和，**不能变成一坨亮斑**。
-5. **颜色**：保持光谱感——底部紫/蓝、主体绿色、顶部红/粉。用户对现有
-   颜色满意，重写时沿用这个颜色方向。
-6. **亮度保守**：峰值亮度宁暗勿亮，避免“亮瞎眼”。加色混合下很容易过曝，
+1. **竖直射线是主体**：画面必须有清晰的竖直条纹/射线，沿高度方向拉长。
+   不是水平横条，不是单纯的一团雾，也不是只有轮廓的空心带。
+2. **射线的密度与粗细**：射线数量要够多，覆盖幕帘宽度，但单条射线不能太粗
+   （太粗会变成一条条色块）。参考 clean-room v1：`ray = fbm(vec2(p.x * 4.5,
+   p.y * 0.35 + t * 0.05))`——x 频率 4.5 左右的射线密度是“还行”的起点。
+3. **射线的有机弯曲/倾斜**：竖直线不能像直尺一样死直。射线坐标中要加入
+   **很小**的 y 依赖（倾斜）和 curtain 依赖（弯曲）。幅度必须小：
+   第一眼仍要觉得是竖直射线，细看才有自然卷曲。
+   参考失败值：`0.28 * p.y` 和 `0.65 * curtain` 太大，观感完全变样。
+   建议起步值：倾斜 `0.03–0.08 * p.y`，弯曲 `0.10–0.20 * curtain`。
+4. **连续大片银幕**：幕帘沿 ribbon 连续，**不能中间断开**、不能变成孤立的
+   几段。整体像一整片幕布，而不是几条细线。
+5. **上下边界**：下缘相对锐利，上缘柔和消散（这是极光真实形态）。
+   参考值：`bottomMask = smoothstep(0.0, 0.14, p.y - bottom)`；
+   `topMask = 1.0 - smoothstep(0.0, 0.38, p.y - top)`。
+6. **左右边缘**：ribbon 两端要柔和淡出，不要戛然而止。
+   参考：`edgeFade = smoothstep(0.0, 0.18, uv.x) * (1.0 - smoothstep(0.82, 1.0, uv.x))`。
+7. **多层/深度**：可以用“背层 + 前层”制造视差，但背层必须很淡
+   （alpha 0.35 或更低），否则叠层加色后会过亮。
+8. **宽度**：整体宽度比 clean-room v1（`SCALE_XZ = 0.5`）略窄，
+   目标 `SCALE_XZ = 0.42–0.45`。
+
+### 2.3 动态要求（动画）
+
+1. **时间尺度要分层**：
+   - 慢速大幕浪：整片幕帘像被风吹动的布，周期约 10–30 秒。
+   - 中速射线摆动：单条射线轻微左右摇摆，周期约 2–5 秒。
+   - 快速闪烁：射线亮度有轻微 shimmer，周期 < 1 秒。
+2. **局部“小瓣”动态**：要有原版 Mattenii 版那种小瓣状/褶皱状的局部明暗变化，
+   让幕帘有布料感；但瓣状必须柔和，**不能变成一坨亮斑**。
+   实现上：用低幅度 domain warp 或二次噪声调制，不要用高频大振幅折叠。
+3. **禁止的动画问题**：
+   - 不要像跑马灯一样只做水平平移。
+   - 不要让射线集体同步摆动（要每处相位不同）。
+   - 不要有突兀的闪烁或跳变。
+
+### 2.4 颜色要求
+
+1. **保持光谱感**：底部紫/蓝、主体绿色、顶部红/粉。用户对 clean-room v1
+   的颜色“还行”，可接受，重写时沿用这个方向。
+2. **参考混色**：
+   - `violet = vec3(0.40, 0.26, 0.95)`
+   - `green = vec3(0.16, 0.82, 0.38)`
+   - `red = vec3(0.95, 0.16, 0.28)`
+   - 绿：`greenMix = smoothstep(0.02, 0.38, p.y + 0.22 * curtain - 0.08 * ray)`
+   - 红：`redMix = smoothstep(0.42, 0.88, p.y + 0.18 * ray - 0.10 * curtain)`
+3. **饱和度**：不要荧光感过强；绿色为主，红/紫作上下点缀。
+4. **颜色随时间**：可以随 GameTime 缓慢变化，但变化幅度要小；不要彩虹循环。
+
+### 2.5 亮度与透明度
+
+1. **亮度保守**：峰值亮度宁暗勿亮，避免“亮瞎眼”。加色混合下很容易过曝，
    默认参数要从低起步。
-7. **宽度适中**：整体宽度比 clean-room v1（`SCALE_XZ = 0.5`）略窄。
-8. **一次只改一个视觉变量**：弯曲/倾斜、亮度、宽度、颜色、分段感等
-   分开调，每次改完进游戏确认。
+2. **参考数值**：
+   - clean-room v1 `brightness = 1.55`：偏亮。
+   - 下一版建议起步 `brightness = 0.9–1.1`，确认后再逐次 +0.1。
+3. **透明度**：淡入淡出走顶点色 alpha（0–255），fragment 读 `vertexColor.a`。
+   shader 内 alpha 只做乘数，不要把 alpha 写进 `fragColor.a`。
+   `fragColor.a` 恒为 1.0（加色混合由 RGB 决定）。
+4. **叠层**：背层 + 前层同时存在时，总亮度按加法叠加，计算总亮度时要
+   乘以 `(1 + backLayerAlpha)` 的系数。例如 front=1.0、back=0.35 时，
+   总峰值约 1.35。
 
-### 2.3 禁止（MUST NOT）
+### 2.6 必须做到（MUST）
+
+1. 必须有竖直射线。
+2. 竖直射线要有机变化（轻微弯曲/倾斜/摆动）。
+3. 连续大片银幕，不断开。
+4. 局部小瓣动态，但柔和、不亮斑。
+5. 光谱颜色：底紫、中绿、顶红。
+6. 亮度保守。
+7. 宽度比 clean-room v1 略窄。
+8. 一次只改一个视觉变量，改完进游戏确认。
+
+### 2.7 禁止（MUST NOT）
 
 1. 不要中间断开 / 分段落消失 / 变成孤立的几条。
 2. 不要把“瓣状”做成亮斑、团块。
 3. 不要过亮。
 4. 不要做成完全水平的横条。
 5. 不要把竖直射线做成完全笔直的直线（太机械）。
-6. 不要把弯曲/倾斜做得太大，否则整体观感会完全变样。
+6. 不要把弯曲/倾斜做得太大（`0.28*p.y`、`0.65*curtain` 级别就是失败）。
 7. 不要复制 Mattenii 的具体代码（clean-room 要求）。
+8. 不要一次改多个视觉变量。
 
-### 2.4 历次反馈的失败记录（务必避开）
+### 2.8 历次反馈的失败记录（务必避开）
 
 | 版本 | 做法 | 结果 |
 |---|---|---|
@@ -81,18 +149,15 @@ ray structure：无数条沿高度方向拉长的光带，整体又像被风吹�
 **结论**：竖直线结构保留，只加轻微弯曲/倾斜；幕帘保持连续；亮度起步值
 用 1.0 左右；宽度 0.42–0.45；任何新结构先想清楚它会在画面上产生什么。
 
-### 早期 clean-room 版参数（用户觉得“还行”的起点）
+### 2.9 可直接复制的提示词（下一版重写用）
 
-- Java 层：`SCALE_XZ = 0.5F`、`SCALE_Y = 10.0F`
-- 背层：`BACK_LAYER_ALPHA_FACTOR = 0.45F`、`BACK_LAYER_SCALE_XZ = 0.62F`、`BACK_LAYER_SCALE_Y = 11.0F`、`BACK_LAYER_Z_BIAS = 6.0F`
-- shader 内 `brightness = 1.55`
-
-### 后来确认的调整方向
-
-- 宽度：`SCALE_XZ` 从 0.5 降到 0.42–0.45 左右
-- 亮度：`brightness` 从 1.55 降到 1.0–1.2 左右
-- 背层 alpha：从 0.45 降到 0.35 或更低，避免叠层过亮
-- “弯曲/倾斜”如果要做，**幅度必须非常小**，否则整体观感会完全变样
+> 请 clean-room 重写极光 fragment shader，不参考 Mattenii 代码。
+> 画面要求：连续的大片极光幕帘，主体是竖直射线/条纹，射线有轻微弯曲/倾斜/
+> 摆动（第一眼仍是竖直射线），局部有小瓣状柔和动态但绝不出现亮斑。
+> 颜色底部紫/蓝、主体绿、顶部红/粉。亮度保守（起步 brightness 约 1.0），
+> 宽度比上一版略窄（SCALE_XZ 0.42–0.45）。幕帘下缘锐利、上缘柔和，
+> ribbon 两端淡出。一次只实现一个结构变化，先保证连续大片银幕和竖直射线
+> 成立，再逐步加入轻微弯曲、小瓣动态。
 
 ---
 
@@ -133,9 +198,48 @@ ray structure：无数条沿高度方向拉长的光带，整体又像被风吹�
    - Mattenii 版：24 调色板 × 2 aspect = 48 个 pipeline
    - clean-room 版：2 个 pipeline（只按 band 长度 64/128 的 aspect 区分）
 
+### 3.3 顶点格式与绘制
+
+- 顶点格式：`DefaultVertexFormat.POSITION_TEX_COLOR`，`VertexFormat.Mode.QUADS`
+- 每 quad 4 个顶点，UV：底 `v=0`、顶 `v=1`；`u` 沿 band 从 0 到约 1
+- 顶点色：`setColor(255, 255, 255, alphaByte)`，alpha 由 `getAlpha()` 计算
+- 每个 band 一个 ribbon；`AuroraShader` 中可画背层+前层两遍
+
 ---
 
-## 4. 协议经验
+## 4. 参数-视觉效果映射表（重要）
+
+> 调参时先看这张表，想清楚再改。`+` 表示增大，`-` 表示减小。
+
+### 4.1 Java 参数
+
+| 参数 | 位置 | 效果 |
+|---|---|---|
+| `SCALE_XZ` | `AuroraShader` | 控制极光整体水平宽度。增大→更宽；减小→更窄。目标 0.42–0.45 |
+| `SCALE_Y` | `AuroraShader` | 控制极光高度。增大→更高；原版 10.0 |
+| `BACK_LAYER_ALPHA_FACTOR` | `AuroraShader` | 背层亮度。增大→叠层更亮、更容易过曝；建议 ≤0.35 |
+| `BACK_LAYER_SCALE_XZ/Y` | `AuroraShader` | 背层比前层大多少；太大会糊成一团 |
+| `BACK_LAYER_Z_BIAS` | `AuroraShader` | 背层与前层的视差距离 |
+| `alphaByte` | `AuroraShader` | 顶点 alpha；决定整体淡入淡出，不直接调 |
+
+### 4.2 Fragment shader 参数
+
+| 参数 | 效果 |
+|---|---|
+| `brightness` | 整体亮度倍率。过 1.2 容易刺眼；建议从 0.9–1.1 起步 |
+| 射线 x 频率（如 `p.x * 4.5`） | 射线密度。越大射线越细密；越小越粗疏 |
+| 射线 y 频率（如 `p.y * 0.35`） | 越大射线沿高度变化越多，越小越接近笔直竖线 |
+| 倾斜项（如 `+ k * p.y` 加在 rayP.x） | 越大射线越斜。k 建议 0.03–0.08，不要 0.28 |
+| 弯曲项（如 `+ k * curtain` 加在 rayP.x） | 越大射线越弯。k 建议 0.10–0.20，不要 0.65 |
+| `warp * 1.1` 幅度 | domain warp 强度。过大→亮斑/团块；过小→无布料感 |
+| `bottomMask` / `topMask` 的 smoothstep 宽度 | 下缘/上缘锐利程度。宽度越大越柔和 |
+| `edgeFade` 范围 | ribbon 两端淡出长度。太小会看到硬边 |
+| `greenMix` / `redMix` 位置 | 绿色/红色在高度上的分布 |
+| `time` 速度系数 | 动画快慢。太大→乱跳；太小→不动 |
+
+---
+
+## 5. 协议经验
 
 - 原版 1.12.2 `aurora.vert/frag` 来自 Mattenii 的 Aurora Lights，
   **CC BY-NC-SA 3.0**，不是 MIT。
@@ -147,27 +251,85 @@ ray structure：无数条沿高度方向拉长的光带，整体又像被风吹�
 
 ---
 
-## 5. 下一版 clean-room 的实现建议
+## 6. 下一版 clean-room 的实现建议
 
-### 5.1 shader 结构
+### 6.1 分阶段实施（每阶段只改一个变量）
 
-- 自写 hash / value noise / FBM（integer hash 或自选常量的 sin hash）
-- domain warp 用于幕帘褶皱（注意幅度，过大变成亮斑）
-- 竖直射线：坐标里加入 **很小的** y 依赖（倾斜）和 curtain 依赖（弯曲），
-  幅度要小（参考失败经验：`0.28*p.y`、`0.65*curtain` 太大了）
-- 不要用 `presence`/`patch` 把幕帘沿 x 断开；保持连续大片
-- 颜色：物理向海拔渐变（紫底 / 绿主 / 红顶），用户对“颜色还行”可接受
+1. **阶段 A：连续银幕 + 竖直射线**
+   - 只实现：值噪声 FBM 幕帘 + 竖直 ray + 上下边界 + edgeFade + 光谱色。
+   - 参数：`SCALE_XZ = 0.45`、`brightness = 1.0`、背层 alpha 0.35。
+   - 验收：用户确认“大片银幕、竖直射线、亮度合适”。
+2. **阶段 B：射线轻微弯曲/倾斜**
+   - 在 rayP 坐标加入小幅度倾斜/弯曲（先只加倾斜，确认后再加弯曲）。
+   - 验收：用户确认“射线不死直了，但整体没变样”。
+3. **阶段 C：小瓣动态**
+   - 用低幅度 domain warp 或二次噪声调制射线亮度，制造小瓣明暗。
+   - 验收：用户确认“有布料感，没有亮斑”。
+4. **阶段 D：颜色/亮度/宽度精修**
+   - 最后再调颜色分布、亮度、宽度。每次只动一个。
 
-### 5.2 Java 层
+### 6.2 shader 结构参考
 
-- `AuroraShader` 使用 QUADS + POSITION_TEX_COLOR，alpha 走顶点色
-- 可保留“背层 + 前层”的视差设计，但背层 alpha 要低
-- 宽度 `SCALE_XZ` 目标 0.42–0.45
-- 亮度目标保守起步，例如 `brightness = 1.0`
+```glsl
+// 自写 hash / value noise / FBM（不要用 Mattenii 的结构）
+float hash21(vec2 p) { ... }
+float vnoise(vec2 p) { ... }
+float fbm(vec2 p) { ... }
 
-### 5.3 测试流程
+void main() {
+    vec2 uv = texCoord0;
+    vec2 p = vec2(uv.x * ASPECT, uv.y);
+    float t = time;
 
-1. 先 `build` 确认编译和 jar 产物
-2. `runClient --no-configuration-cache` 从 D 盘启动
-3. 进入世界 → 寒冷群系（雪原/冰刺）→ `/time set midnight`
-4. 一次只调一个参数，用户确认后再改下一个
+    // 1) 连续幕帘（domain warp，幅度小）
+    vec2 warp = vec2(fbm(p + vec2(0.0, t * 0.04)),
+                     fbm(p + vec2(4.7, 1.9)));
+    float curtain = fbm(p * vec2(1.6, 0.7) + warp * 1.1 + vec2(0.0, t * 0.025));
+
+    // 2) 竖直射线（先笔直，阶段 B 再加轻微倾斜/弯曲）
+    float ray = fbm(vec2(p.x * 4.5, p.y * 0.35 + t * 0.05));
+
+    // 3) 上下边界
+    float bottom = 0.06 + 0.10 * curtain;
+    float top = 0.55 + 0.35 * curtain;
+    float bottomMask = smoothstep(0.0, 0.14, p.y - bottom);
+    float topMask = 1.0 - smoothstep(0.0, 0.38, p.y - top);
+    float envelope = bottomMask * topMask;
+
+    // 4) 左右淡出
+    float edgeFade = smoothstep(0.0, 0.18, uv.x) * (1.0 - smoothstep(0.82, 1.0, uv.x));
+
+    // 5) 光谱色
+    vec3 color = mix(violet, green, greenMix);
+    color = mix(color, red, redMix);
+
+    // 6) 亮度
+    float rayMask = 0.55 + 0.45 * ray;
+    float flickerMask = 0.80 + 0.20 * flicker;
+    float brightness = 1.0;
+    vec3 lit = color * (vertexColor.a * edgeFade * brightness * envelope * rayMask * flickerMask);
+    fragColor = vec4(lit, 1.0);
+}
+```
+
+### 6.3 Java 结构参考
+
+- `AuroraRenderPipelines`：2 个 pipeline（aspect 64/128），`withShaderDefine("ASPECT", ...)`
+- `AuroraShader`：QUADS + POSITION_TEX_COLOR；背层+前层两遍绘制
+- `AuroraFactory.produce(seed)`：优先 `new AuroraShader(seed)`，构造异常时
+  回退 `new AuroraClassic(seed)`
+
+---
+
+## 7. 测试流程与验收
+
+1. `.\gradlew.bat build -x test --no-configuration-cache` 确认编译。
+2. `.\gradlew.bat runClient --no-configuration-cache` 从 D 盘启动。
+3. 进入世界 → 寒冷群系（雪原/冰刺）→ `/time set midnight`。
+4. 看日志：无 `Couldn't compile`、无 aurora 相关 `Exception`。
+5. 用户视觉验收（按阶段）：
+   - 阶段 A：是否连续大片？是否有竖直射线？亮度是否合适？
+   - 阶段 B：射线是否仍像竖直射线？是否不死直？整体是否没变样？
+   - 阶段 C：是否有小瓣动态？是否无亮斑？
+   - 阶段 D：颜色/亮度/宽度是否满意？
+6. 每次只问一个变化点，避免多个变量混在一起无法定位。

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.util.Mth;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -27,7 +28,7 @@ public final class AuroraShader extends AuroraBase {
      * across the sky and Z scale is the curtain's side-to-side width. Split
      * scales let length and width be tuned independently.
      */
-    private static final float SCALE_X = 0.55F;
+    private static final float SCALE_X = 0.50F;
     private static final float SCALE_Z = 0.26F;
     /**
      * Curtain height scale. Ribbon vertices span unit height 0..1, so this is
@@ -38,7 +39,7 @@ public final class AuroraShader extends AuroraBase {
 
     /** Back layer stays close to the front so the two read as one thick curtain, not two sheets. */
     private static final float BACK_LAYER_ALPHA_FACTOR = 0.35F;
-    private static final float BACK_LAYER_SCALE_X = 0.60F;
+    private static final float BACK_LAYER_SCALE_X = 0.55F;
     private static final float BACK_LAYER_SCALE_Z = 0.30F;
     private static final float BACK_LAYER_SCALE_Y = 126.0F;
     private static final float BACK_LAYER_Z_BIAS = 6.0F;
@@ -48,9 +49,26 @@ public final class AuroraShader extends AuroraBase {
 
     private final RenderType renderType;
 
+    /**
+     * Slight per-band hue rotation so stacked bands don't read as clones.
+     * Encoded as vertex color bytes around a neutral 128; the fragment shader
+     * re-centers by multiplying by 2.0, so 128 means "no tint" and the +-14
+     * swing gives roughly +-11% channel mix without any pipeline variants.
+     */
+    private final int[][] bandTints;
+
     public AuroraShader(final long seed) {
         super(seed);
         this.renderType = this.band.length >= 128 ? AuroraRenderPipelines.TYPE_128 : AuroraRenderPipelines.TYPE_64;
+
+        this.bandTints = new int[this.bandCount][3];
+        final float phase = this.random.nextFloat() * Mth.TWO_PI;
+        for (int b = 0; b < this.bandCount; b++) {
+            final float ang = phase + b * 0.9F;
+            this.bandTints[b][0] = 128 + Math.round(14.0F * Mth.cos(ang));
+            this.bandTints[b][1] = 128 + Math.round(14.0F * Mth.cos(ang - 2.094F));
+            this.bandTints[b][2] = 128 + Math.round(14.0F * Mth.cos(ang + 2.094F));
+        }
     }
 
     @Override
@@ -97,14 +115,14 @@ public final class AuroraShader extends AuroraBase {
                 poseStack.pushPose();
                 poseStack.translate(tranX, tranY, zOff - BACK_LAYER_Z_BIAS);
                 poseStack.scale(BACK_LAYER_SCALE_X, BACK_LAYER_SCALE_Y, BACK_LAYER_SCALE_Z);
-                renderRibbon(poseStack, consumer, partialTick, (int) (alphaByte * BACK_LAYER_ALPHA_FACTOR));
+                renderRibbon(poseStack, consumer, partialTick, this.bandTints[b], (int) (alphaByte * BACK_LAYER_ALPHA_FACTOR));
                 poseStack.popPose();
 
                 // Front layer.
                 poseStack.pushPose();
                 poseStack.translate(tranX, tranY, zOff);
                 poseStack.scale(SCALE_X, SCALE_Y, SCALE_Z);
-                renderRibbon(poseStack, consumer, partialTick, alphaByte);
+                renderRibbon(poseStack, consumer, partialTick, this.bandTints[b], alphaByte);
                 poseStack.popPose();
             }
         } finally {
@@ -118,11 +136,15 @@ public final class AuroraShader extends AuroraBase {
      * top; the fragment shader maps both onto its curtain domain.
      */
     private void renderRibbon(final PoseStack poseStack, final VertexConsumer consumer,
-            final float partialTick, final int alphaByte) {
+            final float partialTick, final int[] tint, final int alphaByte) {
 
         this.band.translate(partialTick);
         final Panel[] array = this.band.getNodeList();
         final var pose = poseStack.last().pose();
+
+        final int r = tint[0];
+        final int g = tint[1];
+        final int b = tint[2];
 
         for (int i = 0; i < array.length - 1; i++) {
             final Panel node = array[i];
@@ -136,10 +158,10 @@ public final class AuroraShader extends AuroraBase {
             final float x1 = next.posX;
             final float z1 = next.getModdedZ();
 
-            consumer.addVertex(pose, x0, 0.0F, z0).setUv(u0, 0.0F).setColor(255, 255, 255, alphaByte);
-            consumer.addVertex(pose, x0, 1.0F, z0).setUv(u0, 1.0F).setColor(255, 255, 255, alphaByte);
-            consumer.addVertex(pose, x1, 1.0F, z1).setUv(u1, 1.0F).setColor(255, 255, 255, alphaByte);
-            consumer.addVertex(pose, x1, 0.0F, z1).setUv(u1, 0.0F).setColor(255, 255, 255, alphaByte);
+            consumer.addVertex(pose, x0, 0.0F, z0).setUv(u0, 0.0F).setColor(r, g, b, alphaByte);
+            consumer.addVertex(pose, x0, 1.0F, z0).setUv(u0, 1.0F).setColor(r, g, b, alphaByte);
+            consumer.addVertex(pose, x1, 1.0F, z1).setUv(u1, 1.0F).setColor(r, g, b, alphaByte);
+            consumer.addVertex(pose, x1, 0.0F, z1).setUv(u1, 0.0F).setColor(r, g, b, alphaByte);
         }
     }
 

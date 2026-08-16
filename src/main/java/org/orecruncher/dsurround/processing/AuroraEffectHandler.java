@@ -29,9 +29,9 @@ import org.orecruncher.dsurround.processing.Scanners;
  */
 public class AuroraEffectHandler extends AbstractClientHandler {
 
-    // Celestial-angle window for aurora visibility: ~10pm (150deg) to ~2am (210deg).
+    // Celestial-angle window for aurora visibility: ~10pm (150deg) to ~3am (225deg).
     protected static final float AURORA_WINDOW_START = 150F;
-    protected static final float AURORA_WINDOW_END = 210F;
+    protected static final float AURORA_WINDOW_END = 225F;
 
     // A forward jump in the celestial angle larger than this between two updates means time
     // was skipped (sleeping in a bed, or a /time command): natural progression is only

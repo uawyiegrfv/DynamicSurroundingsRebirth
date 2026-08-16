@@ -44,8 +44,8 @@ public final class AuroraRenderPipelines {
     private static final DepthStencilState AURORA_DEPTH =
             new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false);
 
-    public static final RenderPipeline AURORA_64 = build(5.0F);
-    public static final RenderPipeline AURORA_128 = build(10.0F);
+    public static final RenderPipeline AURORA_64 = build(4.5F);
+    public static final RenderPipeline AURORA_128 = build(9.0F);
 
     public static final RenderType TYPE_64 = RenderType.create("dsurround:aurora_64",
             RenderSetup.builder(AURORA_64).createRenderSetup());

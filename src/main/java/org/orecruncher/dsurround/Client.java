@@ -11,6 +11,7 @@ import org.orecruncher.dsurround.commands.Commands;
 import org.orecruncher.dsurround.config.libraries.*;
 import org.orecruncher.dsurround.config.libraries.impl.*;
 import org.orecruncher.dsurround.gui.overlay.OverlayManager;
+import org.orecruncher.dsurround.gui.overlay.QuickSoundVolumeOverlay;
 import org.orecruncher.dsurround.gui.keyboard.KeyBindings;
 import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.Library;
@@ -136,7 +137,8 @@ public final class Client {
                 .registerSingleton(IItemLibrary.class, ItemLibrary.class)
                 .registerSingleton(IEntityEffectLibrary.class, EntityEffectLibrary.class)
                 .registerSingleton(VariatorLibrary.class)
-                .registerSingleton(OverlayManager.class);
+                .registerSingleton(OverlayManager.class)
+                .registerSingleton(QuickSoundVolumeOverlay.class);
 
         // Depending on debug settings, enable the appropriate player
         if (this.logger.isDebugging())

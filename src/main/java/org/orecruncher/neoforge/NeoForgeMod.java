@@ -60,5 +60,9 @@ public final class NeoForgeMod {
         // Desert yellow dust haze overlay (A17).
         var weatherStormHandler = ContainerManager.resolve(org.orecruncher.dsurround.processing.WeatherStormHandler.class);
         event.registerBelowAll(Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/weatherstorm"), weatherStormHandler::renderGui);
+
+        // Quick per-sound volume overlay (hold Ctrl+`).
+        var quickVolumeOverlay = ContainerManager.resolve(org.orecruncher.dsurround.gui.overlay.QuickSoundVolumeOverlay.class);
+        event.registerBelowAll(Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/quicksoundvolume"), quickVolumeOverlay::render);
     }
 }

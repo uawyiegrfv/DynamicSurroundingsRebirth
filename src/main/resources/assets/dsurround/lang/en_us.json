@@ -352,5 +352,9 @@
   "dsurround.sound.caption.crocodile": "Crocodile roaring",
   "dsurround.sound.caption.elephant": "Elephant trumpeting",
   "dsurround.sound.caption.rattlesnake": "Rattlesnake rattling",
-  "dsurround.sound.caption.hiss": "Snake hissing"
+  "dsurround.sound.caption.hiss": "Snake hissing",
+  "dsurround.text.keybind.quickSoundVolume": "Quick Sound Volume Overlay",
+  "dsurround.text.quickvolume.title": "Quick Sound Volume",
+  "dsurround.text.quickvolume.hint": "Up/Down select - Wheel/Arrows +/-1% - Release to close",
+  "dsurround.text.quickvolume.empty": "No subtitled sounds recently"
 }

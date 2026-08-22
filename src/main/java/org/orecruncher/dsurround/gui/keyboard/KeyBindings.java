@@ -22,6 +22,7 @@ public class KeyBindings {
     public static final KeyMapping modConfigurationMenu;
     public static final KeyMapping individualSoundConfigBinding;
     public static final KeyMapping diagnosticHud;
+    public static final KeyMapping quickSoundVolume;
 
     // 26.1: the KeyMapping category is now a KeyMapping.Category record, not a translation key
     // string. Its label resolves from "key.category.dsurround.keybind".
@@ -42,6 +43,12 @@ public class KeyBindings {
         diagnosticHud = registerKeyBinding(
                 "dsurround.text.keybind.diagnosticHud",
                 InputConstants.UNKNOWN.getValue(),
+                CATEGORY);
+
+        // Hold together with Ctrl to open the quick sound volume overlay.
+        quickSoundVolume = registerKeyBinding(
+                "dsurround.text.keybind.quickSoundVolume",
+                InputConstants.KEY_GRAVE,
                 CATEGORY);
     }
 

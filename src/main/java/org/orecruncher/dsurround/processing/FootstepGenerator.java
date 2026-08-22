@@ -332,29 +332,24 @@ public class FootstepGenerator extends AbstractClientHandler {
 
     private void playLand(final Player player) {
         // Play the material-specific landing composition (primary + walk layer + delayed
-        // echo) plus the armor clank, matching the original 1.12.2 land entries.
+        // echo) plus the armor clank, matching the original 1.12.2 land entries. All
+        // layers resolve through the JSON factory registry so per-factory volume/pitch
+        // configuration in sound_factories.json applies (a bare SoundFactoryBuilder
+        // bypassed it, which is why tuning land volume in the JSON never had an effect).
+        final float scale = dsFootstepVolume();
         var feetPos = player.blockPosition();
         var material = resolveMaterial(player);
 
         var comp = material.flatMap(m -> Optional.ofNullable(LAND_COMPOSITIONS.get(m.getPath()))).orElse(null);
         if (comp != null) {
             // Original per-material composition: primary "thud" + walk@50 layer + delayed echo.
-            var primary = SoundFactoryBuilder.create(comp.primary())
-                    .category(net.minecraft.sounds.SoundSource.PLAYERS)
-                    .build();
-            this.audioPlayer.play(primary.createAtLocation(feetPos, dsFootstepVolume()));
+            this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary()).createAtLocation(feetPos, scale));
             if (comp.secondary() != null) {
-                var secondary = SoundFactoryBuilder.create(comp.secondary())
-                        .category(net.minecraft.sounds.SoundSource.PLAYERS)
-                        .volume(0.5F)
-                        .build();
-                this.audioPlayer.play(secondary.createAtLocation(feetPos, dsFootstepVolume()));
+                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(comp.secondary()).createAtLocation(feetPos, 0.5F * scale));
             }
             if (comp.echo() != null) {
-                var echo = SoundFactoryBuilder.create(comp.echo())
-                        .category(net.minecraft.sounds.SoundSource.PLAYERS)
-                        .build();
-                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(feetPos, LAND_ECHO_VOLUME * dsFootstepVolume()), this.tickCount + LAND_ECHO_DELAY_TICKS));
+                var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.echo());
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(feetPos, LAND_ECHO_VOLUME * scale), this.tickCount + LAND_ECHO_DELAY_TICKS));
             }
         } else {
             // Fallback: material's own land/run + walk@50 + echo.
@@ -365,18 +360,12 @@ public class FootstepGenerator extends AbstractClientHandler {
             } else if (landLoc.getPath().endsWith("_run")) {
                 baseLoc = Identifier.fromNamespaceAndPath(landLoc.getNamespace(), landLoc.getPath().substring(0, landLoc.getPath().length() - 4));
             }
-            var primary = SoundFactoryBuilder.create(landLoc)
-                    .category(net.minecraft.sounds.SoundSource.PLAYERS)
-                    .build();
-            this.audioPlayer.play(primary.createAtLocation(feetPos, dsFootstepVolume()));
+            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(landLoc);
+            this.audioPlayer.play(primary.createAtLocation(feetPos, scale));
             if (!baseLoc.equals(landLoc)) {
-                var secondary = SoundFactoryBuilder.create(baseLoc)
-                        .category(net.minecraft.sounds.SoundSource.PLAYERS)
-                        .volume(0.5F)
-                        .build();
-                this.audioPlayer.play(secondary.createAtLocation(feetPos, dsFootstepVolume()));
+                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(baseLoc).createAtLocation(feetPos, 0.5F * scale));
             }
-            this.pendingEchoes.add(new PendingEcho(primary.createAtLocation(feetPos, LAND_ECHO_VOLUME * dsFootstepVolume()), this.tickCount + LAND_ECHO_DELAY_TICKS));
+            this.pendingEchoes.add(new PendingEcho(primary.createAtLocation(feetPos, LAND_ECHO_VOLUME * scale), this.tickCount + LAND_ECHO_DELAY_TICKS));
         }
 
         // Armor clank on landing - play the effective armor's walk accent now and a delayed
@@ -530,13 +519,13 @@ public class FootstepGenerator extends AbstractClientHandler {
 
     private void playJump(final Player player) {
         // A2-9: Match the original 1.12.2 two-layer jump: the generic "grunt"
-        // (dsurround:jump / player.jump) plus a material-specific wander sound
-        // for the block below, mirroring the original's simulateJumpingLanding
-        // which played the _JUMP acoustic and the material's jump acoustic.
-        var grunt = SoundFactoryBuilder.create(JUMP)
-                .category(net.minecraft.sounds.SoundSource.PLAYERS)
-                .build()
-                .createAsAdditional();
+        // (dsurround:player.jump) plus a material-specific wander sound for the
+        // block below, mirroring the original's simulateJumpingLanding which
+        // played the _JUMP acoustic and the material's jump acoustic. Both
+        // layers resolve through the JSON factory registry so their configured
+        // pitch randomization applies (a bare SoundFactoryBuilder always played
+        // at a constant pitch, which is why jumps had no variation).
+        var grunt = SOUND_LIBRARY.getSoundFactoryOrDefault(JUMP).createAsAdditional();
         this.audioPlayer.play(grunt);
 
         // Material-specific jump sound (e.g. snow_wander on snow, stone_wander on
@@ -547,9 +536,7 @@ public class FootstepGenerator extends AbstractClientHandler {
             var wanderLoc = materialVariant(material, "_wander");
             if (wanderLoc != null) {
                 var feetPos = player.blockPosition();
-                var wander = SoundFactoryBuilder.create(wanderLoc)
-                        .category(net.minecraft.sounds.SoundSource.PLAYERS)
-                        .build();
+                var wander = SOUND_LIBRARY.getSoundFactoryOrDefault(wanderLoc);
                 this.audioPlayer.play(wander.createAtLocation(feetPos, dsFootstepVolume()));
             }
         });

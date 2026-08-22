@@ -27,6 +27,7 @@ import org.orecruncher.dsurround.config.libraries.IReloadEvent;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 import org.orecruncher.dsurround.config.libraries.ITagLibrary;
 import org.orecruncher.dsurround.tags.BlockEffectTags;
+import org.orecruncher.dsurround.tags.EntityEffectTags;
 import org.orecruncher.dsurround.gui.sound.ConfigSoundInstance;
 import org.orecruncher.dsurround.lib.CodecExtensions;
 import org.orecruncher.dsurround.lib.Comparers;
@@ -366,6 +367,12 @@ public final class SoundLibrary implements ISoundLibrary {
             // Get the mob this sound is for. We do not want to convert mobs like creepers.
             var mobType = path.substring(7, path.indexOf('.', 7));
             if (!SOUND_REMAP_BLOCKED_MOBS.contains(mobType)) {
+                // Light-footed mobs (chicken, rabbit, ...) keep their own vanilla steps:
+                // the player-material footsteps are far too heavy for them. Data-driven
+                // through the entity tag dsurround:effects/light_steps.
+                var entityType = BuiltInRegistries.ENTITY_TYPE.get(Identifier.fromNamespaceAndPath("minecraft", mobType));
+                if (entityType.isPresent() && this.tagLibrary.is(EntityEffectTags.LIGHT_STEPS, entityType.get().value()))
+                    return null;
                 var level = GameUtils.getWorld().orElseThrow();
                 var pos = BlockPos.containing(soundInstance.getX(), soundInstance.getY(), soundInstance.getZ()).below();
                 var support = level.getBlockState(pos);

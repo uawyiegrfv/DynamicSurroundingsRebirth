@@ -6,7 +6,7 @@
     "playJump": true,
     "stride": 0.9,
     "landHardDistanceMin": 1.5,
-    "volumeScale": 0.55
+    "volumeScale": 0.45
   },
   "playerSlow": {
     "playJump": true,

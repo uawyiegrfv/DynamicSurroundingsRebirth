@@ -18,6 +18,8 @@ public class EntityEffectTags {
     public static final TagKey<EntityType<?>> ITEM_SWING = of("item_swing");
     public static final TagKey<EntityType<?>> TOOLBAR = of("toolbar");
     public static final TagKey<EntityType<?>> BRUSH_STEP = of ("brush_step");
+    /** Light-footed mobs (chicken & co.) keep their vanilla step sounds instead of the DS player-material remap. */
+    public static final TagKey<EntityType<?>> LIGHT_STEPS = of("light_steps");
 
     private static TagKey<EntityType<?>> of(String id) {
         var tagKey = TagKey.create(Registries.ENTITY_TYPE, Identifier.fromNamespaceAndPath(Constants.MOD_ID, "effects/" + id));

@@ -642,5 +642,122 @@
     "soundEvent": "dsurround:block.torch_burn",
     "category": "AMBIENT",
     "volume": 0.85
+  },
+  {
+    "location": "dsurround:player.jump",
+    "soundEvent": "dsurround:player.jump",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.95,
+      "max": 1.05
+    }
+  },
+  {
+    "location": "dsurround:footsteps.bluntwood_wander",
+    "soundEvent": "dsurround:footsteps.bluntwood_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.concrete_wander",
+    "soundEvent": "dsurround:footsteps.concrete_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.dirt_wander",
+    "soundEvent": "dsurround:footsteps.dirt_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.grass_wander",
+    "soundEvent": "dsurround:footsteps.grass_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.gravel_wander",
+    "soundEvent": "dsurround:footsteps.gravel_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.marble_wander",
+    "soundEvent": "dsurround:footsteps.marble_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.metalbar_wander",
+    "soundEvent": "dsurround:footsteps.metalbar_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.metalbox_wander",
+    "soundEvent": "dsurround:footsteps.metalbox_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.mud_wander",
+    "soundEvent": "dsurround:footsteps.mud_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.snow_wander",
+    "soundEvent": "dsurround:footsteps.snow_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.squeakywood_wander",
+    "soundEvent": "dsurround:footsteps.squeakywood_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
+  },
+  {
+    "location": "dsurround:footsteps.stone_wander",
+    "soundEvent": "dsurround:footsteps.stone_wander",
+    "category": "PLAYER",
+    "pitch": {
+      "min": 0.8,
+      "max": 1.2
+    }
   }
 ]

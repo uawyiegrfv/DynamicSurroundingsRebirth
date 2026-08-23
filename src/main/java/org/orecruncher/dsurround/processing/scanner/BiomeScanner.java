@@ -113,6 +113,7 @@ public final class BiomeScanner extends AbstractScanner {
                 }
             }
             this.biomeArea = MAX_SURVEY_VOLUME;
+
         }
     }
 

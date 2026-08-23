@@ -356,5 +356,6 @@
   "dsurround.text.keybind.quickSoundVolume": "Quick Sound Volume Overlay",
   "dsurround.text.quickvolume.title": "Quick Sound Volume",
   "dsurround.text.quickvolume.hint": "Up/Down select - Wheel/Arrows +/-1% - Release to close",
-  "dsurround.text.quickvolume.empty": "No subtitled sounds recently"
+  "dsurround.text.quickvolume.empty": "No subtitled sounds recently",
+  "dsurround.sound.caption.theend": "The End"
 }

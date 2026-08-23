@@ -364,7 +364,12 @@
     "biomeSelector": "THE_END || biome.name == 'The Void'",
     "_comment": "It's The End!",
     "priority": 100,
-    "clearSounds": true
+    "clearSounds": true,
+    "acoustics": [
+      {
+        "factory": "theend"
+      }
+    ]
   },
   {
     "biomeSelector": "SPOOKY",
@@ -568,6 +573,15 @@
         "factory": "elephant",
         "conditions": "!weather.canWaterFreeze() && diurnal.isDay()",
         "type": "mood"
+      }
+    ]
+  },
+  {
+    "biomeSelector": "biome.id == 'minecraft:nether_wastes' || biome.id == 'minecraft:crimson_forest' || biome.id == 'minecraft:warped_forest' || biome.id == 'minecraft:soul_sand_valley' || biome.id == 'minecraft:basalt_deltas'",
+    "_comment": "Nether: dimension-wide creepy drone (1.12.2 dim.id == -1)",
+    "acoustics": [
+      {
+        "factory": "dimension.nether"
       }
     ]
   }

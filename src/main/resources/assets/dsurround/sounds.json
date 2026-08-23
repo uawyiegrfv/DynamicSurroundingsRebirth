@@ -2358,5 +2358,15 @@
       "dsurround:ambient/miscblocks/hiss3",
       "dsurround:ambient/miscblocks/hiss4"
     ]
+  },
+  "theend": {
+    "subtitle": "dsurround.sound.caption.theend",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/end/end",
+        "volume": 0.2,
+        "stream": true
+      }
+    ]
   }
 }

@@ -348,5 +348,6 @@
   "dsurround.text.keybind.quickSoundVolume": "声音快捷调节浮层",
   "dsurround.text.quickvolume.title": "声音快捷调节",
   "dsurround.text.quickvolume.hint": "↑↓ 选择 · ←→/滚轮 ±1% · 松开关闭",
-  "dsurround.text.quickvolume.empty": "最近没有字幕声音"
+  "dsurround.text.quickvolume.empty": "最近没有字幕声音",
+  "dsurround.sound.caption.theend": "末地"
 }

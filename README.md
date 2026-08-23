@@ -25,17 +25,12 @@ OreCruncher. All credit for the original design and code goes to OreCruncher.
   via convention tags.
 * **Material footsteps** — surface-specific step sounds for every material,
   including jump, landing and walking-through-brush sounds.
-* **Aurora** — the northern lights appear over cold biomes around midnight.
-  Shader-rendered curtain with vertical ray structure, parallax depth and
-  spectrum colours (green body, violet/red edges), brightness tuned so the
-  night sky read is natural rather than glaring.
-* **Fog** — morning, biome, weather, bedrock and elevation fog. Bedrock fog now
-  hugs the world floor (minY..minY+10, -64..-54 in the overworld) so deep
-  biomes like the Deep Dark stay clear; the Deep Dark keeps a light
-  atmospheric fog.
-* **Enhanced sound** — reverb and occlusion in a background thread. Reverb and
-  occlusion are time-smoothed, and diffraction compensation keeps sounds
-  audible behind walls and large obstacles without over-brightening.
+* **Aurora** — the northern lights appear over cold biomes around midnight,
+  rendered as a shader-driven curtain with vertical ray structure and vivid
+  spectrum colours.
+* **Fog** — morning, biome, weather, bedrock and elevation fog.
+* **Enhanced sound** — reverb and occlusion in a background thread; sounds
+  stay audible behind walls and large obstacles.
 * **Particles** — fireflies, frost breath, water ripples, footprints and more.
 * **Crit words & damage numbers**, background thunder, waterfall effects,
   falling-block dust, held-torch crackle, and much of the classic Dynamic
@@ -44,23 +39,18 @@ OreCruncher. All credit for the original design and code goes to OreCruncher.
   intermittent Sculk clicks in the Deep Dark.
 * **Leaf-wind gusts** — intermittent leaf rustling in wooded biomes, more
   frequent at night.
-* **Leaf-litter footsteps** — six landing crunch variants (denoised, uniform
-  length and loudness) plus varied walking steps, so landing on dead leaves
-  sounds different every time.
+* **Leaf-litter footsteps** — several landing crunch and walking step variants,
+  so walking or landing on dead leaves sounds natural and varied.
 * **Treasure distance** — the horizontal distance to the target is shown on
   explorer maps.
 * **Sound-options sliders** — Footsteps and Biomes volume in the vanilla Sound
-  Options menu (0% restores the vanilla footstep sounds). Underwater paths
-  dampen volume (default 0.95/block) and muffle treble (default 0.7/block).
-* **Quick sound volume overlay** — hold Ctrl+backtick to list and adjust
-  recently played sounds without opening a menu; text wraps to the panel and
-  the overlay renders above the screen-corner vignette so it stays readable at
-  night.
+  Options menu (0% restores the vanilla footstep sounds).
+* **Quick sound volume** — adjust recently played sounds on the fly without
+  opening a menu.
 * **Compass & clock HUD** — shown while holding the corresponding item.
 * **Sand & gravel dust** — dust clouds kick up when falling blocks land.
 * **Individual sound configuration** — fine-tune every sound from the config
-  screen. Closing (Done/Cancel/ESC) returns to the Sound Options screen with
-  the cursor where you left it and the standard UI click sound.
+  screen.
 
 ## Install
 

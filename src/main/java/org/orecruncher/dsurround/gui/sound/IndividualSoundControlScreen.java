@@ -6,9 +6,12 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
+import org.lwjgl.glfw.GLFW;
 import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.gui.ColorPalette;
 
@@ -128,7 +131,18 @@ public class IndividualSoundControlScreen extends Screen {
     }
 
     public void closeScreen() {
+        final var mc = GameUtils.getMC();
+        // Remember where the cursor is right now (on the button the player clicked).
+        // Minecraft.setScreen() recentres the cursor on every screen transition, so
+        // restore it immediately afterwards - the pointer stays exactly where the
+        // player left it instead of jumping to the screen centre.
+        final var mouse = mc.mouseHandler;
+        final double restoreX = mouse.xpos();
+        final double restoreY = mouse.ypos();
+
         GameUtils.setScreen(this.parent);
+
+        GLFW.glfwSetCursorPos(mc.getWindow().handle(), restoreX, restoreY);
     }
 
     @Override
@@ -170,7 +184,13 @@ public class IndividualSoundControlScreen extends Screen {
 
     // Handlers
 
+    /** Plays the standard UI click sound, mirroring vanilla buttons. */
+    private static void playClickSound() {
+        GameUtils.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+    }
+
     protected void save(final Button button) {
+        playClickSound();
         // Gather the changes and push to underlying routine for parsing and packaging
         this.soundConfigList.saveChanges();
         this.onClose();
@@ -178,6 +198,7 @@ public class IndividualSoundControlScreen extends Screen {
     }
 
     protected void cancel(final Button button) {
+        playClickSound();
         // Just discard - no processing
         this.onClose();
         this.closeScreen();
@@ -185,7 +206,12 @@ public class IndividualSoundControlScreen extends Screen {
 
     @Override
     public void onClose() {
+        // Route through the same exit path as Done/Cancel: return to the parent
+        // screen (Sound Options) and restore the cursor. The vanilla onClose pops
+        // a GUI layer, but this screen replaced Sound Options via setScreen() -
+        // the layer stack's parent is the game, so an ESC would otherwise jump
+        // straight back to the game instead of the parent screen.
         this.onClose.accept(this);
-        super.onClose();
+        this.closeScreen();
     }
 }

@@ -155,13 +155,13 @@ public class Configuration extends ConfigurationData {
         @Slider
         @DoubleRange(min = 0.1D, max = 1D)
         @Comment("Fraction of the sound's volume that passes through each block of water between the sound and the player (lower = quieter, 1.0 = no volume change). The volume never drops below a minimum so distant sounds stay audible")
-        public double waterSoundDamping = 0.9D;
+        public double waterSoundDamping = 0.95D;
 
         @Property
         @Slider
         @DoubleRange(min = 0.1D, max = 1D)
         @Comment("High-frequency (muffling) cut-off per block of water between the sound and the player (lower = more muffled, 1.0 = no muffling). Kept strong so underwater sounds are clearly muffled regardless of direction")
-        public double waterSoundMuffle = 0.6D;
+        public double waterSoundMuffle = 0.7D;
     }
 
     public static class SoundOptions {

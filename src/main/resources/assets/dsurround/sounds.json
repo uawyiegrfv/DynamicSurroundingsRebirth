@@ -1363,7 +1363,6 @@
     "sounds": [
       "dsurround:footsteps/leaves_crunch/leaves_crunch1",
       "dsurround:footsteps/leaves_crunch/leaves_crunch2",
-      "dsurround:footsteps/leaves_crunch/leaves_crunch3",
       "dsurround:footsteps/leaves_crunch/leaves_crunch4",
       "dsurround:footsteps/leaves_crunch/leaves_crunch5",
       "dsurround:footsteps/leaves_crunch/leaves_crunch6"
@@ -1373,7 +1372,12 @@
     "ds_category": "player",
     "subtitle": "dsurround.sound.caption.footsteps.leaves_crunch",
     "sounds": [
-      "dsurround:footsteps/leaves_crunch/leaves_crunch_land"
+      "dsurround:footsteps/leaves_crunch/leaves_crunch_land",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch_land2",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch_land3",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch_land4",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch_land5",
+      "dsurround:footsteps/leaves_crunch/leaves_crunch_land6"
     ]
   },
   "footsteps.bluntwood": {

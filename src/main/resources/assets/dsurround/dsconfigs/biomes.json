@@ -378,7 +378,8 @@
   },
   {
     "biomeSelector": "biome.id == 'minecraft:deep_dark'",
-    "_comment": "Deep Dark: drone + faint heartbeat loops",
+    "_comment": "Deep Dark: drone + faint heartbeat loops; light atmospheric fog (the earlier fog wobble was the bedrock fog, which is now limited to minY..minY+10 so the city is clear of it)",
+    "fogDensity": "light",
     "acoustics": [
       {
         "factory": "biome.deep_dark"

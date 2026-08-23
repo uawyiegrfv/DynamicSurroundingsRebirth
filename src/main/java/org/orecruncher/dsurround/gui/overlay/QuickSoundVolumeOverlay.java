@@ -10,6 +10,7 @@ import net.minecraft.client.sounds.SoundEventListener;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -21,6 +22,7 @@ import org.orecruncher.dsurround.config.IndividualSoundConfigEntry;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 import org.orecruncher.dsurround.gui.keyboard.KeyBindings;
 import org.orecruncher.dsurround.gui.sound.ConfigSoundInstance;
+import org.orecruncher.dsurround.lib.gui.GuiHelpers;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
 
@@ -355,21 +357,39 @@ public class QuickSoundVolumeOverlay implements SoundEventListener {
 
         final int rows = this.entries.size();
         final int emptyRows = rows == 0 ? 1 : 0;
+        // The panel is a fixed width, but the header texts are localized - the
+        // English hint ("Up/Down select - Wheel/Arrows +/-1% - Release to close")
+        // is roughly twice the panel width, while the Chinese hint fits on one
+        // line. Wrap title/hint/empty to the available text width and let the
+        // panel height grow with the number of lines (it grows upward from the
+        // subtitle anchor line, so long texts never spill past the panel edge).
+        final int maxTextWidth = PANEL_WIDTH - 2 * PADDING;
+        final var titleLines = GuiHelpers.getTrimmedTextCollection("dsurround.text.quickvolume.title", maxTextWidth, Style.EMPTY);
+        final var hintLines = GuiHelpers.getTrimmedTextCollection("dsurround.text.quickvolume.hint", maxTextWidth, Style.EMPTY);
+        final var emptyLines = GuiHelpers.getTrimmedTextCollection("dsurround.text.quickvolume.empty", maxTextWidth, Style.EMPTY);
         // Header (title + hint) + entry rows, growing upward from the subtitle line.
-        final int panelHeight = 2 * ROW_HEIGHT + (rows + emptyRows) * ROW_HEIGHT + 2 * PADDING;
+        final int panelHeight = titleLines.size() * ROW_HEIGHT + hintLines.size() * ROW_HEIGHT
+                + (rows + emptyRows) * ROW_HEIGHT + 2 * PADDING;
         final int panelX = 2;
         final int panelY = screenH - BOTTOM_MARGIN - panelHeight;
 
         graphics.fill(panelX, panelY, panelX + PANEL_WIDTH, panelY + panelHeight, COLOR_BG);
 
         int y = panelY + PADDING;
-        graphics.text(font, Component.translatable("dsurround.text.quickvolume.title"), panelX + PADDING, y, COLOR_TEXT, false);
-        y += ROW_HEIGHT;
-        graphics.text(font, Component.translatable("dsurround.text.quickvolume.hint"), panelX + PADDING, y, COLOR_DIM, false);
-        y += ROW_HEIGHT;
+        for (final var line : titleLines) {
+            graphics.text(font, line, panelX + PADDING, y, COLOR_TEXT, false);
+            y += ROW_HEIGHT;
+        }
+        for (final var line : hintLines) {
+            graphics.text(font, line, panelX + PADDING, y, COLOR_DIM, false);
+            y += ROW_HEIGHT;
+        }
 
         if (rows == 0) {
-            graphics.text(font, Component.translatable("dsurround.text.quickvolume.empty"), panelX + PADDING, y, COLOR_DIM, false);
+            for (final var line : emptyLines) {
+                graphics.text(font, line, panelX + PADDING, y, COLOR_DIM, false);
+                y += ROW_HEIGHT;
+            }
             return;
         }
 

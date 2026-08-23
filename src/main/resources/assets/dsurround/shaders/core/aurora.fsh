@@ -57,9 +57,9 @@ const vec3 VIOLET = vec3(0.40, 0.26, 0.95);
 const vec3 GREEN  = vec3(0.16, 0.82, 0.38);
 const vec3 RED    = vec3(0.95, 0.16, 0.28);
 
-// Overall brightness. Additive blending overexposes fast; keep conservative
-// (docs: start at ~1.0 and raise in +0.1 steps only if needed).
-const float BRIGHTNESS = 1.0;
+// Overall brightness. Additive blending overexposes fast; raise in +0.1
+// steps only if needed (1.32 with the old dark ray gaps read as glaring).
+const float BRIGHTNESS = 1.2;
 
 void main() {
     vec2 uv = texCoord0;

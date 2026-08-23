@@ -47,6 +47,9 @@ fix_backup/
 mdk-ref/
 packs/
 
+# Local audio listening/sampling folders (kept on disk, never committed)
+素材试听-*/
+
 # Extracted 26.1 Minecraft reference sources (javap / decompile lookup)
 .mcref26/
 

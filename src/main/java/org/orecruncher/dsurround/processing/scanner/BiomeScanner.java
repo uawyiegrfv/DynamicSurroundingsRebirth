@@ -14,6 +14,10 @@ import org.orecruncher.dsurround.lib.GameUtils;
 
 public final class BiomeScanner extends AbstractScanner {
 
+    // The deep dark carries its own ambience (drone/heartbeat/sculk). It must resolve to
+    // itself rather than the generic synthetic UNDERGROUND so those acoustics keep playing.
+    private static final Identifier DEEP_DARK_ID = Identifier.fromNamespaceAndPath("minecraft", "deep_dark");
+
     public static final int SCAN_INTERVAL = 4;
     private static final int UNDERGROUND_THRESHOLD_OFFSET = 8;
     private static final int SURVEY_HORIZONTAL_DIMENSION = 18;
@@ -125,6 +129,12 @@ public final class BiomeScanner extends AbstractScanner {
 
         // Check if the user is in a cave. This overrides the check for being underground.
         if (biomeInfo.isCave()) {
+            return biomeInfo;
+        }
+
+        // Biomes that carry their own dedicated underground ambience resolve to themselves,
+        // not the generic synthetic UNDERGROUND (which would mute their acoustics).
+        if (DEEP_DARK_ID.equals(biomeInfo.getBiomeId())) {
             return biomeInfo;
         }
 

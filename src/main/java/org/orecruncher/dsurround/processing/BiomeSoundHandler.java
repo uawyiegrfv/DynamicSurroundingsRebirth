@@ -57,6 +57,9 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final Identifier DEEP_DARK_BIOME = Identifier.fromNamespaceAndPath("minecraft", "deep_dark");
     private static final Identifier DEEP_DARK_DRONE = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.deep_dark");
     private static final Identifier DEEP_DARK_HEARTBEAT = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.deep_dark_heartbeat");
+    // The drone loop is an inherently loud low rumble; scale it down a touch so it
+    // sits under the heartbeat instead of dominating the deep-dark ambience.
+    private static final float DEEP_DARK_DRONE_VOLUME_SCALE = 0.8F;
 
     // Scratch map used for calculating what sounds need to be playing
     private final Object2FloatOpenHashMap<ISoundFactory> workMap = new Object2FloatOpenHashMap<>(8, Hash.DEFAULT_LOAD_FACTOR);
@@ -93,7 +96,10 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 // The Deep Dark is a naturally underground biome; its own ambience loops
                 // must not be attenuated as if they were outdoor sound leaking inside.
                 final float scale = (inside && !isDeepDarkAmbience(acoustic)) ? INDOOR_VOLUME_SCALE : 1.0F;
-                this.workMap.addTo(acoustic, scale * areaScale * dsBiomeVolume());
+                // The drone additionally gets its own (reduced) volume scale so it does
+                // not dominate the heartbeat and other ambience.
+                final float droneScale = DEEP_DARK_DRONE.equals(acoustic.getLocation()) ? DEEP_DARK_DRONE_VOLUME_SCALE : 1.0F;
+                this.workMap.addTo(acoustic, scale * droneScale * areaScale * dsBiomeVolume());
             }
         }
     }

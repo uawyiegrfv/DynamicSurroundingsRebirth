@@ -10,9 +10,9 @@ public final class Effects {
     private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
     // General config settings that need to make their way somewhere
     // 26.1: the mixin now requests 4 auxiliary sends at context creation (matching 1.21.1),
-    // so all four reverb zones apply. Kept at the original 1.12.2 baseline: raising it to
-    // 1.0 made cave/room reverb noticeably too strong.
-    private static final float GLOBAL_REVERB_MULTIPLIER = 0.7F;
+    // so all four reverb zones apply. Slightly below the original 1.12.2 baseline per
+    // user tuning: cave/room reverb was still a touch too strong at 0.7.
+    private static final float GLOBAL_REVERB_MULTIPLIER = 0.6F;
 
     public static final float GLOBAL_BLOCK_ABSORPTION = 1F;
     public static final float SNOW_AIR_ABSORPTION_FACTOR = 5F;

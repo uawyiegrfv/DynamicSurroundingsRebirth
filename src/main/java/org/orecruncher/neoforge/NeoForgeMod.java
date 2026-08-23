@@ -11,6 +11,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterRenderPipelinesEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import org.orecruncher.dsurround.Client;
@@ -63,6 +64,9 @@ public final class NeoForgeMod {
 
         // Quick per-sound volume overlay (hold Ctrl+`).
         var quickVolumeOverlay = ContainerManager.resolve(org.orecruncher.dsurround.gui.overlay.QuickSoundVolumeOverlay.class);
-        event.registerBelowAll(Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/quicksoundvolume"), quickVolumeOverlay::render);
+        // The vanilla CAMERA_OVERLAYS layer draws the screen-corner vignette, which darkens
+        // anything rendered below it (a belowAll layer gets its bottom-left corner shaded at
+        // night). Render this small panel above it so its colours stay true.
+        event.registerAbove(VanillaGuiLayers.CAMERA_OVERLAYS, Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/quicksoundvolume"), quickVolumeOverlay::render);
     }
 }

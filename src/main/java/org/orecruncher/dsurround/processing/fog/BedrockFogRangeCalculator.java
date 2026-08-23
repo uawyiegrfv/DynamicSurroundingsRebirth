@@ -9,8 +9,10 @@ import org.orecruncher.dsurround.lib.GameUtils;
  * Increases fog when the player is down near the bedrock layer, ported from the
  * original 1.12.2 BedrockFogRangeCalculator. The original anchored the gradient at
  * y=32 above the y=0 bedrock of 1.12.2; modern worlds (1.18+) start at y=-64, so the
- * reference height is derived from the world's actual minimum build height. Within
- * 28 blocks above the bedrock layer the fog distance shrinks quadratically with depth.
+ * reference height is derived from the world's actual minimum build height. The fog now
+ * hugs the bedrock layer only: within 10 blocks above it (minY..minY+10, i.e. -64..-54 in
+ * the overworld) the fog distance shrinks quadratically with depth, so the deep dark /
+ * ancient city (floor around y=-51) is completely free of bedrock fog.
  */
 public class BedrockFogRangeCalculator extends VanillaFogRangeCalculator {
 
@@ -18,7 +20,7 @@ public class BedrockFogRangeCalculator extends VanillaFogRangeCalculator {
     private final FogData reusableResult = new FogData();
 
 
-    private static final float BASE_Y = 32F;
+    private static final float BASE_Y = 10F;
     private static final float MAX_FOG_END = 100F;
 
     public BedrockFogRangeCalculator(Configuration.FogOptions fogOptions) {
@@ -39,11 +41,11 @@ public class BedrockFogRangeCalculator extends VanillaFogRangeCalculator {
 
         final var level = player.level();
 
-        // Reference height: the top of the bedrock gradient. In 1.12.2 bedrock was at
-        // y=0 and the fog began to clear 32 blocks above; modern worlds put bedrock at
-        // the minimum build height (y=-64 in the overworld), so the equivalent clearing
-        // height is minY + 32. Use the world's actual minimum so any dimension/version
-        // gets the right gradient.
+        // Reference height: the top of the bedrock gradient. The fog only applies within
+        // BASE_Y (10) blocks above the world's minimum build height (minY..minY+10, i.e.
+        // -64..-54 in the overworld), so deep biomes like the deep dark (floor ~-51) stay
+        // clear. Use the world's actual minimum so any dimension/version gets the right
+        // gradient.
         final double baseY = level.getMinY() + BASE_Y;
         if (player.getY() >= baseY)
             return data;

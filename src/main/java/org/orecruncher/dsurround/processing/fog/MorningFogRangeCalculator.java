@@ -34,6 +34,24 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
     // collapses.
     protected static final float GRADIENT_FRACTION = 0.35F;
 
+    // Maximum distance (world blocks) the morning fog wall can sit at. The fog
+    // wall distance is decided by density and time of day only - it must NOT
+    // scale with the render distance, otherwise turning the view distance up
+    // pushes the fog past the horizon (a "no morning fog" look at long range).
+    protected static final float MAX_FOG_VIEW_END = 256F;
+
+    // Fog wall distance at peak dawn (6AM), per density, view-distance independent:
+    //   HEAVY 48 (dense, short view), MEDIUM 64, NORMAL 96, LIGHT 160.
+    protected static float peakEnd(final FogDensity density) {
+        return switch (density) {
+            case HEAVY -> 48F;
+            case MEDIUM -> 64F;
+            case NORMAL -> 96F;
+            case LIGHT -> 160F;
+            default -> MAX_FOG_VIEW_END;
+        };
+    }
+
     private record FogChoice(FogDensity density, int weight) {
     }
 
@@ -100,15 +118,18 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
                 if (factor <= 0.0001F)
                     return data;
 
-                // 26.1: data.renderDistanceStart is NOT ~0 (it's the near terrain
-                // plane, e.g. ~230 at 16 chunks) — unlike 1.12.2 where the old
-                // formula's base was ~0. The 1.12.2 shift/clamp math would collapse
-                // start onto end (a hard fog wall with no gradient = "chunk loading
-                // glitch"). Instead pull the far plane toward the dense-fog cap as
-                // the factor grows, and always derive start as a fixed fraction
-                // below end so the haze gradient is preserved.
-                final float newEnd = data.renderDistanceEnd
-                        - (data.renderDistanceEnd - PEAK_FOG_END) * factor;
+                // The fog wall distance is anchored by the density and the time of
+                // day only, NOT by the render distance. Interpolating between the
+                // render end and a fixed cap made the wall drift past the horizon
+                // at high view distances (density intensity never reaches 1, so the
+                // wall sat at ~565-1024 blocks at 32 chunks - effectively invisible
+                // morning fog). At peak dawn the wall sits at the density's peakEnd;
+                // outside the peak it recedes toward MAX_FOG_VIEW_END. The render
+                // end is only used as an upper clamp so very small view distances
+                // (where the world itself ends sooner) still show the haze.
+                final float wallEnd = this.peakEnd(this.type)
+                        + (MAX_FOG_VIEW_END - this.peakEnd(this.type)) * (1F - strength);
+                final float newEnd = Math.min(wallEnd, data.renderDistanceEnd);
                 final float gradient = Math.max(newEnd * GRADIENT_FRACTION, 1F);
                 final float newStart = Math.max(newEnd - gradient, 0F);
 

@@ -215,3 +215,28 @@ whether LPs can be monetized on the various streaming services.
 <ul>
     <li>S: <a href="https://freesound.org/people/ZHR%C3%98/sounds/753418/">Silent forest</a> by <a href="https://freesound.org/people/ZHR%C3%98/">ZHRØ</a> | License: Creative Commons 0</li>
 </ul>
+
+*dsurround:biome.deep_dark / dsurround:biome.deep_dark_heartbeat / dsurround:biome.sculk_click*
+
+<ul>
+     <li>S: <a href="https://freesound.org/people/Bowesy/sounds/691481/">War drone ambience</a> by <a href="https://freesound.org/people/Bowesy/">Bowesy</a> | License: Creative Commons 0</li>
+     <li>S: <a href="https://freesound.org/people/the_odds/sounds/268198/">All comments</a> by <a href="https://freesound.org/people/the_odds/">the_odds</a> | License: Creative Commons 0</li>
+</ul>
+
+*dsurround:biome.leaf_wind*
+
+<ul>
+     <li>S: <a href="https://freesound.org/people/Cinetony/sounds/575380/">Leaves rustle in the wind</a> by <a href="https://freesound.org/people/Cinetony/">Cinetony</a> | License: Creative Commons 0</li>
+</ul>
+
+*dsurround:block.torch_burn*
+
+<ul>
+     <li>S: <a href="https://freesound.org/people/LilMati/sounds/714566/">Fire crackling, cozy campfire fireplace SFX</a> by <a href="https://freesound.org/people/LilMati/">LilMati</a> | License: Creative Commons 0</li>
+</ul>
+
+*dsurround:footsteps.leaves_through / dsurround:footsteps.leaves_crunch*
+
+<ul>
+     <li>S: <a href="https://bigsoundbank.com/feet-in-leaves-s0137.html">Feet in leaves</a> by BigSoundBank | License: Creative Commons 0</li>
+</ul>

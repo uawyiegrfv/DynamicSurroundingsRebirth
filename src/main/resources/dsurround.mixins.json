@@ -1,0 +1,41 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "org.orecruncher.dsurround.mixins",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "dsurround.refmap.json",
+  "mixins": [
+    "core.MixinBiome",
+    "core.MixinBlockState",
+    "core.MixinLivingEntity",
+    "core.MixinEntity",
+    "core.MixinPlayer",
+    "core.MixinButtonWidget",
+    "core.MixinMapRenderer",
+    "core.MixinRaycastContextAccessor",
+    "core.MixinSoundOptionsScreen"
+  ],
+  "client": [
+    "audio.MixinSoundEngine",
+    "audio.MixinSoundLibrary",
+    "audio.MixinSoundEngineAccessor",
+    "audio.MixinSoundManagerAccessor",
+    "audio.MixinChannelHandleAccessor",
+    "audio.MixinSource",
+    "audio.MixinMusicManager",
+    "audio.MixinSoundEvent",
+    "core.MixinClientWorld",
+    "core.MixinClientChunkMap",
+    "core.MixinClientWorldProperties",
+    "core.MixinParticleManager",
+    "core.MixinWorld",
+    "core.MixinRainSplashParticle",
+    "core.MixinEntityArrow",
+    "core.MixinFallingBlockEntity",
+    "core.MixinClothAbstractConfigEntry",
+    "core.MixinClientPacketListener"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

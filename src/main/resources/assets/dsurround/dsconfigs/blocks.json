@@ -1,0 +1,202 @@
+[
+  {
+    "blocks": [
+      "minecraft:nether_wart[age=3]"
+    ],
+    "effects": [
+      {
+        "effect": "fire_jet",
+        "spawnChance": "0.005"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:lava_cauldron"
+    ],
+    "effects": [
+      {
+        "effect": "fire_jet",
+        "spawnChance": "0.03"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:lava"
+    ],
+    "effects": [
+      {
+        "effect": "fire_jet",
+        "spawnChance": "0.0005"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:water"
+    ],
+    "effects": [
+      {
+        "effect": "bubble_column",
+        "spawnChance": "0.0005"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "#minecraft:ice"
+    ],
+    "soundChance": "0.0001",
+    "acoustics": [
+      {
+        "factory": "dsurround:ice"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:torch",
+      "minecraft:wall_torch",
+      "minecraft:soul_torch",
+      "minecraft:soul_wall_torch"
+    ],
+    "soundChance": "0.01",
+    "acoustics": [
+      {
+        "factory": "dsurround:block.torch_burn"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:soul_sand"
+    ],
+    "soundChance": "0.000125",
+    "acoustics": [
+      {
+        "factory": "dsurround:soulsand.laughter"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:nether_bricks",
+      "minecraft:nether_brick_fence",
+      "minecraft:nether_brick_stairs"
+    ],
+    "soundChance": "0.000125",
+    "acoustics": [
+      {
+        "factory": "dsurround:netherbrick.breathing",
+        "conditions": "dim.getId() == 'minecraft:the_nether'"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:redstone_torch[lit=true]",
+      "minecraft:repeater[powered=true]",
+      "minecraft:comparator[powered=true]",
+      "minecraft:redstone_wire[power=15]",
+      "minecraft:redstone_wire[power=14]",
+      "minecraft:redstone_wire[power=13]"
+    ],
+    "soundChance": "0.015",
+    "acoustics": [
+      {
+        "factory": "dsurround:redstone/electricarc/high"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:redstone_wire[power=12]",
+      "minecraft:redstone_wire[power=11]",
+      "minecraft:redstone_wire[power=10]"
+    ],
+    "soundChance": "0.015",
+    "acoustics": [
+      {
+        "factory": "dsurround:redstone/electricarc/medium"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:redstone_wire[power=9]",
+      "minecraft:redstone_wire[power=8]",
+      "minecraft:redstone_wire[power=7]"
+    ],
+    "soundChance": "0.015",
+    "acoustics": [
+      {
+        "factory": "dsurround:redstone/electricarc/low"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "#dsurround:effects/fireflies"
+    ],
+    "effects": [
+      {
+        "effect": "firefly",
+        "conditions": "weather.isNotRaining() && (diurnal.isNight() || diurnal.isSunset()) && !(HOT || weather.canWaterFreeze())",
+        "spawnChance": "0.035"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:dirt"
+    ],
+    "effects": [
+      {
+        "effect": "dust",
+        "spawnChance": "0.01"
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:waterlily"
+    ],
+    "soundChance": "0.04",
+    "acoustics": [
+      {
+        "factory": "dsurround:frog",
+        "conditions": "!state.isInside() && !weather.canWaterFreeze()",
+        "weight": 30
+      },
+      {
+        "factory": "dsurround:bullfrog",
+        "conditions": "!state.isInside() && !weather.canWaterFreeze()",
+        "weight": 10
+      }
+    ]
+  },
+  {
+    "blocks": [
+      "minecraft:deadbush"
+    ],
+    "soundChance": "0.005",
+    "acoustics": [
+      {
+        "factory": "dsurround:rattlesnake",
+        "conditions": "weather.isNotRaining() && diurnal.isDay() && !biome.isOneOf(\"COLD\",\"SNOWY\")",
+        "weight": 50
+      },
+      {
+        "factory": "dsurround:hiss",
+        "conditions": "weather.isNotRaining() && diurnal.isDay() && !biome.isOneOf(\"COLD\",\"SNOWY\")",
+        "weight": 35
+      },
+      {
+        "factory": "dsurround:insectcrawl",
+        "conditions": "weather.isNotRaining() && diurnal.isDay() && !biome.isOneOf(\"COLD\",\"SNOWY\")",
+        "weight": 15
+      }
+    ]
+  }
+]

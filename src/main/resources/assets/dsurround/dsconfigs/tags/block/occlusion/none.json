@@ -1,0 +1,16 @@
+{
+  "values": [
+    "#minecraft:rails",
+    "#minecraft:pressure_plates",
+    "minecraft:barrier",
+    "minecraft:end_stone",
+    "minecraft:big_dripleaf",
+    "minecraft:big_dripleaf_stem",
+    "minecraft:grass",
+    "minecraft:tall_grass",
+    "minecraft:target",
+    "minecraft:torch",
+    "minecraft:cobweb",
+    "minecraft:cocoa"
+  ]
+}

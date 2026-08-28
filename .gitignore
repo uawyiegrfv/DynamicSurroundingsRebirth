@@ -1,0 +1,16 @@
+.gradle/
+build/
+out/
+run/
+*.log
+.idea/
+*.iml
+.vscode/
+eclipse/
+bin/
+src/main/resources/assets/minecraft/
+docs/
+
+# Development / diagnostic documents (excluded from release)
+REVERB-*.md
+

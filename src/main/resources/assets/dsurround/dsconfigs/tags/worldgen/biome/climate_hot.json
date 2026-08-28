@@ -1,0 +1,1 @@
+{ "replace": false, "values": [ { "id": "#forge:is_hot", "required": false }, { "id": "#forge:is_hot/overworld", "required": false }, { "id": "#forge:is_hot/nether", "required": false }, { "id": "#forge:is_hot/end", "required": false } ] }

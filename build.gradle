@@ -1,0 +1,113 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.38'
+}
+
+version = mod_version
+group = maven_group
+
+base {
+    archivesName = "DynamicSurroundingsRebirth-${minecraft_version}"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'forge.enabledGameTestNamespaces', mod_id
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+        server {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'forge.enabledGameTestNamespaces', mod_id
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+        data {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+// Inject version into mods.toml (file.jarVersion expands to 0.0NONE in userdev)
+// and bundle the sound-attribution CREDITS.md into the JAR root.
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('META-INF/mods.toml') {
+        expand 'version': project.version
+    }
+    into('/') {
+        from("$projectDir/CREDITS.md")
+    }
+}
+
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xmaxerrs' << '2000'
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.shedaniel.me/' }
+    maven { url = 'https://cursemaven.com' }
+    maven { url = 'https://maven.modrinth.com/repository/maven-public' }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    implementation fg.deobf("me.shedaniel.cloth:cloth-config-forge:${cloth_version}")
+    implementation "org.openjdk.nashorn:nashorn-core:${nashorn_version}"
+    implementation 'org.jetbrains:annotations:24.0.1'
+}
+
+mixin {
+    add sourceSets.main, 'dsurround.refmap.json'
+    config 'dsurround.mixins.json'
+}
+
+jar {
+    manifest {
+        attributes([
+                'Specification-Title'    : mod_id,
+                'Specification-Version'  : '1',
+                'Specification-Vendor'   : 'uawyiegrfv',
+                'Implementation-Title'   : project.name,
+                'Implementation-Version' : project.jar.archiveVersion,
+                'Implementation-Vendor'  : 'uawyiegrfv',
+                'MixinConfigs'           : 'dsurround.mixins.json'
+        ])
+    }
+}
+
+jar.finalizedBy('reobfJar')

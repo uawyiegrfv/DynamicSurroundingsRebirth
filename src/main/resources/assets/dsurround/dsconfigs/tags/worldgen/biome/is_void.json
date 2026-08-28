@@ -1,0 +1,1 @@
+{ "replace": false, "values": [ { "id": "#minecraft:is_void", "required": false }, { "id": "#forge:is_void", "required": false } ] }

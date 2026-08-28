@@ -23,9 +23,9 @@ import org.orecruncher.dsurround.config.FootprintStyle;
 public class FootprintParticle extends SingleQuadParticle {
 
     private static final Identifier FOOTPRINT_TEXTURE = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "particle/footprint");
-    private static final float TEXEL_WIDTH = 1F / 8F;
-    private static final float HALF_TEXEL = TEXEL_WIDTH / 2F;
     private static final int LIFETIME = 200;
+    private static final int ATLAS_WIDTH = 256;
+    private static final int ATLAS_HEIGHT = 32;
 
     private final float texU1;
     private final float texU2;
@@ -58,14 +58,23 @@ public class FootprintParticle extends SingleQuadParticle {
         // Sit just above the block face to avoid z-fighting.
         this.y += 0.02D;
 
-        // Sample a square 16x16 sub-region of the cell: half the width, and the
-        // middle vertical band where the print sits. Solid square styles then
-        // render as a clean square instead of a stretched rectangle.
-        float u = style.ordinal() * TEXEL_WIDTH + (isRight ? HALF_TEXEL : 0F);
-        this.texU1 = u + 1 / 256F;
-        this.texU2 = u + HALF_TEXEL - 1 / 256F;
-        this.texV1 = 0.25F;
-        this.texV2 = 0.75F;
+        // Sample a square 15x15-texel sub-region of the cell: the middle vertical band
+        // where the print sits (the 26.1 pipeline renders square quads, so the print is
+        // not stretched into a 1:2 rectangle like 1.12.2/1.20.1). Column 0 of a cell is
+        // a hard separator edge (alpha 255) and the right print's soft edge runs one
+        // column into the next cell, so the U windows follow the 1.12.2 MoteFootprint
+        // layout: [cell+1, cell+17) for the left print, [cell+17, cell+33) for the right
+        // - both give a symmetric 4/4 texel margin around the dark core. Edges are
+        // anchored on texel CENTERS: bilinear filtering at an exact texel-boundary UV
+        // blends the neighbouring column into the edge pixel, and for the left print
+        // that neighbour is the alpha-255 separator - it rendered as a dark stripe down
+        // the left side of the print (the "left wide, right narrow" artifact).
+        int cellPx = style.ordinal() * 32;
+        int loTexel = cellPx + (isRight ? 17 : 1);
+        this.texU1 = (loTexel + 0.5F) / ATLAS_WIDTH;
+        this.texU2 = (loTexel + 15.5F) / ATLAS_WIDTH;
+        this.texV1 = 8.5F / ATLAS_HEIGHT;
+        this.texV2 = (ATLAS_HEIGHT - 8.5F) / ATLAS_HEIGHT;
     }
 
     @Override

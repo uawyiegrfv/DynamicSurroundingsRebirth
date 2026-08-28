@@ -3,12 +3,17 @@ package org.orecruncher.dsurround.effects.entity;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.vehicle.boat.Boat;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUseAnimation;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import org.orecruncher.dsurround.config.libraries.IItemLibrary;
 
 public class ItemSwingEffect extends EntityEffectBase {
@@ -71,9 +76,14 @@ public class ItemSwingEffect extends EntityEffectBase {
         return item.getUseAnimation(entity.getUseItem()) == ItemUseAnimation.BLOCK;
     }
 
+    /**
+     * Whether the swing should produce the item swing sound.  Mirrors the original
+     * 1.12.2 logic: the sound plays on a miss and on an entity hit, and is suppressed
+     * only when a block is struck (the block dig sound covers that case).
+     */
     protected static boolean freeSwing(LivingEntity entity) {
-        var result = rayTraceBlock(entity);
-        return result.getType() == HitResult.Type.MISS;
+        var result = rayTrace(entity);
+        return result.getType() != HitResult.Type.BLOCK;
     }
 
     protected static double getReach(final LivingEntity entity) {
@@ -87,8 +97,32 @@ public class ItemSwingEffect extends EntityEffectBase {
         return dist;
     }
 
-    protected static HitResult rayTraceBlock(final LivingEntity entity) {
+    /**
+     * Ray traces from the entity's eyes along its view vector considering both blocks
+     * and entities, returning the closest hit (a MISS when nothing is in range).
+     */
+    protected static HitResult rayTrace(final LivingEntity entity) {
         double range = getReach(entity);
-        return entity.pick(range, 1F, true);
+        Vec3 from = entity.getEyePosition();
+        Vec3 view = entity.getViewVector(1F);
+        Vec3 to = from.add(view.x * range, view.y * range, view.z * range);
+
+        HitResult result = entity.level().clip(new ClipContext(from, to, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, entity));
+        double closest = result.getLocation().distanceToSqr(from);
+
+        AABB searchBox = new AABB(from, to).inflate(1D);
+        for (Entity candidate : entity.level().getEntities(entity, searchBox, e -> !e.isSpectator() && e.isPickable())) {
+            AABB candidateBox = candidate.getBoundingBox().inflate((double) candidate.getPickRadius());
+            var hitVec = candidateBox.clip(from, to);
+            if (hitVec.isPresent()) {
+                double d = from.distanceToSqr(hitVec.get());
+                if (d < closest) {
+                    closest = d;
+                    result = new EntityHitResult(candidate, hitVec.get());
+                }
+            }
+        }
+
+        return result;
     }
 }

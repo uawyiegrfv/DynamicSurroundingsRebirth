@@ -32,16 +32,25 @@ public class WeatherFogRangeCalculator extends VanillaFogRangeCalculator {
         float rainStr = GameUtils.getWorld().map(w -> w.getRainLevel(partialTick)).orElseThrow();
         if (rainStr > 0) {
 
-            final float startScale = 1F - (START_IMPACT * rainStr);
-            final float endScale = 1F - (END_IMPACT * rainStr);
-            // Cap the far plane so rain fog stays close to the player; the render-distance
-            // basis alone would push it out to ~154 blocks. The near plane must stay at or
-            // below the far plane (a start > end range is rejected by the Holistic combiner
-            // and logged every frame).
-            final float end = Math.min(data.renderDistanceEnd * endScale, MAX_RAIN_FOG_END);
-            final float start = Math.min(data.renderDistanceStart * startScale, end);
+            // Blend both planes from the clear-sky (vanilla) range at rainStr=0 to the
+            // rain-fog range at rainStr=1 using the same rain factor, so the near and
+            // far planes move together. The far-plane target is capped (MAX_RAIN_FOG_END)
+            // so rain fog stays close to the player, but applied as an interpolation
+            // target rather than a hard clamp — the old hard clamp made the far plane
+            // jump to 96 the instant rain began, showing a sharp fog boundary line.
+            final float clearStart = data.renderDistanceStart;
+            final float clearEnd = data.renderDistanceEnd;
+
+            // Density scale: higher = denser (closer fog). Shrinks the far-plane cap.
+            final float densityScale = Math.max((float) this.fogOptions.weatherFogDensity, 0.01F);
+            final float targetEnd = Math.min(clearEnd * (1F - END_IMPACT), MAX_RAIN_FOG_END / densityScale);
+            final float targetStart = Math.min(clearStart * (1F - START_IMPACT), targetEnd);
+
+            final float end = clearEnd + (targetEnd - clearEnd) * rainStr;
+            final float start = clearStart + (targetStart - clearStart) * rainStr;
+
             final FogData result = this.reusableResult;
-            result.renderDistanceStart = start;
+            result.renderDistanceStart = Math.max(0F, Math.min(start, end));
             result.renderDistanceEnd = end;
             return result;
         }

@@ -98,7 +98,9 @@ public class CritWordHandler {
     }
 
     public void onLivingDamage(LivingDamageEvent.Pre event) {
-        if (!this.config.entityEffects.showCritWords)
+        final boolean showNumbers = this.config.entityEffects.showDamageNumbers;
+        final boolean showCrits = this.config.entityEffects.showCritWords;
+        if (!showNumbers && !showCrits)
             return;
 
         final LivingEntity entity = event.getEntity();
@@ -126,12 +128,14 @@ public class CritWordHandler {
         }
 
         // Damage number above the entity (original used the top + 0.5).
-        this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
-                entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
-                dx * HORIZONTAL_SPEED, UP_SPEED, dz * HORIZONTAL_SPEED));
+        if (showNumbers) {
+            this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
+                    entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
+                    dx * HORIZONTAL_SPEED, UP_SPEED, dz * HORIZONTAL_SPEED));
+        }
 
         // Critical hit (>= 40% of max health): an extra comic word one block up.
-        if (damage >= entity.getMaxHealth() / 2.5F) {
+        if (showCrits && damage >= entity.getMaxHealth() / 2.5F) {
             final String word = CRIT_WORDS[this.random.nextInt(CRIT_WORDS.length)] + "!";
             this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),
@@ -141,7 +145,7 @@ public class CritWordHandler {
     }
 
     public void onLivingHeal(LivingHealEvent event) {
-        if (!this.config.entityEffects.showCritWords)
+        if (!this.config.entityEffects.showDamageNumbers)
             return;
 
         final LivingEntity entity = event.getEntity();

@@ -14,7 +14,6 @@ public class EntityEffectHandler extends AbstractClientHandler {
     private final IEntityEffectLibrary entityEffectLibrary;
     private int entityCount;
     private int entityEffectsTicked;
-    private int tickCounter = 0;
 
     public EntityEffectHandler(Configuration config, IEntityEffectLibrary entityEffectLibrary, IModLog logger) {
         super("EntityEffect Handler", config, logger);
@@ -34,14 +33,11 @@ public class EntityEffectHandler extends AbstractClientHandler {
     @Override
     public void process(final Player player) {
 
-        // Scanning all living entities in a large box is comparatively expensive
-        // (entities degrade it linearly); sample every 4 ticks. Ambient effects (breath
-        // vapor, footprints, glow) tick at this cadence which is imperceptible, and
-        // deactivation cleanup stays prompt enough. Dense mob scenes (caves, spawners)
-        // see the per-tick entity scan cost halved.
-        if (++this.tickCounter % 4 != 0)
-            return;
-
+        // Scanning all living entities in a large box every tick is what the fabric
+        // reference and the original 1.12.2 do; effects such as the toolbar equip sound
+        // are driven by 20Hz events (hotbar scrolling) and MUST be sampled every tick -
+        // a sampling gate here would swallow most slot transitions and the equip sounds
+        // with them.
         var world = player.level();
 
         this.entityCount = 0;

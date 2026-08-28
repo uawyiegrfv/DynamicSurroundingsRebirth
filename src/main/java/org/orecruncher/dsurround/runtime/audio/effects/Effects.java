@@ -1,6 +1,7 @@
 package org.orecruncher.dsurround.runtime.audio.effects;
 
 import org.lwjgl.openal.EXTEfx;
+import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
@@ -8,6 +9,7 @@ import org.orecruncher.dsurround.runtime.audio.SourceContext;
 
 public final class Effects {
     private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
+    private static final Configuration.EnhancedSounds CONFIG = ContainerManager.resolve(Configuration.EnhancedSounds.class);
     // General config settings that need to make their way somewhere
     // 26.1: the mixin now requests 4 auxiliary sends at context creation (matching 1.21.1),
     // so all four reverb zones apply. Slightly below the original 1.12.2 baseline per
@@ -92,10 +94,24 @@ public final class Effects {
         return activeSends;
     }
 
+    /**
+     * Recomputes each reverb zone's wet gain from the configurable intensity. Called on
+     * every sound-system (re)init so changing the slider takes effect without a restart.
+     */
+    private static void refreshReverbIntensity() {
+        final float intensity = (float) CONFIG.reverbIntensity;
+        reverbData0.gain = 0.2F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+        reverbData1.gain = 0.3F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+        reverbData2.gain = 0.5F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+        reverbData3.gain = 0.4F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+    }
+
     public static void initialize() {
         activeSends = Math.min(4, AudioUtilities.getMaxAuxSends());
         if (activeSends <= 0)
             return;
+
+        refreshReverbIntensity();
 
         for (int i = 0; i < activeSends; i++) {
             AUX_SLOTS[i].initialize();
@@ -136,10 +152,12 @@ public final class Effects {
 
         // Diagnostic: logged at debug level (enableDebugLogging) so the reverb zone mapping
         // can be inspected. Globally throttled to roughly one line per second of playtime.
+        // TEMP(1.20.1-port-forensics): promoted to info for a side-by-side send-gain
+        // comparison against the 1.20.1 port in the same cavern. Revert with git checkout.
         if (++applyCounter % 140 == 0) {
             var sound = source.getSound();
             var soundId = sound == null ? "?" : sound.getIdentifier().toString();
-            LOGGER.debug("REVERB src=%d sound=%s sends=%d gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f]",
+            LOGGER.info("REVERB_STEADY src=%d sound=%s sends=%d gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f]",
                     sourceId, soundId, activeSends,
                     source.getLowPass(0).gain, source.getLowPass(1).gain, source.getLowPass(2).gain, source.getLowPass(3).gain,
                     source.getLowPass(0).gainHF, source.getLowPass(1).gainHF, source.getLowPass(2).gainHF, source.getLowPass(3).gainHF,

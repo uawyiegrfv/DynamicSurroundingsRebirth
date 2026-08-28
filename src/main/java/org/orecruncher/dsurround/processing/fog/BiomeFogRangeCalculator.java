@@ -18,7 +18,7 @@ public class BiomeFogRangeCalculator extends VanillaFogRangeCalculator {
     private final FogData reusableResult = new FogData();
 
 
-    private static final float SCALE_ADJUST = 0.002F;
+    private static final float SCALE_SMOOTH_ALPHA = 0.01F;
 
     private final IBiomeLibrary biomeLibrary;
 
@@ -42,23 +42,18 @@ public class BiomeFogRangeCalculator extends VanillaFogRangeCalculator {
     @NotNull
     public FogData render(@NotNull final FogData data, float renderDistance, float partialTick) {
 
-        // Adjust the scale in the right direction
-        if (Float.compare(this.activeScale, this.targetScale) != 0) {
-            if (this.targetScale < this.activeScale) {
-                this.activeScale -= SCALE_ADJUST;
-                if (this.activeScale < this.targetScale)
-                    this.activeScale = this.targetScale;
-            } else if(this.targetScale > this.activeScale) {
-                this.activeScale += SCALE_ADJUST;
-                if (this.activeScale > this.targetScale)
-                    this.activeScale = this.targetScale;
-            }
-        }
+        // Slow low-pass filter toward the sampled target. The per-block fog-density
+        // sample is noisy (oscillates a few tenths each block), so a slow filter flattens
+        // both the per-block quantization and the noise instead of chasing them.
+        if (Float.compare(this.activeScale, this.targetScale) != 0)
+            this.activeScale += (this.targetScale - this.activeScale) * SCALE_SMOOTH_ALPHA;
 
-        if (Float.compare(this.activeScale, 0F) == 0)
+        // Apply the configurable density scale (0 = no biome fog, 1 = default).
+        final float effectiveScale = Math.min(this.activeScale * (float) this.fogOptions.biomeFogDensity, 1F);
+        if (Float.compare(effectiveScale, 0F) == 0)
             return data;
 
-        var scale = 1F - this.activeScale;
+        var scale = 1F - effectiveScale;
         final FogData result = this.reusableResult;
         result.renderDistanceEnd = data.renderDistanceEnd * scale;
         result.renderDistanceStart = data.renderDistanceStart * scale * scale;

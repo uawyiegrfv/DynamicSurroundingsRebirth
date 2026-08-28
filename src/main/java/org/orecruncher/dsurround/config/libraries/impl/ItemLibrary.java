@@ -1,5 +1,6 @@
 package org.orecruncher.dsurround.config.libraries.impl;
 
+import com.mojang.serialization.Codec;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -12,6 +13,7 @@ import net.minecraft.world.item.*;
 import org.jetbrains.annotations.Nullable;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.config.ItemClassType;
+import org.orecruncher.dsurround.config.data.ItemSoundConfigRule;
 import org.orecruncher.dsurround.config.libraries.IItemLibrary;
 import org.orecruncher.dsurround.config.libraries.IReloadEvent;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
@@ -26,6 +28,8 @@ import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
 import org.orecruncher.dsurround.tags.ItemEffectTags;
 import org.orecruncher.dsurround.tags.ItemTags;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -39,12 +43,17 @@ public class ItemLibrary implements IItemLibrary {
     private final Reference2ObjectOpenHashMap<Item, ISoundFactory> itemEquipFactories = new Reference2ObjectOpenHashMap<>();
     private final Reference2ObjectOpenHashMap<Item, ISoundFactory> itemSwingFactories = new Reference2ObjectOpenHashMap<>();
     private final Reference2ObjectOpenHashMap<Item, ISoundFactory> itemArmorStepFactories = new Reference2ObjectOpenHashMap<>();
+    private static final String ITEM_SOUND_FILE = "item_sounds.json";
+    private static final Codec<List<ItemSoundConfigRule>> ITEM_SOUND_CODEC = Codec.list(ItemSoundConfigRule.CODEC);
+    private final List<ItemSoundConfigRule> itemSoundRules = new ArrayList<>();
+    private final ISoundLibrary soundLibrary;
     private int version;
 
     public ItemLibrary(ITagLibrary tagLibrary, Configuration config, IModLog logger) {
         this.tagLibrary = tagLibrary;
         this.logger = ModLog.createChild(logger, "ItemLibrary");
         this.config = config;
+        this.soundLibrary = ContainerManager.resolve(ISoundLibrary.class);
     }
 
     @Override
@@ -57,21 +66,30 @@ public class ItemLibrary implements IItemLibrary {
         this.itemEquipFactories.clear();
         this.itemSwingFactories.clear();
         this.itemArmorStepFactories.clear();
-        this.logger.info("[ItemLibrary] Configured; version is now %d", this.version);
+        this.itemSoundRules.clear();
+        var findResults = resourceUtilities.findModResources(ITEM_SOUND_CODEC, ITEM_SOUND_FILE);
+        findResults.forEach(result -> this.itemSoundRules.addAll(result.resourceContent()));
+        this.logger.info("[ItemLibrary] %d item sound overrides loaded; version is now %d", this.itemSoundRules.size(), this.version);
     }
 
     @Override
     public Optional<ISoundFactory> getItemEquipSound(ItemStack stack) {
         if (stack.isEmpty())
             return Optional.empty();
-        return Optional.ofNullable(this.itemEquipFactories.computeIfAbsent(stack.getItem(), k -> resolve(stack, ItemClassType::getToolBarSound, ItemClassType.NONE::getToolBarSound)));
+        return Optional.ofNullable(this.itemEquipFactories.computeIfAbsent(stack.getItem(), k -> {
+            var override = resolveItemSoundOverride(stack, true);
+            return override != null ? override : resolve(stack, ItemClassType::getToolBarSound, ItemClassType.NONE::getToolBarSound);
+        }));
     }
 
     @Override
     public Optional<ISoundFactory> getItemSwingSound(ItemStack stack) {
         if (stack.isEmpty())
             return Optional.empty();
-        return Optional.ofNullable(this.itemSwingFactories.computeIfAbsent(stack.getItem(), k -> resolve(stack, ItemClassType::getSwingSound, () -> null)));
+        return Optional.ofNullable(this.itemSwingFactories.computeIfAbsent(stack.getItem(), k -> {
+            var override = resolveItemSoundOverride(stack, false);
+            return override != null ? override : resolve(stack, ItemClassType::getSwingSound, () -> null);
+        }));
     }
 
     @Override
@@ -123,6 +141,26 @@ public class ItemLibrary implements IItemLibrary {
         }
 
         return resolveSound.apply(itemClassType);
+    }
+
+    @Nullable
+    private ISoundFactory resolveItemSoundOverride(ItemStack stack, boolean equip) {
+        for (var rule : this.itemSoundRules) {
+            boolean matched = false;
+            for (var matcher : rule.items()) {
+                if (matcher.match(stack.getItem())) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched)
+                continue;
+            var location = equip ? rule.equip() : rule.swing();
+            if (location.isEmpty())
+                continue;
+            return this.soundLibrary.getSoundFactory(location.get()).orElse(null);
+        }
+        return null;
     }
 
     @Nullable

@@ -15,28 +15,17 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
     private final FogData reusableResult = new FogData();
 
 
-    // Morning fog time window, in celestial degrees (tick0 = 6AM = 270deg).
-    // Matches the 1.12.2 behaviour the user observed:
-    //   fog starts at tick 23000 (5AM, 255deg)
-    //   peaks at tick 24000 (6AM dawn, 270deg)
-    //   fully gone by tick 26000 (8AM, 300deg)
-    protected static final float FOG_START_ANGLE = 255F;
-    protected static final float FOG_PEAK_ANGLE = 270F;
-    protected static final float FOG_END_ANGLE = 300F;
-
-    // Peak fog density: how close the far plane comes at dawn. Lower = denser
-    // fog (shorter view distance). The user wanted a denser peak than before.
-    protected static final float PEAK_FOG_END = 48F;
+    // Morning fog time window and density are configurable via FogOptions:
+    //   morningFogStartHour (5.0), morningFogPeakHour (6.0), morningFogEndHour (8.0),
+    //   morningFogDensity (1.0 = default).
 
     // Fraction of the fog end used as the gradient width (start = end - width).
     // Keeps the fog a smooth haze instead of a hard wall when the range
     // collapses.
     protected static final float GRADIENT_FRACTION = 0.35F;
 
-    // Maximum distance (world blocks) the morning fog wall can sit at. The fog
-    // wall distance is decided by density and time of day only - it must NOT
-    // scale with the render distance, otherwise turning the view distance up
-    // pushes the fog past the horizon (a "no morning fog" look at long range).
+    // Defensive fallback for the (unreachable) NONE density case in peakEnd().
+    // The real clear-sky distance is taken from the vanilla fog range at runtime.
     protected static final float MAX_FOG_VIEW_END = 256F;
 
     // Fog wall distance at peak dawn (6AM), per density, view-distance independent:
@@ -49,6 +38,16 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
             case LIGHT -> 160F;
             default -> MAX_FOG_VIEW_END;
         };
+    }
+
+    // Convert an hour-of-day (0..24, 6AM = 6.0) to the celestial-degree convention
+    // used by DayCycle (270 = 6AM dawn; degrees = 270 + (hour - 6) * 15).
+    private static int hourToAngle(double hour) {
+        double deg = 270D + (hour - 6D) * 15D;
+        deg %= 360D;
+        if (deg < 0D)
+            deg += 360D;
+        return (int) Math.round(deg);
     }
 
     private record FogChoice(FogDensity density, int weight) {
@@ -98,39 +97,47 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
     public FogData render(@NotNull final FogData data, float renderDistance, float partialTick) {
 
         if (this.type != FogDensity.NONE) {
-            var angle = DayCycle.getCelestialAngleDegrees(GameUtils.getWorld().orElseThrow());
-            if (angle >= FOG_START_ANGLE && angle <= FOG_END_ANGLE) {
-                // Triangular strength curve: ramps up from start to the dawn peak,
-                // then ramps down from the peak to full dispersal at FOG_END.
-                final float strength;
-                if (angle <= FOG_PEAK_ANGLE) {
-                    strength = (angle - FOG_START_ANGLE) / (FOG_PEAK_ANGLE - FOG_START_ANGLE);
-                } else {
-                    strength = 1F - (angle - FOG_PEAK_ANGLE) / (FOG_END_ANGLE - FOG_PEAK_ANGLE);
-                }
-                // Density of the day's fog scales the overall strength.
-                final float factor = strength * this.type.getIntensity();
+            final int startAngle = hourToAngle(this.fogOptions.morningFogStartHour);
+            final int peakAngle = hourToAngle(this.fogOptions.morningFogPeakHour);
+            final int endAngle = hourToAngle(this.fogOptions.morningFogEndHour);
+            // Guard against a misconfigured window (peak must sit strictly between start and end).
+            if (startAngle >= peakAngle || peakAngle >= endAngle)
+                return data;
 
-                // At the window edges the strength is zero — do not rewrite the fog
-                // range at all, otherwise the near plane pops to a different value
-                // the instant the window is entered/left (a visible fog wall flash).
-                if (factor <= 0.0001F)
+            var angle = DayCycle.getCelestialAngleDegrees(GameUtils.getWorld().orElseThrow());
+            if (angle >= startAngle && angle <= endAngle) {
+                // Triangular strength curve: ramps up from start to the dawn peak,
+                // then ramps down from the peak to full dispersal at the end.
+                final float strength;
+                if (angle <= peakAngle) {
+                    strength = (angle - startAngle) / (peakAngle - startAngle);
+                } else {
+                    strength = 1F - (angle - peakAngle) / (endAngle - peakAngle);
+                }
+                // At the window edges the strength is exactly zero: return the vanilla
+                // range untouched. The range is blended continuously from the vanilla
+                // clear-sky range (strength=0) down to the fixed peak (strength=1), so
+                // there is no discontinuity when the window opens or closes.
+                if (strength <= 0F)
                     return data;
 
-                // The fog wall distance is anchored by the density and the time of
-                // day only, NOT by the render distance. Interpolating between the
-                // render end and a fixed cap made the wall drift past the horizon
-                // at high view distances (density intensity never reaches 1, so the
-                // wall sat at ~565-1024 blocks at 32 chunks - effectively invisible
-                // morning fog). At peak dawn the wall sits at the density's peakEnd;
-                // outside the peak it recedes toward MAX_FOG_VIEW_END. The render
-                // end is only used as an upper clamp so very small view distances
-                // (where the world itself ends sooner) still show the haze.
-                final float wallEnd = this.peakEnd(this.type)
-                        + (MAX_FOG_VIEW_END - this.peakEnd(this.type)) * (1F - strength);
-                final float newEnd = Math.min(wallEnd, data.renderDistanceEnd);
-                final float gradient = Math.max(newEnd * GRADIENT_FRACTION, 1F);
-                final float newStart = Math.max(newEnd - gradient, 0F);
+                // Blend the far plane from the vanilla clear-sky distance to the fixed
+                // peak. The peak is anchored by the density only (not the render
+                // distance), so the wall reaches peakEnd at dawn regardless of view
+                // distance; the clear-sky anchor is the actual vanilla far plane, which
+                // keeps the fog continuous at the window edges (no fog-wall flash or
+                // sudden view-distance drop at 5AM/8AM).
+                final float peakEndDist = Math.max(8F, peakEnd(this.type) / Math.max((float) this.fogOptions.morningFogDensity, 0.01F));
+                final float newEnd = Math.min(
+                        peakEndDist + (data.renderDistanceEnd - peakEndDist) * (1F - strength),
+                        data.renderDistanceEnd);
+
+                // Blend the near plane the same way so the haze gradient stays coherent
+                // and never pops at the edges.
+                final float peakStart = peakEndDist * (1F - GRADIENT_FRACTION);
+                final float newStart = Math.max(0F, Math.min(
+                        peakStart + (data.renderDistanceStart - peakStart) * (1F - strength),
+                        newEnd));
 
                 final FogData result = this.reusableResult;
                 result.renderDistanceStart = newStart;

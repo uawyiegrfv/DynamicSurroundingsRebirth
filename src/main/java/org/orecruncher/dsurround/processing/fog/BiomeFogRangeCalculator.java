@@ -47,10 +47,12 @@ public class BiomeFogRangeCalculator extends VanillaFogRangeCalculator {
         if (Float.compare(this.activeScale, this.targetScale) != 0)
             this.activeScale += (this.targetScale - this.activeScale) * SCALE_SMOOTH_ALPHA;
 
-        if (Float.compare(this.activeScale, 0F) == 0)
+        // Apply the configurable density scale (0 = no biome fog, 1 = default).
+        final float effectiveScale = Math.min(this.activeScale * (float) this.fogOptions.biomeFogDensity, 1F);
+        if (Float.compare(effectiveScale, 0F) == 0)
             return data;
 
-        var scale = 1F - this.activeScale;
+        var scale = 1F - effectiveScale;
         final FogData result = this.reusableResult;
         result.renderDistanceEnd = data.renderDistanceEnd * scale;
         result.renderDistanceStart = data.renderDistanceStart * scale * scale;

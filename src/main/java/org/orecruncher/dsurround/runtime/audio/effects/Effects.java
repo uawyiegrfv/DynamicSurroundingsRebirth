@@ -1,6 +1,7 @@
 package org.orecruncher.dsurround.runtime.audio.effects;
 
 import org.lwjgl.openal.EXTEfx;
+import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
@@ -8,6 +9,7 @@ import org.orecruncher.dsurround.runtime.audio.SourceContext;
 
 public final class Effects {
     private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
+    private static final Configuration.EnhancedSounds CONFIG = ContainerManager.resolve(Configuration.EnhancedSounds.class);
     // General config settings that need to make their way somewhere
     // 26.1: the mixin now requests 4 auxiliary sends at context creation (matching 1.21.1),
     // so all four reverb zones apply. Slightly below the original 1.12.2 baseline per
@@ -99,6 +101,18 @@ public final class Effects {
         return activeSends;
     }
 
+    /**
+     * Recomputes each reverb zone's wet gain from the configurable intensity. Called on
+     * every sound-system (re)init so changing the slider takes effect without a restart.
+     */
+    private static void refreshReverbIntensity() {
+        final float intensity = (float) CONFIG.reverbIntensity;
+        reverbData0.gain = 0.2F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+        reverbData1.gain = 0.3F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+        reverbData2.gain = 0.5F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+        reverbData3.gain = 0.4F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+    }
+
     public static void initialize() {
         // Force-regenerate every EFX object. On sound-system reinit (toggling reverb/
         // occlusion in config, resource reload, device change) the old OpenAL handles
@@ -113,6 +127,8 @@ public final class Effects {
         org.orecruncher.dsurround.lib.Library.LOGGER.debug("REVERB_INIT activeSends=%d", getActiveSends());
         if (activeSends <= 0)
             return;
+
+        refreshReverbIntensity();
 
         for (int i = 0; i < activeSends; i++) {
             AUX_SLOTS[i].initialize();

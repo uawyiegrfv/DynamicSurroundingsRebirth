@@ -6,6 +6,8 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.living.LivingDamageEvent;
@@ -105,7 +107,9 @@ public class CritWordHandler {
     }
 
     public void onLivingDamage(LivingDamageEvent event) {
-        if (!this.config.entityEffects.showCritWords)
+        final boolean showNumbers = this.config.entityEffects.showDamageNumbers;
+        final boolean showCrits = this.config.entityEffects.showCritWords;
+        if (!showNumbers && !showCrits)
             return;
 
         final LivingEntity entity = event.getEntity();
@@ -133,12 +137,14 @@ public class CritWordHandler {
         }
 
         // Damage number above the entity (original used the top + 0.5).
-        this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
-                entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
-                dx * HORIZONTAL_SPEED, UP_SPEED, dz * HORIZONTAL_SPEED));
+        if (showNumbers) {
+            this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
+                    entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
+                    dx * HORIZONTAL_SPEED, UP_SPEED, dz * HORIZONTAL_SPEED));
+        }
 
         // Critical hit (>= 40% of max health): an extra comic word one block up.
-        if (damage >= entity.getMaxHealth() / 2.5F) {
+        if (showCrits && damage >= entity.getMaxHealth() / 2.5F) {
             final String word = CRIT_WORDS[this.random.nextInt(CRIT_WORDS.length)] + "!";
             this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),
@@ -148,7 +154,7 @@ public class CritWordHandler {
     }
 
     public void onLivingHeal(LivingHealEvent event) {
-        if (!this.config.entityEffects.showCritWords)
+        if (!this.config.entityEffects.showDamageNumbers)
             return;
 
         final LivingEntity entity = event.getEntity();
@@ -201,6 +207,14 @@ public class CritWordHandler {
             this.viewProj.transform(this.clip);
             if (this.clip.w <= 0.001F || this.clip.w > MAX_RENDER_DEPTH)
                 continue;
+
+            // Skip words occluded by blocks between the camera and the text (the 1.20.1
+            // port originally lacked this, so numbers showed through walls).
+            final var hit = mc.level.clip(new ClipContext(
+                    camPos, new Vec3(px, py, pz), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
+            if (hit.getType() != HitResult.Type.MISS)
+                continue;
+
             final float depth = this.clip.w;
             final float sx = (this.clip.x / depth * 0.5F + 0.5F) * width;
             final float sy = (1.0F - (this.clip.y / depth * 0.5F + 0.5F)) * height;
@@ -248,7 +262,8 @@ public class CritWordHandler {
 
                 // Heal detection: health went up. Single-player is covered by onLivingHeal
                 // (shared EVENT_BUS), so only run this in multiplayer.
-                if (multiplayer && current > previous + 0.5F && this.config.entityEffects.showCritWords) {
+                if (multiplayer && current > previous + 0.5F && this.config.entityEffects.showDamageNumbers
+                        && !(living instanceof LocalPlayer && mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON)) {
                     final int amount = Math.round(current - previous);
                     this.active.add(new CritWord(String.valueOf(amount), HEAL_TEXT_COLOR,
                             living.getX(), living.getY() + living.getBbHeight() + 0.5D, living.getZ(),
@@ -287,7 +302,9 @@ public class CritWordHandler {
     }
 
     private void handleClientDamage(LivingEntity entity, Vec3 sourcePos) {
-        if (!this.config.entityEffects.showCritWords)
+        final boolean showNumbers = this.config.entityEffects.showDamageNumbers;
+        final boolean showCrits = this.config.entityEffects.showCritWords;
+        if (!showNumbers && !showCrits)
             return;
         var mc = Minecraft.getInstance();
         if (entity instanceof LocalPlayer && mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON)
@@ -317,7 +334,7 @@ public class CritWordHandler {
         }
 
         // Damage number above the entity (top + 0.5).
-        if (damage >= 0.5F) {
+        if (showNumbers && damage >= 0.5F) {
             final int delta = Math.max(1, Math.round(damage));
             this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
@@ -325,7 +342,7 @@ public class CritWordHandler {
         }
 
         // Critical hit (>= 40% of max health): an extra comic word one block up.
-        if (damage >= entity.getMaxHealth() / 2.5F) {
+        if (showCrits && damage >= entity.getMaxHealth() / 2.5F) {
             final String word = CRIT_WORDS[this.random.nextInt(CRIT_WORDS.length)] + "!";
             this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),

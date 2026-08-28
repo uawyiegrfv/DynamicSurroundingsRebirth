@@ -148,6 +148,12 @@ public class Configuration extends ConfigurationData {
         public int reverbRayTraceDistance = 256;
 
         @Property
+        @Slider
+        @DoubleRange(min = 0D, max = 2D)
+        @Comment("Scales the reverb (echo) intensity (1.0 = default; 0 = no reverb; higher = stronger)")
+        public double reverbIntensity = 1.0D;
+
+        @Property
         @Comment("Enable/disable damping for sounds whose path to the player passes through water. Reduces both volume and high frequencies (muffling)")
         public boolean enableWaterSoundDamping = true;
 
@@ -366,6 +372,11 @@ public class Configuration extends ConfigurationData {
         @RestartRequired(client = false)
         @Comment("Display a comic power word when an entity takes a critical hit")
         public boolean showCritWords = true;
+
+        @Property
+        @RestartRequired(client = false)
+        @Comment("Display damage and healing numbers above entities")
+        public boolean showDamageNumbers = true;
     }
 
     public static class FootstepAccents {
@@ -452,6 +463,39 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Higher the player elevation the more haze that is experienced")
         public boolean enableElevationHaze = true;
+
+        @Property
+        @DoubleRange(min = 0D, max = 24D)
+        @Comment("Morning fog start time, in hours of day (5.0 = 5AM, 6.0 = 6AM, 8.0 = 8AM)")
+        public double morningFogStartHour = 5.0D;
+
+        @Property
+        @DoubleRange(min = 0D, max = 24D)
+        @Comment("Morning fog peak time, in hours of day (6.0 = 6AM)")
+        public double morningFogPeakHour = 6.0D;
+
+        @Property
+        @DoubleRange(min = 0D, max = 24D)
+        @Comment("Morning fog end time, in hours of day (8.0 = 8AM)")
+        public double morningFogEndHour = 8.0D;
+
+        @Property
+        @Slider
+        @DoubleRange(min = 0.25D, max = 4D)
+        @Comment("Scales morning fog density (1.0 = default; higher = denser/closer fog)")
+        public double morningFogDensity = 1.0D;
+
+        @Property
+        @Slider
+        @DoubleRange(min = 0D, max = 2D)
+        @Comment("Scales biome fog density (1.0 = default; 0 = disable biome fog)")
+        public double biomeFogDensity = 1.0D;
+
+        @Property
+        @Slider
+        @DoubleRange(min = 0.25D, max = 4D)
+        @Comment("Scales weather (rain) fog density (1.0 = default; higher = denser/closer fog)")
+        public double weatherFogDensity = 1.0D;
     }
 
     public static class OtherOptions {

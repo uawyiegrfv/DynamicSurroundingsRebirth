@@ -18,6 +18,8 @@ import org.orecruncher.dsurround.lib.config.ConfigOptions;
 import org.orecruncher.dsurround.lib.config.ConfigurationData;
 import org.orecruncher.dsurround.lib.random.Randomizer;
 
+import java.util.Locale;
+
 public class ClothAPIFactory extends AbstractConfigScreenFactory {
 
     private static final ResourceLocation[] BACKGROUNDS = {
@@ -160,10 +162,12 @@ public class ClothAPIFactory extends AbstractConfigScreenFactory {
                     .setSaveConsumer(binder::setValue);
         } else if (pv instanceof ConfigElement.EnumValue v) {
             var binder = pv.<Enum<?>>createBinder(instance);
+            var langKey = pv.getLanguageKey();
             fieldBuilder = new EnumSelectorBuilder<>(builder.getResetButtonKey(), name, (Class<Enum<?>>)(v.getEnumClass()), binder.getValue())
                     .setTooltip(tooltip)
                     .setDefaultValue(binder.defaultValue())
-                    .setSaveConsumer(binder::setValue);
+                    .setSaveConsumer(binder::setValue)
+                    .setEnumNameProvider(enumValue -> Component.translatable(langKey + "." + enumValue.name().toLowerCase(Locale.ROOT)));
         }
 
         if (fieldBuilder != null) {

@@ -16,14 +16,21 @@ import org.orecruncher.dsurround.config.FootprintStyle;
 /**
  * A footprint left on the ground, ported from the original 1.12.2 MoteFootprint.
  * 1.20.1 port: extends TextureSheetParticle and lays its quad flat on the ground in a
- * custom render(). The print fades out quadratically, matching the original.
+ * custom render(). Like the original, the print is a 1:2 rectangle sampling the full
+ * 32px cell height (the visible print occupies the middle band; the empty margins
+ * space out consecutive prints). The print fades out quadratically, matching the
+ * original.
  */
 public class FootprintParticle extends TextureSheetParticle {
 
     private static final ResourceLocation FOOTPRINT_TEXTURE = ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "particle/footprint");
-    private static final float TEXEL_WIDTH = 1F / 8F;
-    private static final float HALF_TEXEL = TEXEL_WIDTH / 2F;
     private static final int LIFETIME = 200;
+    private static final int ATLAS_WIDTH = 256;
+
+    // Print rectangle in world units, matching the 1.12.2 MoteFootprint (WIDTH=0.125,
+    // LENGTH=WIDTH*2 as half-extents -> a 0.25 x 0.5 print).
+    private static final float HALF_WIDTH = 0.125F;
+    private static final float HALF_LENGTH = 0.25F;
 
     private final float texU1;
     private final float texU2;
@@ -37,7 +44,6 @@ public class FootprintParticle extends TextureSheetParticle {
         this.setSprite(ParticleUtils.getSprite(FOOTPRINT_TEXTURE));
 
         this.lifetime = LIFETIME;
-        this.quadSize = 0.21F;
         this.alpha = 0.4F;
 
         this.sinYaw = Mth.sin(yaw);
@@ -46,12 +52,22 @@ public class FootprintParticle extends TextureSheetParticle {
         // Sit just above the block face to avoid z-fighting.
         this.y += 0.02D;
 
-        // Sample a square 16x16 sub-region of the cell.
-        float u = style.ordinal() * TEXEL_WIDTH + (isRight ? HALF_TEXEL : 0F);
-        this.texU1 = u + 1 / 256F;
-        this.texU2 = u + HALF_TEXEL - 1 / 256F;
-        this.texV1 = 0.25F;
-        this.texV2 = 0.75F;
+        // Each style cell (32px wide) holds a mirrored left/right print pair. Column 0 of
+        // a cell is a hard separator edge (alpha 255), and the right print's soft edge
+        // runs one column into the next cell - so the 1.12.2 windows are [cell+1,
+        // cell+17) for the left print and [cell+17, cell+33) for the right (both give a
+        // symmetric 4/4 texel margin around the dark core). Quad edges are anchored on
+        // texel CENTERS: bilinear filtering at an exact texel-boundary UV blends the
+        // neighbouring column into the edge pixel, and for the left print that neighbour
+        // is the alpha-255 separator - it rendered as a dark stripe down one side of the
+        // print (the "left wide, right narrow" artifact). 1.12.2 did not hit this because
+        // it sampled the raw texture with nearest filtering.
+        int cellPx = style.ordinal() * 32;
+        int loTexel = cellPx + (isRight ? 17 : 1);
+        this.texU1 = (loTexel + 0.5F) / ATLAS_WIDTH;
+        this.texU2 = (loTexel + 15.5F) / ATLAS_WIDTH;
+        this.texV1 = 0F;
+        this.texV2 = 1F;
     }
 
     @Override
@@ -71,16 +87,19 @@ public class FootprintParticle extends TextureSheetParticle {
         f = f * f;
         float alpha = Mth.clamp(1.0F - f, 0F, 1F) * 0.4F;
 
-        float half = this.getQuadSize(partialTick) / 2F;
+        float halfW = HALF_WIDTH;
+        float halfL = HALF_LENGTH;
         float u0 = this.getU0(), u1 = this.getU1(), v0 = this.getV0(), v1 = this.getV1();
         int light = this.getLightColor(partialTick);
 
-        // Local flat-square corners (dx, dz) in the XZ plane, rotated about Y by yaw.
-        // Corner/UV order matches the vanilla billboard quad (texture +V points forward).
-        float dx0 = -half, dz0 = -half;
-        float dx1 = -half, dz1 = half;
-        float dx2 = half, dz2 = half;
-        float dx3 = half, dz3 = -half;
+        // Local print rectangle (1:2) in the XZ plane, rotated about Y by yaw. Corner/UV
+        // order matches the 1.12.2 MoteFootprint in world space: texture +V (heel) points
+        // backward, texture +U runs along the print's lateral axis, and the toe (texture
+        // top, v0) ends up on the walk direction.
+        float dx0 = -halfW, dz0 = -halfL;
+        float dx1 = -halfW, dz1 = halfL;
+        float dx2 = halfW, dz2 = halfL;
+        float dx3 = halfW, dz3 = -halfL;
 
         float rx0 = dx0 * this.cosYaw - dz0 * this.sinYaw;
         float rz0 = dx0 * this.sinYaw + dz0 * this.cosYaw;

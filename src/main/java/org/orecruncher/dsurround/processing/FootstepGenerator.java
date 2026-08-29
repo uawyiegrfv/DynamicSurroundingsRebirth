@@ -48,9 +48,23 @@ public class FootstepGenerator extends AbstractClientHandler {
     // place falls ~1.25 blocks; jumping up one block lands on a higher platform and falls
     // only ~0.25, which should be a normal step.
     private static final float JUMP_LAND_DISTANCE_MIN = 0.9F;
-    // Landing echo: delay in ticks (2 = ~100ms) and volume of the second "thud".
-    private static final int LAND_ECHO_DELAY_TICKS = 2;
+    // Landing echo: delay in ticks (1 = ~50ms, the 1.12.2 land compositions' delay -
+    // at 50ms the echo fuses with the primary thud into ONE heavier hit; at 100ms it
+    // separated into a second equal-volume hit, killing the landing/step hierarchy)
+    // and the echo volume relative to the primary.
+    // Landing echo delay. The 1.12.2 data is a fixed 50ms (mcp.json "delay": 50 ->
+    // delayMin = delayMax), but its SoundPlayer queues the echo with a millisecond due
+    // time and only checks the queue once per tick (SoundPlayer.think), so the real
+    // playback delay is 50-100ms depending on where the due time falls in the tick, and
+    // the echo is dropped entirely when the client hitches. Sampling 1-2 ticks per
+    // landing reproduces that interval variation (one sample per landing - both feet
+    // and the armor echo share it, like sounds due in the same tick window).
+    private static final int LAND_ECHO_DELAY_MIN_TICKS = 1;
+    private static final int LAND_ECHO_DELAY_MAX_TICKS = 2;
     private static final float LAND_ECHO_VOLUME = 1.0F;
+    // Lateral offset of each foot from the block centre when a landing plays, ported
+    // from the 1.12.2 findAssociation DISTANCE_TO_CENTER.
+    private static final double FOOT_LATERAL_OFFSET = 0.2D;
     // Climbing steps play the vanilla surface step sound; the boost was left at 1.0
     // (no amplification) after user feedback that louder values were too strong.
     private static final float CLIMB_VOLUME_BOOST = 1.0F;
@@ -76,7 +90,10 @@ public class FootstepGenerator extends AbstractClientHandler {
     // Shared compositions reused by multiple materials (identical land behaviour).
     private static final LandComposition WOOD_LAND = new LandComposition(fs("footsteps.wood"), null, fs("footsteps.wood"));
     private static final LandComposition STONE_LAND = new LandComposition(fs("footsteps.concrete_run"), fs("footsteps.stone"), fs("footsteps.stone_run"));
-    private static final LandComposition GRASS_LAND = new LandComposition(fs("footsteps.grass_run"), fs("footsteps.grass"), fs("footsteps.grass_run"));
+    // 1.12.2 grass land = [grass_run, delayed(50ms) grass_run] - NO walk layer: the
+    // walk recording is literally a footstep, and embedding it in the landing made
+    // the landing read as "another footstep" (the grass step/land similarity).
+    private static final LandComposition GRASS_LAND = new LandComposition(fs("footsteps.grass_run"), null, fs("footsteps.grass_run"));
     private static final LandComposition BLUNTWOOD_LAND = new LandComposition(fs("footsteps.bluntwood"), null, fs("footsteps.bluntwood"));
 
     private static final Map<String, LandComposition> LAND_COMPOSITIONS = Map.ofEntries(
@@ -133,11 +150,12 @@ public class FootstepGenerator extends AbstractClientHandler {
     // cell and re-entering (the position changes).
     private BlockPos lastLeafLitterPos;
 
-    // Delayed landing echo: the landing sound plays again ~1 tick (50ms) later at lower
-    // volume, matching the original 1.12.2 delayed land composition.
+    // Delayed landing echo: the land layers play again ~1-2 ticks (50-100ms) later,
+    // matching the real playback distribution of the 1.12.2 delayed land composition
+    // (see LAND_ECHO_DELAY_*_TICKS above).
     private record PendingEcho(net.minecraft.client.resources.sounds.SoundInstance sound, long playTick) {}
 
-    private final ArrayDeque<PendingEcho> pendingEchoes = new ArrayDeque<>(4);
+    private final ArrayDeque<PendingEcho> pendingEchoes = new ArrayDeque<>(8);
     private long tickCount = 0;
 
     public FootstepGenerator(Configuration config, IAudioPlayer audioPlayer, IModLog logger) {
@@ -331,28 +349,48 @@ public class FootstepGenerator extends AbstractClientHandler {
     }
 
     private void playLand(final Player player) {
-        // Play the material-specific landing composition (primary + walk layer + delayed
-        // echo) plus the armor clank, matching the original 1.12.2 land entries. All
-        // layers resolve through the JSON factory registry so per-factory volume/pitch
-        // configuration in sound_factories.json applies (a bare SoundFactoryBuilder
-        // bypassed it, which is why tuning land volume in the JSON never had an effect).
+        // 1.12.2 hard landings go through playMultifoot(): the land composition is
+        // evaluated once per foot, so TWO independent voices play simultaneously (plus
+        // two more when the delayed layer fires) and SUM in the mixer. That channel
+        // summation is the only way a landing can read heavier than a footstep: the
+        // engine clamps a single voice's gain at 1.0, so any volume multiplier above
+        // 1.0 - in JSON or in code - is a silent no-op. This is why every previous
+        // attempt to "raise the landing volume" had no effect.
         final float scale = dsFootstepVolume();
+        final int echoDelay = LAND_ECHO_DELAY_MIN_TICKS
+                + java.util.concurrent.ThreadLocalRandom.current().nextInt(LAND_ECHO_DELAY_MAX_TICKS - LAND_ECHO_DELAY_MIN_TICKS + 1);
         var feetPos = player.blockPosition();
         var material = resolveMaterial(player);
 
+        // Left/right foot positions: the block centre offset 0.2 blocks laterally off
+        // the facing direction (1.12.2 findAssociation semantics).
+        var feetCenter = Vec3.atCenterOf(feetPos);
+        double yawRad = Math.toRadians(player.getYRot());
+        double rightX = -Math.cos(yawRad);
+        double rightZ = -Math.sin(yawRad);
+        var leftFoot = feetCenter.add(-rightX * FOOT_LATERAL_OFFSET, 0, -rightZ * FOOT_LATERAL_OFFSET);
+        var rightFoot = feetCenter.add(rightX * FOOT_LATERAL_OFFSET, 0, rightZ * FOOT_LATERAL_OFFSET);
+
         var comp = material.flatMap(m -> Optional.ofNullable(LAND_COMPOSITIONS.get(m.getPath()))).orElse(null);
         if (comp != null) {
-            // Original per-material composition: primary "thud" + walk@50 layer + delayed echo.
-            this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary()).createAtLocation(feetPos, scale));
+            // Per-foot playback of the material composition: primary thud x2 + walk@50
+            // layer x2 + delayed echo x2, exactly like playMultifoot + the 1.12.2 land
+            // entries in mcp.json.
+            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary());
+            this.audioPlayer.play(primary.createAtLocation(leftFoot, scale));
+            this.audioPlayer.play(primary.createAtLocation(rightFoot, scale));
             if (comp.secondary() != null) {
-                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(comp.secondary()).createAtLocation(feetPos, 0.5F * scale));
+                var secondary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.secondary());
+                this.audioPlayer.play(secondary.createAtLocation(leftFoot, 0.5F * scale));
+                this.audioPlayer.play(secondary.createAtLocation(rightFoot, 0.5F * scale));
             }
             if (comp.echo() != null) {
                 var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.echo());
-                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(feetPos, LAND_ECHO_VOLUME * scale), this.tickCount + LAND_ECHO_DELAY_TICKS));
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(leftFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(rightFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
             }
         } else {
-            // Fallback: material's own land/run + walk@50 + echo.
+            // Fallback: material's own land/run + walk@50 + echo, also per foot.
             var landLoc = resolveLandSound(player);
             var baseLoc = landLoc;
             if (landLoc.getPath().endsWith("_land")) {
@@ -361,11 +399,15 @@ public class FootstepGenerator extends AbstractClientHandler {
                 baseLoc = Identifier.fromNamespaceAndPath(landLoc.getNamespace(), landLoc.getPath().substring(0, landLoc.getPath().length() - 4));
             }
             var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(landLoc);
-            this.audioPlayer.play(primary.createAtLocation(feetPos, scale));
+            this.audioPlayer.play(primary.createAtLocation(leftFoot, scale));
+            this.audioPlayer.play(primary.createAtLocation(rightFoot, scale));
             if (!baseLoc.equals(landLoc)) {
-                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(baseLoc).createAtLocation(feetPos, 0.5F * scale));
+                var base = SOUND_LIBRARY.getSoundFactoryOrDefault(baseLoc);
+                this.audioPlayer.play(base.createAtLocation(leftFoot, 0.5F * scale));
+                this.audioPlayer.play(base.createAtLocation(rightFoot, 0.5F * scale));
             }
-            this.pendingEchoes.add(new PendingEcho(primary.createAtLocation(feetPos, LAND_ECHO_VOLUME * scale), this.tickCount + LAND_ECHO_DELAY_TICKS));
+            this.pendingEchoes.add(new PendingEcho(primary.createAtLocation(leftFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
+            this.pendingEchoes.add(new PendingEcho(primary.createAtLocation(rightFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
         }
 
         // Armor clank on landing - play the effective armor's walk accent now and a delayed
@@ -379,7 +421,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         ITEM_LIBRARY.getEquipableStepAccentSound(armor)
                 .ifPresent(f -> this.audioPlayer.play(f.createAtLocation(feetPos, dsFootstepVolume())));
         ITEM_LIBRARY.getEquipableStepAccentSoundRun(armor)
-                .ifPresent(f -> this.pendingEchoes.add(new PendingEcho(f.createAtLocation(feetPos, LAND_ECHO_VOLUME * dsFootstepVolume()), this.tickCount + LAND_ECHO_DELAY_TICKS)));
+                .ifPresent(f -> this.pendingEchoes.add(new PendingEcho(f.createAtLocation(feetPos, LAND_ECHO_VOLUME * dsFootstepVolume()), this.tickCount + echoDelay)));
     }
 
     /**

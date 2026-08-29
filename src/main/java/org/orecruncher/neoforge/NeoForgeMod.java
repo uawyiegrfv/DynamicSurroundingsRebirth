@@ -58,7 +58,10 @@ public final class NeoForgeMod {
         var critWordHandler = ContainerManager.resolve(org.orecruncher.dsurround.processing.CritWordHandler.class);
         event.registerBelowAll(Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/critwords"), critWordHandler::renderGui);
 
-        // Desert yellow dust haze overlay (A17).
+        // Desert sandstorm / nether dust yellow veil tint. registerBelowAll puts it at
+        // the start of the render order (drawn first, underneath every HUD element,
+        // including the Xaero minimap) - NeoForge 26.1 layer ordering is natural:
+        // registerAboveAll renders LAST, i.e. on top of everything.
         var weatherStormHandler = ContainerManager.resolve(org.orecruncher.dsurround.processing.WeatherStormHandler.class);
         event.registerBelowAll(Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/weatherstorm"), weatherStormHandler::renderGui);
 

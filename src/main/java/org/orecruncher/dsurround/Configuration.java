@@ -437,6 +437,10 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable the nether dust rain effect")
         public boolean enableNetherDust = true;
+
+        @Property
+        @Comment("Enable/disable the biome fog color tint (biomes.json fogColor - desert haze, swamp fog, etc.)")
+        public boolean enableBiomeFogColor = true;
     }
 
     public static class FogOptions {

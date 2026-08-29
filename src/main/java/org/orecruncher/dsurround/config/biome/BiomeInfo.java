@@ -55,7 +55,10 @@ public final class BiomeInfo implements Comparable<BiomeInfo>, IBiomeSoundProvid
     private AcousticEntryCollection additionalSounds = new AcousticEntryCollection();
     private AcousticEntryCollection musicSounds = new AcousticEntryCollection();
     private Collection<String> comments = new ObjectArray<>();
+    private static final TextColor DEFAULT_DUST_COLOR = TextColor.fromRgb(0xD8B266);
     private TextColor fogColor;
+    // Tint applied to sandstorm/dust particles for this biome (1.12.2 BiomeInfo.dustColor).
+    private TextColor dustColor = DEFAULT_DUST_COLOR;
     private FogDensity fogDensity;
     private Script additionalSoundChance = DEFAULT_SOUND_CHANCE;
     private Script moodSoundChance = DEFAULT_SOUND_CHANCE;
@@ -122,6 +125,14 @@ public final class BiomeInfo implements Comparable<BiomeInfo>, IBiomeSoundProvid
 
     void setFogColor(final TextColor color) {
         this.fogColor = color;
+    }
+
+    public TextColor getDustColor() {
+        return this.dustColor;
+    }
+
+    void setDustColor(final TextColor color) {
+        this.dustColor = color;
     }
 
     public FogDensity getFogDensity() {
@@ -204,6 +215,7 @@ public final class BiomeInfo implements Comparable<BiomeInfo>, IBiomeSoundProvid
 
         entry.comment().ifPresent(this::addComment);
         entry.fogColor().ifPresent(this::setFogColor);
+        entry.dustColor().ifPresent(this::setDustColor);
         entry.fogDensity().ifPresent(this::setFogDensity);
         entry.additionalSoundChance().ifPresent(this::setAdditionalSoundChance);
         entry.moodSoundChance().ifPresent(this::setMoodSoundChance);

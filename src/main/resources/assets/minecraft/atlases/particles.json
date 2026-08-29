@@ -14,6 +14,46 @@
       "type": "minecraft:single",
       "resource": "dsurround:particles/footprint",
       "sprite": "dsurround:particle/footprint"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "dsurround:environment/dust_calm",
+      "sprite": "dsurround:environment/dust_calm"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "dsurround:environment/dust_gentle",
+      "sprite": "dsurround:environment/dust_gentle"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "dsurround:environment/dust_light",
+      "sprite": "dsurround:environment/dust_light"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "dsurround:environment/dust_moderate",
+      "sprite": "dsurround:environment/dust_moderate"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "dsurround:environment/dust_heavy",
+      "sprite": "dsurround:environment/dust_heavy"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "dsurround:environment/dust_strong",
+      "sprite": "dsurround:environment/dust_strong"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "dsurround:environment/dust_intense",
+      "sprite": "dsurround:environment/dust_intense"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "dsurround:environment/dust_torrential",
+      "sprite": "dsurround:environment/dust_torrential"
     }
   ]
 }

@@ -223,6 +223,8 @@
   "dsurround.config.tooltip.range": "范围: %1$s 至 %2$s",
   "dsurround.config.tooltip.worldRestartRequired": "需要重新启动世界",
   "dsurround.config.weatherOptions": "天气风暴选项",
+  "dsurround.config.weatherOptions.enableBiomeFogColor": "群系雾色滤镜",
+  "dsurround.config.weatherOptions.enableBiomeFogColor.tooltip": "启用/禁用 生物群系雾色色调（biomes.json 的 fogColor - 沙漠黄霾、沼泽绿雾等）",
   "dsurround.config.weatherOptions.enableDesertSandstorm": "沙漠沙尘暴",
   "dsurround.config.weatherOptions.enableDesertSandstorm.tooltip": "启用/禁用 沙漠沙尘暴尘土效果和黄色屏幕色调",
   "dsurround.config.weatherOptions.enableNetherDust": "下界尘雨",

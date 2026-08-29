@@ -102,9 +102,6 @@ public final class DSurround {
         // Crit words (comic damage/heal power words) project 3D world positions to the screen.
         event.registerBelowAll("dsurround_crit_words", (gui, graphics, partialTick, screenWidth, screenHeight) ->
                 org.orecruncher.dsurround.lib.di.ContainerManager.resolve(org.orecruncher.dsurround.processing.CritWordHandler.class).renderGui(graphics, partialTick));
-        // Desert sandstorm / nether dust yellow haze tint.
-        event.registerBelowAll("dsurround_weather_storm", (gui, graphics, partialTick, screenWidth, screenHeight) ->
-                org.orecruncher.dsurround.lib.di.ContainerManager.resolve(org.orecruncher.dsurround.processing.WeatherStormHandler.class).renderGui(graphics, partialTick));
     }
 
     private Screen createConfigScreen(Screen parent) {

@@ -255,7 +255,8 @@
     "biomeSelector": "biome.getRainfall() < 0.1 && (DESERT || (WASTELAND && !(COLD || SNOWY || SWAMP)))",
     "_comment": "Dust for desert like biomes",
     "fogColor": "#FFEA97",
-    "fogDensity": "medium"
+    "fogDensity": "medium",
+    "dustColor": "#D8B266"
   },
   {
     "biomeSelector": "!(UNDERGROUND || OCEAN || RIVER || NETHER || THE_END || MUSHROOM) && !(SNOWY || SWAMP || JUNGLE || BEACH || WASTELAND || WET)",
@@ -424,7 +425,8 @@
   {
     "biomeSelector": "BADLANDS",
     "_comment": "Badlands dust color specific override",
-    "fogColor": "#D77D2F"
+    "fogColor": "#D77D2F",
+    "dustColor": "#D77D2F"
   },
   {
     "biomeSelector": "@underground",

@@ -8,8 +8,10 @@ import org.orecruncher.dsurround.lib.random.IRandomizer;
 import org.orecruncher.dsurround.lib.random.Randomizer;
 
 /**
- * A17: Dust/sand storm particle. Blows with a wind drift (strong for the desert sandstorm,
- * gentle for the nether dust rain), falls with gravity, fades out.
+ * A17: Ambient dust particle for the sandstorm/nether dust rain. Blows with a wind
+ * drift (strong for the desert sandstorm, gentle for the nether dust rain), falls
+ * with gravity, fades out. The rain-scale dust effect is rendered by
+ * WeatherStormHandler's world-space veil; these particles are the light ambience.
  */
 public class StormDustParticle extends TextureSheetParticle {
     private static final IRandomizer RANDOM = Randomizer.current();

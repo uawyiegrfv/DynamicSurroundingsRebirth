@@ -1,44 +1,104 @@
 package org.orecruncher.dsurround.processing;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.ParticleStatus;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.ParticleStatus;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.common.MinecraftForge;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.effects.particles.StormDustParticle;
 import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.config.libraries.ITagLibrary;
+import org.orecruncher.dsurround.mixinutils.IBiomeExtended;
 import org.orecruncher.dsurround.tags.BiomeTags;
 
 /**
- * A17 (particle version): drives the desert sandstorm and nether dust rain.
- * Spawns drifting dust particles around the player and exposes a dust intensity
- * value that a GUI layer turns into the desert yellow screen tint.
+ * A17: drives the desert sandstorm and nether dust rain.
+ *
+ * <p>Visual layering follows the user-approved split: while a desert is clear the
+ * only effect is the distant-horizon yellow tint provided by the biome fog color
+ * (MixinBiome getFogColor injection - covers no GUI); when it rains, the 1.12.2
+ * StormRenderer dust rain fades in - per-column vertical quads over every desert
+ * column in a ±10 block grid (fancy graphics; ±5 on fast), textured with the
+ * intensity-graded 64x256 dust strips with scrolling UVs, tinted by the biome
+ * dustColor - on top of a light ambient dust particle drift. The nether keeps its
+ * dark dust rain with a very faint veil.
+ *
+ * <p>Both tints fade asymmetrically: rain-driven states appear over ~0.5s and
+ * retreat over ~1.2s so the screen never pops when a storm starts or stops, and
+ * cave suppression rides the same smoothing.
  */
 public class WeatherStormHandler extends AbstractClientHandler {
 
     private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);
 
+    private static final String MOD_ID = "dsurround";
+
+    // Intensity-graded dust strips (1.12.2 Weather.Properties). World-space veil
+    // textures - a 64x256 tiling sheet of dust specks (vanilla rain.png layout).
+    private static final ResourceLocation DUST_CALM = new ResourceLocation(MOD_ID, "textures/environment/dust_calm.png");
+    private static final ResourceLocation DUST_LIGHT = new ResourceLocation(MOD_ID, "textures/environment/dust_light.png");
+    private static final ResourceLocation DUST_GENTLE = new ResourceLocation(MOD_ID, "textures/environment/dust_gentle.png");
+    private static final ResourceLocation DUST_MODERATE = new ResourceLocation(MOD_ID, "textures/environment/dust_moderate.png");
+    private static final ResourceLocation DUST_HEAVY = new ResourceLocation(MOD_ID, "textures/environment/dust_heavy.png");
+    private static final ResourceLocation DUST_STRONG = new ResourceLocation(MOD_ID, "textures/environment/dust_strong.png");
+    private static final ResourceLocation DUST_INTENSE = new ResourceLocation(MOD_ID, "textures/environment/dust_intense.png");
+    private static final ResourceLocation DUST_TORRENTIAL = new ResourceLocation(MOD_ID, "textures/environment/dust_torrential.png");
+
+    // Fade rates per tick: 0.1 -> ~0.5s fade-in, 0.04 -> ~1.2s fade-out (retreat is
+    // deliberately slower so a stopping storm does not pop).
+    private static final float TINT_FADE_IN = 0.10F;
+    private static final float TINT_FADE_OUT = 0.04F;
+
     private final Scanners scanners;
-    private float dustIntensity = 0F;
+    private float netherTint = 0F;
+    private float fullscreenTint = 0F;
+    // Rain veil state, updated per tick and consumed by the world renderer.
+    private ResourceLocation veilTexture = DUST_CALM;
+    private float veilR = 0.85F;
+    private float veilG = 0.7F;
+    private float veilB = 0.4F;
+
+    private final java.util.Random columnRandom = new java.util.Random();
+    private final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
 
     public WeatherStormHandler(Configuration config, IModLog logger, Scanners scanners) {
         super("Weather Storm", config, logger);
         this.scanners = scanners;
+
+        MinecraftForge.EVENT_BUS.addListener(this::onRenderLevelStage);
+        MinecraftForge.EVENT_BUS.addListener(this::onRenderGuiPre);
     }
 
     @Override
     public void onConnect() {
-        this.dustIntensity = 0F;
+        this.netherTint = 0F;
+        this.fullscreenTint = 0F;
     }
 
     @Override
     public void onDisconnect() {
         // Reset so the yellow haze does not linger into the next world/session.
-        this.dustIntensity = 0F;
+        this.netherTint = 0F;
+        this.fullscreenTint = 0F;
     }
 
     @Override
@@ -52,45 +112,205 @@ public class WeatherStormHandler extends AbstractClientHandler {
         boolean desert = TAG_LIBRARY.is(BiomeTags.IS_DESERT, biome) || TAG_LIBRARY.is(BiomeTags.IS_BADLANDS, biome);
         boolean raining = level.isRaining();
 
-        float target = 0F;
+        float netherTarget = 0F;
+        float fullscreenTarget = 0F;
         if (nether && this.config.weatherOptions.enableNetherDust) {
-            // Constant dark dust drifting in the nether.
-            target = 0.10F;
-            spawnStorm(clientLevel, player, 0.35F, 0.3F, 0.3F, false, 2);
+            // Constant dark dust drifting in the nether with its very faint veil.
+            netherTarget = 0.10F;
+            if (!this.scanners.isInside())
+                spawnStorm(clientLevel, player, 0.35F, 0.3F, 0.3F, false, 2);
         } else if (desert && this.config.weatherOptions.enableDesertSandstorm) {
-            // Desert yellow haze, stronger while it rains (a sandstorm). The original's
-            // storm rendered a dense dust screen, so the rainy state gets a heavy tint
-            // and a thick stream of particles. Underground there is no airborne dust:
-            // the ceiling scanner suppresses both the tint and the particles so a cave
-            // under a desert does not fill with sand.
             if (!this.scanners.isInside()) {
-                target = raining ? 0.7F : 0.12F;
-                spawnStorm(clientLevel, player, 0.85F, 0.7F, 0.4F, true, raining ? 12 : 1);
+                float r = 0.85F, g = 0.7F, b = 0.4F;
+                var info = ((IBiomeExtended) (Object) biome).dsurround_getInfo();
+                if (info != null) {
+                    var dust = info.getDustColor();
+                    if (dust != null) {
+                        r = ((dust.getValue() >> 16) & 0xFF) / 255F;
+                        g = ((dust.getValue() >> 8) & 0xFF) / 255F;
+                        b = (dust.getValue() & 0xFF) / 255F;
+                    }
+                }
+
+                if (raining) {
+                    // Sandstorm: the dust veil fades in and a stream of ambient dust
+                    // particles blows with the wind. The horizon tint (fog color) stays.
+                    fullscreenTarget = 0.7F;
+                    this.veilTexture = dustTexture(clientLevel);
+                    this.veilR = r;
+                    this.veilG = g;
+                    this.veilB = b;
+                    spawnStorm(clientLevel, player, r, g, b, true, 6);
+                } else {
+                    // Clear desert: no fullscreen tint (the horizon fog color is the
+                    // effect); a light drift of calm dust for ambience.
+                    this.veilTexture = DUST_CALM;
+                    this.veilR = r;
+                    this.veilG = g;
+                    this.veilB = b;
+                    spawnStorm(clientLevel, player, r, g, b, false, 1);
+                }
             }
         }
 
-        // Smoothly transition the overlay intensity.
-        this.dustIntensity += (target - this.dustIntensity) * 0.1F;
+        this.netherTint = fade(this.netherTint, netherTarget);
+        this.fullscreenTint = fade(this.fullscreenTint, fullscreenTarget);
     }
 
     /**
-     * GUI layer callback: draws a subtle yellow-brown haze over the screen while in a
-     * desert (stronger during a sandstorm) or the nether, like the original's dust tint.
+     * Smoothly approaches the target, snapping when close. Fades in faster than they
+     * retreat so storms build with the rain and linger briefly after it stops.
      */
-    public void renderGui(GuiGraphics graphics, float partialTick) {
-        final float intensity = this.dustIntensity;
+    private static float fade(float current, float target) {
+        if (current == target)
+            return target;
+        if (Math.abs(target - current) < 0.005F)
+            return target;
+        float rate = target > current ? TINT_FADE_IN : TINT_FADE_OUT;
+        return current + (target - current) * rate;
+    }
+
+    /**
+     * Picks the dust strip for the current weather intensity. Thresholds match the
+     * 1.12.2 Weather.Properties levels; thunderstorms push the intensity up a tier.
+     */
+    private static ResourceLocation dustTexture(ClientLevel level) {
+        float intensity = level.getRainLevel(1F) + (level.isThundering() ? 0.25F : 0F);
+        if (intensity >= 1F) return DUST_TORRENTIAL;
+        if (intensity >= 0.875F) return DUST_INTENSE;
+        if (intensity >= 0.75F) return DUST_STRONG;
+        if (intensity >= 0.625F) return DUST_HEAVY;
+        if (intensity >= 0.5F) return DUST_MODERATE;
+        if (intensity >= 0.365F) return DUST_GENTLE;
+        if (intensity >= 0.25F) return DUST_LIGHT;
+        return DUST_CALM;
+    }
+
+    /**
+     * GUI layer callback: draws the fullscreen dust veil while a sandstorm is active
+     * (or in the nether). RenderGuiEvent.Pre fires at the very top of ForgeGui.render,
+     * before any HUD overlay is drawn, so the veil sits underneath the minimap, chat
+     * and every other HUD element. The desert-clear state draws nothing here - its
+     * horizon tint comes from the biome fog color.
+     */
+    public void onRenderGuiPre(net.minecraftforge.client.event.RenderGuiEvent.Pre event) {
+        final float intensity = Math.max(this.netherTint, this.fullscreenTint);
         if (intensity <= 0.005F)
             return;
 
-        var mc = net.minecraft.client.Minecraft.getInstance();
+        var graphics = event.getGuiGraphics();
+        var mc = Minecraft.getInstance();
         final int width = mc.getWindow().getGuiScaledWidth();
         final int height = mc.getWindow().getGuiScaledHeight();
-        final int alpha = (int) (intensity * 255F * 0.25F);
+        final int alpha = (int) (intensity * 255F * 0.7F);
         if (alpha <= 0)
             return;
-        // Yellow-brown dust haze, 0xD8B266.
+        // Yellow-brown dust haze, 0xD8B266. Depth test off: the fill is pure color
+        // over the world frame; with the depth test on it also WRITES depth, and every
+        // flat HUD element drawn after it at the same z then fails the depth test and
+        // vanishes (the minimap/chat/coords "covered" artifact - only z-offset items
+        // like the hotbar stacks survived).
+        RenderSystem.disableDepthTest();
         final int color = (alpha << 24) | 0x00D8B266;
         graphics.fill(0, 0, width, height, color);
+        RenderSystem.enableDepthTest();
+    }
+
+    /**
+     * The sandstorm dust rain, ported from the 1.12.2 StormRenderer: per-column thin
+     * vertical quads over every desert column in a ±range grid (fancy 10 / fast 5),
+     * heightmap-clipped to a band around the player, textured with the intensity
+     * strip (full-width U, quarter-height V scrolling downward per column), tinted
+     * by the biome dustColor, alpha fading with distance. Rendered right after the
+     * vanilla weather pass so terrain occlusion behaves like rain.
+     */
+    private void onRenderLevelStage(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_WEATHER)
+            return;
+        if (this.fullscreenTint < 0.02F)
+            return;
+
+        var mc = Minecraft.getInstance();
+        var level = mc.level;
+        var player = mc.player;
+        if (level == null || player == null)
+            return;
+
+        Camera camera = event.getCamera();
+        Vec3 cam = camera.getPosition();
+        float partialTick = event.getPartialTick();
+        int ticks = (int) level.getGameTime();
+        int range = Minecraft.useFancyGraphics() ? 10 : 5;
+        int playerX = Mth.floor(player.getX());
+        int playerY = Mth.floor(player.getY());
+        int playerZ = Mth.floor(player.getZ());
+        float veilAlpha = this.fullscreenTint * 0.7F;
+
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.enableDepthTest();
+        RenderSystem.depthMask(Minecraft.useShaderTransparency());
+        RenderSystem.disableCull();
+        RenderSystem.setShader(GameRenderer::getParticleShader);
+        RenderSystem.setShaderTexture(0, this.veilTexture);
+        mc.gameRenderer.lightTexture().turnOnLightLayer();
+
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder buffer = tesselator.getBuilder();
+        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
+
+        for (int gridZ = playerZ - range; gridZ <= playerZ + range; gridZ++) {
+            for (int gridX = playerX - range; gridX <= playerX + range; gridX++) {
+                this.cursor.set(gridX, 0, gridZ);
+                var columnBiome = level.getBiome(this.cursor).value();
+                if (!TAG_LIBRARY.is(BiomeTags.IS_DESERT, columnBiome) && !TAG_LIBRARY.is(BiomeTags.IS_BADLANDS, columnBiome))
+                    continue;
+
+                int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, gridX, gridZ);
+                int k2 = Math.max(playerY - range, surface);
+                int l2 = Math.max(playerY + range, surface);
+                if (k2 >= l2)
+                    continue;
+
+                int seed = (gridZ << 16) ^ gridX;
+                this.columnRandom.setSeed(seed);
+                float rainX = this.columnRandom.nextFloat();
+                float rainY = this.columnRandom.nextFloat();
+                double d5 = (((ticks + seed) & 31) + partialTick) / 32.0 * (0.75 + this.columnRandom.nextDouble() * 0.25);
+
+                double d6 = gridX + 0.5 - player.getX();
+                double d7 = gridZ + 0.5 - player.getZ();
+                float f3 = Mth.sqrt((float) (d6 * d6 + d7 * d7)) / range;
+                float alpha = ((1.0F - f3 * f3) * 0.5F + 0.5F) * veilAlpha;
+                int light = (LevelRenderer.getLightColor(level, this.cursor.set(gridX, k2, gridZ)) * 3 + 15728880) / 4;
+                int slX16 = light >> 16 & 0xFFFF;
+                int blX16 = light & 0xFFFF;
+
+                float x0 = gridX - rainX + 0.5F - (float) cam.x;
+                float z0 = gridZ - rainY + 0.5F - (float) cam.z;
+                float x1 = gridX + rainX + 0.5F - (float) cam.x;
+                float z1 = gridZ + rainY + 0.5F - (float) cam.z;
+                float y0 = k2 - (float) cam.y;
+                float y1 = l2 - (float) cam.y;
+                float v0 = k2 * 0.25F + (float) d5;
+                float v1 = l2 * 0.25F + (float) d5;
+                int cr = (int) (this.veilR * 255F);
+                int cg = (int) (this.veilG * 255F);
+                int cb = (int) (this.veilB * 255F);
+
+                buffer.vertex(x0, y0, z0).uv(0F, v0).color(cr, cg, cb, alpha).uv2(slX16, blX16).endVertex();
+                buffer.vertex(x1, y0, z1).uv(1F, v0).color(cr, cg, cb, alpha).uv2(slX16, blX16).endVertex();
+                buffer.vertex(x1, y1, z1).uv(1F, v1).color(cr, cg, cb, alpha).uv2(slX16, blX16).endVertex();
+                buffer.vertex(x0, y1, z0).uv(0F, v1).color(cr, cg, cb, alpha).uv2(slX16, blX16).endVertex();
+            }
+        }
+
+        tesselator.end();
+
+        mc.gameRenderer.lightTexture().turnOffLightLayer();
+        RenderSystem.enableCull();
+        RenderSystem.depthMask(true);
+        RenderSystem.disableBlend();
     }
 
     private static void spawnStorm(ClientLevel level, Player player, float r, float g, float b, boolean windy, int count) {

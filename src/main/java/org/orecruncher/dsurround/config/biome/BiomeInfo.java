@@ -41,6 +41,9 @@ public final class BiomeInfo implements Comparable<BiomeInfo>, IBiomeSoundProvid
     private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);
     private static final IConditionEvaluator CONDITION_EVALUATOR = ContainerManager.resolve(IConditionEvaluator.class);
 
+    // Default particle tint for dust storms (1.12.2 DEFAULT_DUST_COLOR).
+    private static final TextColor DEFAULT_DUST_COLOR = TextColor.fromRgb(0xD8B266);
+
     private final int version;
     private final ResourceLocation biomeId;
     private final String biomeName;
@@ -56,6 +59,8 @@ public final class BiomeInfo implements Comparable<BiomeInfo>, IBiomeSoundProvid
     private AcousticEntryCollection musicSounds = new AcousticEntryCollection();
     private Collection<String> comments = new ObjectArray<>();
     private TextColor fogColor;
+    // Tint applied to sandstorm/dust particles for this biome (1.12.2 BiomeInfo.dustColor).
+    private TextColor dustColor = DEFAULT_DUST_COLOR;
     private FogDensity fogDensity;
     private Script additionalSoundChance = DEFAULT_SOUND_CHANCE;
     private Script moodSoundChance = DEFAULT_SOUND_CHANCE;
@@ -118,6 +123,14 @@ public final class BiomeInfo implements Comparable<BiomeInfo>, IBiomeSoundProvid
 
     public TextColor getFogColor() {
         return this.fogColor;
+    }
+
+    public TextColor getDustColor() {
+        return this.dustColor;
+    }
+
+    public void setDustColor(TextColor color) {
+        this.dustColor = color;
     }
 
     void setFogColor(final TextColor color) {
@@ -204,6 +217,7 @@ public final class BiomeInfo implements Comparable<BiomeInfo>, IBiomeSoundProvid
 
         entry.comment().ifPresent(this::addComment);
         entry.fogColor().ifPresent(this::setFogColor);
+        entry.dustColor().ifPresent(this::setDustColor);
         entry.fogDensity().ifPresent(this::setFogDensity);
         entry.additionalSoundChance().ifPresent(this::setAdditionalSoundChance);
         entry.moodSoundChance().ifPresent(this::setMoodSoundChance);

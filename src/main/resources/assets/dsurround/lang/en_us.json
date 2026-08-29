@@ -229,6 +229,8 @@
   "dsurround.config.tooltip.range": "Range: %1$s to %2$s",
   "dsurround.config.tooltip.worldRestartRequired": "WORLD restart required",
   "dsurround.config.weatherOptions": "Weather Storm Options",
+  "dsurround.config.weatherOptions.enableBiomeFogColor": "Biome Fog Color Tint",
+  "dsurround.config.weatherOptions.enableBiomeFogColor.tooltip": "Enable/disable the biome fog color tint (biomes.json fogColor - desert haze, swamp fog, etc.)",
   "dsurround.config.weatherOptions.enableDesertSandstorm": "Desert Sandstorm",
   "dsurround.config.weatherOptions.enableDesertSandstorm.tooltip": "Enable/disable the desert sandstorm dust effect and yellow screen tint",
   "dsurround.config.weatherOptions.enableNetherDust": "Nether Dust Rain",

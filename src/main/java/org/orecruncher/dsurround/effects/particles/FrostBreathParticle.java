@@ -47,7 +47,9 @@ public class FrostBreathParticle extends TextureSheetParticle {
         this.setAlpha(0.2F);
         float f1 = 1.0F - (float) (rand.nextDouble() * (double) 0.3F);
         this.setColor(f1, f1, f1);
-        this.quadSize *= 3.375F * (entity.isBaby() ? 0.125F : 0.25F);
+        // 26.1 parity (1.875F): the 1.8x global 1.20.1 particle compensation made
+        // the breath puffs look oversized - user verified the 26.1 size is correct.
+        this.quadSize *= 1.875F * (entity.isBaby() ? 0.125F : 0.25F);
         int i = (int) (8.0D / (rand.nextDouble() * 0.8D + 0.3D));
         this.lifetime = (int) Math.max((float) i * 2.5F, 1.0F);
         this.hasPhysics = false;

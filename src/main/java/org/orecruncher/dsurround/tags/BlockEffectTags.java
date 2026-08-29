@@ -13,6 +13,10 @@ public class BlockEffectTags {
 
     static final Collection<TagKey<Block>> TAGS = new HashSet<>();
 
+    // 1.20.1 has this constant (added in PORTING-DEBT §14.5); 26.1 was missing it,
+    // which silently disabled firefly spawning near flowers at night: the tag key
+    // never entered ModTags, so TagLibrary.isInCache always returned false.
+    public static final TagKey<Block> FIREFLIES = of("fireflies");
     public static final TagKey<Block> FLOOR_SQUEAKS = of("floor_squeaks");
     public static final TagKey<Block> BRUSH_STEP = of("brush_step");
     public static final TagKey<Block> LEAVES_STEP = of("leaves_step");

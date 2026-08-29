@@ -2,7 +2,11 @@ package org.orecruncher.dsurround.effects.entity;
 
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
 import org.orecruncher.dsurround.effects.particles.BreathBubbleParticle;
 import org.orecruncher.dsurround.effects.particles.FrostBreathParticle;
@@ -15,6 +19,14 @@ import org.orecruncher.dsurround.lib.random.MurmurHash3;
 public class BreathEffect extends EntityEffectBase {
 
     private static final ISeasonalInformation SEASONAL_INFORMATION = ContainerManager.resolve(ISeasonalInformation.class);
+
+    // Vanilla tag covering the high mountain biomes (meadow, grove, snowy slopes,
+    // jagged/frozen/stony peaks).  Frost breath also shows in these biomes at
+    // altitude even when the biome temperature is not below the cold threshold.
+    private static final TagKey<Biome> IS_MOUNTAIN = TagKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath("minecraft", "is_mountain"));
+
+    // Minimum altitude at which the mountain breath mist can appear.
+    private static final int MOUNTAIN_BREATH_MIN_Y = 100;
 
     private final ITickCount tickCount;
     private int seed;
@@ -83,7 +95,14 @@ public class BreathEffect extends EntityEffectBase {
 
     protected boolean showFrostBreath(final LivingEntity entity, final BlockState headBlock, final BlockPos pos) {
         if (headBlock.isAir()) {
-            return SEASONAL_INFORMATION.isColdTemperature(pos);
+            if (SEASONAL_INFORMATION.isColdTemperature(pos))
+                return true;
+            // High mountain biomes also produce breath mist (user request): above the
+            // altitude threshold the mountain air is treated as cold.
+            if (pos.getY() >= MOUNTAIN_BREATH_MIN_Y) {
+                var biome = entity.level().getBiome(pos).value();
+                return TAG_LIBRARY.is(IS_MOUNTAIN, biome);
+            }
         }
         return false;
     }

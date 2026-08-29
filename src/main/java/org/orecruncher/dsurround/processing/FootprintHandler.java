@@ -46,6 +46,11 @@ public class FootprintHandler {
     // ordinary jump landing also leaves prints.
     private static final double LAND_PRINT_DISTANCE = 0.4D;
 
+    // Lateral offset of each foot's print from the walking axis; the spacing
+    // between the two feet is twice this value.  Reduced from the original 0.2
+    // (user request: prints a little closer together).
+    private static final double FOOT_SPACING = 0.15D;
+
     private boolean isRightFoot = false;
     private boolean wasOnGround = true;
     private double lastAirborneFallDistance = 0D;
@@ -97,8 +102,8 @@ public class FootprintHandler {
 
         // Landing: both feet leave prints.
         if (!this.wasOnGround && this.lastAirborneFallDistance > LAND_PRINT_DISTANCE) {
-            this.spawnPrint(player, world, pos, true, 0.2D);
-            this.spawnPrint(player, world, pos, false, 0.2D);
+            this.spawnPrint(player, world, pos, true, FOOT_SPACING);
+            this.spawnPrint(player, world, pos, false, FOOT_SPACING);
         }
         this.wasOnGround = true;
 
@@ -115,7 +120,7 @@ public class FootprintHandler {
         this.walkDistance = 0D;
         this.isRightFoot = !this.isRightFoot;
 
-        this.spawnPrint(player, world, pos, this.isRightFoot, 0.2D);
+        this.spawnPrint(player, world, pos, this.isRightFoot, FOOT_SPACING);
     }
 
     /**

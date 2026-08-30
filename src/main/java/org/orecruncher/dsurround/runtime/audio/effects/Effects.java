@@ -1,0 +1,171 @@
+package org.orecruncher.dsurround.runtime.audio.effects;
+
+import org.lwjgl.openal.EXTEfx;
+import org.orecruncher.dsurround.Configuration;
+import org.orecruncher.dsurround.lib.di.ContainerManager;
+import org.orecruncher.dsurround.lib.logging.IModLog;
+import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
+import org.orecruncher.dsurround.runtime.audio.SourceContext;
+
+public final class Effects {
+    private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
+    private static final Configuration.EnhancedSounds CONFIG = ContainerManager.resolve(Configuration.EnhancedSounds.class);
+    // General config settings that need to make their way somewhere
+    // 26.1: the mixin now requests 4 auxiliary sends at context creation (matching 1.21.1),
+    // so all four reverb zones apply. Slightly below the original 1.12.2 baseline per
+    // user tuning: cave/room reverb was still a touch too strong at 0.7.
+    private static final float GLOBAL_REVERB_MULTIPLIER = 0.6F;
+
+    public static final float GLOBAL_BLOCK_ABSORPTION = 1F;
+    public static final float SNOW_AIR_ABSORPTION_FACTOR = 5F;
+    public static final float RAIN_AIR_ABSORPTION_FACTOR = 2F;
+
+    public static final ReverbData reverbData0;
+    public static final ReverbData reverbData1;
+    public static final ReverbData reverbData2;
+    public static final ReverbData reverbData3;
+    private static final AuxSlot auxSlot0 = new AuxSlot();
+    private static final AuxSlot auxSlot1 = new AuxSlot();
+    private static final AuxSlot auxSlot2 = new AuxSlot();
+    private static final AuxSlot auxSlot3 = new AuxSlot();
+    private static final ReverbEffectSlot reverb0 = new ReverbEffectSlot();
+    private static final ReverbEffectSlot reverb1 = new ReverbEffectSlot();
+    private static final ReverbEffectSlot reverb2 = new ReverbEffectSlot();
+    private static final ReverbEffectSlot reverb3 = new ReverbEffectSlot();
+
+    // 26.1: the four zones are mapped onto however many auxiliary sends the device
+    // actually supports, with a FIXED zone i -> send i binding. Most OpenAL devices
+    // expose only 2 sends, while this system computes four reverb zones (small room
+    // -> cavern); on such devices only the two short zones play.
+    private static final AuxSlot[] AUX_SLOTS = { auxSlot0, auxSlot1, auxSlot2, auxSlot3 };
+    private static final ReverbEffectSlot[] REVERB_SLOTS = { reverb0, reverb1, reverb2, reverb3 };
+    private static final ReverbData[] REVERB_DATA = new ReverbData[4];
+    private static int activeSends = 0;
+    private static long applyCounter = 0;
+
+    static {
+        reverbData0 = new ReverbData();
+        reverbData0.diffusion = EXTEfx.AL_EAXREVERB_DEFAULT_DIFFUSION;
+        reverbData0.lateReverbGain = EXTEfx.AL_EAXREVERB_DEFAULT_LATE_REVERB_GAIN;
+        reverbData0.airAbsorptionGainHF = EXTEfx.AL_EAXREVERB_DEFAULT_AIR_ABSORPTION_GAINHF;
+
+        reverbData0.decayTime = 0.15F;
+        reverbData0.gain = 0.2F * 0.85F * GLOBAL_REVERB_MULTIPLIER;
+        reverbData0.gainHF = 0.99F;
+
+        reverbData1 = new ReverbData();
+        reverbData1.diffusion = EXTEfx.AL_EAXREVERB_DEFAULT_DIFFUSION;
+        reverbData1.lateReverbGain = EXTEfx.AL_EAXREVERB_DEFAULT_LATE_REVERB_GAIN;
+        reverbData1.airAbsorptionGainHF = EXTEfx.AL_EAXREVERB_DEFAULT_AIR_ABSORPTION_GAINHF;
+
+        reverbData1.decayTime = 0.55F;
+        reverbData1.gain = 0.3F * 0.85F * GLOBAL_REVERB_MULTIPLIER;
+        reverbData1.gainHF = 0.99F;
+
+        reverbData2 = new ReverbData();
+        reverbData2.diffusion = EXTEfx.AL_EAXREVERB_DEFAULT_DIFFUSION;
+        reverbData2.lateReverbGain = EXTEfx.AL_EAXREVERB_DEFAULT_LATE_REVERB_GAIN;
+        reverbData2.airAbsorptionGainHF = EXTEfx.AL_EAXREVERB_DEFAULT_AIR_ABSORPTION_GAINHF;
+
+        reverbData2.decayTime = 1.68F;
+        reverbData2.gain = 0.5F * 0.85F * GLOBAL_REVERB_MULTIPLIER;
+        reverbData2.gainHF = 0.99F;
+
+        reverbData3 = new ReverbData();
+        reverbData3.diffusion = EXTEfx.AL_EAXREVERB_DEFAULT_DIFFUSION;
+        reverbData3.lateReverbGain = EXTEfx.AL_EAXREVERB_DEFAULT_LATE_REVERB_GAIN;
+        reverbData3.airAbsorptionGainHF = EXTEfx.AL_EAXREVERB_DEFAULT_AIR_ABSORPTION_GAINHF;
+
+        reverbData3.decayTime = 4.142F;
+        reverbData3.gain = 0.4F * 0.85F * GLOBAL_REVERB_MULTIPLIER;
+        reverbData3.gainHF = 0.89F;
+
+        REVERB_DATA[0] = reverbData0;
+        REVERB_DATA[1] = reverbData1;
+        REVERB_DATA[2] = reverbData2;
+        REVERB_DATA[3] = reverbData3;
+    }
+
+    private Effects() {
+
+    }
+
+    public static int getActiveSends() {
+        return activeSends;
+    }
+
+    /**
+     * Recomputes each reverb zone's wet gain from the configurable intensity. Called on
+     * every sound-system (re)init so changing the slider takes effect without a restart.
+     */
+    private static void refreshReverbIntensity() {
+        final float intensity = (float) CONFIG.reverbIntensity;
+        reverbData0.gain = 0.2F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+        reverbData1.gain = 0.3F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+        reverbData2.gain = 0.5F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+        reverbData3.gain = 0.4F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
+    }
+
+    public static void initialize() {
+        activeSends = Math.min(4, AudioUtilities.getMaxAuxSends());
+        if (activeSends <= 0)
+            return;
+
+        refreshReverbIntensity();
+
+        for (int i = 0; i < activeSends; i++) {
+            AUX_SLOTS[i].initialize();
+            REVERB_SLOTS[i].initialize();
+            REVERB_DATA[i].setProcess(true);
+            // Fixed binding: send i always carries zone i. The reverb effect parameters
+            // are static per zone, so the binding never needs to change afterwards.
+            REVERB_SLOTS[i].apply(REVERB_DATA[i], AUX_SLOTS[i]);
+        }
+    }
+
+    public static void deinitialize() {
+        for (int i = 0; i < activeSends; i++) {
+            AUX_SLOTS[i].deinitialize();
+            REVERB_SLOTS[i].deinitialize();
+            REVERB_DATA[i].setProcess(false);
+        }
+
+        activeSends = 0;
+    }
+
+    /**
+     * Applies the reverb data for a sound source. Each send carries a fixed reverb
+     * zone, while the per-send low-pass shaping and the direct-path filter use the
+     * source's OWN filter objects: OpenAL filters are shared parameter blobs, so a
+     * global filter would have every concurrently playing source overwrite the
+     * parameters of all others.
+     */
+    public static void applyReverb(final SourceContext source) {
+        if (activeSends <= 0 || !source.isEnabled())
+            return;
+
+        final int sourceId = source.getId();
+
+        for (int zone = 0; zone < activeSends; zone++) {
+            source.zoneFilter(zone).apply(sourceId, source.getLowPass(zone), zone, AUX_SLOTS[zone]);
+        }
+
+        // Diagnostic: logged at debug level (enableDebugLogging) so the reverb zone mapping
+        // can be inspected. Globally throttled to roughly one line per second of playtime.
+        // TEMP(1.20.1-port-forensics): promoted to info for a side-by-side send-gain
+        // comparison against the 1.20.1 port in the same cavern. Revert with git checkout.
+        if (++applyCounter % 140 == 0) {
+            var sound = source.getSound();
+            var soundId = sound == null ? "?" : sound.getLocation().toString();
+            LOGGER.info("REVERB_STEADY src=%d sound=%s sends=%d gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f]",
+                    sourceId, soundId, activeSends,
+                    source.getLowPass(0).gain, source.getLowPass(1).gain, source.getLowPass(2).gain, source.getLowPass(3).gain,
+                    source.getLowPass(0).gainHF, source.getLowPass(1).gainHF, source.getLowPass(2).gainHF, source.getLowPass(3).gainHF,
+                    source.getDirect().gain, source.getDirect().gainHF);
+        }
+
+        // Occlusion / direct path filter and air absorption are independent of the aux sends
+        source.directFilter().apply(sourceId, source.getDirect());
+        source.getAirAbsorb().apply(sourceId);
+    }
+}

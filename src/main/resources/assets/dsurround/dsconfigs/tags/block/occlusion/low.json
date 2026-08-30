@@ -1,0 +1,15 @@
+{
+  "values": [
+    {
+      "id": "#c:glass_blocks",
+      "required": false
+    },
+    {
+      "id": "#c:glass_panes",
+      "required": false
+    },
+    "#minecraft:beehives",
+    "minecraft:chest",
+    "minecraft:dried_kelp_block"
+  ]
+}

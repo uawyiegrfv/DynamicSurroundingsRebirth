@@ -1,0 +1,174 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'com.gradleup.shadow' version '9.2.2'
+    id 'idea'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = "DynamicSurroundingsRebirth-${minecraft_version}"
+}
+
+// Minecraft 1.21.1 runs on Java 21
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+sourceSets.main.resources {
+    exclude("**/*.bbmodel")
+    exclude("src/generated/**/.cache")
+}
+
+repositories {
+    mavenCentral()
+    maven { url "https://maven.neoforged.net/releases" }
+    maven { url "https://maven.architectury.dev/" }
+    maven { url "https://maven.shedaniel.me/" }
+    maven { url "https://maven.isxander.dev/releases" }
+    maven { url "https://api.modrinth.com/maven" }
+    maven { url "https://maven.minecraftforge.net/" }
+}
+
+neoForge {
+    version = project.neo_version
+    validateAccessTransformers = true
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            clientData()
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+configurations {
+    jarJar
+}
+
+dependencies {
+    implementation "dev.architectury:architectury-neoforge:${architectury_api_version}"
+
+    jarJar "org.openjdk.nashorn:nashorn-core:${nashorn_version}"
+    implementation "org.openjdk.nashorn:nashorn-core:${nashorn_version}"
+
+    api("me.shedaniel.cloth:cloth-config-neoforge:${clothapi_version}") {
+        exclude(group: "net.fabricmc.fabric-api")
+    }
+
+    compileOnly files("libs/SereneSeasons-neoforge-1.21.1-${serene_seasons_version}.jar")
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_description        : mod_description,
+            mod_author             : mod_author,
+            mod_issues_url         : mod_issues_url,
+            mod_homepage_url       : mod_homepage_url,
+            clothapi_version       : clothapi_version,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+processResources {
+    into('/') {
+        from("$projectDir/CREDITS.md")
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_name,
+                'Specification-Vendor'    : mod_author,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.version,
+                'Implementation-Vendor'   : mod_author,
+        ])
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.jarJar]
+    archiveClassifier = 'dev-shadow'
+    mergeServiceFiles()
+    exclude("org/objectweb/asm/**")
+}
+
+components.java {
+    withVariantsFromConfiguration(configurations.shadowRuntimeElements) {
+        skip()
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    // Report a complete error baseline during the port instead of javac's default 100-error cap
+    options.compilerArgs += ['-Xmaxerrs', '2000', '-Xmaxwarns', '500']
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}

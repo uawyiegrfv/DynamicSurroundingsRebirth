@@ -1,0 +1,30 @@
+{
+  "values": [
+    "minecraft:player",
+    "minecraft:cow",
+    "minecraft:pig",
+    "minecraft:sheep",
+    "minecraft:chicken",
+    "minecraft:rabbit",
+    "minecraft:goat",
+    "minecraft:wolf",
+    "minecraft:fox",
+    "minecraft:cat",
+    "minecraft:ocelot",
+    "minecraft:panda",
+    "minecraft:polar_bear",
+    "minecraft:horse",
+    "minecraft:donkey",
+    "minecraft:mule",
+    "minecraft:llama",
+    "minecraft:trader_llama",
+    "minecraft:zombie",
+    "minecraft:zombie_villager",
+    "minecraft:skeleton",
+    "minecraft:stray",
+    "minecraft:spider",
+    "minecraft:cave_spider",
+    "minecraft:silverfish",
+    "minecraft:endermite"
+  ]
+}

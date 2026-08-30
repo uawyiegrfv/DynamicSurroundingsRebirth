@@ -193,7 +193,7 @@
     "location": "dsurround:footstep_accent/brush",
     "soundEvent": "dsurround:footsteps.brush_through",
     "category": "PLAYER",
-    "volume": 0.4,
+    "volume": 0.3,
     "pitch": {
       "min": 0.8,
       "max": 1.2

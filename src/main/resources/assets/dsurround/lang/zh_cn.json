@@ -382,5 +382,14 @@
   "dsurround.text.quickvolume.title": "声音快捷调节",
   "dsurround.text.quickvolume.hint": "↑↓ 选择 · ←→/滚轮 ±1% · 松开关闭",
   "dsurround.text.quickvolume.empty": "最近没有字幕声音",
-  "dsurround.sound.caption.theend": "末地"
+  "dsurround.sound.caption.theend": "末地",
+  "dsurround.config.speechBubbles": "聊天气泡",
+  "dsurround.config.speechBubbles.enableSpeechBubbles": "玩家聊天气泡",
+  "dsurround.config.speechBubbles.enableSpeechBubbles.tooltip": "启用后玩家在聊天栏发送的消息会以气泡形式显示在其头顶\n默认关闭",
+  "dsurround.config.speechBubbles.enableEntityChat": "生物聊天",
+  "dsurround.config.speechBubbles.enableEntityChat.tooltip": "启用后村民等生物会按随机间隔在头顶冒出台词气泡（附近有敌对生物时村民切换为逃跑台词）\n默认关闭",
+  "dsurround.config.speechBubbles.speechBubbleDuration": "显示时长",
+  "dsurround.config.speechBubbles.speechBubbleDuration.tooltip": "气泡显示多少秒后消失",
+  "dsurround.config.speechBubbles.speechBubbleRange": "可见范围",
+  "dsurround.config.speechBubbles.speechBubbleRange.tooltip": "气泡可见的最大距离（格）"
 }

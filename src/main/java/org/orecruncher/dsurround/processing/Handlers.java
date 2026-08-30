@@ -88,6 +88,10 @@ public class Handlers {
         // Crit words listen for damage events and render via a GUI layer.
         ContainerManager.resolve(CritWordHandler.class);
 
+        // Speech bubbles (player chat + entity chat, both off by default) listen for
+        // chat events and render via a GUI layer.
+        ContainerManager.resolve(SpeechBubbleHandler.class);
+
         // Distant thunder rumbling during storms.
         ContainerManager.resolve(ThunderHandler.class);
         this.register(AreaBlockEffects.class);
@@ -208,6 +212,7 @@ public class Handlers {
             .registerSingleton(FootprintHandler.class)
             .registerSingleton(HeldTorchBurnHandler.class)
             .registerSingleton(CritWordHandler.class)
+            .registerSingleton(SpeechBubbleHandler.class)
             .registerSingleton(ThunderHandler.class)
             .registerSingleton(AreaBlockEffects.class)
             .registerSingleton(FootstepAccents.class)

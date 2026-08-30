@@ -390,5 +390,14 @@
   "dsurround.text.quickvolume.title": "Quick Sound Volume",
   "dsurround.text.quickvolume.hint": "Up/Down select - Wheel/Arrows +/-1% - Release to close",
   "dsurround.text.quickvolume.empty": "No subtitled sounds recently",
-  "dsurround.sound.caption.theend": "The End"
+  "dsurround.sound.caption.theend": "The End",
+  "dsurround.config.speechBubbles": "Speech Bubbles",
+  "dsurround.config.speechBubbles.enableSpeechBubbles": "Speech Bubbles (Player Chat)",
+  "dsurround.config.speechBubbles.enableSpeechBubbles.tooltip": "Enable/disable speech bubbles above player heads for chat messages\nOff by default",
+  "dsurround.config.speechBubbles.enableEntityChat": "Entity Chat",
+  "dsurround.config.speechBubbles.enableEntityChat.tooltip": "Enable/disable chat bubbles above villagers and other mobs\nOff by default",
+  "dsurround.config.speechBubbles.speechBubbleDuration": "Display Duration",
+  "dsurround.config.speechBubbles.speechBubbleDuration.tooltip": "Number of seconds to display a speech bubble before removing it",
+  "dsurround.config.speechBubbles.speechBubbleRange": "Visibility Range",
+  "dsurround.config.speechBubbles.speechBubbleRange.tooltip": "Range (blocks) at which a speech bubble is visible"
 }

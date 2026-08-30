@@ -58,6 +58,10 @@ public final class NeoForgeMod {
         var critWordHandler = ContainerManager.resolve(org.orecruncher.dsurround.processing.CritWordHandler.class);
         event.registerBelowAll(Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/critwords"), critWordHandler::renderGui);
 
+        // Speech bubbles project to the screen the same way (player chat + entity chat).
+        var speechBubbleHandler = ContainerManager.resolve(org.orecruncher.dsurround.processing.SpeechBubbleHandler.class);
+        event.registerBelowAll(Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/speechbubbles"), speechBubbleHandler::renderGui);
+
         // Desert sandstorm / nether dust yellow veil tint. registerBelowAll puts it at
         // the start of the render order (drawn first, underneath every HUD element,
         // including the Xaero minimap) - NeoForge 26.1 layer ordering is natural:

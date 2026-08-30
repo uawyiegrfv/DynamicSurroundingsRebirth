@@ -68,3 +68,5 @@ armor_sounds_test/
 
 ### Claude Code session export ###
 *-*-*-*-*-*-*.txt
+build_*.txt
+fix_26.1_api.py

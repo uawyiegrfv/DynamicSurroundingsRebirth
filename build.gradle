@@ -81,7 +81,6 @@ configurations {
 dependencies {
     implementation "dev.architectury:architectury-neoforge:${architectury_api_version}"
 
-    jarJar "org.openjdk.nashorn:nashorn-core:${nashorn_version}"
     implementation "org.openjdk.nashorn:nashorn-core:${nashorn_version}"
 
     api("me.shedaniel.cloth:cloth-config-neoforge:${clothapi_version}") {

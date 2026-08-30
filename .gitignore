@@ -70,3 +70,4 @@ armor_sounds_test/
 *-*-*-*-*-*-*.txt
 ### Build/compile logs (porting diagnostics) ###
 build_*.txt
+run_client_log*.txt

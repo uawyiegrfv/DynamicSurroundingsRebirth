@@ -28,8 +28,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(MapRenderer.class)
 public abstract class MixinMapRenderer {
 
-    @Inject(method = "render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;ILnet/minecraft/world/level/saveddata/maps/MapItemSavedData;ZI)V", at = @At("TAIL"))
-    private void dsurround_renderDistance(PoseStack pose, MultiBufferSource buffer, int mapId, MapItemSavedData data, boolean isFoil, int packedLight, CallbackInfo ci) {
+    @Inject(method = "render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;Lnet/minecraft/world/level/saveddata/maps/MapId;Lnet/minecraft/world/level/saveddata/maps/MapItemSavedData;ZI)V", at = @At("TAIL"))
+    private void dsurround_renderDistance(PoseStack pose, MultiBufferSource buffer, net.minecraft.world.level.saveddata.maps.MapId mapId, MapItemSavedData data, boolean isFoil, int packedLight, CallbackInfo ci) {
         if (!ConfigurationData.getConfig(Configuration.class).mapOptions.enableTreasureDistance)
             return;
         var player = Minecraft.getInstance().player;

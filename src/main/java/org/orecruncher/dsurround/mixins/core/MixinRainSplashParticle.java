@@ -5,7 +5,6 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.WaterDropParticle;
 import net.minecraft.core.particles.SimpleParticleType;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.effects.MagmaSplashHandler;
@@ -18,9 +17,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(WaterDropParticle.Provider.class)
 public class MixinRainSplashParticle {
 
-    // 26.1: Provider#createParticle gained a trailing RandomSource parameter
-    @Inject(method = "createParticle(Lnet/minecraft/core/particles/SimpleParticleType;Lnet/minecraft/client/multiplayer/ClientLevel;DDDDDDLnet/minecraft/util/RandomSource;)Lnet/minecraft/client/particle/Particle;", at = @At("RETURN"))
-    public void dsurround_makeParticle(SimpleParticleType defaultParticleType, ClientLevel clientWorld, double x, double y, double z, double g, double h, double i, RandomSource random, CallbackInfoReturnable<Particle> cir) {
+    @Inject(method = "createParticle(Lnet/minecraft/core/particles/SimpleParticleType;Lnet/minecraft/client/multiplayer/ClientLevel;DDDDDD)Lnet/minecraft/client/particle/Particle;", at = @At("RETURN"))
+    public void dsurround_makeParticle(SimpleParticleType defaultParticleType, ClientLevel clientWorld, double x, double y, double z, double g, double h, double i, CallbackInfoReturnable<Particle> cir) {
         // Do not want to do rain splashes if particle rain is installed
         if (!Platform.isModLoaded(Constants.MOD_PARTICLE_RAIN)) {
             final var position = new Vec3(x, y, z);

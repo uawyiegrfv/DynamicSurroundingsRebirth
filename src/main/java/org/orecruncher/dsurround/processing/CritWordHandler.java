@@ -106,7 +106,9 @@ public class CritWordHandler {
         ClientState.TICK_END.register(this::onTick);
     }
 
-    public void onLivingDamage(LivingDamageEvent.Post event) {
+    // Pre (damage not yet applied) so a killing blow still shows its number - the
+    // entity is still alive at this point (26.1 parity; Post fires after death).
+    public void onLivingDamage(LivingDamageEvent.Pre event) {
         final boolean showNumbers = this.config.entityEffects.showDamageNumbers;
         final boolean showCrits = this.config.entityEffects.showCritWords;
         if (!showNumbers && !showCrits)
@@ -180,8 +182,10 @@ public class CritWordHandler {
     private void onRenderStage(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES)
             return;
+        // 1.21.1: the PoseStack passed to this event no longer carries the camera view
+        // rotation; the model-view matrix is provided as an explicit field instead.
         CAPTURED_VIEW_PROJ.set(event.getProjectionMatrix());
-        CAPTURED_VIEW_PROJ.mul(event.getPoseStack().last().pose());
+        CAPTURED_VIEW_PROJ.mul(event.getModelViewMatrix());
     }
 
     public void renderGui(GuiGraphics graphics, net.minecraft.client.DeltaTracker tracker) {

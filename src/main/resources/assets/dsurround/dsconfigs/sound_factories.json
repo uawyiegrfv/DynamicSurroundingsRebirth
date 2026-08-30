@@ -1,5 +1,17 @@
 [
   {
+    "location": "dsurround:biome.wind.desert",
+    "soundEvent": "dsurround:biome.wind.desert",
+    "category": "AMBIENT",
+    "volume": 1.0
+  },
+  {
+    "location": "dsurround:biome.wind.desert.calm",
+    "soundEvent": "dsurround:biome.wind.desert",
+    "category": "AMBIENT",
+    "volume": 0.3
+  },
+  {
     "location": "dsurround:toolbar.none.equip",
     "soundEvent": "dsurround:item.utility.equip",
     "category": "PLAYER",

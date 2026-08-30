@@ -6,8 +6,6 @@ import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 
-import java.util.Optional;
-
 /**
  * Can't believe there isn't a toString() override
  */
@@ -19,9 +17,12 @@ public class MixinSoundEvent {
     private ResourceLocation location;
     @Shadow
     @Final
-    private Optional<Float> fixedRange;
+    private float range;
+    @Shadow
+    @Final
+    private boolean newSystem;
 
     public String toString() {
-        return "%s{range %s}".formatted(this.location.toString(), this.fixedRange);
+        return "%s{newSystem %s, range %f}".formatted(this.location.toString(), Boolean.toString(this.newSystem), this.range);
     }
 }

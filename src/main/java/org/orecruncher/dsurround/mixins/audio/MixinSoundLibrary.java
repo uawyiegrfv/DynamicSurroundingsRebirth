@@ -1,23 +1,21 @@
 package org.orecruncher.dsurround.mixins.audio;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.audio.Library;
 import org.lwjgl.openal.ALC10;
 import org.lwjgl.openal.EXTEfx;
-import org.lwjgl.system.MemoryStack;
-import org.orecruncher.dsurround.mixinutils.ISoundEngine;
+import org.lwjgl.openal.SOFTOutputLimiter;
+import org.orecruncher.dsurround.Configuration;
+import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
+import org.orecruncher.dsurround.mixinutils.ISoundEngine;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.*;
 
 import java.nio.IntBuffer;
 
-// 26.1: Library.init was reworked (now takes a DeviceList and builds the OpenAL attribute
-// buffer in a separate createAttributes() helper). The enhanced-sound reverb needs 4
-// auxiliary sends; modern OpenAL Soft defaults to only 2, so request 4 at context creation
-// just like the 1.21.1 build did. If the driver refuses, the effects system degrades to the
-// available sends (see Effects.applyReverb).
 @Mixin(Library.class)
 public class MixinSoundLibrary implements ISoundEngine {
 
@@ -28,32 +26,33 @@ public class MixinSoundLibrary implements ISoundEngine {
         return this.currentDevice;
     }
 
-    @Redirect(method = "init(Ljava/lang/String;Lcom/mojang/blaze3d/audio/DeviceList;Z)V",
-            at = @At(value = "INVOKE", target = "Lorg/lwjgl/openal/ALC10;alcCreateContext(JLjava/nio/IntBuffer;)J", remap = false))
-    private long dsurround_createContextWithAuxSends(long device, IntBuffer attrList) {
-        if (AudioUtilities.doEnhancedSounds()) {
-            try (MemoryStack stack = MemoryStack.stackPush()) {
-                // Copy the vanilla attributes (HRTF, mono sources), then request 4 aux sends.
-                IntBuffer newAttr = stack.callocInt(attrList.remaining() + 3);
-                attrList.rewind();
-                while (attrList.hasRemaining()) {
-                    int key = attrList.get();
-                    if (key == 0)
-                        break;
-                    newAttr.put(key).put(attrList.get());
-                }
-                newAttr.put(EXTEfx.ALC_MAX_AUXILIARY_SENDS).put(4);
-                newAttr.put(0);
-                newAttr.flip();
-
-                long context = ALC10.alcCreateContext(device, newAttr);
-                if (context != 0L)
-                    return context;
-            }
-        }
-
-        // Fall back to the vanilla attribute list if the driver refused the extra sends.
-        attrList.rewind();
-        return ALC10.alcCreateContext(device, attrList);
+    /**
+     * This will resize the capability buffer to accommodate additional settings
+     */
+    @ModifyConstant(method = "init(Ljava/lang/String;Z)V", constant = @Constant(intValue = 3))
+    private int dsurround_modifyIntBufferSize(int size) {
+        return AudioUtilities.doEnhancedSounds() ? 5 : 3;
     }
+
+    /**
+     * Rewrite the capability buffer.  We only do this if advanced processing is enabled.
+     */
+    @WrapOperation(method = "init(Ljava/lang/String;Z)V", at = @At(value = "INVOKE", target = "Lorg/lwjgl/openal/ALC10;alcCreateContext(JLjava/nio/IntBuffer;)J", remap = false))
+    private long dsurround_buildCapabilities(long deviceHandle, IntBuffer attrList, Operation<Long> original) {
+        if (AudioUtilities.doEnhancedSounds()) {
+            // Buffer should have been resized by the constant modification above
+            attrList.clear();
+            // From the original code
+            attrList.put(SOFTOutputLimiter.ALC_OUTPUT_LIMITER_SOFT).put(ALC10.ALC_TRUE);
+            // Increase sends channels
+            attrList.put(EXTEfx.ALC_MAX_AUXILIARY_SENDS).put(4);
+            // Done!
+            attrList.put(0);
+            attrList.flip();
+            return ALC10.alcCreateContext(deviceHandle, attrList);
+        } else {
+            return original.call(deviceHandle, attrList);
+        }
+    }
+
 }

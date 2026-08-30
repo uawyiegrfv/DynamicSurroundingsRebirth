@@ -25,7 +25,6 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import org.orecruncher.dsurround.Configuration;
-import org.orecruncher.dsurround.effects.particles.StormDustParticle;
 import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
@@ -73,6 +72,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
     private static final ResourceLocation DUST_STRONG = ResourceLocation.fromNamespaceAndPath(MOD_ID, "textures/environment/dust_strong.png");
     private static final ResourceLocation DUST_INTENSE = ResourceLocation.fromNamespaceAndPath(MOD_ID, "textures/environment/dust_intense.png");
     private static final ResourceLocation DUST_TORRENTIAL = ResourceLocation.fromNamespaceAndPath(MOD_ID, "textures/environment/dust_torrential.png");
+
 
     // Fade rates per tick: 0.1 -> ~0.5s fade-in, 0.04 -> ~1.2s fade-out (retreat is
     // deliberately slower so a stopping storm does not pop).
@@ -141,8 +141,6 @@ public class WeatherStormHandler extends AbstractClientHandler {
         if (nether && this.config.weatherOptions.enableNetherDust) {
             // Constant dark dust drifting in the nether with its very faint veil.
             netherTarget = 0.10F;
-            if (!this.scanners.isInside())
-                spawnStorm(clientLevel, player, 0.35F, 0.3F, 0.3F, false, 2);
         } else if (desert && this.config.weatherOptions.enableDesertSandstorm) {
             if (!this.scanners.isInside()) {
                 var info = ((IBiomeExtended) (Object) biome).dsurround_getInfo();
@@ -163,7 +161,6 @@ public class WeatherStormHandler extends AbstractClientHandler {
                     this.veilR = r;
                     this.veilG = g;
                     this.veilB = b;
-                    spawnStorm(clientLevel, player, r, g, b, true, 6);
                 } else {
                     // Clear desert: no fullscreen tint (the horizon fog color is the
                     // effect); a light drift of calm dust for ambience.
@@ -171,7 +168,6 @@ public class WeatherStormHandler extends AbstractClientHandler {
                     this.veilR = r;
                     this.veilG = g;
                     this.veilB = b;
-                    spawnStorm(clientLevel, player, r, g, b, false, 1);
                 }
             }
         }
@@ -344,12 +340,17 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 this.columnRandom.setSeed(seed);
                 float rainX = this.columnRandom.nextFloat();
                 float rainY = this.columnRandom.nextFloat();
-                double d5 = (((ticks + seed) & 31) + partialTick) / 32.0 * (0.75 + this.columnRandom.nextDouble() * 0.25);
+                // 1.12.2 StormRenderer dust curtain (line 219-263): a SLOW scroll (512-tick
+                // loop, vs rain's 32) plus per-column UV shear - each column drifts sideways
+                // at its own gaussian rate, which reads as multi-angle particle curtains.
+                double d8 = ((ticks & 511) + partialTick) / 512.0;
+                double d9 = this.columnRandom.nextDouble() + (ticks + partialTick) * 0.2F * this.columnRandom.nextGaussian();
+                double d10 = this.columnRandom.nextDouble() + (ticks + partialTick) * this.columnRandom.nextGaussian() * 0.001D;
 
                 double d6 = gridX + 0.5 - player.getX();
                 double d7 = gridZ + 0.5 - player.getZ();
                 float f3 = Mth.sqrt((float) (d6 * d6 + d7 * d7)) / range;
-                int alpha = (int) (((1.0F - f3 * f3) * 0.5F + 0.5F) * veilAlpha * 255F);
+                int alpha = (int) (((1.0F - f3 * f3) * 0.3F + 0.5F) * veilAlpha * 255F);
                 int light = (LevelRenderer.getLightColor(level, this.cursor.set(gridX, k2, gridZ)) * 3 + 15728880) / 4;
                 int cr = (int) (this.veilR * 255F);
                 int cg = (int) (this.veilG * 255F);
@@ -362,13 +363,13 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 float z1 = gridZ + rainY + 0.5F - (float) cam.z;
                 float y0 = k2 - (float) cam.y;
                 float y1 = l2 - (float) cam.y;
-                float v0 = k2 * 0.25F + (float) d5;
-                float v1 = l2 * 0.25F + (float) d5;
+                float v0 = k2 * 0.25F + (float) d8;
+                float v1 = l2 * 0.25F + (float) d8;
 
-                buffer.addVertex(x0, y0, z0).setUv(0F, v0).setColor(argb).setLight(light);
-                buffer.addVertex(x1, y0, z1).setUv(1F, v0).setColor(argb).setLight(light);
-                buffer.addVertex(x1, y1, z1).setUv(1F, v1).setColor(argb).setLight(light);
-                buffer.addVertex(x0, y1, z0).setUv(0F, v1).setColor(argb).setLight(light);
+                buffer.addVertex(x0, y0, z0).setUv((float) d9, v0 + (float) d10).setColor(argb).setLight(light);
+                buffer.addVertex(x1, y0, z1).setUv(1F + (float) d9, v0 + (float) d10).setColor(argb).setLight(light);
+                buffer.addVertex(x1, y1, z1).setUv(1F + (float) d9, v1 + (float) d10).setColor(argb).setLight(light);
+                buffer.addVertex(x0, y1, z0).setUv((float) d9, v1 + (float) d10).setColor(argb).setLight(light);
                 quads++;
             }
         }
@@ -377,6 +378,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
             var mesh = buffer.build();
             if (mesh != null)
                 BufferUploader.drawWithShader(mesh);
+
         }
 
         mc.gameRenderer.lightTexture().turnOffLightLayer();
@@ -385,25 +387,4 @@ public class WeatherStormHandler extends AbstractClientHandler {
         RenderSystem.disableBlend();
     }
 
-    private static void spawnStorm(ClientLevel level, Player player, float r, float g, float b, boolean windy, int count) {
-        // Respect the player's particle setting (Minimal/Decreased/All): scale the
-        // spawn rate down so a sandstorm can't flood the particle budget on weak
-        // settings. This mirrors the vanilla behaviour for weather particles.
-        var particleStatus = GameUtils.getGameSettings().particles().get();
-        count = switch (particleStatus) {
-            case MINIMAL -> 0;
-            case DECREASED -> count / 2;
-            case ALL -> count;
-        };
-        if (count <= 0)
-            return;
-
-        for (int i = 0; i < count; i++) {
-            double x = player.getX() + (RANDOM.nextDouble() - 0.5D) * 16.0D;
-            double y = player.getY() + RANDOM.nextDouble() * 6.0D - 2.0D;
-            double z = player.getZ() + (RANDOM.nextDouble() - 0.5D) * 16.0D;
-            var particle = new StormDustParticle(level, x, y, z, r, g, b, windy);
-            GameUtils.getParticleManager().add(particle);
-        }
-    }
 }

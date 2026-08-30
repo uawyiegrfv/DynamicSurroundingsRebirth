@@ -145,7 +145,7 @@ public class SpeechBubbleHandler {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES)
             return;
         CAPTURED_VIEW_PROJ.set(event.getProjectionMatrix());
-        CAPTURED_VIEW_PROJ.mul(event.getPoseStack().last().pose());
+        CAPTURED_VIEW_PROJ.mul(event.getModelViewMatrix());
     }
 
     private void onClientChat(ClientChatReceivedEvent event) {

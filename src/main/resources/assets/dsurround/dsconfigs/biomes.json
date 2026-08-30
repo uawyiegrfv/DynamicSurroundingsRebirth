@@ -31,7 +31,12 @@
     "_comment": "Desert/Badlands Wind",
     "acoustics": [
       {
-        "factory": "biome.wind.desert"
+        "factory": "biome.wind.desert",
+        "conditions": "weather.isRaining()"
+      },
+      {
+        "factory": "biome.wind.desert.calm",
+        "conditions": "weather.isNotRaining()"
       }
     ]
   },
@@ -255,7 +260,7 @@
     "biomeSelector": "biome.getRainfall() < 0.1 && (DESERT || (WASTELAND && !(COLD || SNOWY || SWAMP)))",
     "_comment": "Dust for desert like biomes",
     "fogColor": "#FFEA97",
-    "fogDensity": "medium",
+    "fogDensity": "normal",
     "dustColor": "#D8B266"
   },
   {

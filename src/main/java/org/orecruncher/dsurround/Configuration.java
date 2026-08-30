@@ -59,6 +59,10 @@ public class Configuration extends ConfigurationData {
     public final WeatherOptions weatherOptions = new WeatherOptions();
 
     @Property
+    @Comment("Configuration options for speech bubbles above player and entity heads (ported back from 1.12.2, off by default)")
+    public final SpeechBubbles speechBubbles = new SpeechBubbles();
+
+    @Property
     @Comment("Configuration options for aurora (northern lights) rendering")
     public final AuroraOptions auroraOptions = new AuroraOptions();
 
@@ -512,5 +516,28 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable aurora processing and rendering")
         public boolean enableAurora = true;
+    }
+
+    public static class SpeechBubbles {
+
+        @Property
+        @RestartRequired(client = false)
+        @Comment("Enable/disable speech bubbles above player heads for chat messages")
+        public boolean enableSpeechBubbles = false;
+
+        @Property
+        @RestartRequired(client = false)
+        @Comment("Enable/disable chat bubbles above villagers and other mobs")
+        public boolean enableEntityChat = false;
+
+        @Property
+        @DoubleRange(min = 5D, max = 15D)
+        @Comment("Number of seconds to display a speech bubble before removing it")
+        public double speechBubbleDuration = 7.0D;
+
+        @Property
+        @IntegerRange(min = 16, max = 32)
+        @Comment("Range (blocks) at which a speech bubble is visible")
+        public int speechBubbleRange = 16;
     }
 }

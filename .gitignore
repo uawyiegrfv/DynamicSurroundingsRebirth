@@ -13,4 +13,8 @@ docs/
 
 # Development / diagnostic documents (excluded from release)
 REVERB-*.md
+build_*.txt
+c_err.txt
+compile_err.txt
+footprint_extract/
 

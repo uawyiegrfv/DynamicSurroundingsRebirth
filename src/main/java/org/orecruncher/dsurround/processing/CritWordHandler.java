@@ -10,7 +10,7 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.entity.living.LivingDamageEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.event.entity.living.LivingHealEvent;
 import org.joml.Matrix4f;
@@ -99,14 +99,16 @@ public class CritWordHandler {
         this.config = config;
         this.logger = logger;
         // 1.20.1: NeoForge.EVENT_BUS -> MinecraftForge.EVENT_BUS, and the NeoForge
-        // LivingDamageEvent.Pre/Post split does not exist (single LivingDamageEvent).
+        // LivingHurtEvent fires before the damage is applied, so a killing blow still
+        // shows its number (the entity is still alive at that point; the 26.1 build
+        // relies on LivingDamageEvent.Pre for the same reason).
         MinecraftForge.EVENT_BUS.addListener(this::onLivingDamage);
         MinecraftForge.EVENT_BUS.addListener(this::onLivingHeal);
         MinecraftForge.EVENT_BUS.addListener(this::onRenderStage);
         ClientState.TICK_END.register(this::onTick);
     }
 
-    public void onLivingDamage(LivingDamageEvent event) {
+    public void onLivingDamage(LivingHurtEvent event) {
         final boolean showNumbers = this.config.entityEffects.showDamageNumbers;
         final boolean showCrits = this.config.entityEffects.showCritWords;
         if (!showNumbers && !showCrits)

@@ -95,6 +95,15 @@ public class WeatherStormHandler extends AbstractClientHandler {
     private float veilG = 0.7F;
     private float veilB = 0.4F;
 
+    // 1.12.2 StormSplashRenderer grain-impact sound: a low 2s wind rumble played at a
+    // random landing spot, throttled to ~once per 2 seconds (not per-frame) so the
+    // overlapping rumbles read as a low wind rather than a drill-like noise. Fired from
+    // process (tick loop) so it stops when the game is paused.
+    private static final net.minecraft.sounds.SoundEvent DUST_HIT_SOUND = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
+            ResourceLocation.fromNamespaceAndPath(MOD_ID, "dust"));
+    private final java.util.Random dustRandom = new java.util.Random();
+    private int dustSoundTick = 0;
+
     // Nether dust veil colors: each column picks a random red / black / red-brown
     // tint (1.12.2 nether dust look, drawn with the shared dust texture).
     private static final int[][] NETHER_DUST_COLORS = {
@@ -198,6 +207,25 @@ public class WeatherStormHandler extends AbstractClientHandler {
         this.netherTint = fade(this.netherTint, netherTarget);
         this.fullscreenTint = fade(this.fullscreenTint, fullscreenTarget);
         updateHorizonTint(biome, this.config.weatherOptions.enableBiomeFogColor);
+
+        float dustIntensity = Math.max(this.netherTint, this.fullscreenTint);
+        if (dustIntensity > 0.02F && ++this.dustSoundTick >= 40) {
+            this.dustSoundTick = 0;
+            playDustImpactSound(player, dustIntensity);
+        }
+    }
+
+    private void playDustImpactSound(Player player, float tint) {
+        var level = player.level();
+        int range = VEIL_RANGE;
+        int rx = player.blockPosition().getX() + this.dustRandom.nextInt(range * 2 + 1) - range;
+        int rz = player.blockPosition().getZ() + this.dustRandom.nextInt(range * 2 + 1) - range;
+        int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, rx, rz);
+        // Low volume so the 2s rumble reads as a soft low wind, not a drill.
+        float volume = 0.12F + 0.2F * tint;
+        float pitch = 0.9F + (this.dustRandom.nextFloat() - this.dustRandom.nextFloat()) * 0.1F;
+        level.playLocalSound(rx + 0.5D, surface + 0.5D, rz + 0.5D, DUST_HIT_SOUND,
+                net.minecraft.sounds.SoundSource.WEATHER, volume, pitch, false);
     }
 
     /**

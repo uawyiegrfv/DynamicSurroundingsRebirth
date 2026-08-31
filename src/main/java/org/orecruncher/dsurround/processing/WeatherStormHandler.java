@@ -222,7 +222,8 @@ public class WeatherStormHandler extends AbstractClientHandler {
         int rz = player.blockPosition().getZ() + this.dustRandom.nextInt(range * 2 + 1) - range;
         int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, rx, rz);
         // Low volume so the 2s rumble reads as a soft low wind, not a drill.
-        float volume = 0.12F + 0.2F * tint;
+        // 1.12.2 calculateRainSoundVolume: 0.05 + 0.95 * intensity (clamped 0..1).
+        float volume = Math.min(1F, 0.05F + 0.95F * tint);
         float pitch = 0.9F + (this.dustRandom.nextFloat() - this.dustRandom.nextFloat()) * 0.1F;
         level.playLocalSound(rx + 0.5D, surface + 0.5D, rz + 0.5D, DUST_HIT_SOUND,
                 net.minecraft.sounds.SoundSource.WEATHER, volume, pitch, false);

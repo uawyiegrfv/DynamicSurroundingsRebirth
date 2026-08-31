@@ -162,6 +162,7 @@
   "dsurround.config.compassAndClockOptions.scale.tooltip": "Skaluje renderowanie kompasu o określoną wartość",
   "dsurround.config.mapOptions": "Opcje odległości na mapie",
   "dsurround.options.footstepVolume": "Kroki",
+  "dsurround.options.playerEffectVolume": "Efekty gracza",
   "dsurround.options.biomeVolume": "Biomy",
   "dsurround.config.mapOptions.enableTreasureDistance": "Odległość do skarbu",
   "dsurround.config.mapOptions.enableTreasureDistance.tooltip": "Włącza/wyłącza pokazywanie poziomej odległości do celu na mapach eksploracji",

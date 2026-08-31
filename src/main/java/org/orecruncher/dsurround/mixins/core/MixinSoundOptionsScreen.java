@@ -64,13 +64,19 @@ public abstract class MixinSoundOptionsScreen {
                 OptionInstance.UnitDouble.INSTANCE,
                 soundConfig.footstepVolume / 2.0D,
                 v -> soundConfig.footstepVolume = v * 2.0D);
+        var playerEffectSlider = new OptionInstance<>("dsurround.options.playerEffectVolume",
+                OptionInstance.noTooltip(),
+                (caption, value) -> caption.copy().append(": " + Math.round(value * 200.0D) + "%"),
+                OptionInstance.UnitDouble.INSTANCE,
+                soundConfig.playerEffectVolume / 2.0D,
+                v -> soundConfig.playerEffectVolume = v * 2.0D);
         var biomeSlider = new OptionInstance<>("dsurround.options.biomeVolume",
                 OptionInstance.noTooltip(),
                 (caption, value) -> caption.copy().append(": " + Math.round(value * 200.0D) + "%"),
                 OptionInstance.UnitDouble.INSTANCE,
                 soundConfig.biomeVolume / 2.0D,
                 v -> soundConfig.biomeVolume = v * 2.0D);
-        this.list.addSmall(footSlider, biomeSlider);
+        this.list.addSmall(new OptionInstance<?>[]{footSlider, playerEffectSlider, biomeSlider});
     }
 
     /**

@@ -55,6 +55,6 @@ public final class SoundVolumeEvaluator {
     private static boolean isPlayerEffectSound(ResourceLocation loc) {
         String path = loc.getPath();
         return path.startsWith("player.") || path.equals("crafting")
-                || path.startsWith("equip.") || path.startsWith("toolbar.");
+                || path.startsWith("toolbar.") || path.startsWith("item.");
     }
 }

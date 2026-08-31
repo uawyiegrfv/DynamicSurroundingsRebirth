@@ -40,6 +40,6 @@ public final class SoundVolumeEvaluator {
             volume *= volumeScale;
         }
 
-        return Mth.clamp(volume, 0, 1F);
+        return Mth.clamp(volume, 0, 2F);
     }
 }

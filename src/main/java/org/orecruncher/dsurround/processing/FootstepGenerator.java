@@ -362,7 +362,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // engine clamps a single voice's gain at 1.0 (SoundVolumeEvaluator.getAdjustedVolume),
         // so any volume multiplier above 1.0 - in JSON or in code - is a silent no-op.
         // This is why every previous attempt to "raise the landing volume" had no effect.
-        final float scale = dsFootstepVolume() * LAND_GAIN_BOOST;
+        final float scale = footstepVolume() * dsFootstepVolume() * LAND_GAIN_BOOST;
         final int echoDelay = LAND_ECHO_DELAY_MIN_TICKS
                 + java.util.concurrent.ThreadLocalRandom.current().nextInt(LAND_ECHO_DELAY_MAX_TICKS - LAND_ECHO_DELAY_MIN_TICKS + 1);
         var feetPos = player.blockPosition();

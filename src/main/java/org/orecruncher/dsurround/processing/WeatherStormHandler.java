@@ -102,7 +102,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
     private static final net.minecraft.sounds.SoundEvent DUST_HIT_SOUND = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
             ResourceLocation.fromNamespaceAndPath(MOD_ID, "dust"));
     private final java.util.Random dustRandom = new java.util.Random();
-    private int dustSoundTick = 0;
+    private int rainSoundCounter = 0;
 
     // Nether dust veil colors: each column picks a random red / black / red-brown
     // tint (1.12.2 nether dust look, drawn with the shared dust texture).
@@ -209,8 +209,10 @@ public class WeatherStormHandler extends AbstractClientHandler {
         updateHorizonTint(biome, this.config.weatherOptions.enableBiomeFogColor);
 
         float dustIntensity = Math.max(this.netherTint, this.fullscreenTint);
-        if (dustIntensity > 0.02F && ++this.dustSoundTick >= 40) {
-            this.dustSoundTick = 0;
+        // 1.12.2 StormSplashRenderer accumulating throttle: fires ~once every 3 ticks
+        // (~7/s), so the 2s rumble overlaps into a continuous surround wind, not gaps.
+        if (dustIntensity > 0.02F && this.dustRandom.nextInt(3) < this.rainSoundCounter++) {
+            this.rainSoundCounter = 0;
             playDustImpactSound(player, dustIntensity);
         }
     }

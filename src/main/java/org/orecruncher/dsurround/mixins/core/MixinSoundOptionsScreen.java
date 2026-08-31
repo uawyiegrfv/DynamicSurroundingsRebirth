@@ -56,17 +56,14 @@ public abstract class MixinSoundOptionsScreen {
         dsurround_addWidget(self, buttonToAdd);
 
         // Footsteps / Biomes volume sliders appended to the vanilla options list
-        // (1.20.1 pattern: OptionInstance + UnitDouble 0..1, stored value = 0..1.5 for
-        // footsteps, 0..2 for biomes). The footstep slider caps at 150%: the engine
-        // clamps a single voice's gain at 1.0, so beyond ~150% every footstep voice
-        // pins at the ceiling and the landing>step loudness hierarchy collapses.
+        // (1.20.1 pattern: OptionInstance + UnitDouble 0..1, stored value = 0..2).
         var soundConfig = ConfigurationData.getConfig(Configuration.class).soundOptions;
         var footSlider = new OptionInstance<>("dsurround.options.footstepVolume",
                 OptionInstance.noTooltip(),
-                (caption, value) -> caption.copy().append(": " + Math.round(value * 150.0D) + "%"),
+                (caption, value) -> caption.copy().append(": " + Math.round(value * 200.0D) + "%"),
                 OptionInstance.UnitDouble.INSTANCE,
-                Math.min(1.0D, soundConfig.footstepVolume / 1.5D),
-                v -> soundConfig.footstepVolume = v * 1.5D);
+                soundConfig.footstepVolume / 2.0D,
+                v -> soundConfig.footstepVolume = v * 2.0D);
         var biomeSlider = new OptionInstance<>("dsurround.options.biomeVolume",
                 OptionInstance.noTooltip(),
                 (caption, value) -> caption.copy().append(": " + Math.round(value * 200.0D) + "%"),

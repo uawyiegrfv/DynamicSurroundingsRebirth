@@ -75,10 +75,7 @@ public class FootstepGenerator extends AbstractClientHandler {
     private static float landHardDistanceMin() { return VARIATORS.getPlayerVariator().landHardDistanceMin(); }
     private static float footstepVolume() { return VARIATORS.getPlayerVariator().volumeScale(); }
     // Config-driven volume multiplier applied to every footstep sound (sound-options slider).
-    // Hard ceiling 1.5: the engine clamps each voice's gain at 1.0, so slider values beyond
-    // ~150% push every footstep/landing voice against the clamp and erase the landing>step
-    // hierarchy. Landing voices are already at the clamp by ~150% (e.g. grass_run 0.95 x 1.5).
-    private float dsFootstepVolume() { return Math.min(1.5F, (float) this.config.soundOptions.footstepVolume); }
+    private float dsFootstepVolume() { return (float) this.config.soundOptions.footstepVolume; }
 
     // Per-material landing composition ported from the original 1.12.2 mcp.json land
     // entries: primary "thud" + optional walk layer at 50% + delayed echo. Keyed on the

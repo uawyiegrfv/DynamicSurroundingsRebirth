@@ -1,12 +1,12 @@
 {
   "default": {
-    "volumeScale": 0.4
+    "volumeScale": 0.8
   },
   "player": {
     "playJump": true,
     "stride": 0.9,
     "landHardDistanceMin": 1.5,
-    "volumeScale": 0.45
+    "volumeScale": 0.9
   },
   "playerSlow": {
     "playJump": true,

@@ -1,4 +1,8 @@
 {
+  "dust": {
+    "category": "weather",
+    "sounds": ["dsurround:ambient/weather/dust"]
+  },
   "thunder": {
     "subtitle": "dsurround.sound.caption.thunder",
     "ds_credits": [

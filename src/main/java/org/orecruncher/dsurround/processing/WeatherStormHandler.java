@@ -119,14 +119,11 @@ public class WeatherStormHandler extends AbstractClientHandler {
         var biome = level.getBiome(player.blockPosition()).value();
         boolean nether = level.dimension() == Level.NETHER;
         boolean desert = TAG_LIBRARY.is(BiomeTags.IS_DESERT, biome) || TAG_LIBRARY.is(BiomeTags.IS_BADLANDS, biome);
-        // The nether has no sky so its own Level.isRaining() is always false, and it
-        // never receives the overworld's weather packets. In single-player read the
-        // integrated server's overworld directly; on a dedicated server there is no
-        // reliable client-side source, so the nether dust stays off there.
+        // The nether has no sky so its own Level.isRaining() is always false. The server
+        // pushes the overworld's rain state via WeatherMessage (WeatherSyncState cache).
         boolean raining;
         if (nether) {
-            var sp = Minecraft.getInstance().getSingleplayerServer();
-            raining = sp != null && sp.overworld().isRaining();
+            raining = org.orecruncher.dsurround.network.WeatherSyncState.isRaining();
         } else {
             raining = level.isRaining();
         }

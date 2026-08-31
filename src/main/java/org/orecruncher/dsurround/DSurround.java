@@ -11,6 +11,7 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModContainer;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraft.client.gui.screens.Screen;
 import org.orecruncher.dsurround.commands.Commands;
@@ -30,7 +31,7 @@ import org.orecruncher.dsurround.processing.aurora.AuroraRenderPipelines;
 @Mod(Constants.MOD_ID)
 public final class DSurround {
 
-    private final Client client;
+    private Client client;
     private boolean started;
 
     public DSurround() {
@@ -40,9 +41,14 @@ public final class DSurround {
         // 1.20.1 has no FMLJavaModLoadingContext.getModContainer(); use ModList
         ModContainer container = ModList.get().getModContainerById(Constants.MOD_ID).orElseThrow();
 
-        this.client = new Client();
-        this.client.construct();
-        this.client.initializeClient();
+        // Common (both sides): network channel + server-side weather sync.
+        org.orecruncher.dsurround.network.Network.register();
+        MinecraftForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.WeatherSyncService());
+
+        if (FMLEnvironment.dist.isClient()) {
+            this.client = new Client();
+            this.client.construct();
+            this.client.initializeClient();
 
         // Mod-bus (IModBusEvent) registrations
         modBus.addListener(this::onRegisterGuiOverlays);
@@ -75,6 +81,7 @@ public final class DSurround {
                 ClientState.TICK_END.raise().onTickEnd(Minecraft.getInstance());
             }
         });
+        }
     }
 
     private void onRegisterClientCommands(RegisterClientCommandsEvent event) {

@@ -12,6 +12,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
@@ -201,15 +202,18 @@ public class WeatherStormHandler extends AbstractClientHandler {
         final int alpha = (int) (intensity * 255F * 0.7F);
         if (alpha <= 0)
             return;
-        // Yellow-brown dust haze, 0xD8B266. Depth test off: the fill is pure color
-        // over the world frame; with the depth test on it also WRITES depth, and every
-        // flat HUD element drawn after it at the same z then fails the depth test and
-        // vanishes (the minimap/chat/coords "covered" artifact - only z-offset items
-        // like the hotbar stacks survived).
-        RenderSystem.disableDepthTest();
+        // Yellow-brown dust haze, 0xD8B266. Rendered with the guiOverlay render type -
+        // NO_DEPTH_TEST + color-only write mask - so the fullscreen veil can never write
+        // into the GUI depth buffer. The previous plain fill() (RenderType.gui(), LEQUAL
+        // + depth write) stamped the z=0 plane depth across the whole screen before any
+        // HUD drew, which killed Xaero's minimap - the one HUD that actively depth-tests
+        // and depth-clears inside the GUI. The old disableDepthTest()/enableDepthTest()
+        // wrapper was a no-op: GuiGraphics.fill() only enqueues vertices, and
+        // GuiGraphics.flush() draws them with the render type's own state shards and then
+        // force-enables depth test. This mirrors vanilla's own fullscreen overlays
+        // (spyglass/frozen/vignette), which all use RenderType.guiOverlay().
         final int color = (alpha << 24) | 0x00D8B266;
-        graphics.fill(0, 0, width, height, color);
-        RenderSystem.enableDepthTest();
+        graphics.fill(RenderType.guiOverlay(), 0, 0, width, height, color);
     }
 
     /**

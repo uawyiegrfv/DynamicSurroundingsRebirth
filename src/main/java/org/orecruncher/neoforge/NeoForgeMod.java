@@ -36,11 +36,15 @@ public final class NeoForgeMod {
             registrar.playToClient(org.orecruncher.dsurround.network.WeatherPayload.TYPE,
                     org.orecruncher.dsurround.network.WeatherPayload.STREAM_CODEC,
                     org.orecruncher.dsurround.network.WeatherPayload::handle);
+            registrar.playToClient(org.orecruncher.dsurround.network.MapCenterPayload.TYPE,
+                    org.orecruncher.dsurround.network.MapCenterPayload.STREAM_CODEC,
+                    org.orecruncher.dsurround.network.MapCenterPayload::handle);
         });
 
         // Server side (also fires in single-player's integrated server): push the
         // overworld weather to nether players.
         NeoForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.WeatherSyncService());
+        NeoForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.MapCenterSyncService());
 
         if (FMLEnvironment.dist.isClient()) {
             modBus.addListener(this::onRegisterGuiLayersEvent);

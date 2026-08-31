@@ -67,7 +67,7 @@ public class FootstepGenerator extends AbstractClientHandler {
     // headroom of its own to read heavier than a step. Boosting only playLand keeps
     // walk/run volumes untouched; 1.6 puts a 0.6-volume landing primary at ~0.96 per
     // voice - just under the clamp - restoring the landing>step hierarchy.
-    private static final float LAND_GAIN_BOOST = 1.6F;
+    private static final float LAND_GAIN_BOOST = 1.78F;
     // Lateral offset of each foot from the block centre when a landing plays, ported
     // from the 1.12.2 findAssociation DISTANCE_TO_CENTER.
     private static final double FOOT_LATERAL_OFFSET = 0.2D;

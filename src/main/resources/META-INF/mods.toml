@@ -20,7 +20,7 @@ ordering="NONE"
 
 [[dependencies.dsurround]]
 modId="cloth_config"
-mandatory=true
+mandatory=false
 versionRange="[11.1.136,)"
 ordering="NONE"
 side="CLIENT"

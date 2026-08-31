@@ -119,15 +119,29 @@ public class WeatherStormHandler extends AbstractClientHandler {
         var biome = level.getBiome(player.blockPosition()).value();
         boolean nether = level.dimension() == Level.NETHER;
         boolean desert = TAG_LIBRARY.is(BiomeTags.IS_DESERT, biome) || TAG_LIBRARY.is(BiomeTags.IS_BADLANDS, biome);
-        boolean raining = level.isRaining();
+        // The nether has no sky so its own Level.isRaining() is always false, and it
+        // never receives the overworld's weather packets. In single-player read the
+        // integrated server's overworld directly; on a dedicated server there is no
+        // reliable client-side source, so the nether dust stays off there.
+        boolean raining;
+        if (nether) {
+            var sp = Minecraft.getInstance().getSingleplayerServer();
+            raining = sp != null && sp.overworld().isRaining();
+        } else {
+            raining = level.isRaining();
+        }
 
         float netherTarget = 0F;
         float fullscreenTarget = 0F;
         if (nether && this.config.weatherOptions.enableNetherDust) {
-            // Nether dust veil: visible dust drift (shared desert dust texture),
-            // red/black/red-brown per-column tint.
-            netherTarget = 0.10F;
-            this.veilTexture = DUST_MODERATE;
+            // Nether dust veil, weather-driven like the desert sandstorm: only rains
+            // during rain/thunder, fades out on clear (1.12.2 WeatherGeneratorNether).
+            if (raining) {
+                netherTarget = 0.7F;
+                this.veilTexture = DUST_MODERATE;
+            } else {
+                this.veilTexture = DUST_CALM;
+            }
         } else if (desert && this.config.weatherOptions.enableDesertSandstorm) {
             if (!this.scanners.isInside()) {
                 float r = 0.85F, g = 0.7F, b = 0.4F;
@@ -257,7 +271,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
         int playerX = Mth.floor(player.getX());
         int playerY = Mth.floor(player.getY());
         int playerZ = Mth.floor(player.getZ());
-        float veilAlpha = nether ? 0.5F : (tint * 0.7F);
+        float veilAlpha = tint * 0.7F;
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -279,9 +293,18 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 if (!nether && !TAG_LIBRARY.is(BiomeTags.IS_DESERT, columnBiome) && !TAG_LIBRARY.is(BiomeTags.IS_BADLANDS, columnBiome))
                     continue;
 
-                int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, gridX, gridZ);
-                int k2 = Math.max(playerY - range, surface);
-                int l2 = Math.max(playerY + range, surface);
+                int k2, l2;
+                if (nether) {
+                    // Nether: the veil surrounds the player (the nether is a cave - MOTION_BLOCKING
+                    // reports the bedrock ceiling, far above the player, so clamping to surface
+                    // would collapse every column to k2 >= l2 and draw nothing).
+                    k2 = playerY - range;
+                    l2 = playerY + range;
+                } else {
+                    int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, gridX, gridZ);
+                    k2 = Math.max(playerY - range, surface);
+                    l2 = Math.max(playerY + range, surface);
+                }
                 if (k2 >= l2)
                     continue;
 

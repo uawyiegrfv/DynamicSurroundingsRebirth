@@ -152,10 +152,6 @@ public class WeatherStormHandler extends AbstractClientHandler {
         } else {
             raining = level.isRaining();
         }
-        if (level.getGameTime() % 100 == 0)
-            this.logger.info("[DS-Debug] process: nether=" + nether + " desert=" + desert + " raining=" + raining
-                    + " enableNether=" + this.config.weatherOptions.enableNetherDust
-                    + " netherTint=" + this.netherTint + " fullscreenTint=" + this.fullscreenTint + " tex=" + this.veilTexture);
 
         float netherTarget = 0F;
         float fullscreenTarget = 0F;
@@ -331,8 +327,6 @@ public class WeatherStormHandler extends AbstractClientHandler {
             return;
         final boolean nether = level.dimension() == Level.NETHER;
         final float tint = nether ? this.netherTint : this.fullscreenTint;
-        if (nether && level.getGameTime() % 100 == 0)
-            this.logger.info("[DS-Debug] onAfterWeather: nether=" + nether + " tint=" + tint + " tex=" + this.veilTexture);
         if (tint < 0.02F)
             return;
 

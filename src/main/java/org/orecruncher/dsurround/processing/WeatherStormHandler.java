@@ -13,6 +13,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.client.ParticleStatus;
@@ -280,7 +281,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
             return;
         // Yellow-brown dust haze, 0xD8B266.
         final int color = (alpha << 24) | 0x00D8B266;
-        graphics.fill(0, 0, width, height, color);
+        graphics.fill(RenderType.guiOverlay(), 0, 0, width, height, color);
     }
 
     /**

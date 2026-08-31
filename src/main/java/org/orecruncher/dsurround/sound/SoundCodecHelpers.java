@@ -19,7 +19,9 @@ public class SoundCodecHelpers {
             .xmap(either -> either.map(SoundEvent::createVariableRangeEvent, x -> x), Either::right);
 
     public static final Codec<FloatProvider> SOUND_PROPERTY_RANGE = Codec.either(Codec.FLOAT, RangeProperty.CODEC)
-            .xmap((either) -> either.map(ConstantFloat::of, rangeProperty -> UniformFloat.of(rangeProperty.min, rangeProperty.max)),
+            .xmap((either) -> either.map(ConstantFloat::of, rangeProperty -> rangeProperty.max > rangeProperty.min
+                    ? UniformFloat.of(rangeProperty.min, rangeProperty.max)
+                    : ConstantFloat.of(rangeProperty.min)),
                     floatProvider -> {
                         throw new RuntimeException("Not gonna happen");
                     });

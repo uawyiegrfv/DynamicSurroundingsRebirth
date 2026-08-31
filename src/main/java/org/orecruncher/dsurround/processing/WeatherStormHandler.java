@@ -104,6 +104,21 @@ public class WeatherStormHandler extends AbstractClientHandler {
     private float veilG = 0.7F;
     private float veilB = 0.4F;
 
+    // Nether dust veil colors: each column picks a random red / black / red-brown
+    // tint (1.12.2 nether dust look, drawn with the shared dust texture).
+    private static final int[][] NETHER_DUST_COLORS = {
+            { 0xC0, 0x30, 0x30 }, // red
+            { 0x16, 0x10, 0x10 }, // near-black
+            { 0x8B, 0x5A, 0x3C }, // red-brown
+    };
+    // 1.12.2 StormSplashRenderer grain-impact sound, with its accumulating throttle
+    // (PARTICLE_SOUND_CHANCE): a rare single short dust splash per land, not a
+    // per-frame trigger (the old per-frame trigger was the drill-noise bug).
+    private static final net.minecraft.sounds.SoundEvent DUST_HIT_SOUND = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
+            Identifier.fromNamespaceAndPath(MOD_ID, "dust"));
+    private static final int PARTICLE_SOUND_CHANCE = 3;
+    private int rainSoundCounter = 0;
+
     // Desert horizon tint state (see class comment).
     private float horizonWeight = 0F;
     private float horizonR = 1F;
@@ -151,6 +166,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
         if (nether && this.config.weatherOptions.enableNetherDust) {
             // Constant dark dust drifting in the nether with its very faint veil.
             netherTarget = 0.10F;
+            this.veilTexture = DUST_CALM;
         } else if (desert && this.config.weatherOptions.enableDesertSandstorm) {
             if (!this.scanners.isInside()) {
                 var info = ((IBiomeExtended) (Object) biome).dsurround_getInfo();
@@ -288,8 +304,9 @@ public class WeatherStormHandler extends AbstractClientHandler {
         final int alpha = (int) (intensity * 255F * 0.7F);
         if (alpha <= 0)
             return;
-        // Yellow-brown dust haze, 0xD8B266.
-        final int color = (alpha << 24) | 0x00D8B266;
+        // Desert haze is yellow-brown; the nether haze is a pale red-brown.
+        final boolean nether = mc.level != null && mc.level.dimension() == Level.NETHER;
+        final int color = (alpha << 24) | (nether ? 0x00C07A5A : 0x00D8B266);
         graphics.fill(0, 0, width, height, color);
     }
 
@@ -301,13 +318,14 @@ public class WeatherStormHandler extends AbstractClientHandler {
      * occlusion and translucency behave like rain).
      */
     private void onAfterWeather(RenderLevelStageEvent.AfterWeather event) {
-        if (this.fullscreenTint < 0.02F)
-            return;
-
         var mc = Minecraft.getInstance();
         var level = mc.level;
         var player = mc.player;
         if (level == null || player == null)
+            return;
+        final boolean nether = level.dimension() == Level.NETHER;
+        final float tint = nether ? this.netherTint : this.fullscreenTint;
+        if (tint < 0.02F)
             return;
 
         Camera camera = mc.gameRenderer.getMainCamera();
@@ -318,7 +336,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
         int playerX = Mth.floor(player.getX());
         int playerY = Mth.floor(player.getY());
         int playerZ = Mth.floor(player.getZ());
-        float veilAlpha = this.fullscreenTint * 0.7F;
+        float veilAlpha = tint * 0.7F;
 
         // 26.1: blend/depth/cull state lives on the WEATHER render pipelines - no
         // fixed-function calls needed (RenderSystem.enableBlend et al. are gone).
@@ -334,7 +352,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 for (int gridX = playerX - range; gridX <= playerX + range; gridX++) {
                     this.cursor.set(gridX, 0, gridZ);
                     var columnBiome = level.getBiome(this.cursor).value();
-                    if (!TAG_LIBRARY.is(BiomeTags.IS_DESERT, columnBiome) && !TAG_LIBRARY.is(BiomeTags.IS_BADLANDS, columnBiome))
+                    if (!nether && !TAG_LIBRARY.is(BiomeTags.IS_DESERT, columnBiome) && !TAG_LIBRARY.is(BiomeTags.IS_BADLANDS, columnBiome))
                         continue;
 
                     int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, gridX, gridZ);
@@ -359,9 +377,17 @@ public class WeatherStormHandler extends AbstractClientHandler {
                     float f3 = Mth.sqrt((float) (d6 * d6 + d7 * d7)) / range;
                     int alpha = (int) (((1.0F - f3 * f3) * 0.3F + 0.5F) * veilAlpha * 255F);
                     int light = (LevelRenderer.getLightCoords(level, this.cursor.set(gridX, k2, gridZ)) * 3 + 15728880) / 4;
-                    int cr = (int) (this.veilR * 255F);
-                    int cg = (int) (this.veilG * 255F);
-                    int cb = (int) (this.veilB * 255F);
+                    int cr, cg, cb;
+                    if (nether) {
+                        var dustColor = NETHER_DUST_COLORS[this.columnRandom.nextInt(NETHER_DUST_COLORS.length)];
+                        cr = dustColor[0];
+                        cg = dustColor[1];
+                        cb = dustColor[2];
+                    } else {
+                        cr = (int) (this.veilR * 255F);
+                        cg = (int) (this.veilG * 255F);
+                        cb = (int) (this.veilB * 255F);
+                    }
                     int argb = (alpha << 24) | (cr << 16) | (cg << 8) | cb;
 
                     float x0 = gridX - rainX + 0.5F - (float) cam.x;
@@ -384,6 +410,18 @@ public class WeatherStormHandler extends AbstractClientHandler {
             if (quads == 0)
                 return;
 
+            // 1.12.2 StormSplashRenderer grain-impact sound: a single short dust splash
+            // per land, throttled by an accumulating counter (PARTICLE_SOUND_CHANCE).
+            if (this.columnRandom.nextInt(PARTICLE_SOUND_CHANCE) < this.rainSoundCounter++) {
+                this.rainSoundCounter = 0;
+                int rx = playerX + this.columnRandom.nextInt(range * 2 + 1) - range;
+                int rz = playerZ + this.columnRandom.nextInt(range * 2 + 1) - range;
+                int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, rx, rz);
+                float volume = tint * 0.5F * (0.8F + this.columnRandom.nextFloat() * 0.2F);
+                float pitch = 1.0F + (this.columnRandom.nextFloat() - this.columnRandom.nextFloat()) * 0.1F;
+                level.playLocalSound(rx + 0.5D, surface + 0.5D, rz + 0.5D, DUST_HIT_SOUND,
+                        net.minecraft.sounds.SoundSource.WEATHER, volume, pitch, false);
+            }
 
             GpuBuffer vertexBuffer;
             GpuBuffer indexBuffer;

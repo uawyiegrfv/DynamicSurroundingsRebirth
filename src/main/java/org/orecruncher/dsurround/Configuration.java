@@ -222,6 +222,12 @@ public class Configuration extends ConfigurationData {
         @DoubleRange(min = 0, max = 2)
         @Comment("Biome ambient sounds will be multiplied by this factor")
         public double biomeVolume = 1.0D;
+
+        @Property
+        @Slider
+        @DoubleRange(min = 0, max = 2)
+        @Comment("Player effect sounds (jump, heartbeat, hunger, crafting, hotbar) will be multiplied by this factor")
+        public double playerEffectVolume = 1.0D;
     }
 
     public static class BlockEffects {

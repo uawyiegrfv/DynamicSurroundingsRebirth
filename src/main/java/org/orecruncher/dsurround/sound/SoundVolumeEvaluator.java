@@ -2,9 +2,12 @@ package org.orecruncher.dsurround.sound;
 
 import com.google.common.base.Preconditions;
 import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
+import org.orecruncher.dsurround.lib.config.ConfigurationData;
 import org.orecruncher.dsurround.gui.sound.ConfigSoundInstance;
 import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
@@ -38,8 +41,18 @@ public final class SoundVolumeEvaluator {
             // could result in a sound volume of 0.
             var volumeScale = SOUND_LIBRARY.getVolumeScale(category, sound.getIdentifier());
             volume *= volumeScale;
+
+            if (isPlayerEffectSound(sound.getIdentifier())) {
+                volume *= (float) ConfigurationData.getConfig(Configuration.class).soundOptions.playerEffectVolume;
+            }
         }
 
-        return Mth.clamp(volume, 0, 1F);
+        return Mth.clamp(volume, 0, 2F);
+    }
+
+    private static boolean isPlayerEffectSound(Identifier loc) {
+        String path = loc.getPath();
+        return path.startsWith("player.") || path.equals("crafting")
+                || path.startsWith("equip.") || path.startsWith("toolbar.");
     }
 }

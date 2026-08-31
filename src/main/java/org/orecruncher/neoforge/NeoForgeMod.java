@@ -7,12 +7,14 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.loading.FMLEnvironment;
 
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import org.orecruncher.dsurround.Client;
 import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.eventing.ClientState;
@@ -20,22 +22,39 @@ import org.orecruncher.dsurround.gui.overlay.OverlayManager;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.processing.aurora.AuroraRenderPipelines;
 
-@Mod(value = Constants.MOD_ID, dist = Dist.CLIENT)
+@Mod(value = Constants.MOD_ID)
 public final class NeoForgeMod {
 
-    private final Client client;
+    private Client client;
 
     public NeoForgeMod(ModContainer container, IEventBus modBus) {
-        modBus.addListener(this::onRegisterGuiLayersEvent);
-        modBus.addListener(AuroraRenderPipelines::onRegisterShaders);
+        // Common (both sides): register the server->client network payloads. Optional
+        // so a client without DS can still connect (the server-side sender checks for
+        // DS before sending).
+        modBus.addListener((RegisterPayloadHandlersEvent event) -> {
+            var registrar = event.registrar("1.0").optional();
+            registrar.playToClient(org.orecruncher.dsurround.network.WeatherPayload.TYPE,
+                    org.orecruncher.dsurround.network.WeatherPayload.STREAM_CODEC,
+                    org.orecruncher.dsurround.network.WeatherPayload::handle);
+        });
 
-        this.client = new Client();
-        this.client.construct();
-        this.client.initializeClient();
+        // Server side (also fires in single-player's integrated server): push the
+        // overworld weather to nether players.
+        NeoForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.WeatherSyncService());
 
-        if (ModList.get().isLoaded(Constants.CLOTH_CONFIG_NEOFORGE))
-            container.registerExtensionPoint(IConfigScreenFactory.class, new ModConfigMenu());
+        if (FMLEnvironment.dist.isClient()) {
+            modBus.addListener(this::onRegisterGuiLayersEvent);
+            modBus.addListener(AuroraRenderPipelines::onRegisterShaders);
 
+            this.client = new Client();
+            this.client.construct();
+            this.client.initializeClient();
+
+            if (ModList.get().isLoaded(Constants.CLOTH_CONFIG_NEOFORGE))
+                container.registerExtensionPoint(IConfigScreenFactory.class, new ModConfigMenu());
+        }
+        // Dedicated server: no client-side registration here. Server-only logic
+        // (network payload registration) is wired up in later stages.
     }
 
     @SubscribeEvent

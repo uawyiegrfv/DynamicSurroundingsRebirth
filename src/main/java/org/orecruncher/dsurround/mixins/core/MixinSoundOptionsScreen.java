@@ -44,9 +44,10 @@ public abstract class MixinSoundOptionsScreen extends OptionsSubScreen {
         // Add Footsteps / Biomes volume sliders to the main options list (appended
         // after the vanilla sliders, same position as the 26.1 build).
         var soundConfig = org.orecruncher.dsurround.lib.config.ConfigurationData.getConfig(Configuration.class).soundOptions;
-        this.list.addSmall(
+        this.list.addSmall(java.util.List.of(
                 new DsVolumeSlider("dsurround.options.footstepVolume", soundConfig.footstepVolume, v -> soundConfig.footstepVolume = v),
-                new DsVolumeSlider("dsurround.options.biomeVolume", soundConfig.biomeVolume, v -> soundConfig.biomeVolume = v));
+                new DsVolumeSlider("dsurround.options.playerEffectVolume", soundConfig.playerEffectVolume, v -> soundConfig.playerEffectVolume = v),
+                new DsVolumeSlider("dsurround.options.biomeVolume", soundConfig.biomeVolume, v -> soundConfig.biomeVolume = v)));
     }
 
     /** A 0..2 (0%..200%) volume slider backed by a double configuration field. */

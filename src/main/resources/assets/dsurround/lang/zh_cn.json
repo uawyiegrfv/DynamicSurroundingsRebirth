@@ -51,6 +51,7 @@
   "dsurround.config.mapOptions": "地图距离选项",
   "dsurround.config.mapOptions.tooltip": "地图距离叠加的配置选项",
   "dsurround.options.footstepVolume": "脚步",
+  "dsurround.options.playerEffectVolume": "玩家效果",
   "dsurround.options.biomeVolume": "环境音",
   "dsurround.config.mapOptions.enableTreasureDistance": "藏宝图距离显示",
   "dsurround.config.mapOptions.enableTreasureDistance.tooltip": "启用/禁用 手持探险者地图时在右上角显示到宝藏的水平距离",

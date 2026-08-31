@@ -57,6 +57,7 @@
   "dsurround.config.mapOptions": "Map Distance Options",
   "dsurround.config.mapOptions.tooltip": "Configuration options for the map distance overlay",
   "dsurround.options.footstepVolume": "Footsteps",
+  "dsurround.options.playerEffectVolume": "Player Effects",
   "dsurround.options.biomeVolume": "Biomes",
   "dsurround.config.mapOptions.enableTreasureDistance": "Treasure Distance",
   "dsurround.config.mapOptions.enableTreasureDistance.tooltip": "Enable/disable showing the horizontal distance to the treasure target on explorer maps",

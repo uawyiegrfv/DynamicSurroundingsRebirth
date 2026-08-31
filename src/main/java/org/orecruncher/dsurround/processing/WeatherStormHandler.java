@@ -148,9 +148,10 @@ public class WeatherStormHandler extends AbstractClientHandler {
         float r = 0.85F, g = 0.7F, b = 0.4F;
 
         if (nether && this.config.weatherOptions.enableNetherDust) {
-            // Constant dark dust drifting in the nether with its very faint veil.
+            // Nether dust veil: visible dust drift (shared desert dust texture),
+            // red/black/red-brown per-column tint.
             netherTarget = 0.10F;
-            this.veilTexture = DUST_CALM;
+            this.veilTexture = DUST_MODERATE;
         } else if (desert && this.config.weatherOptions.enableDesertSandstorm) {
             if (!this.scanners.isInside()) {
                 var info = ((IBiomeExtended) (Object) biome).dsurround_getInfo();

@@ -9,18 +9,18 @@ import org.orecruncher.dsurround.network.Network;
 
 public final class WeatherSyncService {
 
-    private boolean lastRaining;
+    private int tickCounter;
 
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END)
             return;
+        if (++this.tickCounter < 20)
+            return;
+        this.tickCounter = 0;
+
         MinecraftServer server = event.getServer();
         boolean raining = server.overworld().isRaining();
-        if (raining == this.lastRaining)
-            return;
-        this.lastRaining = raining;
-
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (player.level().dimension() == Level.NETHER && Network.isPlayerPresent(player)) {
                 Network.sendWeatherToPlayer(player, raining);

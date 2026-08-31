@@ -15,17 +15,18 @@ import org.orecruncher.dsurround.network.WeatherPayload;
  */
 public final class WeatherSyncService {
 
-    private boolean lastRaining;
+    private int tickCounter;
 
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
-        MinecraftServer server = event.getServer();
-        boolean raining = server.overworld().isRaining();
-        if (raining == this.lastRaining)
+        // Sync every 20 ticks (1s): covers both weather changes and a player freshly
+        // entering the nether (whose client cache would otherwise stay stale).
+        if (++this.tickCounter < 20)
             return;
-        this.lastRaining = raining;
+        this.tickCounter = 0;
 
-        WeatherPayload payload = new WeatherPayload(raining);
+        MinecraftServer server = event.getServer();
+        WeatherPayload payload = new WeatherPayload(server.overworld().isRaining());
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (player.level().dimension() == Level.NETHER) {
                 PacketDistributor.sendToPlayer(player, payload);

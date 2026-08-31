@@ -19,7 +19,14 @@ public class SoundCodecHelpers {
             .xmap(either -> either.map(SoundEvent::createVariableRangeEvent, x -> x), Either::right);
 
     public static final Codec<FloatProvider> SOUND_PROPERTY_RANGE = Codec.either(Codec.FLOAT, RangeProperty.CODEC)
-            .xmap((either) -> either.map(ConstantFloat::of, rangeProperty -> UniformFloat.of(rangeProperty.min, rangeProperty.max)),
+            .xmap((either) -> either.map(ConstantFloat::of, rangeProperty -> rangeProperty.max > rangeProperty.min
+                    // UniformFloat.of() throws "Max must exceed min" when max <= min. The factory
+                    // list codec decodes the whole sound_factories.json as one list, so a single
+                    // {min==max} entry used to reject the ENTIRE file - factories cached: 0 - and
+                    // every factory whose location is not itself a sound event (brush step, footstep
+                    // accents, toolbar, ...) went silent. Decode min==max as a constant instead.
+                    ? UniformFloat.of(rangeProperty.min, rangeProperty.max)
+                    : ConstantFloat.of(rangeProperty.min)),
                     floatProvider -> {
                         throw new RuntimeException("Not gonna happen");
                     });

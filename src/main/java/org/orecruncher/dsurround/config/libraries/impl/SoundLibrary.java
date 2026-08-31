@@ -374,7 +374,16 @@ public final class SoundLibrary implements ISoundLibrary {
                 if (entityType.isPresent() && this.tagLibrary.is(EntityEffectTags.LIGHT_STEPS, entityType.get().value()))
                     return null;
                 var level = GameUtils.getWorld().orElseThrow();
-                var pos = BlockPos.containing(soundInstance.getX(), soundInstance.getY(), soundInstance.getZ()).below();
+                // Snow layer under the mob's feet wins over the buried block (same rule
+                // as the player's resolveSurfaceBlock): vanilla plays the snow step, not
+                // the block below.
+                var feetPos = BlockPos.containing(soundInstance.getX(), soundInstance.getY(), soundInstance.getZ());
+                var feetState = level.getBlockState(feetPos);
+                if (feetState.getBlock() instanceof net.minecraft.world.level.block.SnowLayerBlock && feetState.getFluidState().isEmpty()) {
+                    soundLocation = feetState.getSoundType().getStepSound().location();
+                    return soundLocation;
+                }
+                var pos = feetPos.below();
                 var support = level.getBlockState(pos);
                 // If the block under the mob is air/fluid (e.g. a mob walking along a block
                 // edge with its position sampled over the gap), do NOT convert the mob step

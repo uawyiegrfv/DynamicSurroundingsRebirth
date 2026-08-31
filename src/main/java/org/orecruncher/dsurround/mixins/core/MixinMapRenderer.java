@@ -89,17 +89,25 @@ public abstract class MixinMapRenderer {
         if (data == null || data.getDecorations() == null)
             return null;
 
-        // 1.20.1: the client copy of MapItemSavedData has centerX/centerZ == 0 (the server
-        // never syncs the centre), and decoration x/y = (world - center)/scale * 2, so the
-        // client data alone cannot yield world coordinates. In singleplayer the real centre
-        // lives on the integrated server - pull the server copy.
-        var mc = Minecraft.getInstance();
-        if (mc.getSingleplayerServer() != null) {
-            var mapId = MapItem.getMapId(stack);
-            if (mapId != null) {
-                var serverData = mc.getSingleplayerServer().overworld().getMapData("map_" + mapId);
-                if (serverData != null)
-                    data = serverData;
+        // Prefer the server-pushed centre (MapCenterCache); fall back to the integrated
+        // server copy in single-player.
+        int centerX = data.centerX;
+        int centerZ = data.centerZ;
+        var mapId = MapItem.getMapId(stack);
+        if (mapId != null) {
+            int[] cached = org.orecruncher.dsurround.network.MapCenterCache.get(mapId);
+            if (cached != null) {
+                centerX = cached[0];
+                centerZ = cached[1];
+            } else {
+                var mc = Minecraft.getInstance();
+                if (mc.getSingleplayerServer() != null) {
+                    var serverData = mc.getSingleplayerServer().overworld().getMapData("map_" + mapId);
+                    if (serverData != null) {
+                        centerX = serverData.centerX;
+                        centerZ = serverData.centerZ;
+                    }
+                }
             }
         }
 
@@ -107,8 +115,8 @@ public abstract class MixinMapRenderer {
         for (var entry : data.getDecorations()) {
             if (entry.renderOnFrame()) {
                 int blockScale = 1 << data.scale;
-                double worldX = data.centerX + (entry.getX() / 2.0) * blockScale;
-                double worldZ = data.centerZ + (entry.getY() / 2.0) * blockScale;
+                double worldX = centerX + (entry.getX() / 2.0) * blockScale;
+                double worldZ = centerZ + (entry.getY() / 2.0) * blockScale;
                 return (int) Math.round(Math.hypot(worldX - player.getX(), worldZ - player.getZ()));
             }
         }

@@ -44,6 +44,7 @@ public final class DSurround {
         // Common (both sides): network channel + server-side weather sync.
         org.orecruncher.dsurround.network.Network.register();
         MinecraftForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.WeatherSyncService());
+        MinecraftForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.MapCenterSyncService());
 
         if (FMLEnvironment.dist.isClient()) {
             this.client = new Client();

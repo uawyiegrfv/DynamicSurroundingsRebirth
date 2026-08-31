@@ -24,10 +24,16 @@ public final class Network {
     public static void register() {
         CHANNEL.registerMessage(id++, WeatherMessage.class,
                 WeatherMessage::encode, WeatherMessage::decode, WeatherMessage::handle);
+        CHANNEL.registerMessage(id++, MapCenterMessage.class,
+                MapCenterMessage::encode, MapCenterMessage::decode, MapCenterMessage::handle);
     }
 
     public static void sendWeatherToPlayer(ServerPlayer player, boolean raining) {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new WeatherMessage(raining));
+    }
+
+    public static void sendMapCenterToPlayer(ServerPlayer player, int mapId, int centerX, int centerZ) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new MapCenterMessage(mapId, centerX, centerZ));
     }
 
     /** True when the remote (client) has DS installed and completed the channel handshake. */

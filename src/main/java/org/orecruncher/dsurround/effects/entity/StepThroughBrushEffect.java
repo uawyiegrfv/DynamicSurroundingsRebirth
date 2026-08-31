@@ -6,8 +6,10 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.config.libraries.ITagLibrary;
+import org.orecruncher.dsurround.lib.config.ConfigurationData;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.tags.BlockEffectTags;
 import org.orecruncher.dsurround.mixinutils.ILivingEntityExtended;
@@ -95,7 +97,7 @@ public class StepThroughBrushEffect extends EntityEffectBase {
     private void playSoundEffect(BlockPos pos, Identifier factory) {
        SOUND_LIBRARY.getSoundFactory(factory)
                .ifPresent(f -> {
-                   var soundInstance = f.createAtLocation(pos, 1.0F);
+                   var soundInstance = f.createAtLocation(pos, (float) ConfigurationData.getConfig(Configuration.class).soundOptions.footstepVolume);
                    this.playSound(soundInstance);
                });
     }

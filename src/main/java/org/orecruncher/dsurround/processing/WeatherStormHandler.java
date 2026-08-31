@@ -111,13 +111,6 @@ public class WeatherStormHandler extends AbstractClientHandler {
             { 0x16, 0x10, 0x10 }, // near-black
             { 0x8B, 0x5A, 0x3C }, // red-brown
     };
-    // 1.12.2 StormSplashRenderer grain-impact sound, with its accumulating throttle
-    // (PARTICLE_SOUND_CHANCE): a rare single short dust splash per land, not a
-    // per-frame trigger (the old per-frame trigger was the drill-noise bug).
-    private static final net.minecraft.sounds.SoundEvent DUST_HIT_SOUND = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
-            Identifier.fromNamespaceAndPath(MOD_ID, "dust"));
-    private static final int PARTICLE_SOUND_CHANCE = 3;
-    private int rainSoundCounter = 0;
 
     // Desert horizon tint state (see class comment).
     private float horizonWeight = 0F;
@@ -336,7 +329,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
         int playerX = Mth.floor(player.getX());
         int playerY = Mth.floor(player.getY());
         int playerZ = Mth.floor(player.getZ());
-        float veilAlpha = tint * 0.7F;
+        float veilAlpha = nether ? 0.5F : (tint * 0.7F);
 
         // 26.1: blend/depth/cull state lives on the WEATHER render pipelines - no
         // fixed-function calls needed (RenderSystem.enableBlend et al. are gone).
@@ -409,19 +402,6 @@ public class WeatherStormHandler extends AbstractClientHandler {
 
             if (quads == 0)
                 return;
-
-            // 1.12.2 StormSplashRenderer grain-impact sound: a single short dust splash
-            // per land, throttled by an accumulating counter (PARTICLE_SOUND_CHANCE).
-            if (this.columnRandom.nextInt(PARTICLE_SOUND_CHANCE) < this.rainSoundCounter++) {
-                this.rainSoundCounter = 0;
-                int rx = playerX + this.columnRandom.nextInt(range * 2 + 1) - range;
-                int rz = playerZ + this.columnRandom.nextInt(range * 2 + 1) - range;
-                int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, rx, rz);
-                float volume = tint * 0.5F * (0.8F + this.columnRandom.nextFloat() * 0.2F);
-                float pitch = 1.0F + (this.columnRandom.nextFloat() - this.columnRandom.nextFloat()) * 0.1F;
-                level.playLocalSound(rx + 0.5D, surface + 0.5D, rz + 0.5D, DUST_HIT_SOUND,
-                        net.minecraft.sounds.SoundSource.WEATHER, volume, pitch, false);
-            }
 
             GpuBuffer vertexBuffer;
             GpuBuffer indexBuffer;

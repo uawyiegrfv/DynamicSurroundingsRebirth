@@ -34,9 +34,13 @@ public final class NeoForgeMod {
             registrar.playToClient(org.orecruncher.dsurround.network.WeatherPayload.TYPE,
                     org.orecruncher.dsurround.network.WeatherPayload.STREAM_CODEC,
                     org.orecruncher.dsurround.network.WeatherPayload::handle);
+            registrar.playToClient(org.orecruncher.dsurround.network.BubblePayload.TYPE,
+                    org.orecruncher.dsurround.network.BubblePayload.STREAM_CODEC,
+                    org.orecruncher.dsurround.network.BubblePayload::handle);
         });
 
         NeoForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.WeatherSyncService());
+        NeoForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.BubbleCommand());
 
         if (FMLEnvironment.getDist().isClient()) {
             modBus.addListener(this::onRegisterGuiLayersEvent);

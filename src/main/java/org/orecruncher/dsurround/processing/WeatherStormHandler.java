@@ -91,6 +91,14 @@ public class WeatherStormHandler extends AbstractClientHandler {
     private ResourceLocation veilTexture = DUST_CALM;
     private final java.util.Random columnRandom = new java.util.Random();
     private final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+    // Per-column veil cache: biome match + surface height, plus the packed light at
+    // each column's band position. Cleared every 40 ticks (2s) so world edits and
+    // daylight shifts show up while a storm runs. When the player stands still this
+    // cuts the ~1300 block queries per frame down to map lookups only.
+    private static final long COLUMN_CACHE_TTL = 40L;
+    private final it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<long[]> columnCache = new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>();
+    private final it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap lightCache = new it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap();
+    private long columnCacheTick = Long.MIN_VALUE;
     private float veilR = 0.85F;
     private float veilG = 0.7F;
     private float veilB = 0.4F;
@@ -380,11 +388,24 @@ public class WeatherStormHandler extends AbstractClientHandler {
 
         BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
         int quads = 0;
+        if (ticks - this.columnCacheTick >= COLUMN_CACHE_TTL) {
+            this.columnCache.clear();
+            this.lightCache.clear();
+            this.columnCacheTick = ticks;
+        }
         for (int gridZ = playerZ - range; gridZ <= playerZ + range; gridZ++) {
             for (int gridX = playerX - range; gridX <= playerX + range; gridX++) {
                 this.cursor.set(gridX, 0, gridZ);
-                var columnBiome = level.getBiome(this.cursor).value();
-                if (!nether && !TAG_LIBRARY.is(BiomeTags.IS_DESERT, columnBiome) && !TAG_LIBRARY.is(BiomeTags.IS_BADLANDS, columnBiome))
+                long colKey = BlockPos.asLong(gridX, 0, gridZ);
+                long[] col = this.columnCache.get(colKey);
+                if (col == null) {
+                    var columnBiome = level.getBiome(this.cursor).value();
+                    boolean match = nether || TAG_LIBRARY.is(BiomeTags.IS_DESERT, columnBiome) || TAG_LIBRARY.is(BiomeTags.IS_BADLANDS, columnBiome);
+                    int surface = nether ? Integer.MIN_VALUE : level.getHeight(Heightmap.Types.MOTION_BLOCKING, gridX, gridZ);
+                    col = new long[] { match ? 1L : 0L, surface };
+                    this.columnCache.put(colKey, col);
+                }
+                if (col[0] == 0L)
                     continue;
 
                 int k2, l2;
@@ -394,7 +415,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
                     k2 = playerY - range;
                     l2 = playerY + range;
                 } else {
-                    int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, gridX, gridZ);
+                    int surface = (int) col[1];
                     k2 = Math.max(playerY - range, surface);
                     l2 = Math.max(playerY + range, surface);
                 }
@@ -416,7 +437,15 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 double d7 = gridZ + 0.5 - player.getZ();
                 float f3 = Mth.sqrt((float) (d6 * d6 + d7 * d7)) / range;
                 int alpha = (int) (((1.0F - f3 * f3) * 0.3F + 0.5F) * veilAlpha * 255F);
-                int light = (LevelRenderer.getLightColor(level, this.cursor.set(gridX, k2, gridZ)) * 3 + 15728880) / 4;
+                long lightKey = BlockPos.asLong(gridX, k2, gridZ);
+                long lightVal;
+                if (this.lightCache.containsKey(lightKey)) {
+                    lightVal = this.lightCache.get(lightKey);
+                } else {
+                    lightVal = (LevelRenderer.getLightColor(level, this.cursor.set(gridX, k2, gridZ)) * 3 + 15728880) / 4;
+                    this.lightCache.put(lightKey, lightVal);
+                }
+                int light = (int) lightVal;
                 int cr, cg, cb;
                 if (nether) {
                     var dustColor = NETHER_DUST_COLORS[this.columnRandom.nextInt(NETHER_DUST_COLORS.length)];

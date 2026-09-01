@@ -51,12 +51,10 @@ public class ItemSwingEffect extends EntityEffectBase {
                 var factory = this.itemLibrary.getItemSwingSound(currentItem);
 
                 if (factory.isPresent() && freeSwing(entity)) {
-                    SoundInstance instance;
-                    if (info.isCurrentPlayer(entity)) {
-                        instance = factory.get().createAsAdditional();
-                    } else {
-                        instance = factory.get().attachToEntity(entity);
-                    }
+                    // Entity-bound in both cases: the swing sound then goes through
+                    // occlusion/water damping like every other positioned sound.
+                        SoundInstance instance = factory.get().attachToEntity(entity);
+                    
 
                     if (instance != null)
                         this.playSound(instance);

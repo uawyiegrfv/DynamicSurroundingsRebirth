@@ -215,6 +215,8 @@ public class SpeechBubbleHandler {
 
     private void entityChatScan(Minecraft mc) {
         final long now = this.tick;
+        if (now % 3 != 0)
+            return;
         final int range = this.config.speechBubbles.speechBubbleRange;
         final double rangeSq = (double) range * range;
 

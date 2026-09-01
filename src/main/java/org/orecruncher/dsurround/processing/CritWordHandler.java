@@ -113,7 +113,7 @@ public class CritWordHandler {
             return;
 
         final float damage = event.getNewDamage();
-        final int delta = Math.max(1, Math.round(damage));
+        final int delta = Math.max(1, Math.round(Math.min(damage, entity.getHealth())));
 
         // Launch direction: away from the attacker.
         double dx = 0, dz = 0;

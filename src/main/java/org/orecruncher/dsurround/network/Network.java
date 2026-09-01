@@ -26,6 +26,8 @@ public final class Network {
                 WeatherMessage::encode, WeatherMessage::decode, WeatherMessage::handle);
         CHANNEL.registerMessage(id++, MapCenterMessage.class,
                 MapCenterMessage::encode, MapCenterMessage::decode, MapCenterMessage::handle);
+        CHANNEL.registerMessage(id++, BubbleMessage.class,
+                BubbleMessage::encode, BubbleMessage::decode, BubbleMessage::handle);
     }
 
     public static void sendWeatherToPlayer(ServerPlayer player, boolean raining) {
@@ -34,6 +36,10 @@ public final class Network {
 
     public static void sendMapCenterToPlayer(ServerPlayer player, int mapId, int centerX, int centerZ) {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new MapCenterMessage(mapId, centerX, centerZ));
+    }
+
+    public static void sendBubbleToPlayer(ServerPlayer player, BubbleMessage message) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), message);
     }
 
     /** True when the remote (client) has DS installed and completed the channel handshake. */

@@ -45,6 +45,7 @@ public final class DSurround {
         org.orecruncher.dsurround.network.Network.register();
         MinecraftForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.WeatherSyncService());
         MinecraftForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.MapCenterSyncService());
+        MinecraftForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.BubbleCommand());
 
         if (FMLEnvironment.dist.isClient()) {
             this.client = new Client();

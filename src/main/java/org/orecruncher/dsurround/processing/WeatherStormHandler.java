@@ -99,6 +99,9 @@ public class WeatherStormHandler extends AbstractClientHandler {
     private final it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<long[]> columnCache = new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>();
     private final it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap lightCache = new it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap();
     private long columnCacheTick = Long.MIN_VALUE;
+    // Dimension the cache was built for - crossing dimensions invalidates it
+    // immediately (the same column coordinates exist in every dimension).
+    private net.minecraft.resources.ResourceKey<Level> cacheDimension;
     private float veilR = 0.85F;
     private float veilG = 0.7F;
     private float veilB = 0.4F;
@@ -388,7 +391,13 @@ public class WeatherStormHandler extends AbstractClientHandler {
 
         BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
         int quads = 0;
-        if (ticks - this.columnCacheTick >= COLUMN_CACHE_TTL) {
+        var dimId = level.dimension();
+        if (dimId != this.cacheDimension) {
+            this.cacheDimension = dimId;
+            this.columnCache.clear();
+            this.lightCache.clear();
+            this.columnCacheTick = ticks;
+        } else if (ticks - this.columnCacheTick >= COLUMN_CACHE_TTL) {
             this.columnCache.clear();
             this.lightCache.clear();
             this.columnCacheTick = ticks;

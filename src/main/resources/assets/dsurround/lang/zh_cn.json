@@ -392,5 +392,7 @@
   "dsurround.config.speechBubbles.speechBubbleDuration": "显示时长",
   "dsurround.config.speechBubbles.speechBubbleDuration.tooltip": "气泡显示多少秒后消失",
   "dsurround.config.speechBubbles.speechBubbleRange": "可见范围",
-  "dsurround.config.speechBubbles.speechBubbleRange.tooltip": "气泡可见的最大距离（格）"
+  "dsurround.config.speechBubbles.speechBubbleRange.tooltip": "气泡可见的最大距离（格）",
+  "dsurround.config.soundOptions.playerEffectVolume": "玩家效果音量",
+  "dsurround.config.soundOptions.playerEffectVolume.tooltip": "玩家效果声音（跳跃、心跳、饥饿、制作、快捷栏切换、物品挥舞）将乘以该系数"
 }

@@ -222,6 +222,10 @@ public class SpeechBubbleHandler {
 
     private void entityChatScan(Minecraft mc) {
         final long now = this.tick;
+        // Scan every 3rd tick: this is the entity survey only, not playback, so
+        // bubble triggers shift by at most 2 ticks (imperceptible for random chatter).
+        if (now % 3 != 0)
+            return;
         final int range = this.config.speechBubbles.speechBubbleRange;
         final double rangeSq = (double) range * range;
 

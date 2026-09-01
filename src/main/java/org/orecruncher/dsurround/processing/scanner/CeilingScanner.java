@@ -61,27 +61,39 @@ public final class CeilingScanner extends AbstractScanner {
     private final IDimensionLibrary dimensionLibrary;
     private boolean reallyInside = false;
     private float coverageRatio = 0;
+    // Progressive sweep state: 3 of the 9 cells per visit, round-robin.
+    private int scanIndex = 0;
+    private final float[] cellScores = new float[cells.length];
 
     public CeilingScanner(IDimensionLibrary dimensionLibrary) {
         this.dimensionLibrary = dimensionLibrary;
     }
 
     public void tick(long tickCount) {
-        if (tickCount % SURVEY_INTERVAL != 0)
+        if (tickCount % 2 != 0)
             return;
 
         var world = GameUtils.getWorld().orElseThrow();
         final DimensionInfo dimInfo = this.dimensionLibrary.getData(world);
         if (dimInfo.alwaysOutside()) {
             this.reallyInside = false;
-        } else {
-            var player = GameUtils.getPlayer().orElseThrow();
-            final BlockPos pos = player.blockPosition();
-            float score = 0.0F;
-            for (Cell cell : cells) score += cell.score(pos);
-            this.coverageRatio = 1.0F - (score / TOTAL_POINTS);
-            this.reallyInside = this.coverageRatio > INSIDE_THRESHOLD;
+            return;
         }
+        var player = GameUtils.getPlayer().orElseThrow();
+        final BlockPos pos = player.blockPosition();
+        // Progressive sweep: 3 of the 9 cells per visit (round-robin over 6 ticks).
+        // The deep cave column scans that used to spike in a single 1ms+ pass now
+        // spread over three ticks; the coverage blends fresh cells with the
+        // previous pass, so the result is the same, just smoother.
+        for (int i = 0; i < 3; i++) {
+            int idx = (this.scanIndex + i) % cells.length;
+            this.cellScores[idx] = cells[idx].score(pos);
+        }
+        this.scanIndex = (this.scanIndex + 3) % cells.length;
+        float score = 0.0F;
+        for (float s : this.cellScores) score += s;
+        this.coverageRatio = 1.0F - (score / TOTAL_POINTS);
+        this.reallyInside = this.coverageRatio > INSIDE_THRESHOLD;
     }
 
     public boolean isReallyInside() {

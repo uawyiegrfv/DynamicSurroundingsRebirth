@@ -124,7 +124,9 @@ public class CritWordHandler {
             return;
 
         final float damage = event.getAmount();
-        final int delta = Math.max(1, Math.round(damage));
+        // Show the damage actually dealt: a killing blow against a nearly-dead mob
+        // should read its remaining health, not the attacker's full hit.
+        final int delta = Math.max(1, Math.round(Math.min(damage, entity.getHealth())));
 
         // Launch direction: away from the attacker.
         double dx = 0, dz = 0;
@@ -226,7 +228,7 @@ public class CritWordHandler {
                 alpha = (int) (255F * (LIFETIME - entry.age) / (float) (LIFETIME - FADE_START));
             int color = (entry.color & 0x00FFFFFF) | (alpha << 24);
 
-            final float textScale = Mth.clamp(entry.scale * 1.6F / depth, 0.25F, 2.0F);
+            final float textScale = Mth.clamp(entry.scale * 2.0F / depth, 0.25F, 2.0F);
             final int drawX = -font.width(entry.text) / 2 + 1;
             final int drawY = -font.lineHeight / 2 + 1;
 

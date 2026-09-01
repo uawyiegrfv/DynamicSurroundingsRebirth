@@ -198,9 +198,24 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 if (RANDOM.nextDouble() < chance) {
                     var factory = ContainerManager.resolve(ISoundLibrary.class)
                             .getSoundFactoryOrDefault(LEAF_WIND);
-                    var offset = MathStuff.randomPoint(MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
-                    var instance = factory.createAtLocation(player.getEyePosition().add(offset), dsBiomeVolume());
-                    this.audioPlayer.play(instance);
+                    // Surround gust: three sources spread around the player (120 deg apart
+                    // with jitter, mixed 8-16 block distances) so the wind sweeps through
+                    // the canopy instead of coming from a single spot.
+                    final int sources = 3;
+                    final double baseAngle = RANDOM.nextDouble() * Math.PI * 2D;
+                    for (int i = 0; i < sources; i++) {
+                        final double angle = baseAngle + i * (Math.PI * 2D / sources)
+                                + (RANDOM.nextDouble() - 0.5D) * 0.8D;
+                        final double dist = MOOD_SOUND_MIN_RANGE
+                                + RANDOM.nextDouble() * (MOOD_SOUND_MAX_RANGE - MOOD_SOUND_MIN_RANGE);
+                        final double dy = (RANDOM.nextDouble() - 0.5D) * 4D;
+                        var pos = player.getEyePosition().add(Math.cos(angle) * dist, dy, Math.sin(angle) * dist);
+                        float vol = dsBiomeVolume() * (0.75F + RANDOM.nextFloat() * 0.25F);
+                        var instance = factory.createAtLocation(pos, vol);
+                        this.audioPlayer.play(instance);
+                        this.logger.info("[LEAF-DBG] gust source %d/%d angle=%.2f rad dist=%.1f vol=%.2f",
+                                i + 1, sources, angle, dist, vol);
+                    }
                 }
             }
         }

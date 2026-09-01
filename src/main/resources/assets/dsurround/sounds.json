@@ -127,7 +127,7 @@
     "subtitle": "dsurround.sound.caption.leaf_wind",
     "ds_credits": [
       {
-        "name": "Leaves rustle in the wind (50.5s-60.5s excerpt)",
+        "name": "Leaves rustle in the wind (53.0s-59.0s excerpt)",
         "author": "cinetony",
         "website": "https://freesound.org/people/cinetony",
         "license": "Creative Commons 0"
@@ -137,7 +137,7 @@
       {
         "name": "dsurround:ambient/outside/leaf_wind",
         "stream": true,
-        "volume": 1.5
+        "volume": 0.9
       }
     ]
   },

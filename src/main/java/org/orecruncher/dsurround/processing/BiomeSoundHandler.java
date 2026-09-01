@@ -184,7 +184,8 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * Intermittent gust of wind rustling the leaves in any wooded biome. Independent of the
      * mood chance (which is shared across all mood sounds in a biome), so it never inflates
      * the frequency of bird calls etc. More likely at night. Fires once per scan interval
-     * (4 ticks) with its own probability; plays a short gust at a random spot near the player.
+     * (4 ticks) with its own probability; plays a short gust from three sources spread
+     * around the player at canopy height, so the wind sweeps through the treetops.
      */
     private void handleLeafWindGust(Player player) {
         if (this.config.soundOptions.enableBiomeSounds && !this.scanner.isInside()) {
@@ -215,8 +216,6 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                         float vol = dsBiomeVolume() * (0.75F + RANDOM.nextFloat() * 0.25F);
                         var instance = factory.createAtLocation(pos, vol);
                         this.audioPlayer.play(instance);
-                        this.logger.info("[LEAF-DBG] gust source %d/%d angle=%.2f rad dist=%.1f y=%.1f vol=%.2f",
-                                i + 1, sources, angle, dist, y, vol);
                     }
                 }
             }

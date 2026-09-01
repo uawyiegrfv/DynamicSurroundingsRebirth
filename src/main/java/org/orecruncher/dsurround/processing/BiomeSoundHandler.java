@@ -6,6 +6,7 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import org.orecruncher.dsurround.config.libraries.IBiomeLibrary;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.Constants;
@@ -183,7 +184,8 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * Intermittent gust of wind rustling the leaves in any wooded biome. Independent of the
      * mood chance (which is shared across all mood sounds in a biome), so it never inflates
      * the frequency of bird calls etc. More likely at night. Fires once per scan interval
-     * (4 ticks) with its own probability; plays a short gust at a random spot near the player.
+     * (4 ticks) with its own probability; plays a short gust from three sources spread
+     * around the player at canopy height, so the wind sweeps through the treetops.
      */
     private void handleLeafWindGust(Player player) {
         if (this.config.soundOptions.enableBiomeSounds && !this.scanner.isInside()) {
@@ -198,9 +200,23 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 if (RANDOM.nextDouble() < chance) {
                     var factory = ContainerManager.resolve(ISoundLibrary.class)
                             .getSoundFactoryOrDefault(LEAF_WIND);
-                    var offset = MathStuff.randomPoint(MOOD_SOUND_MIN_RANGE, MOOD_SOUND_MAX_RANGE);
-                    var instance = factory.createAtLocation(player.getEyePosition().add(offset), dsBiomeVolume());
-                    this.audioPlayer.play(instance);
+                    // Surround gust: three sources spread around the player (120 deg apart
+                    // with jitter, mixed 8-16 block distances) floating at canopy height
+                    // (~6-8 blocks above the ground) so the wind sweeps through the treetops.
+                    final int sources = 3;
+                    final double baseAngle = RANDOM.nextDouble() * Math.PI * 2D;
+                    for (int i = 0; i < sources; i++) {
+                        final double angle = baseAngle + i * (Math.PI * 2D / sources)
+                                + (RANDOM.nextDouble() - 0.5D) * 0.8D;
+                        final double dist = MOOD_SOUND_MIN_RANGE
+                                + RANDOM.nextDouble() * (MOOD_SOUND_MAX_RANGE - MOOD_SOUND_MIN_RANGE);
+                        final double y = player.getY() + 6.0D + RANDOM.nextDouble() * 2.0D;
+                        var pos = new Vec3(player.getX() + Math.cos(angle) * dist, y,
+                                player.getZ() + Math.sin(angle) * dist);
+                        float vol = dsBiomeVolume() * (0.75F + RANDOM.nextFloat() * 0.25F);
+                        var instance = factory.createAtLocation(pos, vol);
+                        this.audioPlayer.play(instance);
+                    }
                 }
             }
         }

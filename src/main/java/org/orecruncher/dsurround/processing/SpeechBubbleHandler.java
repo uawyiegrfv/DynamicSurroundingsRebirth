@@ -40,8 +40,10 @@ import org.joml.Vector4f;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.eventing.ClientState;
+import org.orecruncher.dsurround.lib.Library;
 import org.orecruncher.dsurround.lib.random.IRandomizer;
 import org.orecruncher.dsurround.lib.random.Randomizer;
+import org.orecruncher.dsurround.network.BubbleSyncState;
 
 /**
  * Speech bubbles, ported back from the original 1.12.2 mod (the 26.1 rewrite dropped
@@ -74,6 +76,10 @@ public class SpeechBubbleHandler {
     private static final double BUBBLE_MARGIN = 4.0D;
     private static final int LINE_HEIGHT = 9;
     private static final int MAX_BUBBLES_PER_ENTITY = 4;
+
+    // /bubble command: the server broadcasts within this radius (see BubbleCommand);
+    // the client mirrors it as the projection cull for command bubbles.
+    private static final int COMMAND_BUBBLE_RANGE = 30;
 
     // 1.12.2 SpeechDataRenderer colors: black 50% background, gold text. The 1.12.2
     // gray "depth" copy underneath was dropped on request (read as a white layer).
@@ -110,7 +116,9 @@ public class SpeechBubbleHandler {
         }
     }
 
-    private record Bubble(List<String> lines, long expireTick) {}
+    // 'command' marks a bubble injected from the /bubble command (range-filtered
+    // server side to 30 blocks; bypasses the chat bubble config range on render).
+    private record Bubble(List<String> lines, long expireTick, boolean command) {}
 
     private static final class EntityChatState {
         long nextChatTick;
@@ -174,6 +182,7 @@ public class SpeechBubbleHandler {
 
     private void onTick(Minecraft mc) {
         this.tick++;
+        this.drainCommandBubbles(mc);
         if (mc.level == null || mc.player == null) {
             this.clearAll();
             return;
@@ -197,6 +206,25 @@ public class SpeechBubbleHandler {
         this.playerBubbles.clear();
         this.entityBubbles.clear();
         this.entityChatStates.clear();
+        BubbleSyncState.clear();
+    }
+
+    // /bubble payloads arrive via BubbleSyncState (kept free of client imports so the
+    // payload class loads on dedicated servers). Command bubbles bypass the
+    // speechBubbles config on purpose: the user explicitly typed the command.
+    private void drainCommandBubbles(Minecraft mc) {
+        for (final var pending : BubbleSyncState.drain()) {
+            if (mc.level == null || mc.player == null)
+                continue;
+            final var player = mc.level.getPlayerByUUID(pending.sender());
+            if (player == null)
+                continue;
+            final long expiry = this.tick + Math.max(1, Math.min(pending.seconds(), 600)) * 20L;
+            this.addBubble(this.playerBubbles.computeIfAbsent(pending.sender(), k -> new ArrayList<>()),
+                    pending.text(), expiry, true);
+            Library.LOGGER.info("[BUBBLE-DBG] client: bubble for %s: \"%s\" (%ss)",
+                    player.getName().getString(), pending.text(), pending.seconds());
+        }
     }
 
     private long bubbleExpiry() {
@@ -204,6 +232,10 @@ public class SpeechBubbleHandler {
     }
 
     private void addBubble(List<Bubble> bubbles, String text, long expiry) {
+        this.addBubble(bubbles, text, expiry, false);
+    }
+
+    private void addBubble(List<Bubble> bubbles, String text, long expiry, boolean command) {
         if (text == null || text.isBlank())
             return;
         var font = Minecraft.getInstance().font;
@@ -211,7 +243,7 @@ public class SpeechBubbleHandler {
         final List<String> lines = wrapText(font, text.replaceAll("(\\u00A7.)", ""));
         if (lines.isEmpty())
             return;
-        bubbles.add(new Bubble(lines, expiry));
+        bubbles.add(new Bubble(lines, expiry, command));
         while (bubbles.size() > MAX_BUBBLES_PER_ENTITY)
             bubbles.remove(0);
     }
@@ -522,7 +554,8 @@ public class SpeechBubbleHandler {
                 continue;
             final var lines = this.currentLines(entry.getValue());
             if (!lines.isEmpty())
-                this.renderBubble(graphics, mc, font, width, height, camPos, player, lines, partialTick);
+                this.renderBubble(graphics, mc, font, width, height, camPos, player, lines, partialTick,
+                        entry.getValue().stream().anyMatch(Bubble::command));
         }
         for (var entry : this.entityBubbles.entrySet()) {
             final var entity = mc.level.getEntity(entry.getKey());
@@ -530,7 +563,7 @@ public class SpeechBubbleHandler {
                 continue;
             final var lines = this.currentLines(entry.getValue());
             if (!lines.isEmpty())
-                this.renderBubble(graphics, mc, font, width, height, camPos, living, lines, partialTick);
+                this.renderBubble(graphics, mc, font, width, height, camPos, living, lines, partialTick, false);
         }
     }
 
@@ -542,13 +575,15 @@ public class SpeechBubbleHandler {
     }
 
     private void renderBubble(GuiGraphics graphics, Minecraft mc, Font font, float width, float height,
-            Vec3 camPos, Entity entity, List<String> lines, float partialTick) {
+            Vec3 camPos, Entity entity, List<String> lines, float partialTick, boolean command) {
         // 1.12.2 canBeSeen: invisible entities don't get bubbles, and there must be line
         // of sight (checked with a raycast below, like the name-tag occlusion).
         if (entity.isInvisible() && entity != mc.player)
             return;
-        final int range = this.config.speechBubbles.speechBubbleRange;
-        if (entity.distanceToSqr(mc.player) > (double) range * range)
+        // Command bubbles are range-filtered server side (30 blocks); cull at that
+        // radius rather than the chat bubble config range.
+        final int range = command ? COMMAND_BUBBLE_RANGE : this.config.speechBubbles.speechBubbleRange;
+        if (!command && entity.distanceToSqr(mc.player) > (double) range * range)
             return;
 
         final Vec3 pos = entity.getPosition(partialTick);

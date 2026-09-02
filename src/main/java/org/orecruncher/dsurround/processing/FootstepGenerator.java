@@ -171,7 +171,6 @@ public class FootstepGenerator extends AbstractClientHandler {
         this.audioPlayer = audioPlayer;
     }
 
-    @Override
     // 1.12.2 stop-sound mechanic: the dot product of the current motion against the
     // previous tick's motion flips sign when the player stops or reverses direction -
     // the material's wander recording plays once as the "stopping" foot scuff.

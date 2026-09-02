@@ -124,7 +124,9 @@ public class FootstepGenerator extends AbstractClientHandler {
             Map.entry("footsteps.glass", new LandComposition(fs("footsteps.wood"), fs("footsteps.glass"), fs("footsteps.wood"))),
             Map.entry("footsteps.marble", new LandComposition(fs("footsteps.marble_run"), fs("footsteps.marble"), fs("footsteps.marble_run"))),
             Map.entry("footsteps.concrete", new LandComposition(fs("footsteps.concrete_run"), fs("footsteps.concrete"), fs("footsteps.concrete_run"))),
-            Map.entry("footsteps.lino", STONE_LAND),
+            // 1.12.2 composite land = lino_run + delayed lino_run (the lino event pool
+            // carries both walk and run recordings), not the stone land layers.
+            Map.entry("footsteps.lino", new LandComposition(fs("footsteps.lino"), null, fs("footsteps.lino"))),
             Map.entry("footsteps.organic", new LandComposition(fs("footsteps.dirt_land"), fs("footsteps.mud"), fs("footsteps.mud"))),
             // Dry organic matter (pumpkins, mushroom blocks, cocoa, cake) lands with a
             // grass-like thud in the original (organic_dry), not the muddy organic.
@@ -170,6 +172,14 @@ public class FootstepGenerator extends AbstractClientHandler {
     }
 
     @Override
+    // 1.12.2 stop-sound mechanic: the dot product of the current motion against the
+    // previous tick's motion flips sign when the player stops or reverses direction -
+    // the material's wander recording plays once as the "stopping" foot scuff.
+    private double xMovec;
+    private double zMovec;
+    private boolean scalStat;
+
+    @Override
     public void process(final Player player) {
         this.tickCount++;
 
@@ -191,6 +201,27 @@ public class FootstepGenerator extends AbstractClientHandler {
         final boolean onLadder = player.onClimbable();
         final boolean inWater = player.isInWater();
         final boolean sneaking = player.isShiftKeyDown();
+
+        // Stop/wander sounds (1.12.2 Generator mechanics): when the dot product of the
+        // current motion against the previous tick's motion drops below ~0 (stopped or
+        // reversed), play the material's wander recording once as a foot scuff. Skipped
+        // in water (original hasSpecialStoppingConditions) and for silent/spectator.
+        final var mov = player.getDeltaMovement();
+        final double scal = mov.x * this.xMovec + mov.z * this.zMovec;
+        if (this.scalStat != (scal < 0.001F)) {
+            this.scalStat = !this.scalStat;
+            if (this.scalStat && !inWater && !player.isSpectator() && !player.isSilent()
+                    && this.config.entityEffects.enableFootstepSounds && this.config.soundOptions.footstepVolume > 0) {
+                final var material = resolveMaterial(player);
+                final var wander = material.map(m -> materialVariant(m, "_wander")).orElse(null);
+                if (wander != null) {
+                    this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(wander)
+                            .createAtLocation(pos, dsFootstepVolume() * 0.85F));
+                }
+            }
+        }
+        this.xMovec = mov.x;
+        this.zMovec = mov.z;
 
         // Airborne / landing state. Leaving the ground with upward motion is a deliberate
         // jump - remember it so landing from a jump always plays the heavy landing sound.

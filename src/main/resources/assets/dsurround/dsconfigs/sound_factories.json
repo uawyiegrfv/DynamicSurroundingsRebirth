@@ -536,6 +536,42 @@
         "volume":  1.0
     },
     {
+        "location":  "dsurround:footsteps.tuff",
+        "soundEvent":  "dsurround:footsteps.tuff",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.copper",
+        "soundEvent":  "dsurround:footsteps.copper",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.bamboo",
+        "soundEvent":  "dsurround:footsteps.bamboo",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.honey",
+        "soundEvent":  "dsurround:footsteps.honey",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.froglight",
+        "soundEvent":  "dsurround:footsteps.froglight",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.slime",
+        "soundEvent":  "dsurround:footsteps.slime",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
         "location":  "dsurround:footsteps.metalbox",
         "soundEvent":  "dsurround:footsteps.metalbox",
         "category":  "PLAYER",

@@ -62,7 +62,7 @@
     "soundEvent": "minecraft:block.bamboo.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsurround:footsteps.bamboo"
       }
     ]
   },
@@ -166,7 +166,7 @@
     "soundEvent": "minecraft:block.copper.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsurround:footsteps.copper"
       }
     ]
   },
@@ -174,7 +174,7 @@
     "soundEvent": "minecraft:block.copper_bulb.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsurround:footsteps.copper"
       }
     ]
   },
@@ -182,7 +182,7 @@
     "soundEvent": "minecraft:block.copper_grate.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbar"
+        "factory": "dsurround:footsteps.copper"
       }
     ]
   },
@@ -292,7 +292,7 @@
     "soundEvent": "minecraft:block.froglight.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.weakice"
+        "factory": "dsurround:footsteps.froglight"
       }
     ]
   },
@@ -300,7 +300,7 @@
     "soundEvent": "minecraft:block.frogspawn.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.rug"
       }
     ]
   },
@@ -308,7 +308,7 @@
     "soundEvent": "minecraft:block.fungus.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.rug"
       }
     ]
   },
@@ -419,7 +419,7 @@
     "soundEvent": "minecraft:block.honey_block.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.honey"
       }
     ]
   },
@@ -673,7 +673,7 @@
     "soundEvent": "minecraft:block.sculk_catalyst.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.sculk"
       }
     ]
   },
@@ -681,7 +681,7 @@
     "soundEvent": "minecraft:block.sculk_sensor.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.sculk"
       }
     ]
   },
@@ -689,7 +689,7 @@
     "soundEvent": "minecraft:block.sculk_shrieker.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.sculk"
       }
     ]
   },
@@ -721,7 +721,7 @@
     "soundEvent": "minecraft:block.slime_block.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.slime"
       }
     ]
   },
@@ -769,7 +769,7 @@
     "soundEvent": "minecraft:block.sponge.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.rug"
       }
     ]
   },
@@ -777,7 +777,7 @@
     "soundEvent": "minecraft:block.spore_blossom.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.rug"
       }
     ]
   },
@@ -867,7 +867,7 @@
     "soundEvent": "minecraft:block.tuff.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsurround:footsteps.tuff"
       }
     ]
   },
@@ -875,7 +875,7 @@
     "soundEvent": "minecraft:block.tuff_bricks.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.concrete"
+        "factory": "dsurround:footsteps.tuff"
       }
     ]
   },
@@ -883,7 +883,7 @@
     "soundEvent": "minecraft:block.polished_tuff.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsurround:footsteps.tuff"
       }
     ]
   },
@@ -907,7 +907,7 @@
     "soundEvent": "minecraft:block.wart_block.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.rug"
       }
     ]
   },

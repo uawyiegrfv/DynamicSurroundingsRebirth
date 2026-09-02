@@ -71,3 +71,6 @@ armor_sounds_test/
 ### Build/compile logs (porting diagnostics) ###
 build_*.txt
 run_client_log*.txt
+
+docs/
+CHANGELOG.md

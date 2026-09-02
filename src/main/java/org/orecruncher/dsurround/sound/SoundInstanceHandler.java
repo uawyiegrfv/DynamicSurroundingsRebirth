@@ -1,6 +1,7 @@
 package org.orecruncher.dsurround.sound;
 
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.ElytraOnPlayerSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.resources.ResourceLocation;
@@ -14,6 +15,7 @@ import org.orecruncher.dsurround.lib.Library;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.threading.IClientTasking;
+import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
 
 import java.util.Objects;
 
@@ -84,6 +86,22 @@ public final class SoundInstanceHandler {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    /**
+     * Play-time range pruning. The audio listener transform only updates once per
+     * frame, so sound packets that arrive in the same client tick as a long-distance
+     * player teleport (ender pearl, chorus fruit, /tp) are measured against the
+     * pre-teleport position and would be wrongly cancelled. A sound is pruned only
+     * when it is out of range of BOTH the audio listener and the local player's live
+     * eye position.
+     */
+    public static boolean outOfRange(final SoundInstance sound, final int pad) {
+        final var listener = AudioUtilities.getSoundListener().getTransform().position();
+        if (inRange(listener, sound, pad))
+            return false;
+        var player = Minecraft.getInstance().player;
+        return player == null || !inRange(player.getEyePosition(), sound, pad);
     }
 
     /**

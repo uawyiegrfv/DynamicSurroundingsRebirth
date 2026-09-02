@@ -61,29 +61,37 @@ public class HazeFogRangeCalculator extends VanillaFogRangeCalculator {
 
         final float eyeY = (float) player.getEyeY();
 
+        float bestStart = data.renderDistanceStart;
         float bestEnd = data.renderDistanceEnd;
-        bestEnd = Math.min(bestEnd, this.bandEnd(cloudBand, eyeY, data.renderDistanceEnd));
-        bestEnd = Math.min(bestEnd, this.bandEnd(highBand, eyeY, data.renderDistanceEnd));
+        for (final var range : new BandRange[] {
+                this.bandRange(cloudBand, eyeY, data.renderDistanceStart, data.renderDistanceEnd),
+                this.bandRange(highBand, eyeY, data.renderDistanceStart, data.renderDistanceEnd) }) {
+            if (range != null) {
+                bestStart = Math.min(bestStart, range.start());
+                bestEnd = Math.min(bestEnd, range.end());
+            }
+        }
 
-        if (bestEnd >= data.renderDistanceEnd)
+        if (bestEnd >= data.renderDistanceEnd && bestStart >= data.renderDistanceStart)
             return data;
 
         final FogData result = this.reusableResult;
         result.renderDistanceEnd = bestEnd;
-        // Start is always half the end so the Holistic combiner never rejects it
-        // (start > end) even when the vanilla renderDistanceStart is large.
-        result.renderDistanceStart = bestEnd * 0.5F;
+        result.renderDistanceStart = bestStart;
         return result;
     }
 
     /**
-     * Fade the far plane from vanilla at the band edges to the capped distance in the
-     * core, so entering/exiting the band isn't abrupt. Returns data.renderDistanceEnd
-     * when the eye is outside the band.
+     * Fog range while the eye is inside the band: the far plane eases from vanilla at
+     * the band edges to the capped distance in the core, and the near plane blends
+     * along with it (same pattern as the morning fog) so no fog pops in mid-range at
+     * the band boundary. Smoothstep weighting gives the fade zero slope at the edges,
+     * so the density starts and ends at nothing. Returns null when the eye is outside
+     * the band.
      */
-    private float bandEnd(FogBand band, float eyeY, float vanillaEnd) {
+    private BandRange bandRange(FogBand band, float eyeY, float vanillaStart, float vanillaEnd) {
         if (eyeY <= band.lowY() || eyeY >= band.highY())
-            return vanillaEnd;
+            return null;
 
         float t;
         if (eyeY < band.coreLow())
@@ -93,6 +101,13 @@ public class HazeFogRangeCalculator extends VanillaFogRangeCalculator {
         else
             t = 1F;
 
-        return Mth.lerp(t, vanillaEnd, MAX_HAZE_END);
+        // Smoothstep: zero slope at the band edges, density fades from true zero.
+        t = t * t * (3F - 2F * t);
+
+        final float end = Mth.lerp(t, vanillaEnd, MAX_HAZE_END);
+        final float start = Mth.lerp(t, vanillaStart, MAX_HAZE_END * 0.5F);
+        return new BandRange(start, end);
     }
+
+    private record BandRange(float start, float end) {}
 }

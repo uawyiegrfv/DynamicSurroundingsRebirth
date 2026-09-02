@@ -70,3 +70,7 @@ armor_sounds_test/
 *-*-*-*-*-*-*.txt
 build_*.txt
 fix_26.1_api.py
+
+docs/
+CHANGELOG.md
+MIGRATION_STATUS.md

@@ -481,6 +481,15 @@
         "factory": "dsurround:footsteps.metalbar"
       },
       {
+        "blocks": [
+          "minecraft:diamond_block",
+          "minecraft:emerald_block",
+          "minecraft:lapis_block",
+          "minecraft:redstone_block"
+        ],
+        "factory": "dsurround:footsteps.lino"
+      },
+      {
         "factory": "dsurround:footsteps.metalbox"
       }
     ]

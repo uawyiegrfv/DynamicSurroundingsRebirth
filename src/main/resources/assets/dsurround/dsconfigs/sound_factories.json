@@ -572,6 +572,66 @@
         "volume":  1.0
     },
     {
+        "location":  "dsurround:footsteps.bone_land",
+        "soundEvent":  "dsurround:footsteps.bone_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.sculk_land",
+        "soundEvent":  "dsurround:footsteps.sculk_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.sculk_vein_land",
+        "soundEvent":  "dsurround:footsteps.sculk_vein_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.moss_land",
+        "soundEvent":  "dsurround:footsteps.moss_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.tuff_land",
+        "soundEvent":  "dsurround:footsteps.tuff_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.copper_land",
+        "soundEvent":  "dsurround:footsteps.copper_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.froglight_land",
+        "soundEvent":  "dsurround:footsteps.froglight_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.honey_land",
+        "soundEvent":  "dsurround:footsteps.honey_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.bamboo_land",
+        "soundEvent":  "dsurround:footsteps.bamboo_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.slime_land",
+        "soundEvent":  "dsurround:footsteps.slime_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
         "location":  "dsurround:footsteps.metalbox",
         "soundEvent":  "dsurround:footsteps.metalbox",
         "category":  "PLAYER",

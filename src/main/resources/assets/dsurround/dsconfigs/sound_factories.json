@@ -501,6 +501,13 @@
                        "max":  0.45
                    }
     },
+
+    {
+        "location":  "dsurround:shroomlight",
+        "soundEvent":  "dsurround:shroomlight",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
     {
         "location":  "dsurround:footsteps.bone",
         "soundEvent":  "dsurround:footsteps.bone",
@@ -618,6 +625,18 @@
     {
         "location":  "dsurround:footsteps.slime_land",
         "soundEvent":  "dsurround:footsteps.slime_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.shroomlight",
+        "soundEvent":  "dsurround:footsteps.shroomlight",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.shroomlight_land",
+        "soundEvent":  "dsurround:footsteps.shroomlight_land",
         "category":  "PLAYER",
         "volume":  1.0
     },

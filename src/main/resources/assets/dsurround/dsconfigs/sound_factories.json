@@ -526,6 +526,102 @@
         "volume":  1.0
     },
     {
+        "location":  "dsurround:footsteps.tuff",
+        "soundEvent":  "dsurround:footsteps.tuff",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.copper",
+        "soundEvent":  "dsurround:footsteps.copper",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.bamboo",
+        "soundEvent":  "dsurround:footsteps.bamboo",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.honey",
+        "soundEvent":  "dsurround:footsteps.honey",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.froglight",
+        "soundEvent":  "dsurround:footsteps.froglight",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.slime",
+        "soundEvent":  "dsurround:footsteps.slime",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.bone_land",
+        "soundEvent":  "dsurround:footsteps.bone_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.sculk_land",
+        "soundEvent":  "dsurround:footsteps.sculk_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.sculk_vein_land",
+        "soundEvent":  "dsurround:footsteps.sculk_vein_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.moss_land",
+        "soundEvent":  "dsurround:footsteps.moss_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.tuff_land",
+        "soundEvent":  "dsurround:footsteps.tuff_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.copper_land",
+        "soundEvent":  "dsurround:footsteps.copper_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.froglight_land",
+        "soundEvent":  "dsurround:footsteps.froglight_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.honey_land",
+        "soundEvent":  "dsurround:footsteps.honey_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.bamboo_land",
+        "soundEvent":  "dsurround:footsteps.bamboo_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.slime_land",
+        "soundEvent":  "dsurround:footsteps.slime_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
         "location":  "dsurround:footstep_accent/amethyst",
         "soundEvent":  "minecraft:block.amethyst_block.break",
         "category":  "PLAYER",

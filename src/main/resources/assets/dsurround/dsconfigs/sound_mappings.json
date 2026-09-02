@@ -586,7 +586,10 @@
     "soundEvent": "minecraft:block.netherrack.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.gravel"
+        "factory": "dsurround:footsteps.gravel",
+        "accent": [
+          "dsurround:footstep_accent/sand"
+        ]
       }
     ]
   },
@@ -722,7 +725,7 @@
     "soundEvent": "minecraft:block.shroomlight.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.weakice"
+        "factory": "dsurround:footsteps.shroomlight"
       }
     ]
   },

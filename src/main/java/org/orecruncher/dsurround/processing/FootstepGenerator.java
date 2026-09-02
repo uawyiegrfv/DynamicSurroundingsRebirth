@@ -124,7 +124,9 @@ public class FootstepGenerator extends AbstractClientHandler {
             Map.entry("footsteps.glass", new LandComposition(fs("footsteps.wood"), fs("footsteps.glass"), fs("footsteps.wood"))),
             Map.entry("footsteps.marble", new LandComposition(fs("footsteps.marble_run"), fs("footsteps.marble"), fs("footsteps.marble_run"))),
             Map.entry("footsteps.concrete", new LandComposition(fs("footsteps.concrete_run"), fs("footsteps.concrete"), fs("footsteps.concrete_run"))),
-            Map.entry("footsteps.lino", STONE_LAND),
+            // 1.12.2 composite land = lino_run + delayed lino_run (the lino event pool
+            // carries both walk and run recordings), not the stone land layers.
+            Map.entry("footsteps.lino", new LandComposition(fs("footsteps.lino"), null, fs("footsteps.lino"))),
             Map.entry("footsteps.organic", new LandComposition(fs("footsteps.dirt_land"), fs("footsteps.mud"), fs("footsteps.mud"))),
             // Dry organic matter (pumpkins, mushroom blocks, cocoa, cake) lands with a
             // grass-like thud in the original (organic_dry), not the muddy organic.

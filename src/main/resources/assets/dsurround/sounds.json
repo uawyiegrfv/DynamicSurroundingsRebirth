@@ -1707,6 +1707,27 @@
       "dsurround:footsteps/slime_land/step4"
     ]
   },
+  "footsteps.shroomlight": {
+    "ds_category": "player",
+    "sounds": [
+      "dsurround:footsteps/shroomlight/step1",
+      "dsurround:footsteps/shroomlight/step2",
+      "dsurround:footsteps/shroomlight/step3",
+      "dsurround:footsteps/shroomlight/step4",
+      "dsurround:footsteps/shroomlight/step5",
+      "dsurround:footsteps/shroomlight/step6"
+    ]
+  },
+  "footsteps.shroomlight_land": {
+    "ds_category": "player",
+    "sounds": [
+      "dsurround:footsteps/shroomlight_land/step1",
+      "dsurround:footsteps/shroomlight_land/step2",
+      "dsurround:footsteps/shroomlight_land/step3",
+      "dsurround:footsteps/shroomlight_land/step4",
+      "dsurround:footsteps/shroomlight_land/step5"
+    ]
+  },
   "footsteps.sand": {
     "ds_category": "player",
     "subtitle": "dsurround.sound.caption.footsteps.sand",

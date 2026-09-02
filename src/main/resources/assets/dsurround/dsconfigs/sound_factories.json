@@ -632,6 +632,18 @@
         "volume":  1.0
     },
     {
+        "location":  "dsurround:footsteps.shroomlight",
+        "soundEvent":  "dsurround:footsteps.shroomlight",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.shroomlight_land",
+        "soundEvent":  "dsurround:footsteps.shroomlight_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
         "location":  "dsurround:footsteps.metalbox",
         "soundEvent":  "dsurround:footsteps.metalbox",
         "category":  "PLAYER",

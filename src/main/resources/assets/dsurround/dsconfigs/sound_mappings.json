@@ -11,7 +11,10 @@
     "soundEvent": "minecraft:block.amethyst_block.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsurround:footsteps.stone",
+        "accent": [
+          "dsurround:footstep_accent/amethyst"
+        ]
       }
     ]
   },
@@ -91,7 +94,7 @@
     "soundEvent": "minecraft:block.bone_block.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.concrete"
+        "factory": "dsurround:footsteps.bone"
       }
     ]
   },
@@ -486,7 +489,7 @@
     "soundEvent": "minecraft:block.moss.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.grass"
+        "factory": "dsurround:footsteps.moss"
       }
     ]
   },
@@ -662,7 +665,7 @@
     "soundEvent": "minecraft:block.sculk.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.sculk"
       }
     ]
   },
@@ -694,7 +697,7 @@
     "soundEvent": "minecraft:block.sculk_vein.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsurround:footsteps.sculk_vein"
       }
     ]
   },

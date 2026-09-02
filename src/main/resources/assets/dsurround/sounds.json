@@ -1489,6 +1489,48 @@
       "dsurround:footsteps/organic/organic_walk4"
     ]
   },
+  "footsteps.bone": {
+    "ds_category": "player",
+    "sounds": [
+      "dsurround:footsteps/bone/step1",
+      "dsurround:footsteps/bone/step2",
+      "dsurround:footsteps/bone/step3",
+      "dsurround:footsteps/bone/step4",
+      "dsurround:footsteps/bone/step5"
+    ]
+  },
+  "footsteps.sculk": {
+    "ds_category": "player",
+    "sounds": [
+      "dsurround:footsteps/sculk/step1",
+      "dsurround:footsteps/sculk/step2",
+      "dsurround:footsteps/sculk/step3",
+      "dsurround:footsteps/sculk/step4",
+      "dsurround:footsteps/sculk/step5",
+      "dsurround:footsteps/sculk/step6"
+    ]
+  },
+  "footsteps.sculk_vein": {
+    "ds_category": "player",
+    "sounds": [
+      "dsurround:footsteps/sculk_vein/step1",
+      "dsurround:footsteps/sculk_vein/step2",
+      "dsurround:footsteps/sculk_vein/step3",
+      "dsurround:footsteps/sculk_vein/step4",
+      "dsurround:footsteps/sculk_vein/step5"
+    ]
+  },
+  "footsteps.moss": {
+    "ds_category": "player",
+    "sounds": [
+      "dsurround:footsteps/moss/step1",
+      "dsurround:footsteps/moss/step2",
+      "dsurround:footsteps/moss/step3",
+      "dsurround:footsteps/moss/step4",
+      "dsurround:footsteps/moss/step5",
+      "dsurround:footsteps/moss/step6"
+    ]
+  },
   "footsteps.sand": {
     "ds_category": "player",
     "subtitle": "dsurround.sound.caption.footsteps.sand",

@@ -497,9 +497,43 @@
                       "max":  1.2
                   },
         "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
+                       "min":  0.4,
+                       "max":  0.45
                    }
+    },
+    {
+        "location":  "dsurround:footsteps.bone",
+        "soundEvent":  "dsurround:footsteps.bone",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.sculk",
+        "soundEvent":  "dsurround:footsteps.sculk",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.sculk_vein",
+        "soundEvent":  "dsurround:footsteps.sculk_vein",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.moss",
+        "soundEvent":  "dsurround:footsteps.moss",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footstep_accent/amethyst",
+        "soundEvent":  "minecraft:block.amethyst_block.break",
+        "category":  "PLAYER",
+        "volume":  0.3,
+        "pitch":  {
+                      "min":  0.9,
+                      "max":  1.1
+                  }
     },
     {
         "location":  "dsurround:footsteps.metalbox",

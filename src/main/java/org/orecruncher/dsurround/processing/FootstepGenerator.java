@@ -428,6 +428,20 @@ public class FootstepGenerator extends AbstractClientHandler {
                 .ifPresent(f -> this.audioPlayer.play(f.createAtLocation(feetPos, dsFootstepVolume())));
         ITEM_LIBRARY.getEquipableStepAccentSoundRun(armor)
                 .ifPresent(f -> this.pendingEchoes.add(new PendingEcho(f.createAtLocation(feetPos, LAND_ECHO_VOLUME * dsFootstepVolume()), this.tickCount + echoDelay)));
+
+        // Landing accents: play the surface's layered accents (from the sound mappings,
+        // e.g. grass+brush, ice+muffledice, amethyst+crystal) on landing too, so the
+        // material combo carries over from steps. Data-driven: one "accent" entry in
+        // sound_mappings drives both the step and landing layers.
+        if (this.config.footstepAccents.enableAccents) {
+            final var landState = resolveSurfaceBlock(player, player.level(), feetPos.below());
+            if (!landState.isAir() && landState.getFluidState().isEmpty()) {
+                SOUND_LIBRARY.getRemappedSound(landState.getSoundType().getStepSound(), landState)
+                        .ifPresent(remap -> remap.accents().forEach(accent ->
+                                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(accent)
+                                        .createAtLocation(feetCenter, dsFootstepVolume()))));
+            }
+        }
     }
 
     /**

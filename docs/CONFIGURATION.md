@@ -295,6 +295,14 @@ Format (documented in the file header): `chat.<entity>.<index>=weight,text`. `vi
 | `/dsreload` | Client | Reloads the data files (§4) without restarting. Registration can be disabled via `logging.registerCommands`. |
 | `/bubble <text>` | Server | Shows `<text>` in a speech bubble above the sender for 30 s, to every DS client within 30 blocks (sender included). The message **never appears in chat**. Requires DS on the server; vanilla clients see nothing. |
 
+### 6. Version differences
+
+The three editions are functionally equivalent; the differences are internal:
+
+- **Sound pruning** (`soundSystem.enableSoundPruning`): active on all three versions. On 1.20.1 this config key existed but was inert in earlier builds — the pruning implementation has now been ported there as well. **No config file change is required**: the key was already present in `dsurround.json` with the same default (`true`); it is simply honored now.
+- Fog rendering hooks: native Forge `ViewportEvent.RenderFog` event (1.20.1), a mixin into `FogRenderer` (1.21.1), the native fog pipeline (26.1).
+- Minor internals (mono audio conversion via reflection vs accessor mixins, tag sync via packet listener vs tag collector) — no user-visible effect.
+
 ---
 
 ## Part II — 中文说明
@@ -585,3 +593,11 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | --- | --- | --- |
 | `/dsreload` | 客户端 | 无需重启重载数据文件（§4）。可通过 `logging.registerCommands` 关闭注册。 |
 | `/bubble <文本>` | 服务端 | 在发送者头顶显示 `<文本>` 气泡 30 秒，30 格内所有装了 DS 的客户端可见（含自己）。消息**不进聊天栏**。需服务器装 DS；原版客户端看不到。 |
+
+### 6. 跨版本差异
+
+三个版本功能等价，差异都在内部实现：
+
+- **声音剪枝**（`soundSystem.enableSoundPruning`）：三版均生效。1.20.1 在早期构建里该键存在但不生效（剪枝逻辑未移植），现已移植补齐。**无需改动配置文件**：键本来就存在于 `dsurround.json`，默认值相同（`true`），现在只是真正生效了。
+- 雾渲染挂载点：1.20.1 用 Forge 原生 `ViewportEvent.RenderFog` 事件、1.21.1 用 mixin、26.1 走原生雾管线。
+- 其余内部差异（单声道转换用反射还是访问器 mixin、tag 同步走包监听还是收集器）对用户无感知。

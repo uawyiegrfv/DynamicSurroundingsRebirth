@@ -4,7 +4,9 @@ import com.mojang.blaze3d.audio.Library;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.sounds.SoundEngine;
 import net.minecraft.sounds.SoundSource;
+import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.mixinutils.MixinHelpers;
+import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
 import org.orecruncher.dsurround.sound.SoundInstanceHandler;
 import org.orecruncher.dsurround.sound.SoundVolumeEvaluator;
 import org.spongepowered.asm.mixin.Final;
@@ -66,6 +68,23 @@ public abstract class MixinSoundEngine {
                 org.orecruncher.dsurround.runtime.audio.SoundFXProcessor.onSoundPlay(sound, handle);
         } catch (Throwable ex) {
             MixinHelpers.LOGGER.error(ex, "Error processing sound FX");
+        }
+    }
+
+    /**
+     * Prune sounds the player will not hear, before any channel allocation or
+     * per-channel DSP (reverb sends / occlusion low-pass). Both the audio listener
+     * and the local player's live eye position are checked (see
+     * SoundInstanceHandler.outOfRange) so sounds that land together with a
+     * long-distance player teleport are not lost.
+     */
+    @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/phys/Vec3;<init>(DDD)V"), cancellable = true)
+    private void dsurround_soundRangeCheck(SoundInstance soundInstance, CallbackInfo ci) {
+        if (MixinHelpers.soundSystemConfig.enableSoundPruning) {
+            if (SoundInstanceHandler.outOfRange(soundInstance, 4)) {
+                MixinHelpers.LOGGER.debug(Configuration.Flags.BASIC_SOUND_PLAY, () -> "TOO FAR: " + AudioUtilities.debugString(soundInstance));
+                ci.cancel();
+            }
         }
     }
 

@@ -39,7 +39,7 @@ public final class EnchantTableSoundHandler {
     private static final ResourceLocation BOOK_CLOSE = ResourceLocation.fromNamespaceAndPath(
             Constants.MOD_ID, "enchant/book_close");
 
-    private static final Configuration.EntityEffects CONFIG = ContainerManager.resolve(Configuration.EntityEffects.class);
+    private static final Configuration.BlockEffects CONFIG = ContainerManager.resolve(Configuration.BlockEffects.class);
 
     // Last seen page target per block entity; weak keys so unloaded tables
     // drop out automatically.

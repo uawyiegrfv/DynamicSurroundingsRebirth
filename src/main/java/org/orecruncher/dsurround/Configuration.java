@@ -288,6 +288,11 @@ public class Configuration extends ConfigurationData {
         @RestartRequired(client = false)
         @Comment("Enable/disable the furnace ignite sound effect")
         public boolean furnaceIgniteEnabled = true;
+
+        @Property
+        @RestartRequired(client = false)
+        @Comment("Enable/disable enchanting table book sounds")
+        public boolean enableEnchantTableSounds = true;
     }
 
     public static class EntityEffects {
@@ -307,11 +312,6 @@ public class Configuration extends ConfigurationData {
         @RestartRequired(client = false)
         @Comment("Enable/disable thrown projectile break sounds (ender pearl, egg, snowball)")
         public boolean enableProjectileBreakSounds = true;
-
-        @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable enchanting table book sounds")
-        public boolean enableEnchantTableSounds = true;
 
         @Property
         @RestartRequired(client = false)

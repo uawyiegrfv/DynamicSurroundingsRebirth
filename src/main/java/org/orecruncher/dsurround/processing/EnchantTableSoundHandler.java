@@ -36,6 +36,8 @@ public final class EnchantTableSoundHandler {
             Constants.MOD_ID, "enchant/book_open");
     private static final ResourceLocation PAGE_TURN = ResourceLocation.fromNamespaceAndPath(
             Constants.MOD_ID, "enchant/page_turn");
+    private static final ResourceLocation BOOK_CLOSE = ResourceLocation.fromNamespaceAndPath(
+            Constants.MOD_ID, "enchant/book_close");
 
     private static final Configuration.EntityEffects CONFIG = ContainerManager.resolve(Configuration.EntityEffects.class);
 
@@ -62,6 +64,14 @@ public final class EnchantTableSoundHandler {
         // Book opening: previous tick fully closed, this tick starting to open.
         if (blockEntity.oOpen == 0.0F && blockEntity.open > 0.0F) {
             play(BOOK_OPEN, pos);
+            lastPageTarget.remove(blockEntity);
+            return;
+        }
+
+        // Book closing: was fully open last tick, this tick starting to close
+        // (the player walked away).  Same heavy flip, pitched down for a slam feel.
+        if (blockEntity.oOpen >= 1.0F && blockEntity.open < blockEntity.oOpen) {
+            play(BOOK_CLOSE, pos);
             lastPageTarget.remove(blockEntity);
             return;
         }

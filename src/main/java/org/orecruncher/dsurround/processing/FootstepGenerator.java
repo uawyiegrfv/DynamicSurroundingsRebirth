@@ -204,12 +204,14 @@ public class FootstepGenerator extends AbstractClientHandler {
         // Stop/wander sounds (1.12.2 Generator mechanics): when the dot product of the
         // current motion against the previous tick's motion drops below ~0 (stopped or
         // reversed), play the material's wander recording once as a foot scuff. Skipped
-        // in water (original hasSpecialStoppingConditions) and for silent/spectator.
+        // in water (original hasSpecialStoppingConditions), when not on the ground
+        // (stopping mid flight or mid jump near the ground must not scuff) and for
+        // silent/spectator.
         final var mov = player.getDeltaMovement();
         final double scal = mov.x * this.xMovec + mov.z * this.zMovec;
         if (this.scalStat != (scal < 0.001F)) {
             this.scalStat = !this.scalStat;
-            if (this.scalStat && !inWater && !player.isSpectator() && !player.isSilent()
+            if (this.scalStat && onGround && !inWater && !player.isSpectator() && !player.isSilent()
                     && this.config.entityEffects.enableFootstepSounds && this.config.soundOptions.footstepVolume > 0) {
                 final var material = resolveMaterial(player);
                 final var wander = material.map(m -> materialVariant(m, "_wander")).orElse(null);

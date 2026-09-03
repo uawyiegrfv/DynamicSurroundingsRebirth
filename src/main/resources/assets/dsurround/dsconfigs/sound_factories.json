@@ -1336,10 +1336,20 @@
         "location":  "dsurround:enchant/page_turn",
         "soundEvent":  "minecraft:item.book.page_turn",
         "category":  "NEUTRAL",
-        "volume":  0.55,
+        "volume":  0.4,
         "pitch":  {
                       "min":  0.9,
                       "max":  1.1
+                  }
+    },
+    {
+        "location":  "dsurround:enchant/book_close",
+        "soundEvent":  "dsurround:pageflipheavy",
+        "category":  "NEUTRAL",
+        "volume":  0.75,
+        "pitch":  {
+                      "min":  0.75,
+                      "max":  0.85
                   }
     }
 ]

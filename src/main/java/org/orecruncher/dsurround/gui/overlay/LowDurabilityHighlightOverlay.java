@@ -21,7 +21,7 @@ public final class LowDurabilityHighlightOverlay {
 
     private static final ResourceLocation WIDGETS = ResourceLocation.withDefaultNamespace("textures/gui/widgets.png");
 
-    private static final Configuration.EntityEffects CONFIG = ContainerManager.resolve(Configuration.EntityEffects.class);
+    private static final Configuration.CompassAndClockOptions CONFIG = ContainerManager.resolve(Configuration.CompassAndClockOptions.class);
 
     private LowDurabilityHighlightOverlay() {
 

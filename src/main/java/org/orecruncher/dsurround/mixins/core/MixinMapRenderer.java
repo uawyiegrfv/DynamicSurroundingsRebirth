@@ -30,7 +30,7 @@ public abstract class MixinMapRenderer {
 
     @Inject(method = "render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;ILnet/minecraft/world/level/saveddata/maps/MapItemSavedData;ZI)V", at = @At("TAIL"))
     private void dsurround_renderDistance(PoseStack pose, MultiBufferSource buffer, int mapId, MapItemSavedData data, boolean isFoil, int packedLight, CallbackInfo ci) {
-        if (!ConfigurationData.getConfig(Configuration.class).mapOptions.enableTreasureDistance)
+        if (!ConfigurationData.getConfig(Configuration.class).compassAndClockOptions.enableTreasureDistance)
             return;
         var player = Minecraft.getInstance().player;
         if (player == null)

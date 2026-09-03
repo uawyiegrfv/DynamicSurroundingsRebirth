@@ -25,6 +25,7 @@
     "core.MixinClothAbstractConfigEntry",
     "core.MixinEntity",
     "core.MixinEntityArrow",
+    "core.MixinEntityRemoved",
     "core.MixinFogRenderer",
     "core.MixinFallingBlockEntity",
     "core.MixinLivingEntity",

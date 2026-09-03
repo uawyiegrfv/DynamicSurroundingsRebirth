@@ -76,10 +76,6 @@ public class Handlers {
         // Not per-tick handlers - resolve to force construction so their NeoForge
         // event listeners (crafting sound, potion particle suppression) are registered.
         ContainerManager.resolve(CraftingSoundEffectHandler.class);
-
-        // Thrown projectile break sounds (ender pearl, egg, snowball) listen for
-        // projectile impact events.
-        ContainerManager.resolve(ProjectileBreakSoundHandler.class);
         ContainerManager.resolve(PotionParticleHandler.class);
 
         // Footprints ride on the vanilla step event rather than being a per-tick handler.
@@ -212,7 +208,6 @@ public class Handlers {
             .registerSingleton(FootstepGenerator.class)
             .registerSingleton(BiomeSoundHandler.class)
             .registerSingleton(CraftingSoundEffectHandler.class)
-            .registerSingleton(ProjectileBreakSoundHandler.class)
             .registerSingleton(PotionParticleHandler.class)
             .registerSingleton(FootprintHandler.class)
             .registerSingleton(HeldTorchBurnHandler.class)

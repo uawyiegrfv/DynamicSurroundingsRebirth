@@ -121,6 +121,23 @@ public record SoundFactory(
     }
 
     @Override
+    public SimpleSoundInstance createAtLocationNoAttenuation(double posX, double posY, double posZ, float volumeScale) {
+        return new SimpleSoundInstance(
+                this.soundEvent.getLocation(),
+                this.category,
+                this.getVolume() * volumeScale,
+                this.getPitch(),
+                Randomizer.current(),
+                this.isRepeatable,
+                this.repeatDelay,
+                SoundInstance.Attenuation.NONE,
+                posX,
+                posY,
+                posZ,
+                this.global);
+    }
+
+    @Override
     public Music createAsMusic() {
         return MUSIC_MAP.computeIfAbsent(this.soundEvent, key -> {
             var holder = Holder.direct(key);

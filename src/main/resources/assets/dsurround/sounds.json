@@ -2603,5 +2603,12 @@
         "stream": true
       }
     ]
+  },
+  "furnace_ignite": {
+    "sounds": [
+      "dsurround:furnace/ignite1",
+      "dsurround:furnace/ignite2",
+      "dsurround:furnace/ignite3"
+    ]
   }
 }

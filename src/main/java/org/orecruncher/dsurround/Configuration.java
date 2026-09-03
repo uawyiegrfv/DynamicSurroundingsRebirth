@@ -283,6 +283,11 @@ public class Configuration extends ConfigurationData {
         @RestartRequired(client = false)
         @Comment("Enable/disable steam/smoke when rain hits magma or netherrack")
         public boolean enableMagmaSteam = true;
+
+        @Property
+        @RestartRequired(client = false)
+        @Comment("Enable/disable the furnace ignite sound effect")
+        public boolean furnaceIgniteEnabled = true;
     }
 
     public static class EntityEffects {

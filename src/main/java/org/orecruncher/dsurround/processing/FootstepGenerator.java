@@ -218,7 +218,7 @@ public class FootstepGenerator extends AbstractClientHandler {
                 final var wander = material.map(m -> materialVariant(m, "_wander")).orElse(null);
                 if (wander != null) {
                     this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(wander)
-                            .createAtLocation(pos, dsFootstepVolume() * 0.85F));
+                            .createAtLocationNoAttenuation(pos, dsFootstepVolume() * 0.85F));
                 }
             }
         }
@@ -374,7 +374,7 @@ public class FootstepGenerator extends AbstractClientHandler {
                 // below the sound position) resolves the surface block we are standing on.
                 // Base footstep volume is below the landing volume so the landing stands out
                 // (the original played steps at ~0.4 scale and the landing at full).
-                .createAtLocation(feetPos, footstepVolume() * dsFootstepVolume() * (climbing ? CLIMB_VOLUME_BOOST : 1.0F));
+                .createAtLocationNoAttenuation(feetPos, footstepVolume() * dsFootstepVolume() * (climbing ? CLIMB_VOLUME_BOOST : 1.0F));
         this.audioPlayer.play(sound);
 
         // Layer the simultaneous accents on top of the main step sound (e.g. subtle brush
@@ -382,7 +382,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // simultaneous acoustic compositions.
         for (var accent : accents) {
             var accentSound = SOUND_LIBRARY.getSoundFactoryOrDefault(accent)
-                    .createAtLocation(feetPos, dsFootstepVolume());
+                    .createAtLocationNoAttenuation(feetPos, dsFootstepVolume());
             this.audioPlayer.play(accentSound);
         }
     }
@@ -416,17 +416,17 @@ public class FootstepGenerator extends AbstractClientHandler {
             // layer x2 + delayed echo x2, exactly like playMultifoot + the 1.12.2 land
             // entries in mcp.json.
             var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary());
-            this.audioPlayer.play(primary.createAtLocation(leftFoot, scale));
-            this.audioPlayer.play(primary.createAtLocation(rightFoot, scale));
+            this.audioPlayer.play(primary.createAtLocationNoAttenuation(leftFoot, scale));
+            this.audioPlayer.play(primary.createAtLocationNoAttenuation(rightFoot, scale));
             if (comp.secondary() != null) {
                 var secondary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.secondary());
-                this.audioPlayer.play(secondary.createAtLocation(leftFoot, 0.5F * scale));
-                this.audioPlayer.play(secondary.createAtLocation(rightFoot, 0.5F * scale));
+                this.audioPlayer.play(secondary.createAtLocationNoAttenuation(leftFoot, 0.5F * scale));
+                this.audioPlayer.play(secondary.createAtLocationNoAttenuation(rightFoot, 0.5F * scale));
             }
             if (comp.echo() != null) {
                 var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.echo());
-                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(leftFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
-                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(rightFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocationNoAttenuation(leftFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocationNoAttenuation(rightFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
             }
         } else {
             // Fallback: material's own land/run + walk@50 + echo, also per foot.
@@ -438,15 +438,15 @@ public class FootstepGenerator extends AbstractClientHandler {
                 baseLoc = ResourceLocation.fromNamespaceAndPath(landLoc.getNamespace(), landLoc.getPath().substring(0, landLoc.getPath().length() - 4));
             }
             var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(landLoc);
-            this.audioPlayer.play(primary.createAtLocation(leftFoot, scale));
-            this.audioPlayer.play(primary.createAtLocation(rightFoot, scale));
+            this.audioPlayer.play(primary.createAtLocationNoAttenuation(leftFoot, scale));
+            this.audioPlayer.play(primary.createAtLocationNoAttenuation(rightFoot, scale));
             if (!baseLoc.equals(landLoc)) {
                 var base = SOUND_LIBRARY.getSoundFactoryOrDefault(baseLoc);
-                this.audioPlayer.play(base.createAtLocation(leftFoot, 0.5F * scale));
-                this.audioPlayer.play(base.createAtLocation(rightFoot, 0.5F * scale));
+                this.audioPlayer.play(base.createAtLocationNoAttenuation(leftFoot, 0.5F * scale));
+                this.audioPlayer.play(base.createAtLocationNoAttenuation(rightFoot, 0.5F * scale));
             }
-            this.pendingEchoes.add(new PendingEcho(primary.createAtLocation(leftFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
-            this.pendingEchoes.add(new PendingEcho(primary.createAtLocation(rightFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
+            this.pendingEchoes.add(new PendingEcho(primary.createAtLocationNoAttenuation(leftFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
+            this.pendingEchoes.add(new PendingEcho(primary.createAtLocationNoAttenuation(rightFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
         }
 
         // Armor clank on landing - play the effective armor's walk accent now and a delayed
@@ -458,9 +458,9 @@ public class FootstepGenerator extends AbstractClientHandler {
         if (armor.isEmpty())
             armor = player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST);
         ITEM_LIBRARY.getEquipableStepAccentSound(armor)
-                .ifPresent(f -> this.audioPlayer.play(f.createAtLocation(feetPos, dsFootstepVolume())));
+                .ifPresent(f -> this.audioPlayer.play(f.createAtLocationNoAttenuation(feetPos, dsFootstepVolume())));
         ITEM_LIBRARY.getEquipableStepAccentSoundRun(armor)
-                .ifPresent(f -> this.pendingEchoes.add(new PendingEcho(f.createAtLocation(feetPos, LAND_ECHO_VOLUME * dsFootstepVolume()), this.tickCount + echoDelay)));
+                .ifPresent(f -> this.pendingEchoes.add(new PendingEcho(f.createAtLocationNoAttenuation(feetPos, LAND_ECHO_VOLUME * dsFootstepVolume()), this.tickCount + echoDelay)));
 
         // Landing accents: play the surface's layered accents (from the sound mappings,
         // e.g. grass+brush, ice+muffledice, amethyst+crystal) on landing too, so the
@@ -472,7 +472,7 @@ public class FootstepGenerator extends AbstractClientHandler {
                 SOUND_LIBRARY.getRemappedSound(landState.getSoundType().getStepSound(), landState)
                         .ifPresent(remap -> remap.accents().forEach(accent ->
                                 this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(accent)
-                                        .createAtLocation(feetCenter, dsFootstepVolume()))));
+                                        .createAtLocationNoAttenuation(feetCenter, dsFootstepVolume()))));
             }
         }
     }
@@ -632,7 +632,7 @@ public class FootstepGenerator extends AbstractClientHandler {
             if (wanderLoc != null) {
                 var feetPos = player.blockPosition();
                 var wander = SOUND_LIBRARY.getSoundFactoryOrDefault(wanderLoc);
-                this.audioPlayer.play(wander.createAtLocation(feetPos, dsFootstepVolume()));
+                this.audioPlayer.play(wander.createAtLocationNoAttenuation(feetPos, dsFootstepVolume()));
             }
         });
     }

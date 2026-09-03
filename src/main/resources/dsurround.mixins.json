@@ -23,6 +23,7 @@
     "core.MixinClientWorld",
     "core.MixinClientWorldProperties",
     "core.MixinClothAbstractConfigEntry",
+    "core.MixinEnchantingTableBook",
     "core.MixinEntity",
     "core.MixinEntityArrow",
     "core.MixinEntityRemoved",

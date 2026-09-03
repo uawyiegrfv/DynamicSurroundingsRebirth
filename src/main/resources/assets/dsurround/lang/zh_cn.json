@@ -399,6 +399,8 @@
   "dsurround.config.blockEffects.furnaceIgniteEnabled.tooltip": "启用/禁用 熔炉点燃时的呼啸音效",
   "dsurround.config.entityEffects.enableProjectileBreakSounds": "投掷物破碎音效",
   "dsurround.config.entityEffects.enableProjectileBreakSounds.tooltip": "启用/禁用 投掷物（末影珍珠/鸡蛋/雪球）落地破碎音效",
+  "dsurround.config.blockEffects.enableEnchantTableSounds": "附魔台书本音效",
+  "dsurround.config.blockEffects.enableEnchantTableSounds.tooltip": "启用/禁用 附魔台书本打开与翻页音效",
   "dsurround.sound.caption.furnace_ignite": "熔炉点燃",
   "dsurround.sound.caption.pearl_break": "末影珍珠碎裂",
   "dsurround.sound.caption.egg_break": "鸡蛋碎裂",

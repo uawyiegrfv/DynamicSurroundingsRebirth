@@ -54,12 +54,14 @@ public final class LowDurabilityHighlightOverlay {
         final int x = w / 2 - 91 - 1 + player.getInventory().selected * 20;
         final int y = h - 23;
 
-        // Gentle fade in/out (alpha 0 -> 0.4) in a soft desaturated red, per
-        // user preference - it reads as a tinted filter, not an alarm.
+        // Gentle fade in/out in a soft desaturated red.  The peak must reach
+        // full opacity to cover the opaque white vanilla frame underneath -
+        // otherwise the white bleeds through and the pulse is invisible.  The
+        // "subtle" feel comes from the soft red color, not from capping alpha.
         final float t = (float) (Util.getMillis() % 2000L) / 2000.0F;
-        final float alpha = 0.4F * (0.5F + 0.5F * Mth.sin(t * (float) (Math.PI * 2.0)));
+        final float alpha = 0.5F + 0.5F * Mth.sin(t * (float) (Math.PI * 2.0));
 
-        RenderSystem.setShaderColor(1.0F, 0.45F, 0.45F, alpha);
+        RenderSystem.setShaderColor(1.0F, 0.5F, 0.5F, alpha);
         guiGraphics.blitSprite(HOTBAR_SELECTION_SPRITE, x, y, 24, 23);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }

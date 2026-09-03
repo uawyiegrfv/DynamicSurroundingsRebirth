@@ -40,8 +40,11 @@ public final class LowDurabilityHighlightOverlay {
         if (stack.isEmpty() || !stack.isDamageableItem())
             return;
 
-        final float frac = (float) stack.getDamageValue() / (float) stack.getMaxDamage();
-        if (frac * 100.0F < (float) CONFIG.lowDurabilityThreshold)
+        // Remaining durability fraction (not the used fraction) decides the
+        // highlight: it shows only when durability has actually worn DOWN to
+        // the threshold.
+        final float remaining = (float) (stack.getMaxDamage() - stack.getDamageValue()) / (float) stack.getMaxDamage();
+        if (remaining * 100.0F > (float) CONFIG.lowDurabilityThreshold)
             return;
 
         // Vanilla hotbar geometry: the selection frame is 24x24 drawn 1px up/left
@@ -51,12 +54,12 @@ public final class LowDurabilityHighlightOverlay {
         final int x = w / 2 - 91 - 1 + player.getInventory().selected * 20;
         final int y = h - 23;
 
-        // Breathing pulse so it reads as a warning without hiding anything.
-        final float t = (float) (Util.getMillis() % 1600L) / 1600.0F;
-        final float pulse = 0.5F + 0.5F * Mth.sin(t * (float) (Math.PI * 2.0));
-        final float alpha = 0.35F + 0.45F * pulse;
+        // Gentle fade in/out (alpha 0 -> 0.4) in a soft desaturated red, per
+        // user preference - it reads as a tinted filter, not an alarm.
+        final float t = (float) (Util.getMillis() % 2000L) / 2000.0F;
+        final float alpha = 0.4F * (0.5F + 0.5F * Mth.sin(t * (float) (Math.PI * 2.0)));
 
-        RenderSystem.setShaderColor(1.0F, 0.2F, 0.2F, alpha);
+        RenderSystem.setShaderColor(1.0F, 0.45F, 0.45F, alpha);
         guiGraphics.blitSprite(HOTBAR_SELECTION_SPRITE, x, y, 24, 23);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }

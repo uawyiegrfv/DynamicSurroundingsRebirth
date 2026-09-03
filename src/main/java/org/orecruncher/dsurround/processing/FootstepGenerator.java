@@ -490,11 +490,11 @@ public class FootstepGenerator extends AbstractClientHandler {
     }
 
     /**
-     * Resolves the block the player is standing on. If the position below is air (the player
+     * Resolves the block the entity is standing on. If the position below is air (the entity
      * is hanging over a block edge), scans horizontally for the nearest solid block - the
      * same edge-handling the sound remapping uses. Prefers vanilla's precise supporting
-     * block (mainSupportingBlockPos, resolved via collision boxes) when the player is on
-     * the ground, which correctly picks the block actually stood on even when the player
+     * block (mainSupportingBlockPos, resolved via collision boxes) when the entity is on
+     * the ground, which correctly picks the block actually stood on even when the entity
      * straddles an edge next to a snow layer in the row below.
      */
     static BlockState resolveSurfaceBlock(Entity entity, Level level, BlockPos pos) {
@@ -576,7 +576,7 @@ public class FootstepGenerator extends AbstractClientHandler {
     }
 
     /**
-     * Resolves the landing sound for the block below the player. Prefers the material's
+     * Resolves the landing sound for the block below the entity. Prefers the material's
      * dedicated *_land recording (distinct "thud"), then the *_run sound, then the base
      * sound - matching the original 1.12.2 land composition. Falls back to the generic
      * player.land when no remap applies.

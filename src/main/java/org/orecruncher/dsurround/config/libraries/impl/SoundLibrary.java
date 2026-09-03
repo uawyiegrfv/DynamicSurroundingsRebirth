@@ -66,7 +66,6 @@ public final class SoundLibrary implements ISoundLibrary {
     private static final SoundEvent MISSING = SoundEvent.createVariableRangeEvent(MISSING_RESOURCE);
 
     private static final ResourceLocation THUNDER_SOUND = SoundEvents.LIGHTNING_BOLT_THUNDER.getLocation();
-    private static final ResourceLocation SILENCE = ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "silence");
     private static final BlockPos.MutableBlockPos MUTABLE_BLOCK_POS = new BlockPos.MutableBlockPos();
 
     private final IModLog logger;

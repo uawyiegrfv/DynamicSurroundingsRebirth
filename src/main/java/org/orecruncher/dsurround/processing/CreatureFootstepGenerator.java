@@ -30,13 +30,16 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Creature footstep engine, ported from the original 1.12.2 Generator /
- * GeneratorQP (EntityFootprintEffect ran one Generator per living entity with a
- * per-creature Variator and suppressed the entity's vanilla step sound).
- * Creatures in range get DS material footsteps with per-creature volume and
- * cadence, plus run / landing / stop (wander) / take-off events. Quadruped
- * variators use the four-beat hoof gait. The local player keeps the dedicated
- * FootstepGenerator.
+ * Creature footstep engine for creatures WITHOUT a dedicated vanilla step
+ * sound (entity_variators.json - the humanoid mobs, creepers, endermen and the
+ * small light-footed set). Ported from the original 1.12.2 Generator: one
+ * per-entity state machine drives walk/run strides, landings (per-material
+ * compositions), stop scuffs and take-off scuffs at the creature's variator
+ * volume, while the vanilla step sound is suppressed for managed entities.
+ * Everything else - the ~30 mobs that already play their own
+ * entity.&lt;mob&gt;.step recording (cow != sheep != zombie != skeleton) - is
+ * NOT managed and keeps vanilla footsteps, exactly as 1.12.2 left its
+ * unconfigured mobs. The local player keeps the dedicated FootstepGenerator.
  */
 public class CreatureFootstepGenerator extends AbstractClientHandler {
 
@@ -72,9 +75,10 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         boolean isFlying;
         double fallDistance;
         boolean didJump;
-        boolean isRightFoot;
         // Quadruped gait (1.12.2 GeneratorQP): four-beat hoof counter with a random
         // pond^2 stride modulation spacing the two diagonal hoof-pair beats.
+        // Currently unassigned in entity_variators.json (1.12.2 stock data also never
+        // referenced quadruped) - assign the "quadruped" variator to enable it.
         int hoof;
         float nextWalkDistanceMultiplier = 0.05F;
         Vec3 lastPos;
@@ -222,13 +226,13 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
             final boolean running = isRunning(entity, var);
             final boolean steppedDown = onGround && state.yPosition - pos.y > 0.4D;
             if (steppedDown) {
-                produceStep(entity, state, var, running);
+                playStep(entity, var, running);
                 state.dmwBase = state.distanceWalked;
                 steppedHook(entity, state, var, running);
             } else {
                 final float stride = var.quadruped() ? quadrupedStride(state, var, running) : var.stride();
                 if (state.distanceWalked - state.dmwBase > stride) {
-                    produceStep(entity, state, var, running);
+                    playStep(entity, var, running);
                     state.dmwBase = state.distanceWalked;
                     steppedHook(entity, state, var, running);
                 }
@@ -259,11 +263,11 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         else
             state.hoof++;
         if (state.hoof == 3 && running) {
-            produceStep(entity, state, var, running);
+            playStep(entity, var, running);
             state.hoof = 0;
         }
         if (!running)
-            produceStep(entity, state, var, running);
+            playStep(entity, var, running);
     }
 
     // 1.12.2 GeneratorQP.reevaluateDistance + walkFunction2.
@@ -276,11 +280,6 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         if (state.hoof == 1 || state.hoof == 3)
             return var.stride() * pond * var.quadrupedMultiplier();
         return var.stride() * (1F - pond) * var.quadrupedMultiplier();
-    }
-
-    private void produceStep(final LivingEntity entity, final CreatureState state, final Variator var, final boolean running) {
-        playStep(entity, var, running);
-        state.isRightFoot = !state.isRightFoot;
     }
 
     private void playStep(final LivingEntity entity, final Variator var, final boolean running) {

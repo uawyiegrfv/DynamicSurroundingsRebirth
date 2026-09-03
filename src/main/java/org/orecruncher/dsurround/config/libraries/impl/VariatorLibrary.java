@@ -69,8 +69,12 @@ public class VariatorLibrary implements ILibrary {
 
     @Override
     public Stream<String> dump() {
-        return this.variators.entrySet().stream()
-                .map(e -> e.getKey() + ": " + e.getValue())
-                .sorted();
+        return Stream.concat(
+                this.variators.entrySet().stream()
+                        .map(e -> e.getKey() + ": " + e.getValue())
+                        .sorted(),
+                this.entityVariators.entrySet().stream()
+                        .map(e -> "entity " + e.getKey() + " -> " + e.getValue())
+                        .sorted());
     }
 }

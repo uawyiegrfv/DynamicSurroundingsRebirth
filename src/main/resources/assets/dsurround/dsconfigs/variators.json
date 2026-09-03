@@ -48,10 +48,5 @@
     "stride": 0.375,
     "strideStair": 0.24375,
     "volumeScale": 0.18
-  },
-  "heavy": {
-    "stride": 1.1,
-    "strideStair": 0.715,
-    "volumeScale": 0.7
   }
 }

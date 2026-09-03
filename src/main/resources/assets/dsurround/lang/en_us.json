@@ -41,7 +41,7 @@
   "dsurround.config.blockEffects.waterRippleStyle.pixelated_circle": "Pixelated circle",
   "dsurround.config.blockEffects.waterfallsEnabled": "Waterfalls",
   "dsurround.config.blockEffects.waterfallsEnabled.tooltip": "Enable/disable waterfall effect from flowing water",
-  "dsurround.config.compassAndClockOptions": "Compass and Clock Options",
+  "dsurround.config.compassAndClockOptions": "GUI",
   "dsurround.config.compassAndClockOptions.compassStyle": "Compass style",
   "dsurround.config.compassAndClockOptions.compassStyle.tooltip": "Style of compass rendering",
   "dsurround.config.compassAndClockOptions.compassStyle.opaque": "Opaque",
@@ -57,7 +57,7 @@
   "dsurround.options.footstepVolume": "Footsteps",
   "dsurround.options.playerEffectVolume": "Player Effects",
   "dsurround.options.biomeVolume": "Biomes",
-  "dsurround.config.compassAndClockOptions.tooltip": "Configuration options for the compass and clock overlay",
+  "dsurround.config.compassAndClockOptions.tooltip": "GUI related configuration options",
   "dsurround.config.enhancedSounds": "Enhanced Sound Processing",
   "dsurround.config.enhancedSounds.backgroundThreadWorkers": "Background Worker Threads",
   "dsurround.config.enhancedSounds.backgroundThreadWorkers.tooltip": "Number of background threads to use for enhanced sound processing. Do not arbitrarily change this value because it could impact performance.",
@@ -408,5 +408,11 @@
   "dsurround.sound.caption.egg_break": "Egg cracks",
   "dsurround.sound.caption.snowball_break": "Snowball smashes",
   "dsurround.config.particleTweaks.suppressPotionParticles": "Suppress Potion Particles",
-  "dsurround.config.particleTweaks.suppressPotionParticles.tooltip": "Suppress rendering of the player's potion particles"
+  "dsurround.config.particleTweaks.suppressPotionParticles.tooltip": "Suppress rendering of the player's potion particles",
+  "dsurround.config.compassAndClockOptions.enableLowDurabilityHighlight": "Low Durability Highlight",
+  "dsurround.config.compassAndClockOptions.enableLowDurabilityHighlight.tooltip": "Enable/disable the red pulsing frame on the selected hotbar slot when the item's durability is low",
+  "dsurround.config.compassAndClockOptions.lowDurabilityThreshold": "Low Durability Threshold",
+  "dsurround.config.compassAndClockOptions.lowDurabilityThreshold.tooltip": "Durability percentage at or below which the highlight shows",
+  "dsurround.config.compassAndClockOptions.enableTreasureDistance": "Treasure Distance",
+  "dsurround.config.compassAndClockOptions.enableTreasureDistance.tooltip": "Enable/disable showing the horizontal distance to the treasure target on explorer maps"
 }

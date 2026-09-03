@@ -1308,8 +1308,8 @@
         "category":  "NEUTRAL",
         "volume":  1.0,
         "pitch":  {
-                      "min":  0.95,
-                      "max":  1.05
+                      "min":  0.92,
+                      "max":  1.08
                   }
     },
     {
@@ -1318,8 +1318,8 @@
         "category":  "NEUTRAL",
         "volume":  0.9,
         "pitch":  {
-                      "min":  0.95,
-                      "max":  1.05
+                      "min":  0.92,
+                      "max":  1.08
                   }
     }
 ]

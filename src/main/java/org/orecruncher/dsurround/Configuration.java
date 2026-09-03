@@ -371,6 +371,11 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @RestartRequired(client = false)
+        @Comment("Enable/disable creature footstep sounds (per-creature material footsteps with cadence, volume, landing and stop sounds)")
+        public boolean enableCreatureFootstepSounds = true;
+
+        @Property
+        @RestartRequired(client = false)
         @Comment("Enable/disable crafting sound when an item is crafted")
         public boolean enableCraftingSound = true;
 

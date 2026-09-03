@@ -1,6 +1,6 @@
 {
   "default": {
-    "volumeScale": 0.8
+    "volumeScale": 0.4
   },
   "player": {
     "playJump": true,
@@ -28,7 +28,8 @@
     "stride": 0.95,
     "strideStair": 0.6175,
     "quadrupedMultiplier": 0.925,
-    "footprintScale": 0.75
+    "footprintScale": 0.75,
+    "volumeScale": 0.55
   },
   "quadrupedSlow": {
     "playJump": true,
@@ -42,5 +43,10 @@
   "skeleton": {
     "footprintScale": 0.5,
     "volumeScale": 0.3
+  },
+  "light": {
+    "stride": 0.375,
+    "strideStair": 0.24375,
+    "volumeScale": 0.18
   }
 }

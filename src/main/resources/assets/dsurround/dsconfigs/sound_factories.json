@@ -1286,5 +1286,17 @@
                       "min":  0.75,
                       "max":  0.85
                   }
+    },
+    {
+        "location":  "dsurround:biome.grasshopper",
+        "soundEvent":  "biome.grasshopper",
+        "category":  "AMBIENT",
+        "volume":  0.35
+    },
+    {
+        "location":  "dsurround:biome.gnatt",
+        "soundEvent":  "biome.gnatt",
+        "category":  "AMBIENT",
+        "volume":  0.5
     }
 ]

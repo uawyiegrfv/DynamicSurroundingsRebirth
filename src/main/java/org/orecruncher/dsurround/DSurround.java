@@ -114,6 +114,9 @@ public final class DSurround {
         // Speech bubbles project to the screen the same way (player chat + entity chat).
         event.registerBelowAll("dsurround_speech_bubbles", (gui, graphics, partialTick, screenWidth, screenHeight) ->
                 org.orecruncher.dsurround.lib.di.ContainerManager.resolve(org.orecruncher.dsurround.processing.SpeechBubbleHandler.class).renderGui(graphics, partialTick));
+        // Low durability highlight: red pulsing selection frame.
+        event.registerAboveAll("dsurround_low_durability", (gui, graphics, partialTick, screenWidth, screenHeight) ->
+                org.orecruncher.dsurround.gui.overlay.LowDurabilityHighlightOverlay.render(graphics, screenWidth, screenHeight));
     }
 
     private Screen createConfigScreen(Screen parent) {

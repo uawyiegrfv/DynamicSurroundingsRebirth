@@ -315,6 +315,17 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @RestartRequired(client = false)
+        @Comment("Enable/disable red pulsing frame on the selected hotbar slot when the item's durability is low")
+        public boolean enableLowDurabilityHighlight = true;
+
+        @Property
+        @IntegerRange(min = 1, max = 50)
+        @Slider
+        @Comment("Durability percentage at or below which the low durability highlight shows")
+        public int lowDurabilityThreshold = 10;
+
+        @Property
+        @RestartRequired(client = false)
         @Comment("Enable/disable breath effect in cold biomes and underwater")
         public boolean enableBreathEffect = true;
 

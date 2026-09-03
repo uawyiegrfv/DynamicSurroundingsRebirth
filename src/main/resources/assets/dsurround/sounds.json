@@ -2854,5 +2854,15 @@
       "dsurround:projectile/snowball/break2",
       "dsurround:projectile/snowball/break3"
     ]
+  },
+  "biome.grasshopper": {
+    "sounds": [
+      "dsurround:ambient/insects/grasshopper1"
+    ]
+  },
+  "biome.gnatt": {
+    "sounds": [
+      "dsurround:ambient/insects/gnatt1"
+    ]
   }
 }

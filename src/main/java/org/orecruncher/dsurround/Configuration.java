@@ -310,6 +310,11 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @RestartRequired(client = false)
+        @Comment("Enable/disable enchanting table book sounds")
+        public boolean enableEnchantTableSounds = true;
+
+        @Property
+        @RestartRequired(client = false)
         @Comment("Enable/disable breath effect in cold biomes and underwater")
         public boolean enableBreathEffect = true;
 

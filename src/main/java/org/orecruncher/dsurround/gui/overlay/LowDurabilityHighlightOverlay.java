@@ -20,7 +20,7 @@ import org.orecruncher.dsurround.lib.di.ContainerManager;
  */
 public final class LowDurabilityHighlightOverlay {
 
-    private static final ResourceLocation WIDGETS = ResourceLocation.withDefaultNamespace("textures/gui/widgets.png");
+    private static final ResourceLocation HOTBAR_SELECTION_SPRITE = ResourceLocation.withDefaultNamespace("hud/hotbar_selection");
 
     private static final Configuration.EntityEffects CONFIG = ContainerManager.resolve(Configuration.EntityEffects.class);
 
@@ -57,7 +57,7 @@ public final class LowDurabilityHighlightOverlay {
         final float alpha = 0.35F + 0.45F * pulse;
 
         RenderSystem.setShaderColor(1.0F, 0.2F, 0.2F, alpha);
-        guiGraphics.blit(WIDGETS, x, y, 0, 0, 24, 24, 256, 256);
+        guiGraphics.blitSprite(HOTBAR_SELECTION_SPRITE, x, y, 24, 23);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 }

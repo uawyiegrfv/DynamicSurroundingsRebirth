@@ -75,6 +75,7 @@
       },
       {
         "factory": "biome.gnatt",
+        "type": "mood",
         "conditions": "weather.isNotRaining()"
       }
     ]
@@ -85,6 +86,7 @@
     "acoustics": [
       {
         "factory": "biome.gnatt",
+        "type": "mood",
         "conditions": "weather.isNotRaining()"
       }
     ]
@@ -101,6 +103,7 @@
       },
       {
         "factory": "biome.grasshopper",
+        "type": "mood",
         "conditions": "weather.isNotRaining() && diurnal.isDay()"
       },
       {
@@ -119,6 +122,7 @@
       },
       {
         "factory": "biome.grasshopper",
+        "type": "mood",
         "conditions": "weather.isNotRaining() && !weather.canWaterFreeze() && diurnal.isDay()"
       },
       {

@@ -394,5 +394,13 @@
   "dsurround.config.speechBubbles.speechBubbleRange": "可见范围",
   "dsurround.config.speechBubbles.speechBubbleRange.tooltip": "气泡可见的最大距离（格）",
   "dsurround.config.soundOptions.playerEffectVolume": "玩家效果音量",
-  "dsurround.config.soundOptions.playerEffectVolume.tooltip": "玩家效果声音（跳跃、心跳、饥饿、制作、快捷栏切换、物品挥舞）将乘以该系数"
+  "dsurround.config.soundOptions.playerEffectVolume.tooltip": "玩家效果声音（跳跃、心跳、饥饿、制作、快捷栏切换、物品挥舞）将乘以该系数",
+  "dsurround.config.blockEffects.furnaceIgniteEnabled": "熔炉点燃音效",
+  "dsurround.config.blockEffects.furnaceIgniteEnabled.tooltip": "启用/禁用 熔炉点燃时的呼啸音效",
+  "dsurround.config.entityEffects.enableProjectileBreakSounds": "投掷物破碎音效",
+  "dsurround.config.entityEffects.enableProjectileBreakSounds.tooltip": "启用/禁用 投掷物（末影珍珠/鸡蛋/雪球）落地破碎音效",
+  "dsurround.sound.caption.furnace_ignite": "熔炉点燃",
+  "dsurround.sound.caption.pearl_break": "末影珍珠碎裂",
+  "dsurround.sound.caption.egg_break": "鸡蛋碎裂",
+  "dsurround.sound.caption.snowball_break": "雪球碎裂"
 }

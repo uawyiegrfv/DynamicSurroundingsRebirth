@@ -2605,6 +2605,7 @@
     ]
   },
   "furnace_ignite": {
+    "subtitle": "dsurround.sound.caption.furnace_ignite",
     "sounds": [
       "dsurround:furnace/ignite1",
       "dsurround:furnace/ignite2",
@@ -2620,6 +2621,7 @@
         "license": "Attribution 3.0"
       }
     ],
+    "subtitle": "dsurround.sound.caption.pearl_break",
     "sounds": [
       "dsurround:projectile/pearl/break1",
       "dsurround:projectile/pearl/break2",
@@ -2635,6 +2637,7 @@
         "license": "Creative Commons 0"
       }
     ],
+    "subtitle": "dsurround.sound.caption.egg_break",
     "sounds": [
       "dsurround:projectile/egg/break1",
       "dsurround:projectile/egg/break2",
@@ -2650,6 +2653,7 @@
         "license": "Creative Commons 0"
       }
     ],
+    "subtitle": "dsurround.sound.caption.snowball_break",
     "sounds": [
       "dsurround:projectile/snowball/break1",
       "dsurround:projectile/snowball/break2",

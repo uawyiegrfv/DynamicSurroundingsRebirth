@@ -22,7 +22,7 @@ public final class LowDurabilityHighlightOverlay {
 
     private static final Identifier HOTBAR_SELECTION_SPRITE = Identifier.withDefaultNamespace("hud/hotbar_selection");
 
-    private static final Configuration.EntityEffects CONFIG = ContainerManager.resolve(Configuration.EntityEffects.class);
+    private static final Configuration.CompassAndClockOptions CONFIG = ContainerManager.resolve(Configuration.CompassAndClockOptions.class);
 
     private LowDurabilityHighlightOverlay() {
 

@@ -39,7 +39,7 @@ public abstract class MixinMapRenderer {
     private void dsurround_renderDistance(MapRenderState state, PoseStack pose,
                                           SubmitNodeCollector collector, boolean isFoil,
                                           int packedLight, CallbackInfo ci) {
-        if (!ConfigurationData.getConfig(Configuration.class).mapOptions.enableTreasureDistance)
+        if (!ConfigurationData.getConfig(Configuration.class).compassAndClockOptions.enableTreasureDistance)
             return;
         var player = Minecraft.getInstance().player;
         if (player == null)

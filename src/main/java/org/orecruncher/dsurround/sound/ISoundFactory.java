@@ -102,6 +102,31 @@ public interface ISoundFactory {
     SimpleSoundInstance createAtLocation(double posX, double posY, double posZ, float volumeScale);
 
     /**
+     * Creates a non-attenuated (non-positional) sound instance at the center of the specified block
+     * location. The sound plays centered/stereo ("in the ears") regardless of position, matching the
+     * original 1.12.2 footstep feel. Used for the local player's own footsteps.
+     */
+    default SimpleSoundInstance createAtLocationNoAttenuation(BlockPos pos, float volumeScale) {
+        return this.createAtLocationNoAttenuation(Vec3.atCenterOf(pos), volumeScale);
+    }
+
+    /**
+     * Creates a non-attenuated (non-positional) sound instance at the specified location. The sound
+     * plays centered/stereo ("in the ears") regardless of position, matching the original 1.12.2
+     * footstep feel. Used for the local player's own footsteps.
+     */
+    default SimpleSoundInstance createAtLocationNoAttenuation(Vec3 position, float volumeScale) {
+        return this.createAtLocationNoAttenuation(position.x(), position.y(), position.z(), volumeScale);
+    }
+
+    /**
+     * Creates a non-attenuated (non-positional) sound instance at the specified location. The sound
+     * plays centered/stereo ("in the ears") regardless of position, matching the original 1.12.2
+     * footstep feel. Used for the local player's own footsteps.
+     */
+    SimpleSoundInstance createAtLocationNoAttenuation(double posX, double posY, double posZ, float volumeScale);
+
+    /**
      * Creates a Music instance to be used with Minecraft's music manager
      */
     Music createAsMusic();

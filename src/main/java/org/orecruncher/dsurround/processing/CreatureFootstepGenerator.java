@@ -21,10 +21,7 @@ import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.config.ConfigurationData;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
-import org.orecruncher.dsurround.mixinutils.MixinHelpers;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
-import org.orecruncher.dsurround.tags.EntityEffectTags;
-
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
@@ -89,29 +86,26 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
     }
 
     /**
-     * Per-creature Variator selection (1.12.2 FootstepsRegistry.createGenerator):
-     * light-footed mobs get the quiet "light" variator, babies the child variator,
-     * remote players the player variator, mapped entity types their assigned
-     * variator, everything else the default. A "none" assignment opts the creature
-     * out (returns null).
+     * Per-creature Variator selection (1.12.2 FootstepsRegistry.createGenerator).
+     * Remote players get the player variator. Creatures WITHOUT a dedicated vanilla
+     * step sound (entity_variators.json) are taken over by DS with their assigned
+     * variator (default/light/...), and babies get the quiet child variator. The
+     * unlisted default is "none" (keep vanilla), so every other mob - including the
+     * ~30 that already play their own entity.<mob>.step recording (cow != sheep !=
+     * zombie != skeleton) - returns null and keeps its vanilla footsteps.
      */
     static Variator resolveVariator(LivingEntity entity) {
         if (entity instanceof LocalPlayer)
             return null; // driven by FootstepGenerator
         if (entity instanceof AbstractClientPlayer)
             return VARIATORS.getVariator("player");
-        if (MixinHelpers.TAG_LIBRARY.is(EntityEffectTags.LIGHT_STEPS, entity.getType()))
-            return VARIATORS.getVariator("light");
+        var assigned = VARIATORS.getEntityVariator(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()));
+        var name = assigned.orElse("none");
+        if (name.equals("none"))
+            return null;
         if (entity.isBaby())
             return VARIATORS.getVariator("child");
-        var assigned = VARIATORS.getEntityVariator(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()));
-        if (assigned.isPresent()) {
-            var name = assigned.get();
-            if (name.equals("none"))
-                return null;
-            return VARIATORS.getVariator(name);
-        }
-        return VARIATORS.getVariator("default");
+        return VARIATORS.getVariator(name);
     }
 
     /**

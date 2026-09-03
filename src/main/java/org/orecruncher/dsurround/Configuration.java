@@ -305,6 +305,11 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @RestartRequired(client = false)
+        @Comment("Enable/disable thrown projectile break sounds (ender pearl, egg, snowball)")
+        public boolean enableProjectileBreakSounds = true;
+
+        @Property
+        @RestartRequired(client = false)
         @Comment("Enable/disable breath effect in cold biomes and underwater")
         public boolean enableBreathEffect = true;
 

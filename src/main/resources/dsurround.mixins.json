@@ -31,6 +31,7 @@
     "core.MixinWorld",
     "core.MixinRainSplashParticle",
     "core.MixinEntityArrow",
+    "core.MixinEntityRemoved",
     "core.MixinFallingBlockEntity",
     "core.MixinClothAbstractConfigEntry",
     "core.MixinClientPacketListener"

@@ -1,0 +1,17 @@
+{
+  "minecraft:villager": "default",
+  "minecraft:wandering_trader": "default",
+  "minecraft:pillager": "default",
+  "minecraft:vindicator": "default",
+  "minecraft:evoker": "default",
+  "minecraft:illusioner": "default",
+  "minecraft:witch": "default",
+  "minecraft:zombified_piglin": "default",
+  "minecraft:creeper": "default",
+  "minecraft:enderman": "default",
+  "minecraft:snow_golem": "default",
+  "minecraft:rabbit": "light",
+  "minecraft:cat": "light",
+  "minecraft:ocelot": "light",
+  "minecraft:fox": "light"
+}

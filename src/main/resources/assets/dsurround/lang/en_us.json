@@ -95,6 +95,8 @@
   "dsurround.config.entityEffects.enableFootprints.tooltip": "Enable/disable player footprints while walking",
   "dsurround.config.entityEffects.enableFootstepSounds": "Footstep Sounds",
   "dsurround.config.entityEffects.enableFootstepSounds.tooltip": "Enable/disable the footstep sound system entirely (walking/running material sounds)",
+  "dsurround.config.entityEffects.enableCreatureFootstepSounds": "Creature Footstep Sounds",
+  "dsurround.config.entityEffects.enableCreatureFootstepSounds.tooltip": "Enable/disable creature footsteps: per-creature material footsteps with volume, cadence, landing and stop sounds (ported from the original 1.12.2 system)",
   "dsurround.config.entityEffects.enablePlayerHeartbeatSound": "Heartbeat Sound",
   "dsurround.config.entityEffects.enablePlayerHeartbeatSound.tooltip": "Enable/disable heartbeat sound when the player's health is low",
   "dsurround.config.entityEffects.enablePlayerHungerSound": "Stomach Growl Sound",

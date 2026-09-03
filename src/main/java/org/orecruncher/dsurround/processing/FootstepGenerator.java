@@ -4,6 +4,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -59,9 +60,9 @@ public class FootstepGenerator extends AbstractClientHandler {
     // the echo is dropped entirely when the client hitches. Sampling 1-2 ticks per
     // landing reproduces that interval variation (one sample per landing - both feet
     // and the armor echo share it, like sounds due in the same tick window).
-    private static final int LAND_ECHO_DELAY_MIN_TICKS = 1;
-    private static final int LAND_ECHO_DELAY_MAX_TICKS = 2;
-    private static final float LAND_ECHO_VOLUME = 1.0F;
+    static final int LAND_ECHO_DELAY_MIN_TICKS = 1;
+    static final int LAND_ECHO_DELAY_MAX_TICKS = 2;
+    static final float LAND_ECHO_VOLUME = 1.0F;
     // Landing-only gain boost. The engine clamps each voice's gain at 1.0 and the walk
     // step already carries the variator multiplier, so the landing thud needs real
     // headroom of its own to read heavier than a step. Boosting only playLand keeps
@@ -70,7 +71,7 @@ public class FootstepGenerator extends AbstractClientHandler {
     private static final float LAND_GAIN_BOOST = 1.78F;
     // Lateral offset of each foot from the block centre when a landing plays, ported
     // from the 1.12.2 findAssociation DISTANCE_TO_CENTER.
-    private static final double FOOT_LATERAL_OFFSET = 0.2D;
+    static final double FOOT_LATERAL_OFFSET = 0.2D;
     // Climbing steps play the vanilla surface step sound; the boost was left at 1.0
     // (no amplification) after user feedback that louder values were too strong.
     private static final float CLIMB_VOLUME_BOOST = 1.0F;
@@ -87,7 +88,7 @@ public class FootstepGenerator extends AbstractClientHandler {
     // entries: primary "thud" + optional walk layer at 50% + delayed echo. Keyed on the
     // resolved footstep material factory path. The primary is often a heavier material's
     // run sound (e.g. concrete_run for stone), not the material's own.
-    private record LandComposition(ResourceLocation primary, ResourceLocation secondary, ResourceLocation echo) {}
+    record LandComposition(ResourceLocation primary, ResourceLocation secondary, ResourceLocation echo) {}
 
     private static ResourceLocation fs(String path) {
         return ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, path);
@@ -102,7 +103,7 @@ public class FootstepGenerator extends AbstractClientHandler {
     private static final LandComposition GRASS_LAND = new LandComposition(fs("footsteps.grass_run"), null, fs("footsteps.grass_run"));
     private static final LandComposition BLUNTWOOD_LAND = new LandComposition(fs("footsteps.bluntwood"), null, fs("footsteps.bluntwood"));
 
-    private static final Map<String, LandComposition> LAND_COMPOSITIONS = Map.ofEntries(
+    static final Map<String, LandComposition> LAND_COMPOSITIONS = Map.ofEntries(
             Map.entry("footsteps.stone", new LandComposition(fs("footsteps.concrete_run"), fs("footsteps.stone"), fs("footsteps.stone_run"))),
             Map.entry("footsteps.dirt", new LandComposition(fs("footsteps.dirt_land"), fs("footsteps.dirt"), fs("footsteps.dirt_run"))),
             Map.entry("footsteps.grass", GRASS_LAND),
@@ -477,11 +478,11 @@ public class FootstepGenerator extends AbstractClientHandler {
     }
 
     /**
-     * Resolves the footstep material factory for the block below the player (for looking up
+     * Resolves the footstep material factory for the block below the entity (for looking up
      * its landing composition), or empty if no remap applies.
      */
-    private static Optional<ResourceLocation> resolveMaterial(final Player player) {
-        var state = resolveSurfaceBlock(player, player.level(), player.blockPosition().below());
+    static Optional<ResourceLocation> resolveMaterial(final Entity entity) {
+        var state = resolveSurfaceBlock(entity, entity.level(), entity.blockPosition().below());
         if (state.isAir() || !state.getFluidState().isEmpty())
             return Optional.empty();
         var stepSound = state.getSoundType().getStepSound();
@@ -489,14 +490,14 @@ public class FootstepGenerator extends AbstractClientHandler {
     }
 
     /**
-     * Resolves the block the player is standing on. If the position below is air (the player
+     * Resolves the block the entity is standing on. If the position below is air (the entity
      * is hanging over a block edge), scans horizontally for the nearest solid block - the
      * same edge-handling the sound remapping uses. Prefers vanilla's precise supporting
-     * block (mainSupportingBlockPos, resolved via collision boxes) when the player is on
-     * the ground, which correctly picks the block actually stood on even when the player
+     * block (mainSupportingBlockPos, resolved via collision boxes) when the entity is on
+     * the ground, which correctly picks the block actually stood on even when the entity
      * straddles an edge next to a snow layer in the row below.
      */
-    private static BlockState resolveSurfaceBlock(Player player, Level level, BlockPos pos) {
+    static BlockState resolveSurfaceBlock(Entity entity, Level level, BlockPos pos) {
         // Priority order (see the footstep material resolution):
         // 1. A snow layer or leaf litter the player's feet are in (pos.above()). The player
         //    stands on these and their step sound must win over the block below. Vanilla's
@@ -529,7 +530,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // litter is noCollision(), so vanilla's collision-derived mainSupportingBlockPos
         // can't see them either. Scan every cell the feet actually overlap, like vanilla's
         // findSupportingBlock does with the entity AABB, but using the visual surface.
-        var feetBox = player.getBoundingBox();
+        var feetBox = entity.getBoundingBox();
         int xMin = Mth.floor(feetBox.minX);
         int xMax = Mth.floor(feetBox.maxX - 1.0E-3D);
         int zMin = Mth.floor(feetBox.minZ);
@@ -546,8 +547,8 @@ public class FootstepGenerator extends AbstractClientHandler {
             }
         }
 
-        var supportPos = player.mainSupportingBlockPos.orElse(null);
-        if (supportPos != null && player.onGround()) {
+        var supportPos = entity.mainSupportingBlockPos.orElse(null);
+        if (supportPos != null && entity.onGround()) {
             var support = level.getBlockState(supportPos);
             if (!support.isAir() && support.getFluidState().isEmpty())
                 return support;
@@ -575,13 +576,13 @@ public class FootstepGenerator extends AbstractClientHandler {
     }
 
     /**
-     * Resolves the landing sound for the block below the player. Prefers the material's
+     * Resolves the landing sound for the block below the entity. Prefers the material's
      * dedicated *_land recording (distinct "thud"), then the *_run sound, then the base
      * sound - matching the original 1.12.2 land composition. Falls back to the generic
      * player.land when no remap applies.
      */
-    private ResourceLocation resolveLandSound(final Player player) {
-        var state = resolveSurfaceBlock(player, player.level(), player.blockPosition().below());
+    static ResourceLocation resolveLandSound(final Entity entity) {
+        var state = resolveSurfaceBlock(entity, entity.level(), entity.blockPosition().below());
         if (state.isAir() || !state.getFluidState().isEmpty())
             return LAND;
 
@@ -606,7 +607,7 @@ public class FootstepGenerator extends AbstractClientHandler {
      * materials have no run/land/wander recording.
      */
     @Nullable
-    private static ResourceLocation materialVariant(ResourceLocation material, String suffix) {
+    static ResourceLocation materialVariant(ResourceLocation material, String suffix) {
         var variant = ResourceLocation.fromNamespaceAndPath(material.getNamespace(), material.getPath() + suffix);
         return SOUND_LIBRARY.isSoundRegistered(variant) ? variant : null;
     }

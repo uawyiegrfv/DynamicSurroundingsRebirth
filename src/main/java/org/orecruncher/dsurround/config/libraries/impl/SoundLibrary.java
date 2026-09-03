@@ -1,13 +1,11 @@
 package org.orecruncher.dsurround.config.libraries.impl;
 
-import com.google.common.collect.ImmutableSet;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.UnboundedMapCodec;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.core.BlockPos;
-import net.minecraft.tags.BlockTags;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -26,8 +24,6 @@ import org.orecruncher.dsurround.config.data.SoundMetadataConfig;
 import org.orecruncher.dsurround.config.libraries.IReloadEvent;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 import org.orecruncher.dsurround.config.libraries.ITagLibrary;
-import org.orecruncher.dsurround.tags.BlockEffectTags;
-import org.orecruncher.dsurround.tags.EntityEffectTags;
 import org.orecruncher.dsurround.gui.sound.ConfigSoundInstance;
 import org.orecruncher.dsurround.lib.CodecExtensions;
 import org.orecruncher.dsurround.lib.Comparers;
@@ -70,8 +66,6 @@ public final class SoundLibrary implements ISoundLibrary {
     private static final SoundEvent MISSING = SoundEvent.createVariableRangeEvent(MISSING_RESOURCE);
 
     private static final ResourceLocation THUNDER_SOUND = SoundEvents.LIGHTNING_BOLT_THUNDER.getLocation();
-    private static final ResourceLocation SILENCE = ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "silence");
-    private static final Set<String> SOUND_REMAP_BLOCKED_MOBS = ImmutableSet.of("creeper");
     private static final BlockPos.MutableBlockPos MUTABLE_BLOCK_POS = new BlockPos.MutableBlockPos();
 
     private final IModLog logger;
@@ -263,42 +257,15 @@ public final class SoundLibrary implements ISoundLibrary {
             return Optional.empty();
         }
 
-        // When the footstep volume slider is at zero, don't remap step sounds so the
-        // vanilla footsteps play instead of the DS replacements.
-        if (soundLocation.getPath().endsWith(".step") && this.config.soundOptions.footstepVolume <= 0)
+        // All vanilla step sounds - mob entity steps (entity.cow.step, entity.zombie.step,
+        // entity.skeleton.step, ...) and block surface steps - stay vanilla. Each creature
+        // keeps its own vanilla step texture (cow != sheep != zombie != skeleton), exactly as
+        // the original 1.12.2 left its unconfigured mobs. DS material footsteps come only from
+        // our own generators (FootstepGenerator for the player, CreatureFootstepGenerator for
+        // the few creatures without a dedicated vanilla step sound), which play DS factories
+        // directly and never route through this remap path.
+        if (soundLocation.getPath().endsWith(".step"))
             return Optional.empty();
-
-        // Climbing surfaces (ladder, vine, bamboo, scaffolding, ...) keep their vanilla
-        // step sound: the FootstepGenerator plays the original event for climbing steps
-        // (louder), and this would otherwise remap it back to the DS material sound.
-        if (soundLocation.getPath().endsWith(".step")) {
-            var world = GameUtils.getWorld().orElse(null);
-            if (world != null) {
-                var pos = BlockPos.containing(soundInstance.getX(), soundInstance.getY(), soundInstance.getZ());
-                if (world.getBlockState(pos).is(BlockTags.CLIMBABLE))
-                    return Optional.empty();
-            }
-        }
-
-        // Mob step sounds (entity.<type>.step) are converted to the surface block's step
-        // sound so the same per-material remapping applies to mobs as to the player. The
-        // vanilla mob step volume is very low (~0.15), so play the replacement at full volume.
-        var mobStep = remapMobStepSound(soundInstance);
-        if (mobStep != null)
-            soundLocation = mobStep;
-
-        // Walking through a tall grass plant: the vanilla step sound (block.grass.step) is
-        // suppressed so the brush accent (StepThroughBrushEffect) plays instead - matching the
-        // original's "through grass" rustle. Only when the feet are IN a brush plant (e.g.
-        // tall grass), not when walking on a grass block with short grass above.
-        if (soundLocation.getPath().equals("block.grass.step")) {
-            var level = GameUtils.getWorld().orElseThrow();
-            var feet = BlockPos.containing(soundInstance.getX(), soundInstance.getY() + 0.25D, soundInstance.getZ());
-            if (this.tagLibrary.is(BlockEffectTags.BRUSH_STEP, level.getBlockState(feet))) {
-                var silence = getSoundFactoryOrDefault(SILENCE);
-                return Optional.of(silence.createAtLocation(soundInstance.getX(), soundInstance.getY(), soundInstance.getZ(), 1.0F));
-            }
-        }
 
         var mappingRule = this.soundRemappings.get(soundLocation);
 
@@ -354,53 +321,6 @@ public final class SoundLibrary implements ISoundLibrary {
                 return Optional.of(new ISoundLibrary.SoundRemap(match.get().factory(), match.get().accent()));
         }
         return Optional.empty();
-    }
-
-    /**
-     * Examines the sound location information to determine if it is a mob step sound, and then remaps to a block
-     * sound similar to what happens with the player.
-     */
-    @Nullable
-    private ResourceLocation remapMobStepSound(SoundInstance soundInstance) {
-        var soundLocation = soundInstance.getLocation();
-        var path = soundLocation.getPath();
-        if (path.startsWith("entity.") && path.endsWith("step")) {
-            // Get the mob this sound is for. We do not want to convert mobs like creepers.
-            var mobType = path.substring(7, path.indexOf('.', 7));
-            if (!SOUND_REMAP_BLOCKED_MOBS.contains(mobType)) {
-                // Light-footed mobs (chicken, rabbit, ...) keep their own vanilla steps:
-                // the player-material footsteps are far too heavy for them. Data-driven
-                // through the entity tag dsurround:effects/light_steps.
-                // 1.20.1: Registry.get(ResourceLocation) returns T (may be null)
-                var entityType = BuiltInRegistries.ENTITY_TYPE.get(ResourceLocation.fromNamespaceAndPath("minecraft", mobType));
-                if (entityType != null && this.tagLibrary.is(EntityEffectTags.LIGHT_STEPS, entityType))
-                    return null;
-                var level = GameUtils.getWorld().orElseThrow();
-                // Snow layer under the mob's feet wins over the buried block (same rule
-                // as the player's resolveSurfaceBlock): vanilla plays the snow step, not
-                // the block below.
-                var feetPos = BlockPos.containing(soundInstance.getX(), soundInstance.getY(), soundInstance.getZ());
-                var feetState = level.getBlockState(feetPos);
-                if (feetState.getBlock() instanceof net.minecraft.world.level.block.SnowLayerBlock && feetState.getFluidState().isEmpty()) {
-                    soundLocation = feetState.getSoundType().getStepSound().getLocation();
-                    return soundLocation;
-                }
-                var pos = feetPos.below();
-                var support = level.getBlockState(pos);
-                // If the block under the mob is air/fluid (e.g. a mob walking along a block
-                // edge with its position sampled over the gap), do NOT convert the mob step
-                // to the block's step sound: air has the default stone sound type, so this
-                // would make edge-walking mobs intermittently play stone steps. Let the
-                // original mob step sound play instead.
-                if (support.isAir() || !support.getFluidState().isEmpty())
-                    return null;
-                soundLocation = support.getSoundType().getStepSound().getLocation();
-                this.logger.debug("Mob sound remapping from %s to %s", soundInstance.getLocation(), soundLocation);
-                return soundLocation;
-            }
-        }
-
-        return null;
     }
 
     private void registerSoundFile(DiscoveredResource<Map<String, SoundMetadataConfig>> soundFile) {

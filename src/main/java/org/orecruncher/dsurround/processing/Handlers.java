@@ -68,6 +68,7 @@ public class Handlers {
         this.register(EntityEffectHandler.class);
         this.register(PlayerEffectHandler.class);
         this.register(FootstepGenerator.class);
+        this.register(CreatureFootstepGenerator.class);
         this.register(BiomeSoundHandler.class);
 
         // Aurora renders on AfterSky; per-tick it just maintains spawn/fade state.
@@ -206,6 +207,7 @@ public class Handlers {
             .registerSingleton(EntityEffectHandler.class)
             .registerSingleton(PlayerEffectHandler.class)
             .registerSingleton(FootstepGenerator.class)
+            .registerSingleton(CreatureFootstepGenerator.class)
             .registerSingleton(BiomeSoundHandler.class)
             .registerSingleton(CraftingSoundEffectHandler.class)
             .registerSingleton(FootprintHandler.class)

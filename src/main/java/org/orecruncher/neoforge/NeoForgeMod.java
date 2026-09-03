@@ -18,6 +18,7 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import org.orecruncher.dsurround.Client;
 import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.eventing.ClientState;
+import org.orecruncher.dsurround.gui.overlay.LowDurabilityHighlightOverlay;
 import org.orecruncher.dsurround.gui.overlay.OverlayManager;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.processing.aurora.AuroraRenderPipelines;
@@ -93,5 +94,8 @@ public final class NeoForgeMod {
         // anything rendered below it (a belowAll layer gets its bottom-left corner shaded at
         // night). Render this small panel above it so its colours stay true.
         event.registerAbove(VanillaGuiLayers.CAMERA_OVERLAYS, ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "layer/quicksoundvolume"), quickVolumeOverlay::render);
+
+        // Red pulsing selection frame when the held item's durability is low.
+        event.registerAbove(VanillaGuiLayers.HOTBAR, ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "layer/lowdurability"), LowDurabilityHighlightOverlay::render);
     }
 }

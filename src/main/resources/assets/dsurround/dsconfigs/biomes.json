@@ -72,6 +72,20 @@
       {
         "factory": "biome.jungle",
         "conditions": "weather.isNotRaining()"
+      },
+      {
+        "factory": "biome.gnatt",
+        "conditions": "weather.isNotRaining()"
+      }
+    ]
+  },
+  {
+    "biomeSelector": "SWAMP",
+    "_comment": "Gnatt swarms over swamps",
+    "acoustics": [
+      {
+        "factory": "biome.gnatt",
+        "conditions": "weather.isNotRaining()"
       }
     ]
   },
@@ -86,6 +100,10 @@
         "conditions": "weather.isNotRaining() && diurnal.isDay()"
       },
       {
+        "factory": "biome.grasshopper",
+        "conditions": "weather.isNotRaining() && diurnal.isDay()"
+      },
+      {
         "factory": "biome.savanna.night",
         "conditions": "weather.isNotRaining() && diurnal.isNight()"
       }
@@ -97,6 +115,10 @@
     "acoustics": [
       {
         "factory": "biome.plains",
+        "conditions": "weather.isNotRaining() && !weather.canWaterFreeze() && diurnal.isDay()"
+      },
+      {
+        "factory": "biome.grasshopper",
         "conditions": "weather.isNotRaining() && !weather.canWaterFreeze() && diurnal.isDay()"
       },
       {

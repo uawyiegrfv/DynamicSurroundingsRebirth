@@ -402,5 +402,13 @@
   "dsurround.config.speechBubbles.speechBubbleRange": "Visibility Range",
   "dsurround.config.speechBubbles.speechBubbleRange.tooltip": "Range (blocks) at which a speech bubble is visible",
   "dsurround.config.soundOptions.playerEffectVolume": "Player Effects Volume",
-  "dsurround.config.soundOptions.playerEffectVolume.tooltip": "Player effect sounds (jump, heartbeat, hunger, crafting, hotbar, item swing) will be multiplied by this factor"
+  "dsurround.config.soundOptions.playerEffectVolume.tooltip": "Player effect sounds (jump, heartbeat, hunger, crafting, hotbar, item swing) will be multiplied by this factor",
+  "dsurround.config.blockEffects.furnaceIgniteEnabled": "Furnace Ignite Sound",
+  "dsurround.config.blockEffects.furnaceIgniteEnabled.tooltip": "Enable/disable the furnace ignite sound effect",
+  "dsurround.config.entityEffects.enableProjectileBreakSounds": "Projectile Break Sounds",
+  "dsurround.config.entityEffects.enableProjectileBreakSounds.tooltip": "Enable/disable thrown projectile break sounds (ender pearl, egg, snowball)",
+  "dsurround.sound.caption.furnace_ignite": "Furnace ignites",
+  "dsurround.sound.caption.pearl_break": "Ender pearl shatters",
+  "dsurround.sound.caption.egg_break": "Egg cracks",
+  "dsurround.sound.caption.snowball_break": "Snowball smashes"
 }

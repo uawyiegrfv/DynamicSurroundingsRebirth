@@ -1226,5 +1226,35 @@
                       "min":  0.9,
                       "max":  1.1
                   }
+    },
+    {
+        "location":  "dsurround:projectile/pearl",
+        "soundEvent":  "dsurround:projectile.pearl.break",
+        "category":  "NEUTRAL",
+        "volume":  0.9,
+        "pitch":  {
+                      "min":  0.95,
+                      "max":  1.05
+                  }
+    },
+    {
+        "location":  "dsurround:projectile/egg",
+        "soundEvent":  "dsurround:projectile.egg.break",
+        "category":  "NEUTRAL",
+        "volume":  1.0,
+        "pitch":  {
+                      "min":  0.92,
+                      "max":  1.08
+                  }
+    },
+    {
+        "location":  "dsurround:projectile/snowball",
+        "soundEvent":  "dsurround:projectile.snowball.break",
+        "category":  "NEUTRAL",
+        "volume":  0.9,
+        "pitch":  {
+                      "min":  0.92,
+                      "max":  1.08
+                  }
     }
 ]

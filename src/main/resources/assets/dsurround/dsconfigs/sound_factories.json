@@ -1216,5 +1216,15 @@
                       "min":  0.8,
                       "max":  1.2
                   }
+    },
+    {
+        "location":  "dsurround:furnace_ignite",
+        "soundEvent":  "dsurround:furnace_ignite",
+        "category":  "BLOCKS",
+        "volume":  0.85,
+        "pitch":  {
+                      "min":  0.9,
+                      "max":  1.1
+                  }
     }
 ]

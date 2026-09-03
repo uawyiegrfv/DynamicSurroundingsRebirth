@@ -34,6 +34,8 @@ public class BlockUpdateHandler {
      * @param pos Block position that has been updated
      */
     public static void blockPositionUpdate(BlockPos pos, BlockState oldState, BlockState newState) {
+        // Furnace ignite detection rides on these notifications
+        FurnaceIgniteHandler.blockStateChanged(pos, oldState, newState);
         updatedPositions.add(pos);
     }
 

@@ -59,6 +59,6 @@ public final class LowDurabilityHighlightOverlay {
         final float pulse = 0.5F + 0.5F * Mth.sin(t * (float) (Math.PI * 2.0));
         final int color = ((int) (pulse * 255.0F) << 24) | 0x00FF8080;
 
-        graphics.blitSprite(RenderPipelines.GUI, HOTBAR_SELECTION_SPRITE, x, y, 24, 23, color);
+        graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HOTBAR_SELECTION_SPRITE, x, y, 24, 23, color);
     }
 }

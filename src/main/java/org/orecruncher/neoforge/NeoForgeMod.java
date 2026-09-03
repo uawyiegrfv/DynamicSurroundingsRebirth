@@ -92,5 +92,8 @@ public final class NeoForgeMod {
         // anything rendered below it (a belowAll layer gets its bottom-left corner shaded at
         // night). Render this small panel above it so its colours stay true.
         event.registerAbove(VanillaGuiLayers.CAMERA_OVERLAYS, Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/quicksoundvolume"), quickVolumeOverlay::render);
+
+        // Low durability highlight: red pulsing selection frame.
+        event.registerAbove(VanillaGuiLayers.HOTBAR, Identifier.fromNamespaceAndPath(Constants.MOD_ID, "layer/lowdurability"), org.orecruncher.dsurround.gui.overlay.LowDurabilityHighlightOverlay::render);
     }
 }

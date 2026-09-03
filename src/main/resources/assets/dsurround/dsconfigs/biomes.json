@@ -72,6 +72,11 @@
       {
         "factory": "biome.jungle",
         "conditions": "weather.isNotRaining()"
+      },
+      {
+        "factory": "biome.gnatt",
+        "type": "mood",
+        "conditions": "weather.isNotRaining()"
       }
     ]
   },
@@ -86,6 +91,11 @@
         "conditions": "weather.isNotRaining() && diurnal.isDay()"
       },
       {
+        "factory": "biome.grasshopper",
+        "type": "mood",
+        "conditions": "weather.isNotRaining() && diurnal.isDay()"
+      },
+      {
         "factory": "biome.savanna.night",
         "conditions": "weather.isNotRaining() && diurnal.isNight()"
       }
@@ -97,6 +107,11 @@
     "acoustics": [
       {
         "factory": "biome.plains",
+        "conditions": "weather.isNotRaining() && !weather.canWaterFreeze() && diurnal.isDay()"
+      },
+      {
+        "factory": "biome.grasshopper",
+        "type": "mood",
         "conditions": "weather.isNotRaining() && !weather.canWaterFreeze() && diurnal.isDay()"
       },
       {
@@ -237,6 +252,10 @@
     "acoustics": [
       {
         "factory": "biome.crickets"
+      },
+      {
+        "factory": "biome.gnatt",
+        "type": "mood"
       }
     ]
   },
@@ -251,6 +270,10 @@
       {
         "factory": "biome.crickets",
         "conditions": "!weather.canWaterFreeze() && diurnal.isNight()"
+      },
+      {
+        "factory": "biome.gnatt",
+        "type": "mood"
       }
     ],
     "fogColor": "#808080",

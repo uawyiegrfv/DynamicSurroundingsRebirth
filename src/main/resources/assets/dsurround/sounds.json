@@ -2610,5 +2610,50 @@
       "dsurround:furnace/ignite2",
       "dsurround:furnace/ignite3"
     ]
+  },
+  "projectile.pearl.break": {
+    "ds_credits": [
+      {
+        "name": "lightbulbpluscleanup.wav",
+        "author": "NoiseCollector",
+        "website": "https://freesound.org/s/57971/",
+        "license": "Attribution 3.0"
+      }
+    ],
+    "sounds": [
+      "dsurround:projectile/pearl/break1",
+      "dsurround:projectile/pearl/break2",
+      "dsurround:projectile/pearl/break3"
+    ]
+  },
+  "projectile.egg.break": {
+    "ds_credits": [
+      {
+        "name": "Egg cracking.wav",
+        "author": "FngerSounds",
+        "website": "https://freesound.org/s/250133/",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      "dsurround:projectile/egg/break1",
+      "dsurround:projectile/egg/break2",
+      "dsurround:projectile/egg/break3"
+    ]
+  },
+  "projectile.snowball.break": {
+    "ds_credits": [
+      {
+        "name": "JM_IMPACT_01c - Snow on cement.wav",
+        "author": "Julien_Matthey",
+        "website": "https://freesound.org/s/167080/",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      "dsurround:projectile/snowball/break1",
+      "dsurround:projectile/snowball/break2",
+      "dsurround:projectile/snowball/break3"
+    ]
   }
 }

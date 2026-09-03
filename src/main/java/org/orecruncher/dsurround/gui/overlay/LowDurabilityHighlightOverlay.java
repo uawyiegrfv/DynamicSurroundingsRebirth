@@ -1,5 +1,6 @@
 package org.orecruncher.dsurround.gui.overlay;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -24,9 +25,7 @@ import org.orecruncher.dsurround.lib.di.ContainerManager;
  */
 public final class LowDurabilityHighlightOverlay {
 
-    // The selection frame sprite lives at uv (0, 22) in widgets.png,
-    // directly below the hotbar bar graphic.
-    private static final ResourceLocation WIDGETS = ResourceLocation.withDefaultNamespace("textures/gui/widgets.png");
+    private static final ResourceLocation HOTBAR_SELECTION_SPRITE = ResourceLocation.withDefaultNamespace("hud/hotbar_selection");
 
     private static final Configuration.EntityEffects CONFIG = ContainerManager.resolve(Configuration.EntityEffects.class);
 
@@ -60,14 +59,16 @@ public final class LowDurabilityHighlightOverlay {
         final int x = w / 2 - 91 - 1 + player.getInventory().selected * 20;
         final int y = h - 23;
 
-        // Gentle fade in/out in a soft desaturated red.  The peak reaches full
-        // opacity to cover the opaque white vanilla frame underneath (otherwise
-        // the white bleeds through and the pulse is invisible); the "subtle"
-        // feel comes from the soft red color, not from capping alpha.
+        // Breathing white <-> soft red via the RGB channels.  In 1.21.1 the
+        // sprite shader multiplies the texture by the shader color RGB but the
+        // alpha channel of the shader color does not participate in the blend
+        // (the sprite is drawn opaque), so an alpha pulse is a no-op - the
+        // pulse has to ride on the color channels instead.
         final float t = (float) (Util.getMillis() % 2000L) / 2000.0F;
         final float pulse = 0.5F + 0.5F * Mth.sin(t * (float) (Math.PI * 2.0));
-        final int color = FastColor.ARGB32.color((int) (pulse * 255.0F), 255, 128, 128);
 
-        guiGraphics.blit(WIDGETS, x, y, 24, 23, 0.0F, 22.0F, 256, 256, 24, color);
+        RenderSystem.setShaderColor(1.0F, 1.0F - 0.5F * pulse, 1.0F - 0.5F * pulse, 1.0F);
+        guiGraphics.blitSprite(HOTBAR_SELECTION_SPRITE, x, y, 24, 23);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 }

@@ -43,12 +43,8 @@ public class Configuration extends ConfigurationData {
     public final ParticleTweaks particleTweaks = new ParticleTweaks();
 
     @Property
-    @Comment("Configuration options for the compass and clock overlay")
+    @Comment("Configuration options for the GUI overlays (compass, clock, map distance, durability highlight)")
     public final CompassAndClockOptions compassAndClockOptions = new CompassAndClockOptions();
-
-    @Property
-    @Comment("Configuration options for the map distance overlay")
-    public final MapOptions mapOptions = new MapOptions();
 
     @Property
     @Comment("Configuration options for fog effects")
@@ -315,17 +311,6 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @RestartRequired(client = false)
-        @Comment("Enable/disable red pulsing frame on the selected hotbar slot when the item's durability is low")
-        public boolean enableLowDurabilityHighlight = true;
-
-        @Property
-        @IntegerRange(min = 1, max = 50)
-        @Slider
-        @Comment("Durability percentage at or below which the low durability highlight shows")
-        public int lowDurabilityThreshold = 10;
-
-        @Property
-        @RestartRequired(client = false)
         @Comment("Enable/disable breath effect in cold biomes and underwater")
         public boolean enableBreathEffect = true;
 
@@ -391,11 +376,6 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @RestartRequired(client = false)
-        @Comment("Suppress rendering of the player's potion particles")
-        public boolean suppressPotionParticles = false;
-
-        @Property
-        @RestartRequired(client = false)
         @Comment("Enable/disable player footprints while walking")
         public boolean enableFootprints = true;
 
@@ -437,6 +417,11 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable showing of projectile particle trails")
         public boolean suppressProjectileParticleTrails = false;
+
+        @Property
+        @RestartRequired(client = false)
+        @Comment("Suppress rendering of the player's potion particles")
+        public boolean suppressPotionParticles = false;
     }
 
     public static class CompassAndClockOptions {
@@ -457,12 +442,21 @@ public class Configuration extends ConfigurationData {
         @Comment("Scales the display by the specified amount")
         @DoubleRange(min = 0.5D, max = 4D)
         public double scale = 1D;
-    }
 
-    public static class MapOptions {
         @Property
         @Comment("Enable/disable showing the distance to the treasure target on explorer maps")
         public boolean enableTreasureDistance = true;
+
+        @Property
+        @RestartRequired(client = false)
+        @Comment("Enable/disable red pulsing frame on the selected hotbar slot when the item's durability is low")
+        public boolean enableLowDurabilityHighlight = true;
+
+        @Property
+        @IntegerRange(min = 1, max = 50)
+        @Slider
+        @Comment("Durability percentage at or below which the low durability highlight shows")
+        public int lowDurabilityThreshold = 10;
     }
 
     public static class WeatherOptions {

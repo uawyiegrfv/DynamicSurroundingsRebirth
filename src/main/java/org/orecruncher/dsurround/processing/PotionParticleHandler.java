@@ -24,7 +24,7 @@ public class PotionParticleHandler {
     }
 
     public void onEffectParticles(EffectParticleModificationEvent event) {
-        if (!this.config.entityEffects.suppressPotionParticles)
+        if (!this.config.particleTweaks.suppressPotionParticles)
             return;
 
         if (event.getEntity() instanceof Player)

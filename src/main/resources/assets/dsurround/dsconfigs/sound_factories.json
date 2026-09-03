@@ -1256,5 +1256,35 @@
                       "min":  0.92,
                       "max":  1.08
                   }
+    },
+    {
+        "location":  "dsurround:enchant/book_open",
+        "soundEvent":  "dsurround:pageflipheavy",
+        "category":  "NEUTRAL",
+        "volume":  0.8,
+        "pitch":  {
+                      "min":  0.95,
+                      "max":  1.05
+                  }
+    },
+    {
+        "location":  "dsurround:enchant/page_turn",
+        "soundEvent":  "minecraft:item.book.page_turn",
+        "category":  "NEUTRAL",
+        "volume":  0.3,
+        "pitch":  {
+                      "min":  0.9,
+                      "max":  1.1
+                  }
+    },
+    {
+        "location":  "dsurround:enchant/book_close",
+        "soundEvent":  "dsurround:bookclose",
+        "category":  "NEUTRAL",
+        "volume":  0.75,
+        "pitch":  {
+                      "min":  0.75,
+                      "max":  0.85
+                  }
     }
 ]

@@ -961,6 +961,12 @@
       "dsurround:ambient/book/pageflipheavy3"
     ]
   },
+  "bookclose": {
+    "subtitle": "dsurround.sound.caption.pageflip",
+    "sounds": [
+      "dsurround:ambient/book/pageflipheavy2"
+    ]
+  },
   "electricarc": {
     "subtitle": "dsurround.sound.caption.electricarc",
     "sounds": [

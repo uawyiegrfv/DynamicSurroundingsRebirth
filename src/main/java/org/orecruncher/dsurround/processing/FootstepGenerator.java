@@ -114,8 +114,10 @@ public class FootstepGenerator extends AbstractClientHandler {
             Map.entry("footsteps.log", WOOD_LAND),
             Map.entry("footsteps.rug", new LandComposition(fs("footsteps.rug"), null, fs("footsteps.rug"))),
             Map.entry("footsteps.metalbar", new LandComposition(fs("footsteps.metalbar"), null, fs("footsteps.metalbar"))),
-            Map.entry("footsteps.metalbox", new LandComposition(fs("footsteps.metalbox"), null, fs("footsteps.metalbox"))),
-            Map.entry("footsteps.squeakywood", new LandComposition(fs("footsteps.squeakywood"), fs("footsteps.squeakywood"), fs("footsteps.wood"))),
+            // 1.12.2 hardmetal land = metalbox_run + metalbox_walk@50 + delay50(metalbox_run).
+            Map.entry("footsteps.metalbox", new LandComposition(fs("footsteps.metalbox_run"), fs("footsteps.metalbox"), fs("footsteps.metalbox_run"))),
+            // 1.12.2 squeakywood land = squeakywood_walk + delay50(wood_walk): no walk secondary layer.
+            Map.entry("footsteps.squeakywood", new LandComposition(fs("footsteps.squeakywood"), null, fs("footsteps.wood"))),
             Map.entry("footsteps.weakice", new LandComposition(fs("footsteps.weakice"), fs("footsteps.weakice"), fs("footsteps.weakice"))),
             Map.entry("footsteps.bluntwood", BLUNTWOOD_LAND),
             Map.entry("footsteps/ladder", new LandComposition(fs("footsteps.bluntwood"), fs("footsteps.bluntwood"), fs("footsteps.bluntwood"))),
@@ -123,7 +125,8 @@ public class FootstepGenerator extends AbstractClientHandler {
             Map.entry("footsteps.quicksand", new LandComposition(fs("footsteps.sand_run"), fs("footsteps.quicksand"), fs("footsteps.quicksand"))),
             Map.entry("footsteps.muffledice", STONE_LAND),
             Map.entry("footsteps.glass", new LandComposition(fs("footsteps.wood"), fs("footsteps.glass"), fs("footsteps.wood"))),
-            Map.entry("footsteps.marble", new LandComposition(fs("footsteps.marble_run"), fs("footsteps.marble"), fs("footsteps.marble_run"))),
+            // 1.12.2 marble land = marble_run + delay50(marble_run): no walk secondary layer.
+            Map.entry("footsteps.marble", new LandComposition(fs("footsteps.marble_run"), null, fs("footsteps.marble_run"))),
             Map.entry("footsteps.concrete", new LandComposition(fs("footsteps.concrete_run"), fs("footsteps.concrete"), fs("footsteps.concrete_run"))),
             // 1.12.2 composite land = lino_run + delayed lino_run (the lino event pool
             // carries both walk and run recordings), not the stone land layers.
@@ -141,6 +144,25 @@ public class FootstepGenerator extends AbstractClientHandler {
             // Leaf litter lands with a single heavier crunch - a dedicated landing recording
             // for the primary, no secondary layer and no delayed echo.
             Map.entry("footsteps.leaves_crunch", new LandComposition(fs("footsteps.leaves_crunch_land"), null, null)));
+
+    // Wander/jump (stop scuff / take-off scuff) cross-references from the original 1.12.2
+    // acoustics: several materials scuff with a DIFFERENT material's recording - the metal
+    // box and metal bar scuff with a marble scrape, wood/sand/glass/quicksand/leaf litter
+    // scuff with dirt, rugs and grass paths scuff with grass, and the composite (gem)
+    // blocks scuff with marble. A material's own _wander recording is used only when no
+    // override exists.
+    private static final Map<String, Identifier> WANDER_OVERRIDES = Map.ofEntries(
+            Map.entry("footsteps.metalbox", fs("footsteps.marble_wander")),
+            Map.entry("footsteps.metalbar", fs("footsteps.marble_wander")),
+            Map.entry("footsteps.wood", fs("footsteps.dirt_wander")),
+            Map.entry("footsteps.log", fs("footsteps.dirt_wander")),
+            Map.entry("footsteps.sand", fs("footsteps.dirt_wander")),
+            Map.entry("footsteps.rug", fs("footsteps.grass_wander")),
+            Map.entry("footsteps.glass", fs("footsteps.dirt_wander")),
+            Map.entry("footsteps.quicksand", fs("footsteps.dirt_wander")),
+            Map.entry("footsteps.leaves_through", fs("footsteps.dirt_wander")),
+            Map.entry("footsteps.lino", fs("footsteps.marble_wander")),
+            Map.entry("footsteps/dirt_path", fs("footsteps.grass_wander")));
 
     private final IAudioPlayer audioPlayer;
 
@@ -215,7 +237,7 @@ public class FootstepGenerator extends AbstractClientHandler {
             if (this.scalStat && onGround && !inWater && !player.isSpectator() && !player.isSilent()
                     && this.config.entityEffects.enableFootstepSounds && this.config.soundOptions.footstepVolume > 0) {
                 final var material = resolveMaterial(player);
-                final var wander = material.map(m -> materialVariant(m, "_wander")).orElse(null);
+                final var wander = material.map(FootstepGenerator::resolveWanderSound).orElse(null);
                 if (wander != null) {
                     this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(wander)
                             .createAtLocationNoAttenuation(pos, dsFootstepVolume() * 0.85F));
@@ -612,6 +634,17 @@ public class FootstepGenerator extends AbstractClientHandler {
         return SOUND_LIBRARY.isSoundRegistered(variant) ? variant : null;
     }
 
+    /**
+     * Resolves the stop/take-off scuff (wander/jump) sound for a footstep material,
+     * honouring the 1.12.2 cross-material overrides (e.g. metal box -> marble scrape),
+     * falling back to the material's own _wander recording.
+     */
+    @Nullable
+    static Identifier resolveWanderSound(Identifier material) {
+        var override = WANDER_OVERRIDES.get(material.getPath());
+        return override != null ? override : materialVariant(material, "_wander");
+    }
+
     private void playJump(final Player player) {
         // A2-9: Match the original 1.12.2 two-layer jump: the generic "grunt"
         // (dsurround:player.jump) plus a material-specific wander sound for the
@@ -628,7 +661,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // variant is the same path with a _wander suffix. Not every material has a
         // wander recording - those simply skip the extra layer.
         resolveMaterial(player).ifPresent(material -> {
-            var wanderLoc = materialVariant(material, "_wander");
+            var wanderLoc = resolveWanderSound(material);
             if (wanderLoc != null) {
                 var feetPos = player.blockPosition();
                 var wander = SOUND_LIBRARY.getSoundFactoryOrDefault(wanderLoc);

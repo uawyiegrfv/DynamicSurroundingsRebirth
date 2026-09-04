@@ -14,16 +14,6 @@ public final class Conversion {
      *
      * @param buffer Audio stream buffer to convert
      */
-    /** TEMP DIAGNOSTIC (MONO_DIAG): channel count of the buffer; -1 = accessor failure. */
-    public static int channelsOf(final SoundBuffer buffer) {
-        try {
-            final AudioFormat format = ((MixinSoundBuffer) buffer).dsurround_getFormat();
-            return format == null ? -1 : format.getChannels();
-        } catch (final Throwable t) {
-            return -3;
-        }
-    }
-
     public static void convert(final SoundBuffer buffer) {
 
         MixinSoundBuffer accessor = (MixinSoundBuffer) buffer;

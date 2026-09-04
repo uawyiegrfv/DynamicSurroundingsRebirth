@@ -52,20 +52,6 @@ public final class SoundFXProcessor {
     private static int reaperGate = 0;
     private static int diagCounter = 0;
 
-    // TEMP DIAGNOSTIC (MONO_DIAG): trace the 1.21.1 stereo->mono conversion chain
-    // (creature footstep ear-glued investigation). Remove once root-caused.
-    private static int monoDiagCount = 0;
-
-    public static void monoDiag(final String format, final Object... args) {
-        try {
-            if (monoDiagCount >= 200)
-                return;
-            monoDiagCount++;
-            LOGGER.info("MONO_DIAG #%03d %s", monoDiagCount, format.formatted(args));
-        } catch (final Throwable ignore) {
-        }
-    }
-
     static volatile boolean isAvailable;
     // Sparse array to hold references to the SoundContexts of playing sounds. Written by the
     // sound engine thread, read by the background processing worker - hence volatile.
@@ -248,38 +234,16 @@ public final class SoundFXProcessor {
 
     public static void doMonoConversion(final Channel source, final SoundBuffer buffer) {
 
-        final var dataOpt = ((ISourceContext) source).dsurround_getData();
-        final int chBefore = Conversion.channelsOf(buffer);
-        monoDiag("doMono: enter ch=%d %s", chBefore,
-                dataOpt.map(c -> "ctx-present").orElse("NO-CTX"));
-
         // If disabled, return
-        if (!Client.Config.enhancedSounds.enableMonoConversion) {
-            monoDiag("doMono: conversion disabled by config");
+        if (!Client.Config.enhancedSounds.enableMonoConversion)
             return;
-        }
 
         var data = ((ISourceContext) source).dsurround_getData();
-        if (data.isEmpty()) {
-            monoDiag("doMono: NO CTX on channel");
-            return;
-        }
-        final var s = data.get().getSound();
-        if (s == null) {
-            monoDiag("doMono: ctx sound NULL");
-            return;
-        }
-        final var sPos = data.get().getPosition();
-        final var eye = SoundFXProcessor.getWorldContext().playerEyePosition;
-        monoDiag("doMono: sound=%s att=%s rel=%s dist=%.1f pos=%.1f,%.1f,%.1f eye=%.1f,%.1f,%.1f",
-                s.getLocation(), s.getAttenuation(), s.isRelative(),
-                sPos.distanceTo(eye), sPos.x, sPos.y, sPos.z, eye.x, eye.y, eye.z);
-        if (s.getAttenuation() != SoundInstance.Attenuation.NONE && !s.isRelative()) {
-            Conversion.convert(buffer);
-            monoDiag("doMono: converted ch=%d", Conversion.channelsOf(buffer));
-        } else {
-            monoDiag("doMono: skip (attenuation/relative)");
-        }
+        data.ifPresent(ctx -> {
+            var s = ctx.getSound();
+            if (s != null && s.getAttenuation() != SoundInstance.Attenuation.NONE && !s.isRelative())
+                Conversion.convert(buffer);
+        });
     }
 
     /**

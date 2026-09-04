@@ -315,7 +315,10 @@ public final class SoundFXProcessor {
                 }
                 Long last = channelLastActive.get(id);
                 if (last != null && now - last > REAPER_STUCK_MS) {
-                    LOGGER.warn("REAPER: reclaiming stuck channel id=%d (no playback activity for %.1fs)", id, (now - last) / 1000.0);
+                    String soundName = "<no ctx>";
+                    if (id - 1 < sources.length && sources[id - 1] != null && sources[id - 1].getSound() != null)
+                        soundName = sources[id - 1].getSound().getLocation().toString();
+                    LOGGER.warn("REAPER: reclaiming stuck channel id=%d (no playback activity for %.1fs) sound=%s", id, (now - last) / 1000.0, soundName);
                     ((IChannelHandle) o).dsurround_reap();
                     reaped.add(o);
                     channelLastActive.remove(id);

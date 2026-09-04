@@ -56,11 +56,19 @@ public abstract class MixinSoundEngine {
     }
 
     /**
-     * Hook after a sound has been queued to the engine: spatial-audio processing
-     * (SoundFXProcessor - reverb / low-pass / occlusion) using the instanceToChannel
-     * accessor.
+     * Hook DURING play(), immediately after the channel-configuration task has been queued
+     * to the sound engine but BEFORE the buffer-load continuation is submitted. For sounds
+     * whose decoded buffer is already cached, vanilla's thenAccept continuation runs
+     * synchronously on the play() caller and hands Channel.attachStaticBuffer to the sound
+     * engine thread right away; a RETURN-injection would race that thread and frequently
+     * lose, leaving the SourceContext unattached at attachStaticBuffer time. doMonoConversion
+     * then silently skipped the stereo->mono conversion and DS footsteps played glued to the
+     * ear. Injecting here closes that race: the instanceToChannel entry is already present
+     * (vanilla populates it before queueing the configuration) and no buffer attach can have
+     * been queued yet.
      */
-    @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V", at = @At("RETURN"))
+    @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/sounds/ChannelAccess$ChannelHandle;execute(Ljava/util/function/Consumer;)V", shift = At.Shift.AFTER))
     private void dsurround_onSoundPlay(SoundInstance sound, CallbackInfo ci) {
         try {
             var handle = ((MixinSoundEngineAccessor) (Object) this).dsurround_getSources().get(sound);

@@ -270,6 +270,9 @@ public class Configuration extends ConfigurationData {
         @Comment("Enable/disable particles from waterfalls")
         public boolean enableWaterfallParticles = true;
 
+        @Comment("Maximum volume of a single waterfall sound loop (0-1). Large cave waterfalls stack many loops; lower this if they get too loud")
+        public double waterfallMaxVolume = 0.5D;
+
         @Property
         @EnumType(WaterRippleStyle.class)
         @Comment("The style of water ripple to render when a drop hits a fluid")

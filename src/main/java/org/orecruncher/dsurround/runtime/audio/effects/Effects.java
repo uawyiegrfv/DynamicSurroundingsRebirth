@@ -17,7 +17,10 @@ public final class Effects {
     // 1.20.1 forensics: reverted to the exact 26.1 values. Brute-force boosting made
     // reverb loud EVERYWHERE, which proves the wet path is wired correctly and
     // localises the defect to the near-zero cavern send gains, not effect tuning.
-    private static final float GLOBAL_REVERB_MULTIPLIER = 0.6F;
+    // 2026-09-04: user tuning - the default (reverbIntensity=1.0) was still too strong,
+    // so the baseline is reduced by another 0.6x (0.6 * 0.6). reverbIntensity is live:
+    // 1.667 restores the previous default strength, 0.0 disables reverb entirely.
+    private static final float GLOBAL_REVERB_MULTIPLIER = 0.36F;
 
     public static final float GLOBAL_BLOCK_ABSORPTION = 1F;
     public static final float SNOW_AIR_ABSORPTION_FACTOR = 5F;

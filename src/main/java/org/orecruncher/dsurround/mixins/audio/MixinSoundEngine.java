@@ -45,16 +45,25 @@ public abstract class MixinSoundEngine {
     }
 
     /**
-     * Callback will trigger the creation of sound context information for the sound play once it has been queued to the
-     * sound engine.  It will also perform the first calculations of sound effects based on the player environment.
+     * Hook DURING play(), immediately after the channel-configuration task is queued to
+     * the sound engine but before the buffer-load continuation is submitted. Attaching the
+     * SourceContext here closes the race the previous LocalCapture hookup intermittently
+     * left open (same root cause as the 1.20.1 ear-glued footsteps): for a cached buffer
+     * the thenAccept continuation runs synchronously and hands Channel.attachStaticBuffer
+     * to the sound engine thread right away, so a late context skipped the stereo->mono
+     * conversion. The instanceToChannel entry is already present at this point.
      */
-    @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/sounds/ChannelAccess$ChannelHandle;execute(Ljava/util/function/Consumer;)V", shift = At.Shift.AFTER), locals = LocalCapture.CAPTURE_FAILEXCEPTION)
-    public void dsurround_onSoundPlay(SoundInstance soundInstance, CallbackInfo ci, WeighedSoundEvents weighedSoundEvents, ResourceLocation resourceLocation, Sound sound, float f, float g, SoundSource soundSource, float h, float i, SoundInstance.Attenuation attenuation, boolean bl, Vec3 vec3, boolean bl2, boolean bl3, CompletableFuture<?> completableFuture, ChannelAccess.ChannelHandle channelHandle) {
+    @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/sounds/ChannelAccess$ChannelHandle;execute(Ljava/util/function/Consumer;)V", shift = At.Shift.AFTER))
+    private void dsurround_onSoundPlay(SoundInstance sound, CallbackInfo ci) {
         try {
-            SoundFXProcessor.onSoundPlay(soundInstance, channelHandle);
-            AudioUtilities.onSoundPlay(soundInstance);
-        } catch(final Throwable t) {
-            MixinHelpers.LOGGER.error(t, "Error in dsurround_onSoundPlay()!");
+            var handle = ((MixinSoundEngineAccessor) (Object) this).dsurround_getSources().get(sound);
+            if (handle != null) {
+                SoundFXProcessor.onSoundPlay(sound, handle);
+                AudioUtilities.onSoundPlay(sound);
+            }
+        } catch (Throwable ex) {
+            MixinHelpers.LOGGER.error(ex, "Error processing sound FX");
         }
     }
 

@@ -270,6 +270,8 @@ public class Configuration extends ConfigurationData {
         @Comment("Enable/disable particles from waterfalls")
         public boolean enableWaterfallParticles = true;
 
+        @Property
+        @DoubleRange(min = 0D, max = 1D)
         @Comment("Maximum volume of a single waterfall sound loop (0-1). Large cave waterfalls stack many loops; lower this if they get too loud")
         public double waterfallMaxVolume = 0.5D;
 

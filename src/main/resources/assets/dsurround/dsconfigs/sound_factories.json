@@ -421,7 +421,7 @@
                       "min":  0.8,
                       "max":  1.2
                   },
-        "volume":  0.6
+        "volume":  0.5
     },
     {
         "location":  "dsurround:footsteps.gravel",
@@ -444,7 +444,7 @@
                       "min":  0.8,
                       "max":  1.2
                   },
-        "volume":  0.6
+        "volume":  0.5
     },
     {
         "location":  "dsurround:footsteps.snow",
@@ -838,8 +838,8 @@
                       "max":  1.2
                   },
         "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
+                       "min":  0.75,
+                       "max":  0.85
                    }
     },
     {
@@ -1149,7 +1149,7 @@
         "location":  "dsurround:footsteps.grass_run",
         "soundEvent":  "dsurround:footsteps.grass_run",
         "category":  "PLAYER",
-        "volume":  0.6,
+        "volume":  0.5,
         "pitch":  {
                       "min":  0.8,
                       "max":  1.2
@@ -1173,8 +1173,8 @@
         "soundEvent":  "dsurround:footsteps.concrete_run",
         "category":  "PLAYER",
         "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
+                       "min":  0.75,
+                       "max":  0.85
                    },
         "pitch":  {
                       "min":  0.8,
@@ -1211,7 +1211,7 @@
         "location":  "dsurround:footsteps.sand_run",
         "soundEvent":  "dsurround:footsteps.sand_run",
         "category":  "PLAYER",
-        "volume":  0.6,
+        "volume":  0.5,
         "pitch":  {
                       "min":  0.8,
                       "max":  1.2

@@ -14,7 +14,10 @@ public final class Effects {
     // 26.1: the mixin now requests 4 auxiliary sends at context creation (matching 1.21.1),
     // so all four reverb zones apply. Slightly below the original 1.12.2 baseline per
     // user tuning: cave/room reverb was still a touch too strong at 0.7.
-    private static final float GLOBAL_REVERB_MULTIPLIER = 0.6F;
+    // 2026-09-04: user tuning - the default (reverbIntensity=1.0) was still too strong,
+    // so the baseline is reduced by another 0.6x (0.6 * 0.6). reverbIntensity is live:
+    // 1.667 restores the previous default strength, 0.0 disables reverb entirely.
+    private static final float GLOBAL_REVERB_MULTIPLIER = 0.36F;
 
     public static final float GLOBAL_BLOCK_ABSORPTION = 1F;
     public static final float SNOW_AIR_ABSORPTION_FACTOR = 5F;

@@ -133,6 +133,7 @@ public class Handlers {
                 this.logger.info("Client disconnecting...");
                 this.isConnected = false;
                 this.effectHandlers.forEach(AbstractClientHandler::disconnect0);
+                org.orecruncher.dsurround.runtime.audio.SoundFXProcessor.dumpMonoDiag();
             });
         } catch (Exception ex) {
             this.logger.error(ex, "Unable to perform client disconnect");

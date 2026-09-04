@@ -73,8 +73,21 @@ public abstract class MixinSoundEngine {
     private void dsurround_onSoundPlay(SoundInstance sound, CallbackInfo ci) {
         try {
             var handle = ((MixinSoundEngineAccessor) (Object) this).dsurround_getSources().get(sound);
-            if (handle != null)
+            if (handle != null) {
                 org.orecruncher.dsurround.runtime.audio.SoundFXProcessor.onSoundPlay(sound, handle);
+                // Eager shared-buffer conversion (second safety net against the
+                // intermittent ear-glue - see SoundFXProcessor.convertSharedBuffer).
+                if (org.orecruncher.dsurround.runtime.audio.SoundFXProcessor.shouldConvertToMono(sound)) {
+                    final var snd = sound.getSound();
+                    if (snd != null) {
+                        final String path = snd.getPath().toString();
+                        ((MixinSoundEngineAccessor) (Object) this).dsurround_getSoundBuffers()
+                                .getCompleteBuffer(snd.getPath())
+                                .thenAccept(buffer -> org.orecruncher.dsurround.runtime.audio.SoundFXProcessor
+                                        .convertSharedBuffer(buffer, path));
+                    }
+                }
+            }
         } catch (Throwable ex) {
             MixinHelpers.LOGGER.error(ex, "Error processing sound FX");
         }

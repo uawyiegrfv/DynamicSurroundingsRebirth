@@ -15,6 +15,9 @@ public interface MixinSoundEngineAccessor {
     @Accessor("instanceToChannel")
     Map<SoundInstance, ChannelAccess.ChannelHandle> dsurround_getSources();
 
+    @Accessor("soundBuffers")
+    net.minecraft.client.sounds.SoundBufferLibrary dsurround_getSoundBuffers();
+
     @Accessor("listener")
     Listener dsurround_getListener();
 }

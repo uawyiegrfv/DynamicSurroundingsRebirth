@@ -42,7 +42,7 @@
   "dsurround.config.compassAndClockOptions.compassStyle.transparent": "透明",
   "dsurround.config.compassAndClockOptions.compassStyle.opaque_with_indicator": "不透明带指示器",
   "dsurround.config.blockEffects.waterfallMaxVolume": "瀑布声最大音量",
-  "dsurround.config.blockEffects.waterfallMaxVolume.tooltip": "限制每个瀑布循环声的最大音量（0-1）。大型矿洞中瀑布声会多层叠加，嫌吵可调低"
+  "dsurround.config.blockEffects.waterfallMaxVolume.tooltip": "限制每个瀑布循环声的最大音量（0-1）。大型矿洞中瀑布声会多层叠加，嫌吵可调低",
   "dsurround.config.compassAndClockOptions.compassStyle.transparent_with_indicator": "透明带指示器",
   "dsurround.config.compassAndClockOptions.enableClock": "时钟显示",
   "dsurround.config.compassAndClockOptions.enableClock.tooltip": "启用/禁用 当拿着钟表物品时显示时钟显示\n时间信息将显示在热键栏上方",

@@ -42,7 +42,7 @@
   "dsurround.config.blockEffects.waterfallsEnabled": "Waterfalls",
   "dsurround.config.blockEffects.waterfallsEnabled.tooltip": "Enable/disable waterfall effect from flowing water",
   "dsurround.config.blockEffects.waterfallMaxVolume": "Waterfall Max Volume",
-  "dsurround.config.blockEffects.waterfallMaxVolume.tooltip": "Caps the volume of each waterfall sound loop (0-1). Large caves stack many waterfall loops; lower this if they get too loud"
+  "dsurround.config.blockEffects.waterfallMaxVolume.tooltip": "Caps the volume of each waterfall sound loop (0-1). Large caves stack many waterfall loops; lower this if they get too loud",
   "dsurround.config.compassAndClockOptions": "GUI",
   "dsurround.config.compassAndClockOptions.compassStyle": "Compass style",
   "dsurround.config.compassAndClockOptions.compassStyle.tooltip": "Style of compass rendering",

@@ -7,6 +7,7 @@ import org.orecruncher.dsurround.mixinutils.MixinHelpers;
 import org.orecruncher.dsurround.runtime.audio.SoundFXProcessor;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
+import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -24,5 +25,13 @@ public abstract class MixinChannelHandleAccessor implements IChannelHandle {
         } catch (Throwable t) {
             MixinHelpers.LOGGER.error(t, "Unable to stop sound play");
         }
+    }
+
+    @Invoker("release")
+    public abstract void dsurround_invokeRelease();
+
+    @Override
+    public void dsurround_reap() {
+        this.dsurround_invokeRelease();
     }
 }

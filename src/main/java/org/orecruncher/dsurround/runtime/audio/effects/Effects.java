@@ -177,18 +177,6 @@ public final class Effects {
 
         // Diagnostic: logged at debug level (enableDebugLogging) so the reverb zone mapping
         // can be inspected. Globally throttled to roughly one line per second of playtime.
-        // TEMP(1.20.1-port-forensics): promoted to info for a side-by-side send-gain
-        // comparison against the 1.20.1 port in the same cavern. Revert with git checkout.
-        if (++applyCounter % 140 == 0) {
-            var sound = source.getSound();
-            var soundId = sound == null ? "?" : sound.getLocation().toString();
-            LOGGER.info("REVERB_STEADY src=%d sound=%s sends=%d gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f]",
-                    sourceId, soundId, activeSends,
-                    source.getLowPass(0).gain, source.getLowPass(1).gain, source.getLowPass(2).gain, source.getLowPass(3).gain,
-                    source.getLowPass(0).gainHF, source.getLowPass(1).gainHF, source.getLowPass(2).gainHF, source.getLowPass(3).gainHF,
-                    source.getDirect().gain, source.getDirect().gainHF);
-        }
-
         // Occlusion / direct path filter and air absorption are independent of the aux sends
         source.directFilter().apply(sourceId, source.getDirect());
         source.getAirAbsorb().apply(sourceId);

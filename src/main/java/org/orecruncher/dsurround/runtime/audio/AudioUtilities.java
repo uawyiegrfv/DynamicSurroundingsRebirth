@@ -23,6 +23,19 @@ import org.orecruncher.dsurround.mixinutils.ISoundEngine;
 import java.util.function.Supplier;
 
 public final class AudioUtilities {
+
+    // Captured by MixinSoundEngine at loadLibrary time so client-tick diagnostics can
+    // query the engine (pool occupancy debug string, channel maps).
+    private static SoundEngine soundEngineRef;
+
+    public static SoundEngine soundEngine() {
+        return soundEngineRef;
+    }
+
+    public static void captureSoundEngine(final SoundEngine engine) {
+        soundEngineRef = engine;
+    }
+
     private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
 
     // If these mods are present, enhanced sound processing will be disabled.

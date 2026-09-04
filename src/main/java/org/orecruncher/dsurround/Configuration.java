@@ -526,7 +526,7 @@ public class Configuration extends ConfigurationData {
         @Property
         @Slider
         @DoubleRange(min = 0.25D, max = 4D)
-        @Comment("Scales morning fog density (1.0 = default; higher = denser/closer fog)")
+        @Comment("Scales morning fog haze (1.0 = default; higher = mist reaches closer; does not change view distance)")
         public double morningFogDensity = 1.0D;
 
         @Property

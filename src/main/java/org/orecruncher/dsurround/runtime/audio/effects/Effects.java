@@ -42,6 +42,9 @@ public final class Effects {
     private static final ReverbData[] REVERB_DATA = new ReverbData[4];
     private static int activeSends = 0;
     private static long applyCounter = 0;
+    // Last reverb intensity applied to the OpenAL effect slots; tracks config changes so
+    // the intensity slider takes effect live without a restart.
+    private static float lastReverbIntensity = Float.NaN;
 
     static {
         reverbData0 = new ReverbData();
@@ -106,12 +109,29 @@ public final class Effects {
         reverbData3.gain = 0.4F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
     }
 
+    /**
+     * Re-applies the reverb intensity when the config changes. The intensity slider has no
+     * restart requirement, so the zone gains and their OpenAL effect slots are refreshed
+     * lazily on the next sound processing pass (SourceContext.tick runs on the sound
+     * thread). An intensity of 0 fully silences the wet (echo) path.
+     */
+    private static void refreshIntensityIfChanged() {
+        final float intensity = (float) CONFIG.reverbIntensity;
+        if (intensity != lastReverbIntensity) {
+            lastReverbIntensity = intensity;
+            refreshReverbIntensity();
+            for (int i = 0; i < activeSends; i++)
+                REVERB_SLOTS[i].apply(REVERB_DATA[i], AUX_SLOTS[i]);
+        }
+    }
+
     public static void initialize() {
         activeSends = Math.min(4, AudioUtilities.getMaxAuxSends());
         if (activeSends <= 0)
             return;
 
         refreshReverbIntensity();
+        lastReverbIntensity = (float) CONFIG.reverbIntensity;
 
         for (int i = 0; i < activeSends; i++) {
             AUX_SLOTS[i].initialize();
@@ -143,6 +163,8 @@ public final class Effects {
     public static void applyReverb(final SourceContext source) {
         if (activeSends <= 0 || !source.isEnabled())
             return;
+
+        refreshIntensityIfChanged();
 
         final int sourceId = source.getId();
 

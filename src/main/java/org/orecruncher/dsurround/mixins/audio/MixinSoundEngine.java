@@ -35,6 +35,7 @@ public abstract class MixinSoundEngine {
 
     @Inject(method = "loadLibrary()V", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/audio/Library;init(Ljava/lang/String;Lcom/mojang/blaze3d/audio/DeviceList;Z)V", shift = At.Shift.AFTER))
     public void dsurround_init(CallbackInfo ci) {
+        AudioUtilities.captureSoundEngine((SoundEngine) (Object) this);
         AudioUtilities.initialize(this.library);
     }
 

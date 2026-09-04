@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_25",
   "mixins": [],
   "client": [
+    "audio.MixinChannelAccess",
     "audio.MixinChannelHandleAccessor",
     "audio.MixinMusicManager",
     "audio.MixinSoundBuffer",

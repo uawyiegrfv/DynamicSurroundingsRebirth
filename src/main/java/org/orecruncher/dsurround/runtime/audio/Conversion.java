@@ -14,19 +14,20 @@ public final class Conversion {
      *
      * @param buffer Audio stream buffer to convert
      */
-    public static void convert(final SoundBuffer buffer) {
+    public static boolean convert(final SoundBuffer buffer) {
+        synchronized (buffer) {
 
         MixinSoundBuffer accessor = (MixinSoundBuffer) buffer;
         final AudioFormat format = accessor.dsurround_getFormat();
 
         // If it is already mono return original buffer
         if (format.getChannels() == 1)
-            return;
+            return false;
 
         // If the sample size is not 8 or 16 bits just return the original
         int bits = format.getSampleSizeInBits();
         if (bits != 8 && bits != 16)
-            return;
+            return false;
 
         // Do the conversion.  Essentially, it averages the values in the source buffer based on the sample size.
         boolean bigendian = format.isBigEndian();
@@ -41,7 +42,7 @@ public final class Conversion {
 
         final ByteBuffer source = accessor.dsurround_getSample();
         if (source == null) {
-            return;
+            return false;
         }
 
         final int sourceLength = source.limit();
@@ -65,5 +66,7 @@ public final class Conversion {
         accessor.dsurround_setFormat(monoformat);
         source.rewind();
         source.limit(sourceLength >> 1);
+        return true;
+        }
     }
 }

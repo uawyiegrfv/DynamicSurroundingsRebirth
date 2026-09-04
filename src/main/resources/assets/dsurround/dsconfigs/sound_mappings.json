@@ -22,7 +22,10 @@
     "soundEvent": "minecraft:block.amethyst_cluster.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.glass"
+        "factory": "dsurround:footsteps.stone",
+        "accent": [
+          "dsurround:footstep_accent/amethyst"
+        ]
       }
     ]
   },

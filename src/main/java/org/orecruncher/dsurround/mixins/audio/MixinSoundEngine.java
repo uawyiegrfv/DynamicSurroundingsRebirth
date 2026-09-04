@@ -45,21 +45,21 @@ public abstract class MixinSoundEngine {
     }
 
     /**
-     * 26.1: SoundEngine.play now returns SoundEngine.PlayResult. The previous
-     * LocalCapture-based hookup relied on the old method's local variable layout, which
-     * changed. This version hooks at RETURN and looks the channel handle up via the
-     * instanceToChannel accessor, avoiding LocalCapture entirely.
+     * Hook DURING play(), immediately after the channel-configuration task is queued to
+     * the sound engine but before the buffer-load continuation is submitted. Replaces the
+     * previous RETURN hookup, which raced the async buffer attach exactly like the old
+     * 1.20.1 port and intermittently left creature footsteps stereo (ear-glued). The
+     * instanceToChannel entry is already present at this point (vanilla puts it before
+     * queueing the configuration), so the handle is looked up without LocalCapture.
      */
-    @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)Lnet/minecraft/client/sounds/SoundEngine$PlayResult;", at = @At("RETURN"))
+    @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)Lnet/minecraft/client/sounds/SoundEngine$PlayResult;",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/sounds/ChannelAccess$ChannelHandle;execute(Ljava/util/function/Consumer;)V", shift = At.Shift.AFTER))
     private void dsurround_onSoundPlay(SoundInstance sound, CallbackInfoReturnable<SoundEngine.PlayResult> cir) {
         try {
-            if (cir.getReturnValue() == SoundEngine.PlayResult.STARTED
-                    || cir.getReturnValue() == SoundEngine.PlayResult.STARTED_SILENTLY) {
-                var handle = ((MixinSoundEngineAccessor) (Object) this).dsurround_getSources().get(sound);
-                if (handle != null) {
-                    SoundFXProcessor.onSoundPlay(sound, handle);
-                    AudioUtilities.onSoundPlay(sound);
-                }
+            var handle = ((MixinSoundEngineAccessor) (Object) this).dsurround_getSources().get(sound);
+            if (handle != null) {
+                SoundFXProcessor.onSoundPlay(sound, handle);
+                AudioUtilities.onSoundPlay(sound);
             }
         } catch (final Throwable t) {
             MixinHelpers.LOGGER.error(t, "Error in dsurround_onSoundPlay()!");

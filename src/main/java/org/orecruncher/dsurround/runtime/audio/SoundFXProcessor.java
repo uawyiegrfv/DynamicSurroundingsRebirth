@@ -22,7 +22,12 @@ import org.orecruncher.dsurround.mixinutils.IChannelHandle;
 import org.orecruncher.dsurround.runtime.audio.effects.Effects;
 import org.orecruncher.dsurround.mixinutils.ISourceContext;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,6 +39,18 @@ public final class SoundFXProcessor {
     // scenes (cave full of mobs) otherwise queue every source's ray-trace work at once,
     // saturating the background pool and stealing CPU from the render thread.
     private static final int MAX_SOURCES_PER_PASS = 32;
+
+    // CHANNEL REAPER: the CountingChannelPool mints a fresh OpenAL source per
+    // play and only reclaims it when the sweep observes AL_STOPPED. Channels that
+    // never reach that state (buffer-load failure leaves them AL_INITIAL, etc.) hold
+    // their source forever; once the pool runs dry every new sound fails silently and
+    // only already-playing ambience survives. This reaper force-reclaims channels with
+    // no playback activity for REAPER_STUCK_MS, letting vanilla's own sweep pathway
+    // (handle.release) return them safely. Runs on the sound engine thread.
+    private static final Map<Integer, Long> channelLastActive = new ConcurrentHashMap<>();
+    private static final long REAPER_STUCK_MS = 10_000L;
+    private static int reaperGate = 0;
+    private static int diagCounter = 0;
 
     static volatile boolean isAvailable;
     // Sparse array to hold references to the SoundContexts of playing sounds. Written by the
@@ -158,6 +175,7 @@ public final class SoundFXProcessor {
             ctx.attachSound(sound);
             ctx.enable();
             source.dsurround_setData(ctx);
+            channelLastActive.put(id, System.currentTimeMillis());
         }
     }
 
@@ -200,6 +218,7 @@ public final class SoundFXProcessor {
         data.ifPresent(sc -> {
             sc.stop();
             sources[sc.getId() - 1] = null;
+            channelLastActive.remove(sc.getId());
         });
     }
 
@@ -238,7 +257,74 @@ public final class SoundFXProcessor {
                 lastPlayerUnderWater = underWater;
                 immediateUpdateRequested = true;
             }
+            if (++diagCounter % 300 == 0)
+                logPoolDiag();
         }
+    }
+
+    // Every 15s: pool occupancy (used/max per pool), registered-context count and the
+    // top registered sound events. Detects channel leaks long before the pool starves.
+    private static void logPoolDiag() {
+        try {
+            var engine = AudioUtilities.soundEngine();
+            if (engine == null)
+                return;
+            int registered = 0;
+            final Map<String, Integer> top = new HashMap<>();
+            for (final SourceContext ctx : sources) {
+                if (ctx == null)
+                    continue;
+                registered++;
+                var s = ctx.getSound();
+                if (s != null)
+                    top.merge(s.getLocation().getPath(), 1, Integer::sum);
+            }
+            final var entries = new ArrayList<>(top.entrySet());
+            entries.sort((a, b) -> b.getValue() - a.getValue());
+            final var head = new StringBuilder();
+            for (int i = 0; i < Math.min(6, entries.size()); i++)
+                head.append(i == 0 ? "" : ", ").append(entries.get(i).getKey()).append('x').append(entries.get(i).getValue());
+            LOGGER.info("POOL_DIAG %s | registered ctxs=%d | top=[%s]", engine.getDebugString(), registered, head);
+        } catch (final Throwable ignore) {
+        }
+    }
+
+    /**
+     * Called from MixinChannelAccess at scheduleTick TAIL - runs on the sound engine
+     * thread after vanilla's own sweep, so walking/mutating the channel set is safe.
+     * Channels with no playback activity for REAPER_STUCK_MS are force-released
+     * (handle.release -> library.releaseChannel) and removed from the channel set, so
+     * the next sweep cannot trip over their nulled channel.
+     */
+    public static void afterChannelSweep(final Set<?> handles) {
+        if (!isAvailable())
+            return;
+        if (++reaperGate % 20 != 0)
+            return;
+        final long now = System.currentTimeMillis();
+        final List<Object> reaped = new ArrayList<>();
+        for (final Object o : handles) {
+            try {
+                Channel channel = ((IChannelHandle) o).dsurround_getSource();
+                if (channel == null)
+                    continue;
+                int id = ((ISourceContext) channel).dsurround_getId();
+                if (channel.playing()) {
+                    channelLastActive.put(id, now);
+                    continue;
+                }
+                Long last = channelLastActive.get(id);
+                if (last != null && now - last > REAPER_STUCK_MS) {
+                    LOGGER.warn("REAPER: reclaiming stuck channel id=%d (no playback activity for %.1fs)", id, (now - last) / 1000.0);
+                    ((IChannelHandle) o).dsurround_reap();
+                    reaped.add(o);
+                    channelLastActive.remove(id);
+                }
+            } catch (final Throwable ignore) {
+            }
+        }
+        for (final Object o : reaped)
+            handles.remove(o);
     }
 
     /**

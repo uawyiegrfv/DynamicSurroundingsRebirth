@@ -30,6 +30,7 @@ public abstract class MixinSoundEngine {
     public void dsurround_init(CallbackInfo ci) {
         // Spatial audio: initialise OpenAL EFX (aux sends, effects) and sound-processing.
         org.orecruncher.dsurround.runtime.audio.AudioUtilities.initialize(this.library);
+        org.orecruncher.dsurround.runtime.audio.AudioUtilities.captureSoundEngine((SoundEngine) (Object) this);
     }
 
     @Inject(method = "destroy()V", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/audio/Library;cleanup()V", shift = At.Shift.BEFORE))

@@ -20,6 +20,7 @@
     "audio.MixinSoundLibrary",
     "audio.MixinSoundEngineAccessor",
     "audio.MixinSoundManagerAccessor",
+    "audio.MixinChannelAccess",
     "audio.MixinChannelHandleAccessor",
     "audio.MixinSource",
     "audio.MixinMusicManager",

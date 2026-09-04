@@ -120,11 +120,19 @@ public final class SoundFXProcessor {
     }
 
     private static boolean shouldIgnoreSound(SoundInstance sound) {
-        return sound.isRelative()
-                || sound.getAttenuation() == SoundInstance.Attenuation.NONE
+        if (sound.isRelative()
                 || sound.getSource() == SoundSource.MASTER
                 || sound.getSource() == SoundSource.MUSIC
-                || sound.getSource() == SoundSource.WEATHER;
+                || sound.getSource() == SoundSource.WEATHER)
+            return true;
+        // Non-attenuated (NONE) sounds are still processed when they carry a real position -
+        // the player's own footsteps render centered (stereo, no distance attenuation) yet still
+        // benefit from reverb zones and water damping, matching the original 1.12.2 where
+        // footsteps ran through the sound effect processing. NONE sounds at the origin (config
+        // preview, background loops) stay ignored.
+        if (sound.getAttenuation() == SoundInstance.Attenuation.NONE)
+            return sound.getX() == 0.0D && sound.getY() == 0.0D && sound.getZ() == 0.0D;
+        return false;
     }
 
     /**

@@ -20,24 +20,16 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
     //   morningFogStartHour (5.0), morningFogPeakHour (6.0), morningFogEndHour (8.0),
     //   morningFogDensity (1.0 = default).
 
-    // Fraction of the fog end used as the gradient width (start = end - width).
-    // Keeps the fog a smooth haze instead of a hard wall when the range
-    // collapses.
-    protected static final float GRADIENT_FRACTION = 0.35F;
-
-    // Defensive fallback for the (unreachable) NONE density case in peakEnd().
-    // The real clear-sky distance is taken from the vanilla fog range at runtime.
-    protected static final float MAX_FOG_VIEW_END = 256F;
-
-    // Fog wall distance at peak dawn (6AM), per density, view-distance independent:
-    //   HEAVY 48 (dense, short view), MEDIUM 64, NORMAL 96, LIGHT 160.
-    protected static float peakEnd(final FogDensity density) {
+    // Near-plane reserve at peak dawn, per fog type (blocks). Mirrors the 1.12.2
+    // FogType reserves: heavier mornings reach closer to the player (thicker
+    // mist), lighter ones keep the haze farther away. View-distance independent.
+    protected static float reserveOf(final FogDensity density) {
         return switch (density) {
-            case HEAVY -> 48F;
-            case MEDIUM -> 64F;
-            case NORMAL -> 96F;
-            case LIGHT -> 160F;
-            default -> MAX_FOG_VIEW_END;
+            case HEAVY -> 5F;
+            case MEDIUM -> 8F;
+            case NORMAL -> 10F;
+            case LIGHT -> 15F;
+            default -> 10F;
         };
     }
 
@@ -116,33 +108,27 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
                     strength = 1F - (angle - peakAngle) / (endAngle - peakAngle);
                 }
                 // At the window edges the strength is exactly zero: return the vanilla
-                // range untouched. The range is blended continuously from the vanilla
-                // clear-sky range (strength=0) down to the fixed peak (strength=1), so
-                // there is no discontinuity when the window opens or closes.
+                // range untouched. The near plane is pulled in continuously with the
+                // strength curve, so the haze builds up and disperses without any pop
+                // when the window opens or closes.
                 if (strength <= 0F)
                     return data;
 
-                // Blend the far plane from the vanilla clear-sky distance to the fixed
-                // peak. The peak is anchored by the density only (not the render
-                // distance), so the wall reaches peakEnd at dawn regardless of view
-                // distance; the clear-sky anchor is the actual vanilla far plane, which
-                // keeps the fog continuous at the window edges (no fog-wall flash or
-                // sudden view-distance drop at 5AM/8AM).
-                final float peakEndDist = Math.max(8F, peakEnd(this.type) / Math.max((float) this.fogOptions.morningFogDensity, 0.01F));
-                final float newEnd = Math.min(
-                        peakEndDist + (data.renderDistanceEnd - peakEndDist) * (1F - strength),
-                        data.renderDistanceEnd);
-
-                // Blend the near plane the same way so the haze gradient stays coherent
-                // and never pops at the edges.
-                final float peakStart = peakEndDist * (1F - GRADIENT_FRACTION);
-                final float newStart = Math.max(0F, Math.min(
-                        peakStart + (data.renderDistanceStart - peakStart) * (1F - strength),
-                        newEnd));
+                // Layered morning haze, matching the original 1.12.2 feel: the vanilla far
+                // plane is NEVER pulled in, so the visible view distance is not reduced.
+                // Instead the NEAR plane is drawn toward the player in proportion to the
+                // time-of-day strength and the density scaling, stretching the linear fog
+                // gradient from a small reserve distance all the way to the vanilla far
+                // plane - distance reads as progressively thicker mist while nearby
+                // terrain keeps a subtle morning haze.
+                final float density = (float) Math.max(0D, this.fogOptions.morningFogDensity);
+                final float reserve = reserveOf(this.type);
+                final float pull = Math.max(0F, data.renderDistanceStart - reserve) * strength * density;
+                final float newStart = Math.max(reserve, data.renderDistanceStart - pull);
 
                 final FogData result = this.reusableResult;
                 result.renderDistanceStart = newStart;
-                result.renderDistanceEnd = newEnd;
+                result.renderDistanceEnd = data.renderDistanceEnd;
                 return result;
             }
         }

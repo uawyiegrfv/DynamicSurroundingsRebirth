@@ -133,6 +133,12 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
                     this.waterfallSoundInstances.put(posIndex, sound);
                 }
 
+                // Cap how loud a single waterfall loop can get: large modern-cave scenes can
+                // stack many full-volume waterfall loops at once (up to SOUND_INSTANCE_CAP),
+                // drowning everything else out. Re-asserted each pass so live config changes
+                // apply to existing loops within a few ticks.
+                sound.capVolume((float) this.config.blockEffects.waterfallMaxVolume);
+
                 final boolean inRange = SoundInstanceHandler.inRange(eyePosition, sound, 4);
                 final boolean isDone = !this.audioPlayer.isPlaying(sound);
 

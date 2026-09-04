@@ -70,6 +70,16 @@ public class BackgroundSoundLoop extends AbstractTickableSoundInstance {
         return this;
     }
 
+    /**
+     * Clamps the base (pre-fade) volume of this loop. {@link #getVolume()} multiplies the
+     * base by the fade-in scale, so a cap must be applied to the raw field, not through
+     * getVolume(). Used by the waterfall system to keep stacked cave waterfalls bounded.
+     */
+    public void capVolume(final float max) {
+        if (this.volume > max)
+            this.volume = max;
+    }
+
     @Override
     public float getVolume() {
         // Possible that the sound was not yet assigned.  Seen issues when exiting worlds.

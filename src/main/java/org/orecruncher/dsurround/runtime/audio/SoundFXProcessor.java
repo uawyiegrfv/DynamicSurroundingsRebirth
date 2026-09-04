@@ -239,11 +239,80 @@ public final class SoundFXProcessor {
             return;
 
         var data = ((ISourceContext) source).dsurround_getData();
-        data.ifPresent(ctx -> {
-            var s = ctx.getSound();
-            if (s != null && s.getAttenuation() != SoundInstance.Attenuation.NONE && !s.isRelative())
+        var ctx = data.orElse(null);
+        var s = ctx != null ? ctx.getSound() : null;
+        if (s != null && s.getAttenuation() != SoundInstance.Attenuation.NONE && !s.isRelative()) {
+            synchronized (buffer) {
                 Conversion.convert(buffer);
-        });
+            }
+        }
+        // Heisenbug-safe diagnostics (see the ring comment below).
+        recordMonoAttach(ctx != null, s);
+    }
+
+    /**
+     * Play-time gate for the eager shared-buffer conversion (see convertSharedBuffer):
+     * the same condition the attach-time conversion applies, evaluated while the sound
+     * instance is still at hand.
+     */
+    public static boolean shouldConvertToMono(final SoundInstance sound) {
+        if (!Client.Config.enhancedSounds.enableMonoConversion)
+            return false;
+        return sound.getAttenuation() != SoundInstance.Attenuation.NONE && !sound.isRelative();
+    }
+
+    /**
+     * Eager shared-buffer conversion, invoked from the play() hook. The attach-time
+     * conversion depends on the per-channel SourceContext being present at the moment
+     * the buffer is attached; a first play that misses it would leave the SHARED
+     * per-path SoundBuffer stereo for the entire session (the intermittent creature
+     * footstep "ear-glue" - it heals only on restart). This second safety net is
+     * registered in play() BEFORE vanilla queues its attach callback, so for a cold
+     * load the conversion runs before the buffer is ever uploaded, and for a warm
+     * cache it runs synchronously before the attach is even queued. Conversion is
+     * idempotent (already-mono buffers return immediately).
+     */
+    public static void convertSharedBuffer(final SoundBuffer buffer, final String path) {
+        final boolean converted;
+        synchronized (buffer) {
+            converted = Conversion.convert(buffer);
+        }
+        // A stereo buffer found here means the attach-time conversion missed its only
+        // chance - log it once per path so a repro leaves a smoking gun in the log.
+        if (converted && MONO_NET_LOGGED.add(path))
+            LOGGER.warn("MONO-NET: shared buffer for %s was still stereo at play time (attach-time conversion missed); converted now", path);
+    }
+
+    private static final java.util.Set<String> MONO_NET_LOGGED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    // Attach-time anomaly ring (Heisenbug-safe diagnostics): entries live in memory
+    // only - no I/O on the hot path, so logging cannot perturb the timing of the bug -
+    // and are dumped to the log on disconnect. Records every attach that would NOT be
+    // converted: no context at all, or a non-positional instance (relative/NONE). If
+    // ear-glue ever reproduces again, the dump shows the exact states around it.
+    private static final int MONO_RING_CAPACITY = 256;
+    private static final java.util.ArrayDeque<String> monoRing = new java.util.ArrayDeque<>();
+
+    private static void recordMonoAttach(final boolean hasContext, final SoundInstance sound) {
+        if (sound != null && sound.getAttenuation() != SoundInstance.Attenuation.NONE && !sound.isRelative())
+            return; // normal positional attach - not interesting
+        if (monoRing.size() >= MONO_RING_CAPACITY)
+            monoRing.pollFirst();
+        if (sound != null)
+            monoRing.addLast("no-convert attach: ctx=" + hasContext + " att=" + sound.getAttenuation()
+                    + " rel=" + sound.isRelative() + " " + AudioUtilities.debugString(sound));
+        else
+            monoRing.addLast("no-convert attach: ctx=" + hasContext + " <no sound>");
+    }
+
+    /** Dumps (and clears) the attach anomaly ring; called on client disconnect. */
+    public static void dumpMonoDiag() {
+        if (monoRing.isEmpty())
+            return;
+        LOGGER.info("MONO attach anomaly ring (%d entries, oldest first):", monoRing.size());
+        for (final String entry : monoRing)
+            LOGGER.info("  {}", entry);
+        monoRing.clear();
     }
 
     /**
@@ -257,12 +326,12 @@ public final class SoundFXProcessor {
                 lastPlayerUnderWater = underWater;
                 immediateUpdateRequested = true;
             }
-            if (++diagCounter % 300 == 0)
+            if (++diagCounter % 1200 == 0)
                 logPoolDiag();
         }
     }
 
-    // Every 15s: pool occupancy (used/max per pool), registered-context count and the
+    // Every 60s: pool occupancy (used/max per pool), registered-context count and the
     // top registered sound events. Detects channel leaks long before the pool starves.
     private static void logPoolDiag() {
         try {

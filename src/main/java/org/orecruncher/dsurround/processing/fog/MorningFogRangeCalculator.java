@@ -49,9 +49,11 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
             new FogChoice(FogDensity.HEAVY, 10),
     };
 
+    // 1.12.2 parity: ModOptions.fog.morningFogChance defaults to 1 (= fog every
+    // morning), so no morning rolls "no fog" - summer only varies the density.
     private static final FogChoice[] SUMMER_FOG = {
             new FogChoice(FogDensity.LIGHT, 20),
-            new FogChoice(FogDensity.NONE, 10),
+            new FogChoice(FogDensity.NORMAL, 10),
     };
 
     private static final FogChoice[] AUTUMN_FOG = {
@@ -120,7 +122,12 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
                 // terrain keeps a subtle morning haze.
                 final float density = (float) Math.max(0D, this.fogOptions.morningFogDensity);
                 final float reserve = reserveOf(this.type);
-                final float pull = Math.max(0F, data.start - reserve) * strength * density;
+                // Some fog passes report a zero/tiny near plane (the 1.20.1 sky pass does);
+                // pulling the start there is a no-op at best and pushes it outward at worst,
+                // and the holistic min-merge would discard it regardless. Leave them be.
+                if (data.start <= reserve)
+                    return data;
+                final float pull = (data.start - reserve) * strength * density;
                 final float newStart = Math.max(reserve, data.start - pull);
 
                 var result = new FogRenderer.FogData(data.mode);

@@ -164,7 +164,7 @@
   "dsurround.config.fogOptions.morningFogEndHour": "Morning fog end time (hour)",
   "dsurround.config.fogOptions.morningFogEndHour.tooltip": "Morning fog end time in hours of day (8.0 = 8AM)",
   "dsurround.config.fogOptions.morningFogDensity": "Morning fog density",
-  "dsurround.config.fogOptions.morningFogDensity.tooltip": "Scales morning fog haze (1.0 = default; higher = mist reaches closer; does not change view distance)",
+  "dsurround.config.fogOptions.morningFogDensity.tooltip": "Scales morning fog haze (4.0 = default; higher = mist reaches closer; does not change view distance). The morning fog type follows the season sub-phase deterministically - midsummer mornings have no fog",
   "dsurround.config.fogOptions.biomeFogDensity": "Biome fog density",
   "dsurround.config.fogOptions.biomeFogDensity.tooltip": "Scales biome fog density (1.0 = default; 0 = disable biome fog)",
   "dsurround.config.fogOptions.weatherFogDensity": "Weather fog density",

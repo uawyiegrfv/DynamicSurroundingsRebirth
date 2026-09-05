@@ -45,8 +45,14 @@ public abstract class MixinSoundEngine {
     @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V", at = @At("HEAD"), cancellable = true)
     private void dsurround_play(SoundInstance sound, CallbackInfo ci) {
         try {
-            // Check to see if the sound is blocked or being culled
-            if (SoundInstanceHandler.shouldBlockSoundPlay(sound))
+            // A hard-blocked sound is cancelled outright - a matching remap rule must
+            // not resurrect it. Culled sounds cancel below but keep falling through to
+            // remapping (documented cull design).
+            if (SoundInstanceHandler.isBlockedPlay(sound)) {
+                ci.cancel();
+                return;
+            }
+            if (SoundInstanceHandler.shouldCullSoundPlay(sound))
                 ci.cancel();
             // Attempt a remapping if configured to do so
             if (SoundInstanceHandler.remapSoundPlay(sound))

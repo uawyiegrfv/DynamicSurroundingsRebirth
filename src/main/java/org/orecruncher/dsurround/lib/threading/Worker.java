@@ -65,8 +65,18 @@ public final class Worker {
 
     public void stop() {
         try {
-            if (!this.executorService.isShutdown())
+            if (!this.executorService.isShutdown()) {
                 this.executorService.shutdown();
+                try {
+                    // Give the in-flight pass a moment to finish so callers that tear
+                    // down shared state right after stop() do not race the worker.
+                    if (!this.executorService.awaitTermination(2, TimeUnit.SECONDS))
+                        this.executorService.shutdownNow();
+                } catch (final InterruptedException ignored) {
+                    this.executorService.shutdownNow();
+                    Thread.currentThread().interrupt();
+                }
+            }
         } catch (final Throwable t) {
             this.logger.warn("Error stopping worker thread [%s]", this.name);
         }

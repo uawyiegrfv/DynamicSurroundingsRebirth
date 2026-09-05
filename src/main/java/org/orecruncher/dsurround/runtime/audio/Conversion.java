@@ -36,10 +36,20 @@ public final class Conversion {
      *
      * @param buffer Audio stream buffer to convert
      */
+    private static final java.util.concurrent.atomic.AtomicBoolean FIELDS_WARNED =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
     public static boolean convert(final SoundBuffer buffer) {
         synchronized (buffer) {
-        if (formatField == null || dataField == null)
+        if (formatField == null || dataField == null) {
+            // Silent failure here would look exactly like the ear-glue bug (stereo never
+            // converted). Warn once - this fires only when the field lookup has already
+            // failed, i.e. the feature is broken and the log line IS the signal.
+            if (FIELDS_WARNED.compareAndSet(false, true))
+                org.orecruncher.dsurround.mixinutils.MixinHelpers.LOGGER
+                        .warn("Mono conversion unavailable: SoundBuffer fields not found (mapping changed?) - stereo sounds will NOT be converted");
             return false;
+        }
         try {
             final AudioFormat format = (AudioFormat) formatField.get(buffer);
 

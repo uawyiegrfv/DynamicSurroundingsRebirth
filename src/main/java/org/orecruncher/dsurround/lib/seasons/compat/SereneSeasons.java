@@ -97,18 +97,43 @@ public class SereneSeasons extends AbstractSeasonProvider {
         return invoke(seasonState(), "getSeason").toString().equals(name);
     }
 
+    // One-way flag: when Serene Seasons reflection breaks (mod version drift), fall
+    // back to vanilla semantics with a single warning instead of an ERROR flood from
+    // the sound-processing pool chain (each source, each pass).
+    private final java.util.concurrent.atomic.AtomicBoolean degraded =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
+    private void noteDegraded(String what) {
+        if (this.degraded.compareAndSet(false, true))
+            org.orecruncher.dsurround.mixinutils.MixinHelpers.LOGGER
+                    .warn("Serene Seasons integration failed (%s) - falling back to vanilla climate semantics", what);
+    }
+
     @Override
     public Biome.Precipitation getPrecipitationAt(BlockPos blockPos) {
         var level = this.level();
         var biome = level.getBiome(blockPos);
-        return (Biome.Precipitation) invokeStatic("sereneseasons.season.SeasonHooks", "getPrecipitationAtSeasonal", level, biome, blockPos);
+        try {
+            return (Biome.Precipitation) invokeStatic("sereneseasons.season.SeasonHooks", "getPrecipitationAtSeasonal", level, biome, blockPos);
+        } catch (RuntimeException e) {
+            noteDegraded("getPrecipitationAtSeasonal");
+            return biome.value().getPrecipitationAt(blockPos);
+        }
     }
 
     @Override
     public float getTemperature(BlockPos blockPos) {
         var level = this.level();
         var biome = level.getBiome(blockPos);
-        return (Float) invokeStatic("sereneseasons.season.SeasonHooks", "getBiomeTemperature", level, biome, blockPos);
+        try {
+            return (Float) invokeStatic("sereneseasons.season.SeasonHooks", "getBiomeTemperature", level, biome, blockPos);
+        } catch (RuntimeException e) {
+            noteDegraded("getBiomeTemperature");
+            // Biome.getTemperature(BlockPos) is private on 1.20.1 - the extended accessor
+            // used by the vanilla provider gives the same vanilla-with-climate value.
+            return ((org.orecruncher.dsurround.mixinutils.IBiomeExtended) (Object) biome.value())
+                    .dsurround_getTemperature(blockPos);
+        }
     }
 
     @Override

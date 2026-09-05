@@ -10,12 +10,12 @@
     "core.MixinLivingEntity",
     "core.MixinEntity",
     "core.MixinPlayer",
-    "core.MixinButtonWidget",
-    "core.MixinMapRenderer",
-    "core.MixinRaycastContextAccessor",
-    "core.MixinSoundOptionsScreen"
+    "core.MixinRaycastContextAccessor"
   ],
   "client": [
+    "core.MixinButtonWidget",
+    "core.MixinMapRenderer",
+    "core.MixinSoundOptionsScreen",
     "audio.MixinSoundEngine",
     "audio.MixinSoundLibrary",
     "audio.MixinSoundEngineAccessor",

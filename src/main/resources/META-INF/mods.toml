@@ -11,6 +11,7 @@ credits="OreCruncher, uawyiegrfv"
 authors="uawyiegrfv"
 description='''Forge 1.20.1 port of Dynamic Surroundings: ambient sounds, material footsteps, aurora, fog, weather, particles and more. Ported by uawyiegrfv with assistance from Claude Code. Original by OreCruncher (MIT).'''
 logoFile="assets/dsurround/icon.png"
+displayTest="IGNORE_SERVER_VERSION"
 
 [[dependencies.dsurround]]
 modId="forge"

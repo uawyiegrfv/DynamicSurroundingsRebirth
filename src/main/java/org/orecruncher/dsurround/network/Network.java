@@ -10,11 +10,14 @@ import org.orecruncher.dsurround.Constants;
 public final class Network {
 
     private static final String VERSION = "1.0";
+    // acceptMissingOr: a peer WITHOUT DS (no channel) is accepted, so players can join
+    // servers regardless of which side carries the mod. Server-side features simply
+    // don't fire for peers that never handshake the channel (see isPlayerPresent).
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(Constants.MOD_ID, "main"),
             () -> VERSION,
-            VERSION::equals,
-            VERSION::equals
+            NetworkRegistry.acceptMissingOr(VERSION::equals),
+            NetworkRegistry.acceptMissingOr(VERSION::equals)
     );
     private static int id = 0;
 

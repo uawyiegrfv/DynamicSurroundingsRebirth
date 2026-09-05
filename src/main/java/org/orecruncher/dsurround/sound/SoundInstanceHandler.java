@@ -161,8 +161,8 @@ public final class SoundInstanceHandler {
 
         // Get the max sound range. Pad is added because a player may move into hearing
         // range before the sound terminates.
-        int distSq = sound.getSound().getAttenuationDistance() + pad;
-        distSq *= distSq;
+        int dist = sound.getSound().getAttenuationDistance() + pad;
+        int distSq = dist * dist;
         return listener.distanceToSqr(sound.getX(), sound.getY(), sound.getZ()) < distSq;
     }
 

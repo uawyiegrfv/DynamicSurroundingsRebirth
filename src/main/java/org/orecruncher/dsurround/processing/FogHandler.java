@@ -55,8 +55,10 @@ public class FogHandler extends AbstractClientHandler {
             data.renderDistanceStart = this.lastData.renderDistanceStart;
             data.renderDistanceEnd = this.lastData.renderDistanceEnd;
         } else {
-            // Preserve for diagnostic trace even though action was not taken
-            this.lastData = data;
+            // Preserve for diagnostic trace even though action was not taken. Copy the
+            // two floats instead of holding the event's FogData - vanilla may reuse it.
+            this.lastData.renderDistanceStart = data.renderDistanceStart;
+            this.lastData.renderDistanceEnd = data.renderDistanceEnd;
         }
     }
 

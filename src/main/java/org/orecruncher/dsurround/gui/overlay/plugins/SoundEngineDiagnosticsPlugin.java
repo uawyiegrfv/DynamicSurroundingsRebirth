@@ -44,7 +44,7 @@ public class SoundEngineDiagnosticsPlugin implements IDiagnosticPlugin {
         panelText.add(str);
 
         if (!sources.isEmpty()) {
-            accessors.dsurround_getSources().keySet().stream()
+            sources.keySet().stream()
                     .map(SoundInstance::getIdentifier)
                     .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
                     .entrySet().stream()

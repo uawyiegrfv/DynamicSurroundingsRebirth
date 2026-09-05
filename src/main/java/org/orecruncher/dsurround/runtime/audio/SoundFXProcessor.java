@@ -190,7 +190,8 @@ public final class SoundFXProcessor {
         data.ifPresent(ctx -> {
             var id = ctx.getId();
             ctx.exec();
-            sources[id - 1] = ctx;
+            if (sources != null && id > 0 && id <= sources.length)
+                sources[id - 1] = ctx;
         });
     }
 
@@ -215,11 +216,16 @@ public final class SoundFXProcessor {
      */
     public static void stopSoundPlay(final Channel source) {
         var sourceContext = (ISourceContext) source;
+        final int id = sourceContext.dsurround_getId();
+        // Always drop the reaper's activity timestamp - even context-less channels get
+        // one (afterChannelSweep refreshes every playing channel), and a stale entry can
+        // mis-time a future channel that recycles the same OpenAL source id.
+        channelLastActive.remove(id);
         var data = sourceContext.dsurround_getData();
         data.ifPresent(sc -> {
             sc.stop();
-            sources[sc.getId() - 1] = null;
-            channelLastActive.remove(sc.getId());
+            if (sources != null && sc.getId() > 0 && sc.getId() <= sources.length)
+                sources[sc.getId() - 1] = null;
         });
     }
 
@@ -292,7 +298,7 @@ public final class SoundFXProcessor {
     // converted: no context at all, or a non-positional instance (relative/NONE). If
     // ear-glue ever reproduces again, the dump shows the exact states around it.
     private static final int MONO_RING_CAPACITY = 256;
-    private static final java.util.ArrayDeque<String> monoRing = new java.util.ArrayDeque<>();
+    private static final java.util.concurrent.ConcurrentLinkedDeque<String> monoRing = new java.util.concurrent.ConcurrentLinkedDeque<>();
 
     private static void recordMonoAttach(final boolean hasContext, final SoundInstance sound) {
         if (sound != null && sound.getAttenuation() != SoundInstance.Attenuation.NONE && !sound.isRelative())
@@ -311,9 +317,9 @@ public final class SoundFXProcessor {
         if (monoRing.isEmpty())
             return;
         LOGGER.info("MONO attach anomaly ring (%d entries, oldest first):", monoRing.size());
-        for (final String entry : monoRing)
+        String entry;
+        while ((entry = monoRing.pollFirst()) != null)
             LOGGER.info("  {}", entry);
-        monoRing.clear();
     }
 
     /**
@@ -410,6 +416,10 @@ public final class SoundFXProcessor {
      * so offloading to a separate thread to keep it out of either the client tick or sound engine makes sense.
      */
     private static void processSounds() {
+        // The worker can still be draining its queue while deinitialize() nulls the
+        // sources array (Worker.stop does not await termination) - bail out quietly.
+        if (sources == null)
+            return;
         try {
             final ExecutorService pool = threadPool.get();
             assert pool != null;

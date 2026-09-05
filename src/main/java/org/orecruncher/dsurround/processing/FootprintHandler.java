@@ -75,6 +75,9 @@ public class FootprintHandler {
     private void onDisconnect(Minecraft client) {
         this.lastPos = null;
         this.walkDistance = 0D;
+        this.isRightFoot = false;
+        this.wasOnGround = true;
+        this.lastAirborneFallDistance = 0D;
     }
 
     private void onTick(Minecraft client) {

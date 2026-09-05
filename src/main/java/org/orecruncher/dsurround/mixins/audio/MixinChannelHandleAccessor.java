@@ -21,7 +21,9 @@ public abstract class MixinChannelHandleAccessor implements IChannelHandle {
     @Inject(method = "release()V", at = @At("HEAD"))
     private void dsurround_release(CallbackInfo ci) {
         try {
-            SoundFXProcessor.stopSoundPlay(this.dsurround_getSource());
+            var channel = this.dsurround_getSource();
+            if (channel != null)
+                SoundFXProcessor.stopSoundPlay(channel);
         } catch (Throwable t) {
             MixinHelpers.LOGGER.error(t, "Unable to stop sound play");
         }

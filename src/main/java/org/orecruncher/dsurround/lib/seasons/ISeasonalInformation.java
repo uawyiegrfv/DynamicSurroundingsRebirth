@@ -55,6 +55,23 @@ public interface ISeasonalInformation {
     }
 
     /**
+     * Indicates whether the provider implements a real seasonal cycle (e.g. Serene
+     * Seasons). The vanilla fallback has none, so season-driven systems fall back to
+     * their base behavior instead of the season table.
+     */
+    default boolean hasSeasonalCycle() {
+        return false;
+    }
+
+    /**
+     * Gets the sub-phase of the current season: each season is split into thirds
+     * (EARLY / MID / LATE). Providers without a sub-season concept report MID.
+     */
+    default SeasonPhase getSeasonPhase() {
+        return SeasonPhase.MID;
+    }
+
+    /**
      * Gets the temperature at the specified block location taking into account any seasonal variance.
      */
     float getTemperature(BlockPos blockPos);

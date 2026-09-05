@@ -421,6 +421,12 @@ public final class SoundLibrary implements ISoundLibrary {
         this.soundConfiguration.removeIf(e -> !e.isNotDefault());
         // Sort the list naturally based on identity
         this.soundConfiguration.sort((e1, e2) -> Comparers.IDENTIFIER_NATURAL_COMPARABLE.compare(e1.soundEventId, e2.soundEventId));
+        // Rebuild the lookup collections from scratch - entries that were removed from
+        // the config since the last load/save must un-cull / un-block / un-scale
+        // immediately instead of lingering until restart.
+        this.individualSoundConfiguration.clear();
+        this.startupSounds.clear();
+        this.culledSounds.clear();
         // Insert the entries into our lookup collections
         this.soundConfiguration.forEach(e -> {
             this.individualSoundConfiguration.put(e.soundEventId, e);

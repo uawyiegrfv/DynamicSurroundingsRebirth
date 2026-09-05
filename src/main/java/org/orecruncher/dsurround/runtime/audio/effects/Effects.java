@@ -196,13 +196,12 @@ public final class Effects {
         }
 
         // Diagnostic: steady-state zone mapping, one line per ~second of playtime.
-        // DIAG(1.20.1-reverb): temporarily INFO (was debug) - the first-20 probe burns out
-        // during world load on minecart spam, so this is the only continuous view of what
-        // applyReverb actually sends.
+        // debug level - this runs on the sound engine thread and logging I/O here can
+        // perturb timing (Heisenbug lesson). Enable debug for reverb tracing.
         if (++applyCounter % 140 == 0) {
             var sound = source.getSound();
             var soundId = sound == null ? "?" : sound.getLocation().toString();
-            LOGGER.info("REVERB_STEADY src=%d sound=%s pos=%.1f,%.1f,%.1f sends=%d process=[%s,%s,%s,%s] gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f/%s] filters=[%d,%d,%d,%d]/%d",
+            LOGGER.debug("REVERB_STEADY src=%d sound=%s pos=%.1f,%.1f,%.1f sends=%d process=[%s,%s,%s,%s] gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f/%s] filters=[%d,%d,%d,%d]/%d",
                     sourceId, soundId, source.getPosition().x, source.getPosition().y, source.getPosition().z, activeSends,
                     source.getLowPass(0).doProcess(), source.getLowPass(1).doProcess(),
                     source.getLowPass(2).doProcess(), source.getLowPass(3).doProcess(),

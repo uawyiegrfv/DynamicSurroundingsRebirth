@@ -80,6 +80,6 @@ public class ThunderHandler {
                 .build()
                 .createAtLocation(x, y, z, 1.0F);
         this.audioPlayer.play(sound);
-        this.logger.info("[ThunderHandler] Background thunder at (%.0f,%.0f,%.0f)", x, y, z);
+        this.logger.debug("[ThunderHandler] Background thunder at (%.0f,%.0f,%.0f)", x, y, z);
     }
 }

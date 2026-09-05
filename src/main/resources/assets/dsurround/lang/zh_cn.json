@@ -152,7 +152,7 @@
   "dsurround.config.fogOptions.morningFogEndHour": "晨雾结束时间（时）",
   "dsurround.config.fogOptions.morningFogEndHour.tooltip": "晨雾结束时间，按一天中的小时（8.0=早晨8点）",
   "dsurround.config.fogOptions.morningFogDensity": "晨雾浓度",
-  "dsurround.config.fogOptions.morningFogDensity.tooltip": "晨雾浓度倍率（1.0=默认；越高雾脚越近、雾感越强；不改变视距）",
+  "dsurround.config.fogOptions.morningFogDensity.tooltip": "晨雾浓度倍率（4.0=默认；越高雾脚越近、雾感越强；不改变视距）。晨雾类型按季节子阶段确定性变化——仲夏清晨无雾",
   "dsurround.config.fogOptions.biomeFogDensity": "群系雾浓度",
   "dsurround.config.fogOptions.biomeFogDensity.tooltip": "群系雾浓度倍率（1.0=默认；0=关闭群系雾）",
   "dsurround.config.fogOptions.weatherFogDensity": "天气雾浓度",

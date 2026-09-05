@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.biome.Biome;
 import org.orecruncher.dsurround.config.libraries.IDimensionInformation;
+import org.orecruncher.dsurround.lib.seasons.SeasonPhase;
 import sereneseasons.api.season.Season;
 import sereneseasons.api.season.SeasonHelper;
 import sereneseasons.season.SeasonHooks;
@@ -67,6 +68,23 @@ public class SereneSeasons extends AbstractSeasonProvider {
     public  boolean isWinter() {
         var helper = SeasonHelper.getSeasonState(this.level());
         return helper.getSeason() == Season.WINTER;
+    }
+
+    @Override
+    public SeasonPhase getSeasonPhase() {
+        // SubSeason is a 12-value enum (EARLY_SPRING..LATE_WINTER); the prefix is the
+        // phase, i.e. each season split into thirds.
+        final var sub = SeasonHelper.getSeasonState(this.level()).getSubSeason().toString();
+        if (sub.startsWith("EARLY"))
+            return SeasonPhase.EARLY;
+        if (sub.startsWith("LATE"))
+            return SeasonPhase.LATE;
+        return SeasonPhase.MID;
+    }
+
+    @Override
+    public boolean hasSeasonalCycle() {
+        return true;
     }
 
     @Override

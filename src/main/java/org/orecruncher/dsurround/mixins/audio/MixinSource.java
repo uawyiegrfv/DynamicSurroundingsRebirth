@@ -88,7 +88,7 @@ public class MixinSource implements ISourceContext {
      * attenuation and is not mono, it will be converted to mono format.  Non-mono sounds will be played in the sound engine
      * as if they are non-linear because it cannot convert non-mono sounds for 3D environmental play.
      * @param soundBuffer Buffer to convert to mono if needed.
-     * @param ci Call will always be cancelled.
+     * @param ci Not cancelled - vanilla continues with the attach after conversion.
      */
     @Inject(method = "attachStaticBuffer(Lcom/mojang/blaze3d/audio/SoundBuffer;)V", at = @At("HEAD"))
     public void dsurround_monoConversion(SoundBuffer soundBuffer, CallbackInfo ci) {

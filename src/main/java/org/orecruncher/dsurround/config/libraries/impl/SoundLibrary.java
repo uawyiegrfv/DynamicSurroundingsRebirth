@@ -297,15 +297,10 @@ public final class SoundLibrary implements ISoundLibrary {
             if (soundFactory.isPresent()) {
                 // Need to force a sound to be selected so we can get the volume
                 soundInstance.resolve(GameUtils.getSoundManager());
-                // Step sound replacements play at full volume. Vanilla step sounds play at a
-                // low volume (~0.15 for block steps, ~0.15 for mob entity steps), which would
-                // make the DS replacement nearly inaudible - mobs using the base block step
-                // (e.g. villagers) and mob entity step sounds both need the boost. Mob step
-                // remaps always produce a block step sound, so the endsWith check covers both.
-                var isStepSound = soundLocation.getPath().endsWith(".step");
-                // 1.20.1 tuning: mob step replacements at 0.6 (was full volume) per user feedback
-                var volumeScale = isStepSound ? 0.6F : soundInstance.getVolume();
-                return Optional.of(soundFactory.get().createAtLocation(soundInstance.getX(), soundInstance.getY(), soundInstance.getZ(), volumeScale));
+                // Non-step sounds keep the instance's own volume. (Vanilla step sounds
+                // never reach this point - every "*.step" path is excluded unconditionally
+                // above, by ruling: steps come only from DS's own generators.)
+                return Optional.of(soundFactory.get().createAtLocation(soundInstance.getX(), soundInstance.getY(), soundInstance.getZ(), soundInstance.getVolume()));
             }
         }
 

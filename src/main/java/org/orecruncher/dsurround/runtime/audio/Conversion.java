@@ -6,7 +6,6 @@ import javax.sound.sampled.AudioFormat;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 
-@SuppressWarnings("unused")
 public final class Conversion {
 
     private static Field formatField;

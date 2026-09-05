@@ -63,11 +63,11 @@ public class FootstepGenerator extends AbstractClientHandler {
     static final int LAND_ECHO_DELAY_MIN_TICKS = 1;
     static final int LAND_ECHO_DELAY_MAX_TICKS = 2;
     static final float LAND_ECHO_VOLUME = 1.0F;
-    // Landing-only gain boost. The engine clamps each voice's gain at 1.0 and the walk
-    // step already carries the variator multiplier, so the landing thud needs real
-    // headroom of its own to read heavier than a step. Boosting only playLand keeps
-    // walk/run volumes untouched; 1.6 puts a 0.6-volume landing primary at ~0.96 per
-    // voice - just under the clamp - restoring the landing>step hierarchy.
+    // Landing-only gain boost. The walk step already carries the variator multiplier,
+    // so the landing thud needs real headroom of its own to read heavier than a step.
+    // Boosting only playLand keeps walk/run volumes untouched; 1.7 puts a 0.6-volume
+    // landing primary at ~1.02 per voice (the engine clamp is 2F - SoundVolumeEvaluator),
+    // restoring the landing>step hierarchy.
     private static final float LAND_GAIN_BOOST = 1.7F;
     // Lateral offset of each foot from the block centre when a landing plays, ported
     // from the 1.12.2 findAssociation DISTANCE_TO_CENTER.
@@ -414,9 +414,9 @@ public class FootstepGenerator extends AbstractClientHandler {
         // evaluated once per foot, so TWO independent voices play simultaneously (plus
         // two more when the delayed layer fires) and SUM in the mixer. That channel
         // summation is the only way a landing can read heavier than a footstep: the
-        // engine clamps a single voice's gain at 1.0 (SoundVolumeEvaluator.getAdjustedVolume),
-        // so any volume multiplier above 1.0 - in JSON or in code - is a silent no-op.
-        // This is why every previous attempt to "raise the landing volume" had no effect.
+        // engine clamps a single voice's gain at 2F (SoundVolumeEvaluator.getAdjustedVolume),
+        // so per-voice volume beyond that point is a silent no-op and multi-voice
+        // summation is what buys the extra weight.
         final float scale = footstepVolume() * dsFootstepVolume() * LAND_GAIN_BOOST;
         final int echoDelay = LAND_ECHO_DELAY_MIN_TICKS
                 + java.util.concurrent.ThreadLocalRandom.current().nextInt(LAND_ECHO_DELAY_MAX_TICKS - LAND_ECHO_DELAY_MIN_TICKS + 1);

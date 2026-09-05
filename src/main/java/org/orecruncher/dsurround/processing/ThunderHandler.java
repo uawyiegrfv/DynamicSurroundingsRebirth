@@ -1,7 +1,7 @@
 package org.orecruncher.dsurround.processing;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundSource;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.Constants;
@@ -22,7 +22,7 @@ import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
  */
 public class ThunderHandler {
 
-    private static final ResourceLocation THUNDER = ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "thunder");
+    private static final Identifier THUNDER = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "thunder");
 
     // Interval bounds in ticks between background rumbles (20s / 40s).
     private static final int MIN_INTERVAL = 400;

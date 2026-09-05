@@ -56,21 +56,31 @@ public final class SoundInstanceHandler {
     }
 
     /**
-     * Special hook in the Minecraft SoundSystem that will be invoked when a sound is played.
-     * Based on configuration, the sound play will be discarded if it is blocked or if it is
-     * within its culling interval.
-     *
-     * @param theSound The sound that is being played
-     * @return True if the sound play is to be blocked, false otherwise
+     * A HARD-BLOCKED sound (user block or zero-volume entry) is cancelled outright - a
+     * matching remap rule must not resurrect it. Culled sounds are handled separately by
+     * {@link #shouldCullSoundPlay}, which keeps the documented fall-through to remapping.
      */
-    public static boolean shouldBlockSoundPlay(final SoundInstance theSound) {
-        // Don't block ConfigSoundInstances.  They are triggered from the individual sound config
-        // options, and though it may be blocked, the player may wish to hear.
+    public static boolean isBlockedPlay(final SoundInstance theSound) {
         if (theSound instanceof ConfigSoundInstance)
             return false;
 
         final Identifier id = theSound.getIdentifier();
-        return isSoundBlocked(id) || isSoundCulledLogical(id);
+        return isSoundBlocked(id);
+    }
+
+    /**
+     * Culling hook: the original play is cancelled, but the occurrence is recorded and
+     * REMAPPING MAY STILL REPLACE THE SOUND - that fall-through is the documented cull
+     * design (see isSoundCulledLogical).
+     */
+    public static boolean shouldCullSoundPlay(final SoundInstance theSound) {
+        if (theSound instanceof ConfigSoundInstance)
+            return false;
+
+        final Identifier id = theSound.getIdentifier();
+        if (isSoundBlocked(id))
+            return false;
+        return isSoundCulledLogical(id);
     }
 
     /**

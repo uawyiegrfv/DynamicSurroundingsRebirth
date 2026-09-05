@@ -13,6 +13,7 @@ import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.eventing.ClientEventHooks;
 import org.orecruncher.dsurround.eventing.CollectDiagnosticsEvent;
 import org.orecruncher.dsurround.lib.Singleton;
+import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.collections.ObjectArray;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
@@ -367,6 +368,11 @@ public final class SoundFXProcessor {
      */
     public static void afterChannelSweep(final Set<?> handles) {
         if (!isAvailable())
+            return;
+        // While the game is paused every live channel sits in AL_PAUSED and playing()
+        // reports false - the reaper would mistake the whole lot for stuck channels and
+        // destroy them. Skip entirely while paused (the sweep resumes on unpause).
+        if (GameUtils.isPaused())
             return;
         if (++reaperGate % 20 != 0)
             return;

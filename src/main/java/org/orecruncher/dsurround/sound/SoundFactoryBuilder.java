@@ -11,7 +11,6 @@ import net.minecraft.util.valueproviders.UniformFloat;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 
-@SuppressWarnings("unused")
 public final class SoundFactoryBuilder {
 
     final SoundEvent soundEvent;

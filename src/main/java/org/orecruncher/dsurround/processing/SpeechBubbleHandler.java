@@ -222,8 +222,6 @@ public class SpeechBubbleHandler {
             final long expiry = this.tick + Math.max(1, Math.min(pending.seconds(), 600)) * 20L;
             this.addBubble(this.playerBubbles.computeIfAbsent(pending.sender(), k -> new ArrayList<>()),
                     pending.text(), expiry, true);
-            Library.LOGGER.info("[BUBBLE-DBG] client: bubble for %s: \"%s\" (%ss)",
-                    player.getName().getString(), pending.text(), pending.seconds());
         }
     }
 

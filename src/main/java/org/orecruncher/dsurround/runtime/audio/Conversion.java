@@ -6,7 +6,6 @@ import org.orecruncher.dsurround.mixins.audio.MixinSoundBuffer;
 import javax.sound.sampled.AudioFormat;
 import java.nio.ByteBuffer;
 
-@SuppressWarnings("unused")
 public final class Conversion {
 
     /**

@@ -44,7 +44,6 @@ public final class Effects {
     private static final ReverbEffectSlot[] REVERB_SLOTS = { reverb0, reverb1, reverb2, reverb3 };
     private static final ReverbData[] REVERB_DATA = new ReverbData[4];
     private static int activeSends = 0;
-    private static long applyCounter = 0;
     // Last reverb intensity applied to the OpenAL effect slots; tracks config changes so
     // the intensity slider takes effect live without a restart.
     private static float lastReverbIntensity = Float.NaN;

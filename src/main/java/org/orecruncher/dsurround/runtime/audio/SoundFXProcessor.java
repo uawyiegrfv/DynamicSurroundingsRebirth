@@ -248,8 +248,7 @@ public final class SoundFXProcessor {
         var data = ((ISourceContext) source).dsurround_getData();
         var ctx = data.orElse(null);
         var s = ctx != null ? ctx.getSound() : null;
-        if (s != null && s.getAttenuation() != SoundInstance.Attenuation.NONE && !s.isRelative()
-                && !isFootstepFamily(s)) {
+        if (s != null && s.getAttenuation() != SoundInstance.Attenuation.NONE && !s.isRelative()) {
             synchronized (buffer) {
                 Conversion.convert(buffer);
             }
@@ -266,22 +265,7 @@ public final class SoundFXProcessor {
     public static boolean shouldConvertToMono(final SoundInstance sound) {
         if (!Client.Config.enhancedSounds.enableMonoConversion)
             return false;
-        if (isFootstepFamily(sound))
-            return false;
         return sound.getAttenuation() != SoundInstance.Attenuation.NONE && !sound.isRelative();
-    }
-
-    /**
-     * Footstep-family sounds are ASSET-SEPARATED (2026-09-05): the player plays the
-     * stereo originals with NONE/own-feet centered playback, creatures play the mono
-     * twins (footsteps_mono.*) with LINEAR positioning. The runtime conversion must
-     * never touch their shared buffers - converting would mono-ize the player's
-     * stereo image (and is a no-op for the mono twins anyway).
-     */
-    private static boolean isFootstepFamily(final SoundInstance sound) {
-        var loc = sound.getIdentifier();
-        return loc.getNamespace().equals(org.orecruncher.dsurround.Constants.MOD_ID)
-                && loc.getPath().startsWith("footsteps");
     }
 
     /**

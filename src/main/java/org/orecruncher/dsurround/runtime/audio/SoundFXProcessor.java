@@ -1,7 +1,6 @@
 package org.orecruncher.dsurround.runtime.audio;
 
 import com.mojang.blaze3d.audio.Channel;
-import com.mojang.blaze3d.audio.SoundBuffer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.sounds.ChannelAccess;
@@ -230,96 +229,13 @@ public final class SoundFXProcessor {
     }
 
     /**
-     * Injected into SoundSource and will be invoked when a non-streaming sound data stream is attached to the
-     * SoundSource.  Take the opportunity to convert the audio stream into mono format if needed.  Note that
-     * conversion will take place only if it is enabled in the configuration and the sound is playing
-     * non-attenuated.
-     *
-     * @param source SoundSource for which the audio buffer is being generated
-     * @param buffer The buffer in question.
+     * Gate for the upload-point mono buffer selection (see MixinSource
+     * dsurround_selectAlBuffer): positioned static sounds bind a derived mono AL
+     * buffer so OpenAL can localize them, while the local player's own sounds keep
+     * the stereo buffer and its stereo image.
      */
-
-    public static void doMonoConversion(final Channel source, final SoundBuffer buffer) {
-
-        // If disabled, return
-        if (!Client.Config.enhancedSounds.enableMonoConversion)
-            return;
-
-        var data = ((ISourceContext) source).dsurround_getData();
-        var ctx = data.orElse(null);
-        var s = ctx != null ? ctx.getSound() : null;
-        if (s != null && s.getAttenuation() != SoundInstance.Attenuation.NONE && !s.isRelative()) {
-            synchronized (buffer) {
-                Conversion.convert(buffer);
-            }
-        }
-        // Heisenbug-safe diagnostics (see the ring comment below).
-        recordMonoAttach(ctx != null, s);
-    }
-
-    /**
-     * Play-time gate for the eager shared-buffer conversion (see convertSharedBuffer):
-     * the same condition the attach-time conversion applies, evaluated while the sound
-     * instance is still at hand.
-     */
-    public static boolean shouldConvertToMono(final SoundInstance sound) {
-        if (!Client.Config.enhancedSounds.enableMonoConversion)
-            return false;
-        return sound.getAttenuation() != SoundInstance.Attenuation.NONE && !sound.isRelative();
-    }
-
-    /**
-     * Eager shared-buffer conversion, invoked from the play() hook. The attach-time
-     * conversion depends on the per-channel SourceContext being present at the moment
-     * the buffer is attached; a first play that misses it would leave the SHARED
-     * per-path SoundBuffer stereo for the entire session (the intermittent creature
-     * footstep "ear-glue" - it heals only on restart). This second safety net is
-     * registered in play() BEFORE vanilla queues its attach callback, so for a cold
-     * load the conversion runs before the buffer is ever uploaded, and for a warm
-     * cache it runs synchronously before the attach is even queued. Conversion is
-     * idempotent (already-mono buffers return immediately).
-     */
-    public static void convertSharedBuffer(final SoundBuffer buffer, final String path) {
-        final boolean converted;
-        synchronized (buffer) {
-            converted = Conversion.convert(buffer);
-        }
-        // A stereo buffer found here means the attach-time conversion missed its only
-        // chance - log it once per path so a repro leaves a smoking gun in the log.
-        if (converted && MONO_NET_LOGGED.add(path))
-            LOGGER.warn("MONO-NET: shared buffer for %s was still stereo at play time (attach-time conversion missed); converted now", path);
-    }
-
-    private static final java.util.Set<String> MONO_NET_LOGGED = java.util.concurrent.ConcurrentHashMap.newKeySet();
-
-    // Attach-time anomaly ring (Heisenbug-safe diagnostics): entries live in memory
-    // only - no I/O on the hot path, so logging cannot perturb the timing of the bug -
-    // and are dumped to the log on disconnect. Records every attach that would NOT be
-    // converted: no context at all, or a non-positional instance (relative/NONE). If
-    // ear-glue ever reproduces again, the dump shows the exact states around it.
-    private static final int MONO_RING_CAPACITY = 256;
-    private static final java.util.concurrent.ConcurrentLinkedDeque<String> monoRing = new java.util.concurrent.ConcurrentLinkedDeque<>();
-
-    private static void recordMonoAttach(final boolean hasContext, final SoundInstance sound) {
-        if (sound != null && sound.getAttenuation() != SoundInstance.Attenuation.NONE && !sound.isRelative())
-            return; // normal positional attach - not interesting
-        if (monoRing.size() >= MONO_RING_CAPACITY)
-            monoRing.pollFirst();
-        if (sound != null)
-            monoRing.addLast("no-convert attach: ctx=" + hasContext + " att=" + sound.getAttenuation()
-                    + " rel=" + sound.isRelative() + " " + AudioUtilities.debugString(sound));
-        else
-            monoRing.addLast("no-convert attach: ctx=" + hasContext + " <no sound>");
-    }
-
-    /** Dumps (and clears) the attach anomaly ring; called on client disconnect. */
-    public static void dumpMonoDiag() {
-        if (monoRing.isEmpty())
-            return;
-        LOGGER.info("MONO attach anomaly ring (%d entries, oldest first):", monoRing.size());
-        String entry;
-        while ((entry = monoRing.pollFirst()) != null)
-            LOGGER.info("  {}", entry);
+    public static boolean isMonoSelectionEnabled() {
+        return Client.Config.enhancedSounds.enableMonoConversion;
     }
 
     /**

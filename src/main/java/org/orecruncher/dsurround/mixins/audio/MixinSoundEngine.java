@@ -68,11 +68,10 @@ public abstract class MixinSoundEngine {
      * whose decoded buffer is already cached, vanilla's thenAccept continuation runs
      * synchronously on the play() caller and hands Channel.attachStaticBuffer to the sound
      * engine thread right away; a RETURN-injection would race that thread and frequently
-     * lose, leaving the SourceContext unattached at attachStaticBuffer time. doMonoConversion
-     * then silently skipped the stereo->mono conversion and DS footsteps played glued to the
-     * ear. Injecting here closes that race: the instanceToChannel entry is already present
-     * (vanilla populates it before queueing the configuration) and no buffer attach can have
-     * been queued yet.
+     * lose, leaving the SourceContext unattached at attachStaticBuffer time (the original
+     * creature footstep "ear-glue"). Injecting here closes that race: the instanceToChannel
+     * entry is already present (vanilla populates it before queueing the configuration) and
+     * no buffer attach can have been queued yet.
      */
     @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/sounds/ChannelAccess$ChannelHandle;execute(Ljava/util/function/Consumer;)V", shift = At.Shift.AFTER))
@@ -81,18 +80,6 @@ public abstract class MixinSoundEngine {
             var handle = ((MixinSoundEngineAccessor) (Object) this).dsurround_getSources().get(sound);
             if (handle != null) {
                 org.orecruncher.dsurround.runtime.audio.SoundFXProcessor.onSoundPlay(sound, handle);
-                // Eager shared-buffer conversion (second safety net against the
-                // intermittent ear-glue - see SoundFXProcessor.convertSharedBuffer).
-                if (org.orecruncher.dsurround.runtime.audio.SoundFXProcessor.shouldConvertToMono(sound)) {
-                    final var snd = sound.getSound();
-                    if (snd != null) {
-                        final String path = snd.getPath().toString();
-                        ((MixinSoundEngineAccessor) (Object) this).dsurround_getSoundBuffers()
-                                .getCompleteBuffer(snd.getPath())
-                                .thenAccept(buffer -> org.orecruncher.dsurround.runtime.audio.SoundFXProcessor
-                                        .convertSharedBuffer(buffer, path));
-                    }
-                }
             }
         } catch (Throwable ex) {
             MixinHelpers.LOGGER.error(ex, "Error processing sound FX");

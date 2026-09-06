@@ -7,6 +7,7 @@ import org.orecruncher.dsurround.mixinutils.MixinHelpers;
 
 import javax.sound.sampled.AudioFormat;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.WeakHashMap;
 
 public final class Conversion {
@@ -52,25 +53,33 @@ public final class Conversion {
 
             // Average L/R per frame into a fresh direct buffer - the shared stereo
             // data stays untouched for the player-facing AL_NONE channels.
-            final ByteBuffer src = source.duplicate();
-            src.rewind();
+            // IMPORTANT: read the shared buffer in place with absolute gets.
+            // ByteBuffer.duplicate() does NOT carry the byte order over (it resets to
+            // BIG_ENDIAN), and interpreting the little-endian PCM through it swaps
+            // every sample's bytes - pure static noise. The buffer's own order is the
+            // one vanilla wrote the PCM with (OutputConcat.putShort), so it always
+            // matches the data. Absolute gets do not touch position/limit.
             final int frameSize = format.getFrameSize();
-            final int frames = src.limit() / frameSize;
-            final ByteBuffer mono = ByteBuffer.allocateDirect(frames * (frameSize >> 1)).order(src.order());
+            final int frames = source.limit() / frameSize;
+            // alBufferData interprets the data in native byte order, so the derived
+            // buffer is built in native order as well.
+            final ByteBuffer mono = ByteBuffer.allocateDirect(frames * (frameSize >> 1))
+                    .order(ByteOrder.nativeOrder());
             if (bits == 8) {
                 for (int i = 0; i < frames; i++) {
                     final int base = i * frameSize;
-                    mono.put((byte) ((src.get(base) + src.get(base + 1)) >> 1));
+                    mono.put((byte) ((source.get(base) + source.get(base + 1)) >> 1));
                 }
             } else {
                 for (int i = 0; i < frames; i++) {
                     final int base = i * frameSize;
-                    mono.putShort((short) ((src.getShort(base) + src.getShort(base + 2)) >> 1));
+                    mono.putShort((short) ((source.getShort(base) + source.getShort(base + 2)) >> 1));
                 }
             }
             mono.flip();
 
             final int al = AL10.alGenBuffers();
+            AL10.alGetError(); // clear stale error state before the upload check
             AL10.alBufferData(al, bits == 16 ? AL10.AL_FORMAT_MONO16 : AL10.AL_FORMAT_MONO8,
                     mono, (int) format.getSampleRate());
             if (AL10.alGetError() != AL10.AL_NO_ERROR) {

@@ -110,11 +110,19 @@ public class MixinSource implements ISourceContext {
             at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/audio/SoundBuffer;getAlBuffer()Ljava/util/OptionalInt;"))
     private OptionalInt dsurround_selectAlBuffer(SoundBuffer buffer, Operation<OptionalInt> original) {
         try {
-            if (SoundFXProcessor.isMonoSelectionEnabled()
-                    && AL10.alGetSourcei(this.source, AL10.AL_DISTANCE_MODEL) == AL11.AL_LINEAR_DISTANCE) {
-                final int mono = Conversion.getOrCreateMonoAlBuffer(buffer);
-                if (mono != 0)
-                    return OptionalInt.of(mono);
+            if (SoundFXProcessor.isMonoSelectionEnabled()) {
+                if (AL10.alGetSourcei(this.source, AL10.AL_DISTANCE_MODEL) == AL11.AL_LINEAR_DISTANCE) {
+                    final int mono = Conversion.getOrCreateMonoAlBuffer(buffer);
+                    if (mono != 0)
+                        return OptionalInt.of(mono);
+                } else {
+                    // Prewarm: a player-facing channel is about to bind the stereo
+                    // buffer, and vanilla's upload nulls the shared PCM data. Derive
+                    // (and cache) the mono flavor now, while the data is still there,
+                    // so a later positioned channel on the same shared buffer still
+                    // gets the mono flavor instead of falling back to stereo.
+                    Conversion.getOrCreateMonoAlBuffer(buffer);
+                }
             }
         } catch (final Throwable t) {
             MixinHelpers.LOGGER.error(t, "Error in dsurround_selectAlBuffer()!");

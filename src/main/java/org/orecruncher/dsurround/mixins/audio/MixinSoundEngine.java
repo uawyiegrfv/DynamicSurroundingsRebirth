@@ -53,17 +53,6 @@ public abstract class MixinSoundEngine {
             if (handle != null) {
                 SoundFXProcessor.onSoundPlay(sound, handle);
                 AudioUtilities.onSoundPlay(sound);
-                // Eager shared-buffer conversion (second safety net against the
-                // intermittent ear-glue - see SoundFXProcessor.convertSharedBuffer).
-                if (SoundFXProcessor.shouldConvertToMono(sound)) {
-                    final var snd = sound.getSound();
-                    if (snd != null) {
-                        final String path = snd.getPath().toString();
-                        ((MixinSoundEngineAccessor) (Object) this).dsurround_getSoundBuffers()
-                                .getCompleteBuffer(snd.getPath())
-                                .thenAccept(buffer -> SoundFXProcessor.convertSharedBuffer(buffer, path));
-                    }
-                }
             }
         } catch (Throwable ex) {
             MixinHelpers.LOGGER.error(ex, "Error processing sound FX");

@@ -12,6 +12,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.orecruncher.dsurround.Configuration;
+import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.config.Variator;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 import org.orecruncher.dsurround.config.libraries.impl.VariatorLibrary;
@@ -282,6 +283,28 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         return var.stride() * (1F - pond) * var.quadrupedMultiplier();
     }
 
+    /**
+     * Creature footsteps play the MONO twin factories (dsurround:footsteps_mono.*).
+     * Creatures need positioned (LINEAR) playback and OpenAL cannot position stereo
+     * buffers, while the player keeps the stereo originals (own-feet centered playback,
+     * stereo image preserved). The mono twin events/factories are auto-derived in the
+     * resource JSON; a missing twin falls back to the stereo factory.
+     */
+    private static Identifier creatureFactory(final Identifier loc) {
+        if (!loc.getNamespace().equals(Constants.MOD_ID))
+            return loc;
+        final String path = loc.getPath();
+        final String monoPath;
+        if (path.startsWith("footsteps."))
+            monoPath = "footsteps_mono." + path.substring("footsteps.".length());
+        else if (path.startsWith("footsteps/"))
+            monoPath = "footsteps_mono/" + path.substring("footsteps/".length());
+        else
+            return loc;
+        final Identifier mono = Identifier.fromNamespaceAndPath(Constants.MOD_ID, monoPath);
+        return SOUND_LIBRARY.isSoundRegistered(mono) ? mono : loc;
+    }
+
     private void playStep(final LivingEntity entity, final Variator var, final boolean running) {
         final boolean climbing = entity.onClimbable() && !entity.onGround();
         final var feetPos = entity.blockPosition();
@@ -312,9 +335,9 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         }
 
         final float volume = var.volumeScale() * dsVolume();
-        this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(soundLoc).createAtLocation(feetPos, volume));
+        this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(creatureFactory(soundLoc)).createAtLocation(feetPos, volume));
         for (var accent : accents)
-            this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(accent)
+            this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(creatureFactory(accent))
                     .createAtLocation(feetPos, var.volumeScale() * dsVolume()));
     }
 
@@ -322,7 +345,7 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         FootstepGenerator.resolveMaterial(entity).ifPresent(material -> {
             var wanderLoc = FootstepGenerator.resolveWanderSound(material);
             if (wanderLoc != null)
-                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(wanderLoc)
+                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(creatureFactory(wanderLoc))
                         .createAtLocation(entity.blockPosition(), var.volumeScale() * WANDER_VOLUME_FACTOR * dsVolume()));
         });
     }
@@ -333,7 +356,7 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         FootstepGenerator.resolveMaterial(entity).ifPresent(material -> {
             var wanderLoc = FootstepGenerator.resolveWanderSound(material);
             if (wanderLoc != null)
-                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(wanderLoc)
+                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(creatureFactory(wanderLoc))
                         .createAtLocation(entity.blockPosition(), var.volumeScale() * dsVolume()));
         });
     }
@@ -354,16 +377,16 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
 
         var comp = material.flatMap(m -> Optional.ofNullable(FootstepGenerator.LAND_COMPOSITIONS.get(m.getPath()))).orElse(null);
         if (comp != null) {
-            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary());
+            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(creatureFactory(comp.primary()));
             this.audioPlayer.play(primary.createAtLocation(leftFoot, scale));
             this.audioPlayer.play(primary.createAtLocation(rightFoot, scale));
             if (comp.secondary() != null) {
-                var secondary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.secondary());
+                var secondary = SOUND_LIBRARY.getSoundFactoryOrDefault(creatureFactory(comp.secondary()));
                 this.audioPlayer.play(secondary.createAtLocation(leftFoot, 0.5F * scale));
                 this.audioPlayer.play(secondary.createAtLocation(rightFoot, 0.5F * scale));
             }
             if (comp.echo() != null) {
-                var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.echo());
+                var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(creatureFactory(comp.echo()));
                 this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(leftFoot, FootstepGenerator.LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
                 this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(rightFoot, FootstepGenerator.LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
             }
@@ -371,7 +394,7 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
             // Fallback: material land/run thud per foot + delayed echo (1.12.2
             // playMultifoot semantics without a configured composition).
             var landLoc = FootstepGenerator.resolveLandSound(entity);
-            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(landLoc);
+            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(creatureFactory(landLoc));
             this.audioPlayer.play(primary.createAtLocation(leftFoot, scale));
             this.audioPlayer.play(primary.createAtLocation(rightFoot, scale));
             this.pendingEchoes.add(new PendingEcho(primary.createAtLocation(leftFoot, FootstepGenerator.LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
@@ -384,7 +407,7 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
             if (!landState.isAir() && landState.getFluidState().isEmpty()) {
                 SOUND_LIBRARY.getRemappedSound(landState.getSoundType().getStepSound(), landState)
                         .ifPresent(remap -> remap.accents().forEach(accent ->
-                                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(accent)
+                                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(creatureFactory(accent))
                                         .createAtLocation(feetCenter, var.volumeScale() * dsVolume()))));
             }
         }

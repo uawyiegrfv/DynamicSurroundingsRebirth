@@ -16,6 +16,7 @@ import org.orecruncher.dsurround.config.libraries.impl.VariatorLibrary;
 import org.orecruncher.dsurround.eventing.ClientEventHooks;
 import org.orecruncher.dsurround.eventing.CollectDiagnosticsEvent;
 import org.jetbrains.annotations.Nullable;
+import org.orecruncher.dsurround.lib.config.ConfigurationData;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
@@ -201,15 +202,36 @@ public class FootstepGenerator extends AbstractClientHandler {
     private double zMovec;
     private boolean scalStat;
 
+    /**
+     * Shared with the playStepSound mixin: true when DS drives the local player's
+     * footsteps and the vanilla step sound must be suppressed. This is the single
+     * source of truth - the mixin and this generator read the same predicate, so
+     * switching the system off in the config always hands the player back to the
+     * vanilla step sound instead of leaving them silent. (Reported issue: disabling
+     * "footstep sounds" in the config cancelled the vanilla step while the generator
+     * also bailed out, so the player walked with no footsteps at all.)
+     */
+    public static boolean shouldSuppressVanillaStep() {
+        final var config = ConfigurationData.getConfig(Configuration.class);
+        return config.entityEffects.enableFootstepSounds && config.soundOptions.footstepVolume > 0;
+    }
+
     @Override
     public void process(final Player player) {
         this.tickCount++;
 
         // Master switch: when footsteps are disabled (or the footstep volume slider is
-        // at zero, restoring the vanilla footsteps), drop any pending echoes so they
-        // don't fire after re-enabling.
-        if (!this.config.entityEffects.enableFootstepSounds || this.config.soundOptions.footstepVolume <= 0) {
+        // at zero) the vanilla step sound plays instead. Drop any pending echoes so they
+        // don't fire after re-enabling, and reset the motion tracking so the walk that
+        // happened while the system was off does not come back as one huge stride (a
+        // phantom step) or a bogus hard landing.
+        if (!shouldSuppressVanillaStep()) {
             this.pendingEchoes.clear();
+            this.lastPos = null;
+            this.lastLeafLitterPos = null;
+            this.isFlying = false;
+            this.didJump = false;
+            this.fallDistance = 0D;
             return;
         }
 

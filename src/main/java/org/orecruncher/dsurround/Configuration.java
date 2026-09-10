@@ -371,7 +371,7 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @RestartRequired(client = false)
-        @Comment("Enable/disable the footstep sound system entirely (walking/running material sounds)")
+        @Comment("Enable/disable the mod's custom footstep sounds for the player. When disabled, the vanilla footstep sounds are used instead")
         public boolean enableFootstepSounds = true;
 
         @Property

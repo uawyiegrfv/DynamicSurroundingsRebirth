@@ -37,6 +37,16 @@ public class FootstepGenerator extends AbstractClientHandler {
 
     private static final ResourceLocation LAND = ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "player.land");
     private static final ResourceLocation JUMP = ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "player.jump");
+
+    /**
+     * Reserved factory location meaning "this block produces no footstep at all" - the
+     * modern equivalent of the original 1.12.2 NOT_EMITTER sentinel, which its
+     * AcousticResolver translated into "return null" (no association, no sound).
+     * A rule in sound_mappings.json can point a block, or a whole block tag, at this
+     * value to silence it - e.g. #minecraft:buttons, which the original data marked
+     * NOT_EMITTER. Both footstep generators honour it.
+     */
+    public static final ResourceLocation NO_FOOTSTEP = ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "footsteps.none");
     private static final ISoundLibrary SOUND_LIBRARY = ContainerManager.resolve(ISoundLibrary.class);
     private static final org.orecruncher.dsurround.config.libraries.IItemLibrary ITEM_LIBRARY =
             ContainerManager.resolve(org.orecruncher.dsurround.config.libraries.IItemLibrary.class);
@@ -386,6 +396,12 @@ public class FootstepGenerator extends AbstractClientHandler {
             var remap = SOUND_LIBRARY.getRemappedSound(stepSound, state);
             if (remap.isPresent()) {
                 soundLoc = remap.get().factory();
+                // NOT_EMITTER equivalent: the mapping explicitly silences this block
+                // (buttons etc.), so play nothing. The accent step event was already
+                // raised above and is deliberately left alone - armor clank and floor
+                // squeaks are about the player, not about the block underfoot.
+                if (NO_FOOTSTEP.equals(soundLoc))
+                    return;
                 accents = remap.get().accents();
                 if (running) {
                     // getSound() returns the MISSING placeholder for unregistered sounds, so use
@@ -727,7 +743,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         return false;
     }
 
-    private static boolean isVegetationBlock(net.minecraft.world.level.block.state.BlockState state) {
+    static boolean isVegetationBlock(net.minecraft.world.level.block.state.BlockState state) {
         return state.getBlock() instanceof net.minecraft.world.level.block.BushBlock;
     }
 }

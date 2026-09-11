@@ -347,7 +347,7 @@
         ]
       },
       {
-        "factory": "dsurround:footsteps.wood",
+        "factory": "dsurround:footsteps.glass",
         "accent": [
           "dsurround:footsteps.glass"
         ]

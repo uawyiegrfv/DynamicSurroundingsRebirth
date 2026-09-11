@@ -18,7 +18,7 @@ Three customization layers exist:
 | --- | --- | --- |
 | Config files | `config/dsurround/*.json` (game directory) | Modpack authors (ship presets), players |
 | In-game GUI | Mod Options screen (needs Cloth Config) | Players |
-| Data files | `assets/dsurround/...` in the jar, overridable by **resource packs** | Modpack authors, resource-pack makers |
+| Data files | `assets/dsurround/...` in the jar, overridable by **resource packs**, and **extendable by any mod** shipping its own `assets/<its id>/dsconfigs/...` (see §4.0) | Mod authors, modpack authors, resource-pack makers |
 
 **File locations** (relative to the game directory):
 
@@ -234,6 +234,55 @@ All of these live in `assets/dsurround/` inside the jar. **A resource pack can r
 | `chat/<lang>.lang` | Entity speech-bubble lines |
 | `sounds.json` | Sound-event → .ogg registrations (use with a sound resource pack) |
 
+#### 4.0 Adding your own mod's blocks — **any mod can ship these files**
+
+The data files are **not** private to Dynamic Surroundings. The loader scans the `dsconfigs/`
+path across **every loaded namespace**, so a mod can describe its own blocks without touching DS:
+
+```
+<yourmod>.jar
+└── assets/<yourmodid>/dsconfigs/
+    ├── sound_mappings.json     ← append rules for <yourmodid>:* blocks
+    ├── blocks.json             ← (optional) per-block particles/ambient sounds
+    ├── biomes.json             ← (optional) your biomes' ambience
+    └── tags/…                  ← (optional) vanilla-format tags in your namespace
+```
+
+Rules for the **same** sound event are **merged**, not replaced: your block matchers are
+inserted **before** DS's catch-all default, so a specific rule always wins. You do not need
+to (and should not) copy DS's whole file.
+
+There are two other places a pack or a player can put the same files:
+
+| Location | Who ships it |
+| --- | --- |
+| `assets/<namespace>/dsconfigs/<file>.json` inside **any** mod jar or resource pack | Mod authors, modpack authors |
+| `<game dir>/config/dsurround/configs/<namespace>/<file>.json` | Modpack authors, players (namespace must be a **loaded** mod, otherwise it is ignored) |
+
+**What happens without any entry.** A block whose step sound has no mapping is *not* silenced —
+DS falls back to playing the block's own vanilla step sound through its footstep pipeline
+(cadence, volume, accents). The result stays audible, it just does not get a DS material
+(so a brass block sounds like whatever the mod made it sound like, rather than `hardmetal`).
+To opt out of a footstep entirely, point the rule at the reserved silent factory
+`dsurround:footsteps.none` (the modern equivalent of the original mod's `NOT_EMITTER`).
+
+Minimal example — give your marble blocks DS's marble footstep while everything else keeps
+the vanilla-stone default:
+
+```json
+[
+  {
+    "soundEvent": "minecraft:block.stone.step",
+    "rules": [
+      { "blocks": ["yourmodid:marble", "yourmodid:marble_bricks"], "factory": "dsurround:footsteps.marble" }
+    ]
+  }
+]
+```
+
+`blocks` entries accept a block id, a block state (`yourmodid:block[prop=value]`) or a
+`#namespace:tag` reference — prefer tags, they keep working when you add blocks later.
+
 #### 4.1 `sound_factories.json` (array)
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -317,7 +366,7 @@ Dynamic Surroundings Rebirth 是**纯客户端**模组。所有设置都在**每
 | --- | --- | --- |
 | 配置文件 | 游戏目录下 `config/dsurround/*.json` | 整合包作者（发预设）、玩家 |
 | 游戏内 GUI | 模组选项界面（需 Cloth Config） | 玩家 |
-| 数据文件 | jar 内 `assets/dsurround/...`，可被**资源包**覆盖 | 整合包作者、资源包作者 |
+| 数据文件 | jar 内 `assets/dsurround/...`，可被**资源包**覆盖，且**任何模组**都能自带 `assets/<自己的id>/dsconfigs/...` 扩展（见 §4.0） | 模组作者、整合包作者、资源包作者 |
 
 **文件位置**（相对游戏目录）：
 
@@ -532,6 +581,45 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | `dsconfigs/tags/**` | 原版格式 tag 列表（方块、物品、流体、群系…） |
 | `chat/<lang>.lang` | 生物气泡台词 |
 | `sounds.json` | 声音事件 → .ogg 注册（配合声音资源包使用） |
+
+#### 4.0 为自己的模组添加方块 —— **任何模组都能自带这些文件**
+
+这些数据文件**不是 DS 私有的**。加载器会跨**所有已加载命名空间**扫描 `dsconfigs/` 路径，所以模组可以自行描述自己的方块，完全不用改 DS：
+
+```
+<你的模组>.jar
+└── assets/<你的模组id>/dsconfigs/
+    ├── sound_mappings.json     ← 为自己的 <你的模组id>:* 方块追加规则
+    ├── blocks.json             ← （可选）每个方块的粒子/环境音
+    ├── biomes.json             ← （可选）自己群系的环境音
+    └── tags/…                  ← （可选）自己命名空间下的原版格式 tag
+```
+
+**同一个**声音事件下的规则是**合并**而不是替换：你的方块匹配项会被插到 DS 的兜底默认规则**之前**，所以具体规则一定优先。你不需要（也不应该）整份复制 DS 的文件。
+
+另外还有两处可以放同样的文件：
+
+| 位置 | 谁提供 |
+| --- | --- |
+| **任何**模组 jar 或资源包内的 `assets/<命名空间>/dsconfigs/<文件>.json` | 模组作者、整合包作者 |
+| `<游戏目录>/config/dsurround/configs/<命名空间>/<文件>.json` | 整合包作者、玩家（命名空间必须是**已加载**的模组，否则忽略） |
+
+**一个条目都不写会怎样**：脚步音效没有映射的方块**不会被静音** —— DS 会回退到把方块**自己的**原版脚步声放进 DS 的脚步管线（步频、音量、附加音）。结果依然听得见，只是拿不到 DS 材质（黄铜方块听起来还是模组自己给它的声音，而不是 `hardmetal`）。要彻底不发声，把规则指向保留的静音工厂 `dsurround:footsteps.none`（等价于原版模组的 `NOT_EMITTER`）。
+
+最小示例 —— 让你的大理石方块用 DS 的大理石脚步，其余保持原版石头兜底：
+
+```json
+[
+  {
+    "soundEvent": "minecraft:block.stone.step",
+    "rules": [
+      { "blocks": ["你的模组id:marble", "你的模组id:marble_bricks"], "factory": "dsurround:footsteps.marble" }
+    ]
+  }
+]
+```
+
+`blocks` 支持方块 ID、方块状态（`你的模组id:block[prop=value]`）或 `#命名空间:tag` 引用 —— **优先用 tag**，以后加方块不用改配置。
 
 #### 4.1 `sound_factories.json`（数组）
 | 字段 | 类型 | 含义 |

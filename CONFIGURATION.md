@@ -283,6 +283,24 @@ the vanilla-stone default:
 `blocks` entries accept a block id, a block state (`yourmodid:block[prop=value]`) or a
 `#namespace:tag` reference — prefer tags, they keep working when you add blocks later.
 
+**Name-based material inference.** When no rule matches a block and only the catch-all
+default would apply, DS looks at the block's registry name before settling for the generic
+material: a modded `anything_sandstone` resolves to `concrete`, `*_limestone` / `*_jasper` /
+`*_shale` / `*_permafrost` / `*_marble` to `marble`, `*_copper` and `*_raw_copper` to
+`copper`, and so on. This exists because rules match on explicit block ids, so a modded
+copy of a vanilla block would otherwise take the wrong material.
+
+- Precedence is **explicit rule → name inference → generic default**. Anything written in
+  the files above always wins, so inference can never override deliberate data.
+- Set `entityEffects.inferFootstepMaterial` to `false` to switch the whole step off.
+- Matching is on **word boundaries**, not substrings: `deepslate` is not `slate`.
+- Names that are decorative rather than material (`*_sapling`, `*_leaves`, `potted_*`,
+  `*_flower`, `*_blossom`, …) are skipped, so `snowblossom_leaves` is not treated as snow.
+- The keyword list is short, lives in `MaterialInference`, and is **not** data-driven. If a
+  material you care about is not inferred, write an explicit rule (§4.1) - that works today
+  and always takes precedence.
+- Inferred assignments are logged under the `RESOURCE_LOADING` debug flag, once per block.
+
 #### 4.1 `sound_factories.json` (array)
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -620,6 +638,21 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 ```
 
 `blocks` 支持方块 ID、方块状态（`你的模组id:block[prop=value]`）或 `#命名空间:tag` 引用 —— **优先用 tag**，以后加方块不用改配置。
+
+**按方块名推断材质。** 当没有任何规则命中、只剩兜底默认规则时，DS 会先看一眼方块的注册名，
+再决定是否接受泛化材质：模组的 `xxx_sandstone` 解析成 `concrete`，`*_limestone` / `*_jasper` /
+`*_shale` / `*_permafrost` / `*_marble` 解析成 `marble`，`*_copper` 与 `*_raw_copper` 解析成
+`copper`，等等。之所以需要它，是因为规则按显式方块 ID 匹配，模组做的"原版方块翻版"否则会拿到错的材质。
+
+- 优先级为 **显式规则 → 名字推断 → 兜底默认**。上面文件里写的东西永远优先，因此推断**不可能覆盖**
+  有意写下的数据。
+- 把 `entityEffects.inferFootstepMaterial` 设为 `false` 可以整体关掉这一步。
+- 匹配按**词元边界**，不是子串：`deepslate` 不等于 `slate`。
+- 名字更像装饰而非材质的会被跳过（`*_sapling`、`*_leaves`、`potted_*`、`*_flower`、
+  `*_blossom` 等），所以 `snowblossom_leaves` 不会被当成雪。
+- 关键词表很短，写在 `MaterialInference` 里，**不是**数据驱动的。若你在意的材质没有被推断，
+  直接写显式规则（§4.1）——今天就生效，而且永远优先。
+- 被推断的方块会在 `RESOURCE_LOADING` 调试标记下打日志，每个方块只报一次。
 
 #### 4.1 `sound_factories.json`（数组）
 | 字段 | 类型 | 含义 |

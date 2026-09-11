@@ -381,6 +381,11 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @RestartRequired(client = false)
+        @Comment("Infer a footstep material from a block's name when no explicit rule matches (a modded *_sandstone becomes concrete instead of plain stone). Explicit rules always take precedence")
+        public boolean inferFootstepMaterial = true;
+
+        @Property
+        @RestartRequired(client = false)
         @Comment("Enable/disable crafting sound when an item is crafted")
         public boolean enableCraftingSound = true;
 

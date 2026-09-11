@@ -9,12 +9,16 @@ import net.minecraft.world.level.block.state.properties.Property;
 import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.lib.IMatcher;
 import org.orecruncher.dsurround.lib.IdentityUtils;
+import org.orecruncher.dsurround.lib.Library;
+import org.orecruncher.dsurround.lib.logging.IModLog;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
 
 public abstract class BlockStateMatcher implements IMatcher<BlockState> {
+
+    private static final IModLog LOGGER = Library.LOGGER;
 
     public static final Codec<IMatcher<BlockState>> CODEC = Codec.STRING
             .comapFlatMap(
@@ -27,7 +31,35 @@ public abstract class BlockStateMatcher implements IMatcher<BlockState> {
         try {
             return DataResult.success(create(blockId, true, true));
         } catch (Throwable t) {
-            return DataResult.error(t::getMessage);
+            // An unknown block id or tag must NOT fail the decode. The surrounding
+            // Codec.list(...) aborts the WHOLE list as soon as a single element fails, and
+            // the resource loader then throws the entire file away (deserialize returns
+            // empty on an error result). A single stale entry - someone copying a rule
+            // between game versions, or a typo in a mod's own dsconfigs file - would
+            // therefore silently disable every other rule in that file, vanilla mappings
+            // included, with nothing but a warn line to show for it.
+            // Keep the entry, make it match nothing, and say so loudly.
+            LOGGER.warn("Unable to resolve block specification '%s' on this version; the entry will never match: %s",
+                    blockId, t.getMessage());
+            return DataResult.success(new MatchOnNothing(blockId));
+        }
+    }
+
+    /**
+     * A block specification that could not be resolved against this game version's block
+     * registry. It is deliberately kept in place - so it survives encode/decode round trips
+     * and still shows up in the configuration dumps - but matches nothing.
+     */
+    private record MatchOnNothing(String specification) implements IMatcher<BlockState> {
+
+        @Override
+        public boolean match(BlockState state) {
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return this.specification;
         }
     }
 

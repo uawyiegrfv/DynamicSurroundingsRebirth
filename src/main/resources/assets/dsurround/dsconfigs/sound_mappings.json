@@ -991,11 +991,22 @@
       },
       {
         "blocks": [
-          "minecraft:white_bed", "minecraft:orange_bed", "minecraft:magenta_bed",
-          "minecraft:light_blue_bed", "minecraft:yellow_bed", "minecraft:lime_bed",
-          "minecraft:pink_bed", "minecraft:gray_bed", "minecraft:light_gray_bed",
-          "minecraft:cyan_bed", "minecraft:purple_bed", "minecraft:blue_bed",
-          "minecraft:brown_bed", "minecraft:green_bed", "minecraft:red_bed", "minecraft:black_bed"
+          "minecraft:white_bed",
+          "minecraft:orange_bed",
+          "minecraft:magenta_bed",
+          "minecraft:light_blue_bed",
+          "minecraft:yellow_bed",
+          "minecraft:lime_bed",
+          "minecraft:pink_bed",
+          "minecraft:gray_bed",
+          "minecraft:light_gray_bed",
+          "minecraft:cyan_bed",
+          "minecraft:purple_bed",
+          "minecraft:blue_bed",
+          "minecraft:brown_bed",
+          "minecraft:green_bed",
+          "minecraft:red_bed",
+          "minecraft:black_bed"
         ],
         "factory": "dsurround:footsteps.rug"
       },
@@ -1067,6 +1078,429 @@
     "rules": [
       {
         "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "_comment": "[biomesoplenty] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:block.coral_block.step",
+    "rules": [
+      {
+        "blocks": [
+          "biomesoplenty:flesh"
+        ],
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "_comment": "[biomesoplenty] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:block.stone.step",
+    "rules": [
+      {
+        "blocks": [
+          "biomesoplenty:black_sandstone",
+          "biomesoplenty:black_sandstone_slab",
+          "biomesoplenty:black_sandstone_stairs",
+          "biomesoplenty:black_sandstone_wall",
+          "biomesoplenty:chiseled_black_sandstone",
+          "biomesoplenty:chiseled_orange_sandstone",
+          "biomesoplenty:chiseled_white_sandstone",
+          "biomesoplenty:cut_black_sandstone",
+          "biomesoplenty:cut_black_sandstone_slab",
+          "biomesoplenty:cut_orange_sandstone",
+          "biomesoplenty:cut_orange_sandstone_slab",
+          "biomesoplenty:cut_white_sandstone",
+          "biomesoplenty:cut_white_sandstone_slab",
+          "biomesoplenty:orange_sandstone",
+          "biomesoplenty:orange_sandstone_slab",
+          "biomesoplenty:orange_sandstone_stairs",
+          "biomesoplenty:orange_sandstone_wall",
+          "biomesoplenty:smooth_black_sandstone",
+          "biomesoplenty:smooth_black_sandstone_slab",
+          "biomesoplenty:smooth_black_sandstone_stairs",
+          "biomesoplenty:smooth_orange_sandstone",
+          "biomesoplenty:smooth_orange_sandstone_slab",
+          "biomesoplenty:smooth_orange_sandstone_stairs",
+          "biomesoplenty:smooth_white_sandstone",
+          "biomesoplenty:smooth_white_sandstone_slab",
+          "biomesoplenty:smooth_white_sandstone_stairs",
+          "biomesoplenty:white_sandstone",
+          "biomesoplenty:white_sandstone_slab",
+          "biomesoplenty:white_sandstone_stairs",
+          "biomesoplenty:white_sandstone_wall",
+          "biomesoplenty:black_sandstone",
+          "biomesoplenty:black_sandstone_slab",
+          "biomesoplenty:black_sandstone_stairs",
+          "biomesoplenty:black_sandstone_wall",
+          "biomesoplenty:chiseled_black_sandstone",
+          "biomesoplenty:cut_black_sandstone",
+          "biomesoplenty:cut_black_sandstone_slab",
+          "biomesoplenty:smooth_black_sandstone",
+          "biomesoplenty:smooth_black_sandstone_slab",
+          "biomesoplenty:smooth_black_sandstone_stairs",
+          "biomesoplenty:chiseled_orange_sandstone",
+          "biomesoplenty:cut_orange_sandstone",
+          "biomesoplenty:cut_orange_sandstone_slab",
+          "biomesoplenty:orange_sandstone",
+          "biomesoplenty:orange_sandstone_slab",
+          "biomesoplenty:orange_sandstone_stairs",
+          "biomesoplenty:orange_sandstone_wall",
+          "biomesoplenty:smooth_orange_sandstone",
+          "biomesoplenty:smooth_orange_sandstone_slab",
+          "biomesoplenty:smooth_orange_sandstone_stairs",
+          "biomesoplenty:chiseled_white_sandstone",
+          "biomesoplenty:cut_white_sandstone",
+          "biomesoplenty:cut_white_sandstone_slab",
+          "biomesoplenty:smooth_white_sandstone",
+          "biomesoplenty:smooth_white_sandstone_slab",
+          "biomesoplenty:smooth_white_sandstone_stairs",
+          "biomesoplenty:white_sandstone",
+          "biomesoplenty:white_sandstone_slab",
+          "biomesoplenty:white_sandstone_stairs",
+          "biomesoplenty:white_sandstone_wall"
+        ],
+        "factory": "dsurround:footsteps.concrete"
+      }
+    ]
+  },
+  {
+    "_comment": "[biomesoplenty] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:intentionally_empty",
+    "rules": [
+      {
+        "blocks": [
+          "biomesoplenty:blood"
+        ],
+        "factory": "dsurround:footsteps.none"
+      }
+    ]
+  },
+  {
+    "_comment": "[biomeswevegone] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:block.grass.step",
+    "rules": [
+      {
+        "blocks": [
+          "biomeswevegone:cattail_thatch",
+          "biomeswevegone:cattail_thatch_carpet",
+          "biomeswevegone:cattail_thatch_slab",
+          "biomeswevegone:cattail_thatch_stairs"
+        ],
+        "factory": "dsurround:footsteps.leaves_through"
+      }
+    ]
+  },
+  {
+    "_comment": "[biomeswevegone] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:block.stone.step",
+    "rules": [
+      {
+        "blocks": [
+          "biomeswevegone:black_sandstone",
+          "biomeswevegone:black_sandstone_slab",
+          "biomeswevegone:black_sandstone_stairs",
+          "biomeswevegone:black_sandstone_wall",
+          "biomeswevegone:blue_sandstone",
+          "biomeswevegone:blue_sandstone_slab",
+          "biomeswevegone:blue_sandstone_stairs",
+          "biomeswevegone:blue_sandstone_wall",
+          "biomeswevegone:chiseled_black_sandstone",
+          "biomeswevegone:chiseled_blue_sandstone",
+          "biomeswevegone:chiseled_pink_sandstone",
+          "biomeswevegone:chiseled_purple_sandstone",
+          "biomeswevegone:chiseled_white_sandstone",
+          "biomeswevegone:chiseled_windswept_sandstone",
+          "biomeswevegone:cut_black_sandstone",
+          "biomeswevegone:cut_black_sandstone_slab",
+          "biomeswevegone:cut_blue_sandstone",
+          "biomeswevegone:cut_blue_sandstone_slab",
+          "biomeswevegone:cut_pink_sandstone",
+          "biomeswevegone:cut_pink_sandstone_slab",
+          "biomeswevegone:cut_purple_sandstone",
+          "biomeswevegone:cut_purple_sandstone_slab",
+          "biomeswevegone:cut_white_sandstone",
+          "biomeswevegone:cut_white_sandstone_slab",
+          "biomeswevegone:cut_windswept_sandstone",
+          "biomeswevegone:cut_windswept_sandstone_slab",
+          "biomeswevegone:pink_sandstone",
+          "biomeswevegone:pink_sandstone_slab",
+          "biomeswevegone:pink_sandstone_stairs",
+          "biomeswevegone:pink_sandstone_wall",
+          "biomeswevegone:purple_sandstone",
+          "biomeswevegone:purple_sandstone_slab",
+          "biomeswevegone:purple_sandstone_stairs",
+          "biomeswevegone:purple_sandstone_wall",
+          "biomeswevegone:smooth_black_sandstone",
+          "biomeswevegone:smooth_black_sandstone_slab",
+          "biomeswevegone:smooth_black_sandstone_stairs",
+          "biomeswevegone:smooth_blue_sandstone",
+          "biomeswevegone:smooth_blue_sandstone_slab",
+          "biomeswevegone:smooth_blue_sandstone_stairs",
+          "biomeswevegone:smooth_pink_sandstone",
+          "biomeswevegone:smooth_pink_sandstone_slab",
+          "biomeswevegone:smooth_pink_sandstone_stairs",
+          "biomeswevegone:smooth_purple_sandstone",
+          "biomeswevegone:smooth_purple_sandstone_slab",
+          "biomeswevegone:smooth_purple_sandstone_stairs",
+          "biomeswevegone:smooth_white_sandstone",
+          "biomeswevegone:smooth_white_sandstone_slab",
+          "biomeswevegone:smooth_white_sandstone_stairs",
+          "biomeswevegone:smooth_windswept_sandstone",
+          "biomeswevegone:smooth_windswept_sandstone_slab",
+          "biomeswevegone:smooth_windswept_sandstone_stairs",
+          "biomeswevegone:white_sandstone",
+          "biomeswevegone:white_sandstone_slab",
+          "biomeswevegone:white_sandstone_stairs",
+          "biomeswevegone:white_sandstone_wall",
+          "biomeswevegone:windswept_sandstone",
+          "biomeswevegone:windswept_sandstone_pillar",
+          "biomeswevegone:windswept_sandstone_slab",
+          "biomeswevegone:windswept_sandstone_stairs",
+          "biomeswevegone:windswept_sandstone_wall"
+        ],
+        "factory": "dsurround:footsteps.concrete"
+      }
+    ]
+  },
+  {
+    "_comment": "[quark] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:block.glass.step",
+    "rules": [
+      {
+        "blocks": [
+          "quark:blaze_lantern"
+        ],
+        "factory": "dsurround:footsteps.metalbar"
+      }
+    ]
+  },
+  {
+    "_comment": "[quark] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:block.grass.step",
+    "rules": [
+      {
+        "blocks": [
+          "quark:thatch",
+          "quark:thatch_slab",
+          "quark:thatch_stairs",
+          "quark:thatch_vertical_slab"
+        ],
+        "factory": "dsurround:footsteps.leaves_through"
+      }
+    ]
+  },
+  {
+    "_comment": "[quark] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:block.gravel.step",
+    "rules": [
+      {
+        "blocks": [
+          "quark:dirt_bricks",
+          "quark:dirt_bricks_slab",
+          "quark:dirt_bricks_stairs",
+          "quark:dirt_bricks_vertical_slab",
+          "quark:dirt_bricks_wall"
+        ],
+        "factory": "dsurround:footsteps.dirt"
+      }
+    ]
+  },
+  {
+    "_comment": "[quark] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:block.nether_bricks.step",
+    "rules": [
+      {
+        "blocks": [
+          "quark:nether_brick_fence_gate"
+        ],
+        "factory": "dsurround:footsteps.none"
+      }
+    ]
+  },
+  {
+    "_comment": "[quark] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:block.stone.step",
+    "rules": [
+      {
+        "blocks": [
+          "quark:chiseled_jasper_bricks",
+          "quark:jasper",
+          "quark:jasper_bricks",
+          "quark:jasper_bricks_slab",
+          "quark:jasper_bricks_stairs",
+          "quark:jasper_bricks_vertical_slab",
+          "quark:jasper_bricks_wall",
+          "quark:jasper_pillar",
+          "quark:jasper_slab",
+          "quark:jasper_stairs",
+          "quark:jasper_vertical_slab",
+          "quark:jasper_wall",
+          "quark:polished_jasper",
+          "quark:polished_jasper_slab",
+          "quark:polished_jasper_stairs",
+          "quark:polished_jasper_vertical_slab",
+          "quark:chiseled_limestone_bricks",
+          "quark:limestone",
+          "quark:limestone_bricks",
+          "quark:limestone_bricks_slab",
+          "quark:limestone_bricks_stairs",
+          "quark:limestone_bricks_vertical_slab",
+          "quark:limestone_bricks_wall",
+          "quark:limestone_pillar",
+          "quark:limestone_slab",
+          "quark:limestone_stairs",
+          "quark:limestone_vertical_slab",
+          "quark:limestone_wall",
+          "quark:polished_limestone",
+          "quark:polished_limestone_slab",
+          "quark:polished_limestone_stairs",
+          "quark:polished_limestone_vertical_slab",
+          "quark:chiseled_myalite_bricks",
+          "quark:dusky_myalite",
+          "quark:myalite",
+          "quark:myalite_bricks",
+          "quark:myalite_bricks_slab",
+          "quark:myalite_bricks_stairs",
+          "quark:myalite_bricks_vertical_slab",
+          "quark:myalite_bricks_wall",
+          "quark:myalite_pillar",
+          "quark:myalite_slab",
+          "quark:myalite_stairs",
+          "quark:myalite_vertical_slab",
+          "quark:myalite_wall",
+          "quark:polished_myalite",
+          "quark:polished_myalite_slab",
+          "quark:polished_myalite_stairs",
+          "quark:polished_myalite_vertical_slab",
+          "quark:chiseled_shale_bricks",
+          "quark:polished_shale",
+          "quark:polished_shale_slab",
+          "quark:polished_shale_stairs",
+          "quark:polished_shale_vertical_slab",
+          "quark:shale",
+          "quark:shale_bricks",
+          "quark:shale_bricks_slab",
+          "quark:shale_bricks_stairs",
+          "quark:shale_bricks_vertical_slab",
+          "quark:shale_bricks_wall",
+          "quark:shale_pillar",
+          "quark:shale_slab",
+          "quark:shale_stairs",
+          "quark:shale_vertical_slab",
+          "quark:shale_wall",
+          "quark:permafrost",
+          "quark:permafrost_bricks",
+          "quark:permafrost_bricks_slab",
+          "quark:permafrost_bricks_stairs",
+          "quark:permafrost_bricks_vertical_slab",
+          "quark:permafrost_bricks_wall",
+          "quark:permafrost_slab",
+          "quark:permafrost_stairs",
+          "quark:permafrost_vertical_slab",
+          "quark:permafrost_wall"
+        ],
+        "factory": "dsurround:footsteps.marble"
+      },
+      {
+        "blocks": [
+          "quark:midori_block",
+          "quark:midori_block_slab",
+          "quark:midori_block_stairs",
+          "quark:midori_block_vertical_slab",
+          "quark:midori_pillar",
+          "quark:chiseled_soul_sandstone",
+          "quark:cut_soul_sandstone",
+          "quark:cut_soul_sandstone_slab",
+          "quark:cut_soul_sandstone_vertical_slab",
+          "quark:smooth_soul_sandstone",
+          "quark:smooth_soul_sandstone_slab",
+          "quark:smooth_soul_sandstone_stairs",
+          "quark:smooth_soul_sandstone_vertical_slab",
+          "quark:soul_sandstone",
+          "quark:soul_sandstone_bricks",
+          "quark:soul_sandstone_bricks_slab",
+          "quark:soul_sandstone_bricks_stairs",
+          "quark:soul_sandstone_bricks_vertical_slab",
+          "quark:soul_sandstone_bricks_wall",
+          "quark:soul_sandstone_slab",
+          "quark:soul_sandstone_stairs",
+          "quark:soul_sandstone_vertical_slab",
+          "quark:soul_sandstone_wall",
+          "quark:chiseled_soul_sandstone",
+          "quark:cut_red_sandstone_vertical_slab",
+          "quark:cut_sandstone_vertical_slab",
+          "quark:cut_soul_sandstone",
+          "quark:cut_soul_sandstone_slab",
+          "quark:cut_soul_sandstone_vertical_slab",
+          "quark:red_sandstone_bricks",
+          "quark:red_sandstone_bricks_slab",
+          "quark:red_sandstone_bricks_stairs",
+          "quark:red_sandstone_bricks_vertical_slab",
+          "quark:red_sandstone_bricks_wall",
+          "quark:red_sandstone_vertical_slab",
+          "quark:sandstone_bricks",
+          "quark:sandstone_bricks_slab",
+          "quark:sandstone_bricks_stairs",
+          "quark:sandstone_bricks_vertical_slab",
+          "quark:sandstone_bricks_wall",
+          "quark:sandstone_vertical_slab",
+          "quark:smooth_red_sandstone_vertical_slab",
+          "quark:smooth_sandstone_vertical_slab",
+          "quark:smooth_soul_sandstone",
+          "quark:smooth_soul_sandstone_slab",
+          "quark:smooth_soul_sandstone_stairs",
+          "quark:smooth_soul_sandstone_vertical_slab",
+          "quark:soul_sandstone",
+          "quark:soul_sandstone_bricks",
+          "quark:soul_sandstone_bricks_slab",
+          "quark:soul_sandstone_bricks_stairs",
+          "quark:soul_sandstone_bricks_vertical_slab",
+          "quark:soul_sandstone_bricks_wall",
+          "quark:soul_sandstone_slab",
+          "quark:soul_sandstone_stairs",
+          "quark:soul_sandstone_vertical_slab",
+          "quark:soul_sandstone_wall",
+          "quark:cut_red_sandstone_vertical_slab",
+          "quark:red_sandstone_bricks",
+          "quark:red_sandstone_bricks_slab",
+          "quark:red_sandstone_bricks_stairs",
+          "quark:red_sandstone_bricks_vertical_slab",
+          "quark:red_sandstone_bricks_wall",
+          "quark:red_sandstone_vertical_slab",
+          "quark:smooth_red_sandstone_vertical_slab"
+        ],
+        "factory": "dsurround:footsteps.concrete"
+      },
+      {
+        "blocks": [
+          "quark:raw_copper_bricks",
+          "quark:raw_copper_bricks_slab",
+          "quark:raw_copper_bricks_stairs",
+          "quark:raw_copper_bricks_vertical_slab",
+          "quark:raw_copper_bricks_wall"
+        ],
+        "factory": "dsurround:footsteps.copper"
+      },
+      {
+        "blocks": [
+          "quark:obsidian_pressure_plate"
+        ],
+        "factory": "dsurround:footsteps.lino"
+      }
+    ]
+  },
+  {
+    "_comment": "[quark] 材质细化。来源：dsdump 审计 + 1.12.2 原始数据比对；生成器与意图表在 _footstep_check/gen_rules.py。",
+    "soundEvent": "minecraft:block.wood.step",
+    "rules": [
+      {
+        "blocks": [
+          "quark:paper_wall",
+          "quark:paper_wall_big",
+          "quark:paper_wall_sakura"
+        ],
+        "factory": "dsurround:footsteps.organic_dry"
       }
     ]
   }

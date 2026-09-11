@@ -11,7 +11,9 @@ import org.orecruncher.dsurround.config.block.BlockInfo;
 import org.orecruncher.dsurround.config.data.BlockConfigRule;
 import org.orecruncher.dsurround.config.libraries.IBlockLibrary;
 import org.orecruncher.dsurround.config.libraries.IReloadEvent;
+import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 import org.orecruncher.dsurround.config.libraries.ITagLibrary;
+import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.ModLog;
 import org.orecruncher.dsurround.lib.registry.RegistryUtils;
 import org.orecruncher.dsurround.lib.collections.ObjectArray;
@@ -40,6 +42,10 @@ public class BlockLibrary implements IBlockLibrary {
     private final IModLog logger;
     private final IMinecraftDirectories directories;
     private final ITagLibrary tagLibrary;
+
+    // Resolved through the container on first use, following the convention used by
+    // BlockInfo / BiomeInfo and friends. Needed by the /dsdump blocks audit below.
+    private static final ISoundLibrary SOUND_LIBRARY = ContainerManager.resolve(ISoundLibrary.class);
 
     private final Collection<BlockConfigRule> blockConfigs = new ObjectArray<>();
     private int version = 0;
@@ -158,6 +164,20 @@ public class BlockLibrary implements IBlockLibrary {
         var info = getBlockInfo(block.defaultBlockState());
         builder.append("\nreflectance: ").append(info.getSoundReflectivity());
         builder.append("; occlusion: ").append(info.getSoundOcclusion());
+
+        // Adaptation audit. The step sound is what vanilla (and therefore any mod) declares
+        // for the block; the footstep line is what DS actually resolves it to. A block whose
+        // step sound resolves to the fallback plays its own vanilla step sound at DS cadence
+        // and simply misses a DS material (e.g. a brass block that sounds like whatever its
+        // author chose). Groups are reviewed by comparing this against the block's tags and
+        // name - that is how per-mod refinement rules are written. `dsdump blocks` writes
+        // this to config/dsurround/dumps/blocks.txt.
+        var defaultState = block.defaultBlockState();
+        var stepSound = defaultState.getSoundType().getStepSound();
+        builder.append("\nstep sound: ").append(stepSound.getLocation());
+        var remap = SOUND_LIBRARY.getRemappedSound(stepSound, defaultState);
+        builder.append("\nds footstep: ")
+                .append(remap.map(r -> r.factory().toString()).orElse("(no mapping - plays the block's own step sound)"));
 
         if (!noStates) {
             builder.append("\nstates [\n");

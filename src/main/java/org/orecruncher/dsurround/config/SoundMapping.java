@@ -23,13 +23,24 @@ public record SoundMapping(Identifier soundEvent, ObjectArray<Mapping> rules) {
     }
 
     public Optional<Mapping.MatchResult> findMatch(@Nullable BlockState state) {
-        Optional<Mapping.MatchResult> factory = Optional.empty();
         for (var rule : this.rules) {
-            factory = rule.findMatch(state);
-            if (factory.isPresent())
-                break;
+            var result = rule.findMatch(state);
+            if (result.isEmpty())
+                continue;
+            // Nothing but the catch-all default matched, so the block is not covered by any
+            // explicit rule. Before settling for the generic material, see whether the block's
+            // own name says what it is - that is what makes a modded "black_sandstone" resolve
+            // to concrete instead of stone without anyone maintaining a per-mod block list.
+            // Explicit rules have already had their chance, so inference can never override
+            // deliberate data.
+            if (rule.isDefaultRule()) {
+                var inferred = MaterialInference.infer(state);
+                if (inferred.isPresent())
+                    return Optional.of(new Mapping.MatchResult(inferred.get(), result.get().accent()));
+            }
+            return result;
         }
-        return factory;
+        return Optional.empty();
     }
 
     public void merge(SoundMappingConfigRule mapping) {

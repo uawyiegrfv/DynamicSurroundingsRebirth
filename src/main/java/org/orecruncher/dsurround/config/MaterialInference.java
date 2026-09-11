@@ -4,11 +4,17 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
+import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.Constants;
+import org.orecruncher.dsurround.lib.Library;
+import org.orecruncher.dsurround.lib.di.ContainerManager;
+import org.orecruncher.dsurround.lib.logging.IModLog;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Infers a Dynamic Surroundings footstep material from a block's registry name.
@@ -18,13 +24,14 @@ import java.util.Optional;
  * sandstone / marble / etc.) falls through to the generic default and takes the wrong
  * material. Auditing a single instance turned up 186 modded sandstone blocks resolving to
  * plain {@code stone} for exactly this reason - the vanilla rule lists the vanilla ids and
- * nothing else. Rather than hand-maintaining a block list per mod (which is also
- * version-specific), the fallback between "explicit rule" and "generic default" is filled
- * by looking at what the block is called.
+ * nothing else - plus 15 vanilla blocks the explicit lists had missed. Rather than
+ * hand-maintaining a block list per mod (which is also version-specific), the gap between
+ * "explicit rule" and "generic default" is filled by looking at what the block is called.
  *
  * <p>Precedence is deliberate: <b>explicit rule &gt; name inference &gt; generic default</b>.
  * Inference only runs when nothing but the default rule matched, so it can never override
- * data someone wrote on purpose.
+ * data someone wrote on purpose. Setting
+ * {@code entityEffects.inferFootstepMaterial} to false turns it off entirely.
  *
  * <p>The keyword table is intentionally short and boring. It only carries names that are
  * unambiguous about the material, and matching is on word boundaries - a plain substring
@@ -32,6 +39,8 @@ import java.util.Optional;
  * every deepslate block into marble.
  */
 public final class MaterialInference {
+
+    private static final IModLog LOGGER = Library.LOGGER;
 
     /**
      * Keyword to material, most specific first ({@code raw_copper} has to be tested before
@@ -58,15 +67,30 @@ public final class MaterialInference {
             "potted", "sapling", "leaves", "flower", "blossom", "drops", "seed", "sprout",
             "vine", "bush", "berry", "grass");
 
+    /**
+     * Inference runs on every step and every block sound, so the debug trace is reported
+     * once per block rather than once per event. Bounded so a pathological pack cannot grow
+     * it without limit; after the cap it simply stops reporting (the inference still works).
+     */
+    private static final Set<Identifier> REPORTED = ConcurrentHashMap.newKeySet();
+    private static final int REPORT_CAP = 512;
+
     private MaterialInference() {
     }
 
     /**
      * @param state block under the entity's feet; may be null
      * @return the inferred footstep factory, or empty when the name says nothing useful
+     *         or the feature is switched off
      */
     public static Optional<Identifier> infer(@Nullable final BlockState state) {
         if (state == null)
+            return Optional.empty();
+
+        // Resolved per call rather than held in a static: the config object is a live
+        // singleton, so a change through the config screen or /dsreload is picked up
+        // immediately, and it keeps this class free of load-order assumptions.
+        if (!ContainerManager.resolve(Configuration.EntityEffects.class).inferFootstepMaterial)
             return Optional.empty();
 
         final var key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
@@ -78,10 +102,17 @@ public final class MaterialInference {
             if (path.contains(word))
                 return Optional.empty();
 
-        for (final var entry : KEYWORDS)
-            if (matchesWord(path, entry.getKey()))
-                return Optional.of(Identifier.fromNamespaceAndPath(Constants.MOD_ID,
-                        "footsteps." + entry.getValue()));
+        for (final var entry : KEYWORDS) {
+            if (!matchesWord(path, entry.getKey()))
+                continue;
+            final var factory = Identifier.fromNamespaceAndPath(Constants.MOD_ID,
+                    "footsteps." + entry.getValue());
+            if (REPORTED.size() < REPORT_CAP && REPORTED.add(key))
+                LOGGER.debug(Configuration.Flags.RESOURCE_LOADING,
+                        "Inferred footstep material '%s' for %s from the block name ('%s')",
+                        factory, key, entry.getKey());
+            return Optional.of(factory);
+        }
 
         return Optional.empty();
     }

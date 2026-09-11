@@ -302,6 +302,9 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
             var remap = SOUND_LIBRARY.getRemappedSound(stepSound, surface);
             if (remap.isPresent()) {
                 soundLoc = remap.get().factory();
+                // NOT_EMITTER equivalent - see FootstepGenerator.NO_FOOTSTEP.
+                if (FootstepGenerator.NO_FOOTSTEP.equals(soundLoc))
+                    return;
                 accents = remap.get().accents();
                 if (running) {
                     var runLoc = FootstepGenerator.materialVariant(soundLoc, "_run");

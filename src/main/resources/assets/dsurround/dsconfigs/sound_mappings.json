@@ -1011,5 +1011,72 @@
         "factory": "dsurround:footsteps.rug"
       }
     ]
+  },
+  {
+    "_comment": "NOT_EMITTER equivalent: buttons produce no footstep (the 1.12.2 blockmap marked stone_button/wooden_button NOT_EMITTER). dsurround:footsteps.none is the reserved silent factory.",
+    "soundEvent": "minecraft:block.wood.step",
+    "rules": [
+      {
+        "blocks": [
+          "#minecraft:buttons"
+        ],
+        "factory": "dsurround:footsteps.none"
+      }
+    ]
+  },
+  {
+    "_comment": "NOT_EMITTER equivalent for stone buttons - see the wood.step entry above.",
+    "soundEvent": "minecraft:block.stone.step",
+    "rules": [
+      {
+        "blocks": [
+          "#minecraft:buttons"
+        ],
+        "factory": "dsurround:footsteps.none"
+      }
+    ]
+  },
+  {
+    "_comment": "NOT_EMITTER equivalent: the 1.12.2 blockmap marked minecraft:web NOT_EMITTER.",
+    "soundEvent": "minecraft:block.cobweb.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.none"
+      }
+    ]
+  },
+  {
+    "_comment": "Hanging signs postdate this table; without an entry they fell back to their own vanilla step sound instead of a DS material.",
+    "soundEvent": "minecraft:block.bamboo_wood_hanging_sign.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.cherry_wood_hanging_sign.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "soundEvent": "minecraft:block.nether_wood_hanging_sign.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "_comment": "New in 26.1; copper golem statues are copper, so they take the copper material.",
+    "soundEvent": "minecraft:block.copper_golem_statue.step",
+    "rules": [
+      {
+        "factory": "dsurround:footsteps.copper"
+      }
+    ]
   }
 ]

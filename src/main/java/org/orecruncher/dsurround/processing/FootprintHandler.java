@@ -159,7 +159,10 @@ public class FootprintHandler {
         for (int py = Mth.floor(referenceY); py > Mth.floor(referenceY) - 2; py--) {
             probe.set(px, py, pz);
             var probeState = world.getBlockState(probe);
-            if (!FOOTPRINT_BLOCKS.contains(probeState.getBlock()))
+            // Vegetation the player walks straight through (grass, flowers, saplings) is
+            // not ground - keep looking down so prints still land on the dirt beneath it.
+            // This is the only case that may skip a block; see the note below.
+            if (FootstepGenerator.isVegetationBlock(probeState))
                 continue;
             // Use the visual shape (getShape), not the collision shape: a snow layer's
             // collision box is one layer lower than its visible surface (LAYERS-1 vs
@@ -171,14 +174,22 @@ public class FootprintHandler {
                 continue;
             double surfaceY = py + shape.max(Direction.Axis.Y);
             double gap = referenceY - surfaceY;
-            if (gap > -0.5D && gap <= 0.5D) {
-                // Sit the print on the block's visible surface (snow layer top), not the
-                // player's foot which sinks slightly into the snow.
-                var y = surfaceY;
-                var particle = new FootprintParticle(this.config.entityEffects.footprintStyle, isRight, (float) yawRad, world, x, y, z);
-                GameUtils.getParticleManager().add(particle);
+            if (gap <= -0.5D || gap > 0.5D)
+                continue;
+            // This is the surface the foot is actually resting on, so decide here and do
+            // NOT keep probing downward. Skipping a non-printable surface used to fall
+            // through to the block underneath it, which drew prints on the ground BELOW
+            // slabs (0.5), bottom trapdoors (0.1875), pressure plates (0.0625), carpets
+            // (0.0625) and buttons (0.1875) - their tops all sit within the 0.5 window of
+            // the block beneath them, so the old loop accepted that block as the surface.
+            if (!FOOTPRINT_BLOCKS.contains(probeState.getBlock()))
                 return;
-            }
+            // Sit the print on the block's visible surface (snow layer top), not the
+            // player's foot which sinks slightly into the snow.
+            var y = surfaceY;
+            var particle = new FootprintParticle(this.config.entityEffects.footprintStyle, isRight, (float) yawRad, world, x, y, z);
+            GameUtils.getParticleManager().add(particle);
+            return;
         }
     }
 }

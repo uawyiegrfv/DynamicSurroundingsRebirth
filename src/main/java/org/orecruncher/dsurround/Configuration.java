@@ -126,6 +126,10 @@ public class Configuration extends ConfigurationData {
         public boolean enableMonoConversion = true;
 
         @Property
+        @Comment("Reclaim sound channels that never reach the stopped state. Off by default: forcing a release nulls the channel that vanilla's own sweep dereferences without a null check, which crashes the client (see SoundFXProcessor.afterChannelSweep)")
+        public boolean enableChannelReaper = false;
+
+        @Property
         @Comment("Enable/disable sound occlusion processing (sound muffling behind blocks)")
         public boolean enableOcclusionProcessing = false;
 

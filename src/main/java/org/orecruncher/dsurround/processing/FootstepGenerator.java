@@ -276,7 +276,8 @@ public class FootstepGenerator extends AbstractClientHandler {
         if (this.scalStat != (scal < 0.001F)) {
             this.scalStat = !this.scalStat;
             if (this.scalStat && onGround && !inWater && !player.isSpectator() && !player.isSilent()
-                    && this.config.entityEffects.enableFootstepSounds && this.config.soundOptions.footstepVolume > 0) {
+                    && this.config.entityEffects.enableFootstepSounds && this.config.entityEffects.enableStopScuffSound
+                    && this.config.soundOptions.footstepVolume > 0) {
                 final var material = resolveMaterial(player);
                 final var wander = material.map(FootstepGenerator::resolveWanderSound).orElse(null);
                 if (wander != null) {

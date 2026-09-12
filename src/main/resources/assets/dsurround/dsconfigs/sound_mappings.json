@@ -991,11 +991,22 @@
       },
       {
         "blocks": [
-          "minecraft:white_bed", "minecraft:orange_bed", "minecraft:magenta_bed",
-          "minecraft:light_blue_bed", "minecraft:yellow_bed", "minecraft:lime_bed",
-          "minecraft:pink_bed", "minecraft:gray_bed", "minecraft:light_gray_bed",
-          "minecraft:cyan_bed", "minecraft:purple_bed", "minecraft:blue_bed",
-          "minecraft:brown_bed", "minecraft:green_bed", "minecraft:red_bed", "minecraft:black_bed"
+          "minecraft:white_bed",
+          "minecraft:orange_bed",
+          "minecraft:magenta_bed",
+          "minecraft:light_blue_bed",
+          "minecraft:yellow_bed",
+          "minecraft:lime_bed",
+          "minecraft:pink_bed",
+          "minecraft:gray_bed",
+          "minecraft:light_gray_bed",
+          "minecraft:cyan_bed",
+          "minecraft:purple_bed",
+          "minecraft:blue_bed",
+          "minecraft:brown_bed",
+          "minecraft:green_bed",
+          "minecraft:red_bed",
+          "minecraft:black_bed"
         ],
         "factory": "dsurround:footsteps.rug"
       },
@@ -1076,6 +1087,30 @@
     "rules": [
       {
         "factory": "dsurround:footsteps.copper"
+      }
+    ]
+  },
+  {
+    "_comment": "[26.1.2] 材质细化（仅 C 的名字推断覆盖不到的条目）。生成器与意图表见工作区 _footstep_check/gen_versioned.py",
+    "soundEvent": "minecraft:block.coral_block.step",
+    "rules": [
+      {
+        "blocks": [
+          "biomesoplenty:flesh"
+        ],
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "_comment": "[26.1.2] 材质细化（仅 C 的名字推断覆盖不到的条目）。生成器与意图表见工作区 _footstep_check/gen_versioned.py",
+    "soundEvent": "minecraft:intentionally_empty",
+    "rules": [
+      {
+        "blocks": [
+          "biomesoplenty:blood"
+        ],
+        "factory": "dsurround:footsteps.none"
       }
     ]
   }

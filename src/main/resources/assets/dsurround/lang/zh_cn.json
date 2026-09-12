@@ -93,6 +93,8 @@
   "dsurround.config.entityEffects.enableFootstepSounds.tooltip": "完全启用/禁用 脚步声音系统（行走/奔跑材质音效）",
   "dsurround.config.entityEffects.enableCreatureFootstepSounds": "生物脚步音效",
   "dsurround.config.entityEffects.enableCreatureFootstepSounds.tooltip": "启用/禁用 生物脚步：按生物分类的材质脚步，含音量、节奏、落地与停步音（移植自 1.12.2 原版系统）",
+  "dsurround.config.entityEffects.inferFootstepMaterial": "按方块名推断材质",
+  "dsurround.config.entityEffects.inferFootstepMaterial.tooltip": "没有规则命中时，从方块名称推断脚步材质（模组的 *_sandstone 会得到 concrete，而不是泛化的 stone）。显式规则永远优先",
   "dsurround.config.entityEffects.enablePlayerHeartbeatSound": "心跳声音",
   "dsurround.config.entityEffects.enablePlayerHeartbeatSound.tooltip": "启用/禁用 玩家生命值低时的心跳声音",
   "dsurround.config.entityEffects.enablePlayerHungerSound": "肚子咕噜声",

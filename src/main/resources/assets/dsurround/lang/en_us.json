@@ -105,6 +105,8 @@
   "dsurround.config.entityEffects.enableFootstepSounds.tooltip": "Enable/disable the footstep sound system entirely (walking/running material sounds)",
   "dsurround.config.entityEffects.enableCreatureFootstepSounds": "Creature Footstep Sounds",
   "dsurround.config.entityEffects.enableCreatureFootstepSounds.tooltip": "Enable/disable creature footsteps: per-creature material footsteps with volume, cadence, landing and stop sounds (ported from the original 1.12.2 system)",
+  "dsurround.config.entityEffects.inferFootstepMaterial": "Material From Block Name",
+  "dsurround.config.entityEffects.inferFootstepMaterial.tooltip": "Infer the footstep material from a block's name when no rule matches (a modded *_sandstone becomes concrete instead of plain stone). Explicit rules always take precedence",
   "dsurround.config.entityEffects.enablePlayerHeartbeatSound": "Heartbeat Sound",
   "dsurround.config.entityEffects.enablePlayerHeartbeatSound.tooltip": "Enable/disable heartbeat sound when the player's health is low",
   "dsurround.config.entityEffects.enablePlayerHungerSound": "Stomach Growl Sound",

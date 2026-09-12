@@ -991,11 +991,22 @@
       },
       {
         "blocks": [
-          "minecraft:white_bed", "minecraft:orange_bed", "minecraft:magenta_bed",
-          "minecraft:light_blue_bed", "minecraft:yellow_bed", "minecraft:lime_bed",
-          "minecraft:pink_bed", "minecraft:gray_bed", "minecraft:light_gray_bed",
-          "minecraft:cyan_bed", "minecraft:purple_bed", "minecraft:blue_bed",
-          "minecraft:brown_bed", "minecraft:green_bed", "minecraft:red_bed", "minecraft:black_bed"
+          "minecraft:white_bed",
+          "minecraft:orange_bed",
+          "minecraft:magenta_bed",
+          "minecraft:light_blue_bed",
+          "minecraft:yellow_bed",
+          "minecraft:lime_bed",
+          "minecraft:pink_bed",
+          "minecraft:gray_bed",
+          "minecraft:light_gray_bed",
+          "minecraft:cyan_bed",
+          "minecraft:purple_bed",
+          "minecraft:blue_bed",
+          "minecraft:brown_bed",
+          "minecraft:green_bed",
+          "minecraft:red_bed",
+          "minecraft:black_bed"
         ],
         "factory": "dsurround:footsteps.rug"
       },
@@ -1058,6 +1069,112 @@
     "rules": [
       {
         "factory": "dsurround:footsteps.wood"
+      }
+    ]
+  },
+  {
+    "_comment": "[1.20.1] 材质细化（仅 C 的名字推断覆盖不到的条目）。生成器与意图表见工作区 _footstep_check/gen_versioned.py",
+    "soundEvent": "minecraft:block.coral_block.step",
+    "rules": [
+      {
+        "blocks": [
+          "biomesoplenty:flesh"
+        ],
+        "factory": "dsurround:footsteps.organic"
+      }
+    ]
+  },
+  {
+    "_comment": "[1.20.1] 材质细化（仅 C 的名字推断覆盖不到的条目）。生成器与意图表见工作区 _footstep_check/gen_versioned.py",
+    "soundEvent": "minecraft:block.glass.step",
+    "rules": [
+      {
+        "blocks": [
+          "quark:blaze_lantern"
+        ],
+        "factory": "dsurround:footsteps.metalbar"
+      }
+    ]
+  },
+  {
+    "_comment": "[1.20.1] 材质细化（仅 C 的名字推断覆盖不到的条目）。生成器与意图表见工作区 _footstep_check/gen_versioned.py",
+    "soundEvent": "minecraft:block.nether_bricks.step",
+    "rules": [
+      {
+        "blocks": [
+          "quark:nether_brick_fence_gate"
+        ],
+        "factory": "dsurround:footsteps.none"
+      }
+    ]
+  },
+  {
+    "_comment": "[1.20.1] 材质细化（仅 C 的名字推断覆盖不到的条目）。生成器与意图表见工作区 _footstep_check/gen_versioned.py",
+    "soundEvent": "minecraft:block.stone.step",
+    "rules": [
+      {
+        "blocks": [
+          "quark:midori_block",
+          "quark:midori_block_slab",
+          "quark:midori_block_stairs",
+          "quark:midori_block_vertical_slab",
+          "quark:midori_pillar"
+        ],
+        "factory": "dsurround:footsteps.concrete"
+      },
+      {
+        "blocks": [
+          "quark:chiseled_myalite_bricks",
+          "quark:dusky_myalite",
+          "quark:myalite",
+          "quark:myalite_bricks",
+          "quark:myalite_bricks_slab",
+          "quark:myalite_bricks_stairs",
+          "quark:myalite_bricks_vertical_slab",
+          "quark:myalite_bricks_wall",
+          "quark:myalite_pillar",
+          "quark:myalite_slab",
+          "quark:myalite_stairs",
+          "quark:myalite_vertical_slab",
+          "quark:myalite_wall",
+          "quark:polished_myalite",
+          "quark:polished_myalite_slab",
+          "quark:polished_myalite_stairs",
+          "quark:polished_myalite_vertical_slab"
+        ],
+        "factory": "dsurround:footsteps.marble"
+      },
+      {
+        "blocks": [
+          "quark:soul_sandstone_wall"
+        ],
+        "factory": "dsurround:footsteps.none"
+      }
+    ]
+  },
+  {
+    "_comment": "[1.20.1] 材质细化（仅 C 的名字推断覆盖不到的条目）。生成器与意图表见工作区 _footstep_check/gen_versioned.py",
+    "soundEvent": "minecraft:block.wood.step",
+    "rules": [
+      {
+        "blocks": [
+          "quark:paper_wall",
+          "quark:paper_wall_big",
+          "quark:paper_wall_sakura"
+        ],
+        "factory": "dsurround:footsteps.organic_dry"
+      }
+    ]
+  },
+  {
+    "_comment": "[1.20.1] 材质细化（仅 C 的名字推断覆盖不到的条目）。生成器与意图表见工作区 _footstep_check/gen_versioned.py",
+    "soundEvent": "minecraft:intentionally_empty",
+    "rules": [
+      {
+        "blocks": [
+          "biomesoplenty:blood"
+        ],
+        "factory": "dsurround:footsteps.none"
       }
     ]
   }

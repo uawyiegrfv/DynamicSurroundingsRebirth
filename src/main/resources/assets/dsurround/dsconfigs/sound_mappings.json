@@ -812,17 +812,21 @@
         "blocks": [
           "#minecraft:cauldrons"
         ],
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsurround:footsteps.metalbar"
       },
       {
         "blocks": [
           "minecraft:obsidian",
           "minecraft:crying_obsidian",
           "minecraft:respawn_anchor",
-          "minecraft:enchanting_table",
-          "minecraft:ender_chest"
+          "minecraft:ender_chest",
+          "minecraft:dragon_egg",
+          "minecraft:end_gateway"
         ],
-        "factory": "dsurround:footsteps.lino"
+        "factory": "dsurround:obsidian/stone",
+        "accent": [
+          "dsurround:obsidian/lino"
+        ]
       },
       {
         "blocks": [
@@ -1201,6 +1205,131 @@
           "biomesoplenty:blood"
         ],
         "factory": "dsurround:footsteps.none"
+      }
+    ]
+  },
+  {
+    "_comment": "【1.12.2 材质补齐】1.12.2 的 mcp.json 里有 6 个独立材质在移植时整族漏掉了，约 39 个原版方块落到泛化 stone/glass/wood 上。配方全部照抄 1.12.2 acoustic：brickstone = concrete 原样（无变调）；stonemachine = concrete 升调 1.10~1.20；stoneutility = concrete@1.10~1.20 ⊕ lino@0.75~0.85；obsidian = stone@vol0.8/0.65~0.70 ⊕ lino@0.75~0.85；woodutility = bluntwood ⊕ lino@0.75~0.85；metalsubparts = metalbar@0.5 ⊕ metalbox@0.5。对应的 factory location 见 sound_factories.json 里同命名空间开头的条目。obsidian 族走的是本文件里 block.stone.step 的那条规则（不能在这里再加一条 —— 合并按 factory 首次出现定位，新规则只会插在兜底之前，永远抢不过前面的显式规则）。",
+    "soundEvent": "minecraft:block.stone.step",
+    "rules": [
+      {
+        "blocks": [
+          "minecraft:bricks",
+          "minecraft:brick_slab",
+          "minecraft:stone_bricks",
+          "minecraft:stone_brick_slab",
+          "minecraft:smooth_stone_slab",
+          "minecraft:end_stone_bricks",
+          "minecraft:infested_stone",
+          "minecraft:purpur_block",
+          "minecraft:purpur_pillar",
+          "minecraft:purpur_slab",
+          "minecraft:purpur_stairs"
+        ],
+        "factory": "dsurround:brickstone/concrete"
+      },
+      {
+        "blocks": [
+          "minecraft:dispenser",
+          "minecraft:dropper",
+          "minecraft:furnace",
+          "minecraft:piston",
+          "minecraft:sticky_piston"
+        ],
+        "factory": "dsurround:stonemachine/concrete"
+      },
+      {
+        "blocks": [
+          "minecraft:command_block",
+          "minecraft:chain_command_block",
+          "minecraft:repeating_command_block",
+          "minecraft:structure_block",
+          "minecraft:structure_void",
+          "minecraft:observer",
+          "minecraft:repeater",
+          "minecraft:comparator",
+          "minecraft:enchanting_table"
+        ],
+        "factory": "dsurround:stoneutility/concrete",
+        "accent": [
+          "dsurround:stoneutility/lino"
+        ]
+      },
+      {
+        "blocks": [
+          "minecraft:beacon"
+        ],
+        "factory": "dsurround:footsteps.wood",
+        "accent": [
+          "dsurround:footsteps.glass"
+        ]
+      }
+    ]
+  },
+  {
+    "_comment": "【1.12.2 材质补齐】stoneutility 族这三个方块在现代用的是 glass SoundType，规则必须挂在 block.glass.step 上；但 1.12.2 明确把它们定为 stoneutility（concrete@1.10~1.20 ⊕ lino@0.75~0.85），不是玻璃 —— 海晶灯/红石灯踩上去不该是木板上洒碎玻璃的声音。",
+    "soundEvent": "minecraft:block.glass.step",
+    "rules": [
+      {
+        "blocks": [
+          "minecraft:end_portal_frame",
+          "minecraft:redstone_lamp",
+          "minecraft:sea_lantern"
+        ],
+        "factory": "dsurround:stoneutility/concrete",
+        "accent": [
+          "dsurround:stoneutility/lino"
+        ]
+      }
+    ]
+  },
+  {
+    "_comment": "【1.12.2 材质补齐】note_block/jukebox 在 1.12.2 是 woodutility（bluntwood ⊕ lino@0.75~0.85）；daylight_detector 是 stoneutility（或 glass，取其主材质）；end_rod 在 1.12.2 明确是 glass。",
+    "soundEvent": "minecraft:block.wood.step",
+    "rules": [
+      {
+        "blocks": [
+          "minecraft:note_block",
+          "minecraft:jukebox"
+        ],
+        "factory": "dsurround:woodutility/bluntwood",
+        "accent": [
+          "dsurround:woodutility/lino"
+        ]
+      },
+      {
+        "blocks": [
+          "minecraft:daylight_detector"
+        ],
+        "factory": "dsurround:stoneutility/concrete",
+        "accent": [
+          "dsurround:stoneutility/lino"
+        ]
+      },
+      {
+        "blocks": [
+          "minecraft:end_rod"
+        ],
+        "factory": "dsurround:footsteps.wood",
+        "accent": [
+          "dsurround:footsteps.glass"
+        ]
+      }
+    ]
+  },
+  {
+    "_comment": "【1.12.2 材质补齐】iron_door/iron_trapdoor 在 1.12.2 是 metalsubparts（metalbar@0.5 ⊕ metalbox@0.5），比纯 metalbox 更像薄铁片。",
+    "soundEvent": "minecraft:block.metal.step",
+    "rules": [
+      {
+        "blocks": [
+          "minecraft:iron_door",
+          "minecraft:iron_trapdoor"
+        ],
+        "factory": "dsurround:metalsubparts/metalbox",
+        "accent": [
+          "dsurround:metalsubparts/metalbar"
+        ]
       }
     ]
   }

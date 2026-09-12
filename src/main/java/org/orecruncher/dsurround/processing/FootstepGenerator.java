@@ -153,6 +153,15 @@ public class FootstepGenerator extends AbstractClientHandler {
             // material path exactly.
             Map.entry("footsteps/dirt_path", GRASS_LAND),
             Map.entry("footsteps.leaves_through", new LandComposition(fs("footsteps.dirt_land"), fs("footsteps.dirt"), fs("footsteps.dirt_run"))),
+            // 1.12.2 obsidian land = concrete_run + stone_walk@0.5 + delay50(stone_run) -
+            // byte for byte the stone land composition, so it shares STONE_LAND. (The
+            // obsidian material's muffled 0.65-0.70 pitch applies to the WALK only; the
+            // original's landing deliberately used un-pitched stone/concrete.)
+            Map.entry("obsidian/stone", STONE_LAND),
+            // 1.12.2 metalsubparts (iron door / iron trapdoor) land = metalbox_run +
+            // metalbar_walk + delay30(metalbar_walk) + delay50(metalbox_run): a heavy run
+            // thud with a thin bar layer, not the plain metal box walk.
+            Map.entry("metalsubparts/metalbox", new LandComposition(fs("footsteps.metalbox_run"), fs("footsteps.metalbar"), fs("footsteps.metalbox_run"))),
             // Leaf litter lands with a single heavier crunch - a dedicated landing recording
             // for the primary, no secondary layer and no delayed echo.
             Map.entry("footsteps.leaves_crunch", new LandComposition(fs("footsteps.leaves_crunch_land"), null, null)));

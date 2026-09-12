@@ -191,20 +191,104 @@ public class ItemLibrary implements IItemLibrary {
         var equippable = stack.get(net.minecraft.core.component.DataComponents.EQUIPPABLE);
         if (equippable == null || !equippable.slot().isArmor())
             return null;
-        String base;
-        if (this.tagLibrary.is(ItemEffectTags.ARMOR_LEATHER, stack))
-            base = "armor.light";
-        else if (this.tagLibrary.is(ItemEffectTags.ARMOR_CHAIN, stack))
-            base = "armor.medium";
-        else if (this.tagLibrary.is(ItemEffectTags.ARMOR_IRON, stack)
-                || this.tagLibrary.is(ItemEffectTags.ARMOR_GOLD, stack)
-                || this.tagLibrary.is(ItemEffectTags.ARMOR_NETHERITE, stack))
-            base = "armor.heavy";
-        else if (this.tagLibrary.is(ItemEffectTags.ARMOR_DIAMOND, stack))
-            base = "armor.crystal";
-        else
+        // Explicit tags first - they are data, and data always beats inference. They only
+        // list the 24 vanilla pieces though, so the fallback is what makes modded armor
+        // audible at all.
+        String base = classifyArmorByTag(stack);
+        if (base == null && this.config.footstepAccents.inferArmorClass)
+            base = inferArmorClass(stack, equippable.slot());
+        if (base == null)
             return null;
         return getArmorSound(base + variant);
+    }
+
+    /**
+     * The DS armor tags, in priority order. Returns null when none matches.
+     */
+    @Nullable
+    private String classifyArmorByTag(ItemStack stack) {
+        if (this.tagLibrary.is(ItemEffectTags.ARMOR_LEATHER, stack))
+            return "armor.light";
+        if (this.tagLibrary.is(ItemEffectTags.ARMOR_CHAIN, stack))
+            return "armor.medium";
+        if (this.tagLibrary.is(ItemEffectTags.ARMOR_IRON, stack)
+                || this.tagLibrary.is(ItemEffectTags.ARMOR_GOLD, stack)
+                || this.tagLibrary.is(ItemEffectTags.ARMOR_NETHERITE, stack))
+            return "armor.heavy";
+        if (this.tagLibrary.is(ItemEffectTags.ARMOR_DIAMOND, stack))
+            return "armor.crystal";
+        return null;
+    }
+
+    /**
+     * Armor weight class inferred from the armor's own numbers, for armor that no DS tag
+     * covers - i.e. every modded armor piece, because the tags only list the 24 vanilla
+     * items. 1.12.2 had exactly the same hole and patched it with a hand-written JSON per
+     * mod, which is why it never scaled past the ~20 mods its author happened to play.
+     * Reading the item covers any mod, including ones that do not exist yet.
+     *
+     * <p>26.1 note: {@code ArmorItem} and {@code ArmorMaterial} are gone - armor is fully
+     * data driven. The values live in the item's own attribute modifiers, and most modded
+     * armor is a plain Item carrying an Equippable component, so this reads attributes
+     * rather than a material. That also means the "material total" the 1.20.1/1.21.1 ports
+     * band against is not available here; the piece's own value is banded against the
+     * strongest vanilla piece for that slot instead, which is coarser - a set of
+     * chainmail-tier boots can read as light. Going from silence to a plausible clank is
+     * the win; being one class off is not audible next to that.
+     *
+     * <p>Ladder, first hit wins:
+     * <ul>
+     *   <li>knockback resistance &gt; 0 -&gt; heavy (vanilla netherite is the only such material)</li>
+     *   <li>armor toughness &gt;= 1.5 -&gt; crystal (vanilla diamond 2.0, netherite 3.0)</li>
+     *   <li>otherwise band the piece value against the slot's vanilla maximum:
+     *       boots 3, leggings 6, chestplate 8, helmet 3, body 11</li>
+     * </ul>
+     */
+    @Nullable
+    static String inferArmorClass(ItemStack stack, net.minecraft.world.entity.EquipmentSlot slot) {
+        final var modifiers = stack.get(net.minecraft.core.component.DataComponents.ATTRIBUTE_MODIFIERS);
+        if (modifiers == null)
+            return null;
+        final var armorKey = net.minecraft.world.entity.ai.attributes.Attributes.ARMOR.unwrapKey().orElse(null);
+        final var toughnessKey = net.minecraft.world.entity.ai.attributes.Attributes.ARMOR_TOUGHNESS.unwrapKey().orElse(null);
+        final var knockbackKey = net.minecraft.world.entity.ai.attributes.Attributes.KNOCKBACK_RESISTANCE.unwrapKey().orElse(null);
+        if (armorKey == null)
+            return null;
+        double armor = 0.0D, toughness = 0.0D, knockback = 0.0D;
+        for (var entry : modifiers.modifiers()) {
+            final var key = entry.attribute().unwrapKey().orElse(null);
+            if (key == null)
+                continue;
+            final double amount = entry.modifier().amount();
+            if (armorKey.equals(key))
+                armor += amount;
+            else if (toughnessKey != null && toughnessKey.equals(key))
+                toughness += amount;
+            else if (knockbackKey != null && knockbackKey.equals(key))
+                knockback += amount;
+        }
+        if (armor <= 0.0D)
+            return null;
+        if (knockback > 0.0D)
+            return "armor.heavy";
+        if (toughness >= 1.5D)
+            return "armor.crystal";
+        final int slotMax = switch (slot) {
+            case HEAD -> 3;
+            case CHEST -> 8;
+            case LEGS -> 6;
+            case FEET -> 3;
+            case BODY -> 11;
+            default -> 0;
+        };
+        if (slotMax <= 0)
+            return null;
+        final float ratio = (float) (armor / slotMax);
+        if (ratio <= 0.40F)
+            return "armor.light";
+        if (ratio <= 0.70F)
+            return "armor.medium";
+        return "armor.heavy";
     }
 
     private static SoundEvent getArmorSound(String name) {

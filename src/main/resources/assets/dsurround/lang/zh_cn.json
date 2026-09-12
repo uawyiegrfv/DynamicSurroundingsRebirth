@@ -164,6 +164,8 @@
   "dsurround.config.footstepAccents.enableAccents.tooltip": "启用/禁用 全局踏步效果",
   "dsurround.config.footstepAccents.enableArmorAccents": "盔甲效果",
   "dsurround.config.footstepAccents.enableArmorAccents.tooltip": "启用/禁用 已穿戴盔甲的效果",
+  "dsurround.config.footstepAccents.inferArmorClass": "按材质推断盔甲档位",
+  "dsurround.config.footstepAccents.inferArmorClass.tooltip": "没有盔甲标签命中时，按盔甲材质自身的数值推断档位（轻甲/中甲/重甲/晶体甲），让模组盔甲也能有踏步副音而不是完全静音。盔甲标签永远优先",
   "dsurround.config.footstepAccents.enableFloorSqueaks": "地板吱吱声",
   "dsurround.config.footstepAccents.enableFloorSqueaks.tooltip": "启用/禁用 当玩家走在吱吱作响的方块上的效果",
   "dsurround.config.footstepAccents.enableWetSurfaceAccents": "潮湿表面效果",

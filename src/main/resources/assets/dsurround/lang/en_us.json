@@ -170,6 +170,8 @@
   "dsurround.config.footstepAccents.enableAccents.tooltip": "Enable/disable foot step accents globally",
   "dsurround.config.footstepAccents.enableArmorAccents": "Armor Accents",
   "dsurround.config.footstepAccents.enableArmorAccents.tooltip": "Enable/disable accents for armor that is worn",
+  "dsurround.config.footstepAccents.inferArmorClass": "Armor Class From Material",
+  "dsurround.config.footstepAccents.inferArmorClass.tooltip": "Infer an armor's weight class (light/medium/heavy/crystal) from its material stats when no armor tag matches, so modded armor gets footstep accents instead of silence. The armor tags always take precedence",
   "dsurround.config.footstepAccents.enableFloorSqueaks": "Floor Squeaks",
   "dsurround.config.footstepAccents.enableFloorSqueaks.tooltip": "Enable/disable accents for when the player is walking on squeaky blocks",
   "dsurround.config.footstepAccents.enableWetSurfaceAccents": "Wet Surface Accents",

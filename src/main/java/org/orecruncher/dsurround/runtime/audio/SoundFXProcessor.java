@@ -291,6 +291,21 @@ public final class SoundFXProcessor {
     public static void afterChannelSweep(final Set<?> handles) {
         if (!isAvailable())
             return;
+        // DISABLED BY DEFAULT. Setting a handle's channel to null while it is still in
+        // vanilla's live set is what crashes the client: ChannelAccess' own sweep does
+        //     handle.channel.stop();
+        // with no null check, so any nulled handle left in the set is an instant NPE on the
+        // very next tick - and at world teardown that NPE takes the whole client down.
+        //
+        // The correlation is exact across the retained logs: every session with 0 reaps had
+        // 0 of these NPEs, and the two sessions that reaped (113 and 322 times) produced
+        // 20 583 and 940 of them.
+        //
+        // The stuck channels this was written for are real, but losing a few OpenAL sources
+        // to them is strictly better than crashing. Left switchable for anyone who wants to
+        // experiment with the reclamation.
+        if (!ContainerManager.resolve(Configuration.EnhancedSounds.class).enableChannelReaper)
+            return;
         // While the game is paused every live channel sits in AL_PAUSED and playing()
         // reports false - the reaper would mistake the whole lot for stuck channels and
         // destroy them. Skip entirely while paused (the sweep resumes on unpause).
@@ -300,6 +315,7 @@ public final class SoundFXProcessor {
             return;
         final long now = System.currentTimeMillis();
         final List<Object> reaped = new ArrayList<>();
+        final List<Integer> reapedIds = new ArrayList<>();
         for (final Object o : handles) {
             try {
                 Channel channel = ((IChannelHandle) o).dsurround_getSource();
@@ -313,15 +329,24 @@ public final class SoundFXProcessor {
                 Long last = channelLastActive.get(id);
                 if (last != null && now - last > REAPER_STUCK_MS) {
                     LOGGER.warn("REAPER: reclaiming stuck channel id=%d (no playback activity for %.1fs)", id, (now - last) / 1000.0);
-                    ((IChannelHandle) o).dsurround_reap();
                     reaped.add(o);
-                    channelLastActive.remove(id);
+                    reapedIds.add(id);
                 }
             } catch (final Throwable ignore) {
             }
         }
-        for (final Object o : reaped)
-            handles.remove(o);
+        // Remove from vanilla's live set BEFORE releasing, and only after the iteration is
+        // done. The old order (release first, remove after) left a window in which a handle
+        // with a nulled channel was still in the set - which is exactly the crash above.
+        for (int i = 0; i < reaped.size(); i++) {
+            final Object o = reaped.get(i);
+            try {
+                handles.remove(o);
+                ((IChannelHandle) o).dsurround_reap();
+                channelLastActive.remove(reapedIds.get(i));
+            } catch (final Throwable ignore) {
+            }
+        }
     }
 
     /**

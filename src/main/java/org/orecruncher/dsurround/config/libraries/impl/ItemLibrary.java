@@ -190,23 +190,88 @@ public class ItemLibrary implements IItemLibrary {
         // iron+gold+netherite=heavy, diamond=crystal.
         // 1.21.1: no EQUIPPABLE data component (1.21.2+); an ArmorItem is exactly the
         // wearable-in-armor-slot set of items.
-        if (!(stack.getItem() instanceof net.minecraft.world.item.ArmorItem))
+        if (!(stack.getItem() instanceof net.minecraft.world.item.ArmorItem armorItem))
             return null;
-        String base;
-        if (this.tagLibrary.is(ItemEffectTags.ARMOR_LEATHER, stack))
-            base = "armor.light";
-        else if (this.tagLibrary.is(ItemEffectTags.ARMOR_CHAIN, stack))
-            base = "armor.medium";
-        else if (this.tagLibrary.is(ItemEffectTags.ARMOR_IRON, stack)
-                || this.tagLibrary.is(ItemEffectTags.ARMOR_GOLD, stack)
-                || this.tagLibrary.is(ItemEffectTags.ARMOR_NETHERITE, stack))
-            base = "armor.heavy";
-        else if (this.tagLibrary.is(ItemEffectTags.ARMOR_DIAMOND, stack))
-            base = "armor.crystal";
-        else
+        // Explicit tags first - they are data, and data always beats inference. They only
+        // list the 24 vanilla pieces though, so the fallback is what makes modded armor
+        // audible at all.
+        String base = classifyArmorByTag(stack);
+        if (base == null && this.config.footstepAccents.inferArmorClass)
+            base = inferArmorClass(armorItem);
+        if (base == null)
             return null;
         return getArmorSound(base + variant);
     }
+
+    /**
+     * The DS armor tags, in priority order. Returns null when none matches.
+     */
+    @Nullable
+    private String classifyArmorByTag(ItemStack stack) {
+        if (this.tagLibrary.is(ItemEffectTags.ARMOR_LEATHER, stack))
+            return "armor.light";
+        if (this.tagLibrary.is(ItemEffectTags.ARMOR_CHAIN, stack))
+            return "armor.medium";
+        if (this.tagLibrary.is(ItemEffectTags.ARMOR_IRON, stack)
+                || this.tagLibrary.is(ItemEffectTags.ARMOR_GOLD, stack)
+                || this.tagLibrary.is(ItemEffectTags.ARMOR_NETHERITE, stack))
+            return "armor.heavy";
+        if (this.tagLibrary.is(ItemEffectTags.ARMOR_DIAMOND, stack))
+            return "armor.crystal";
+        return null;
+    }
+
+    /**
+     * Armor weight class inferred from the material's own numbers, for armor that no DS tag
+     * covers - i.e. every modded armor piece, because the tags only list the 24 vanilla
+     * items. 1.12.2 had exactly the same hole and patched it with a hand-written JSON per
+     * mod, which is why it never scaled past the ~20 mods its author happened to play.
+     * Reading the material covers any mod, including ones that do not exist yet.
+     *
+     * <p>Ladder, first hit wins:
+     * <ul>
+     *   <li>knockback resistance &gt; 0 -&gt; heavy (vanilla netherite is the only such material)</li>
+     *   <li>toughness &gt;= 1.5 -&gt; crystal (vanilla diamond 2.0, netherite 3.0)</li>
+     *   <li>a dyeable layer -&gt; light (vanilla leather is the only such material; modded
+     *       "cloth" armor usually registers a dyeable layer too)</li>
+     *   <li>otherwise band the four piece values by their total against the strongest
+     *       vanilla material (20 = diamond/netherite)</li>
+     * </ul>
+     *
+     * <p>The defense ladder reproduces the vanilla tags for every material except gold
+     * (11/20 -&gt; medium, where the tag says heavy). Gold is covered by the tag, so that
+     * only shows up if the tags ever go missing.
+     */
+    @Nullable
+    static String inferArmorClass(net.minecraft.world.item.ArmorItem armorItem) {
+        final var material = armorItem.getMaterial().value();
+        int total = 0;
+        for (var type : PIECE_TYPES)
+            total += material.getDefense(type);
+        if (total <= 0)
+            return null;
+        if (material.knockbackResistance() > 0.0F)
+            return "armor.heavy";
+        if (material.toughness() >= 1.5F)
+            return "armor.crystal";
+        if (material.layers().stream().anyMatch(net.minecraft.world.item.ArmorMaterial.Layer::dyeable))
+            return "armor.light";
+        final float ratio = total / 20.0F;
+        if (ratio <= 0.40F)
+            return "armor.light";
+        if (ratio <= 0.62F)
+            return "armor.medium";
+        return "armor.heavy";
+    }
+
+    // The four wearable armor pieces, in the vanilla order. Deliberately NOT
+    // ArmorItem.Type.values() - that also carries BODY (wolf armor), which most modded
+    // materials leave at 0 and which would skew the total.
+    private static final List<net.minecraft.world.item.ArmorItem.Type> PIECE_TYPES = List.of(
+            net.minecraft.world.item.ArmorItem.Type.HELMET,
+            net.minecraft.world.item.ArmorItem.Type.CHESTPLATE,
+            net.minecraft.world.item.ArmorItem.Type.LEGGINGS,
+            net.minecraft.world.item.ArmorItem.Type.BOOTS);
 
     private static SoundEvent getArmorSound(String name) {
         // The armor accent events are registered under the dsurround namespace.

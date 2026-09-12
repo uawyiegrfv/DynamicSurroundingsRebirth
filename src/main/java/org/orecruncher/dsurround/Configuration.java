@@ -380,6 +380,11 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @RestartRequired(client = false)
+        @Comment("Enable/disable the scuff sound played when the player stops or turns sharply. This is the material's 'wander' recording in the original 1.12.2 data")
+        public boolean enableStopScuffSound = true;
+
+        @Property
+        @RestartRequired(client = false)
         @Comment("Enable/disable creature footstep sounds (per-creature material footsteps with cadence, volume, landing and stop sounds)")
         public boolean enableCreatureFootstepSounds = true;
 

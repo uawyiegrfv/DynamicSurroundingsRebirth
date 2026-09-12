@@ -119,6 +119,8 @@
   "dsurround.config.entityEffects.enablePlayerToolbarEffect.tooltip": "Enable/disable player toolbar sound effects",
   "dsurround.config.entityEffects.enableSwingEffect": "Item Swing Effects",
   "dsurround.config.entityEffects.enableSwingEffect.tooltip": "Enable/disable item swing sound effects from players and mobs",
+  "dsurround.config.entityEffects.enableStopScuffSound": "Stop Scuff Sounds",
+  "dsurround.config.entityEffects.enableStopScuffSound.tooltip": "Enable/disable the scuff sound played when the player stops or turns sharply (the material's scuff recording, called 'wander' in the original 1.12.2 data)",
   "dsurround.config.entityEffects.enableToolbarBlockSounds": "Player Toolbar Block Sounds",
   "dsurround.config.entityEffects.enableToolbarBlockSounds.tooltip": "Enable/disable sound effects for blocks on the toolbar",
   "dsurround.config.entityEffects.entityEffectRange": "Entity Effect Range",

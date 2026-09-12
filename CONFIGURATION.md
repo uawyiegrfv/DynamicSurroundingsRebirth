@@ -299,6 +299,9 @@ copy of a vanilla block would otherwise take the wrong material.
 - The keyword list is short, lives in `MaterialInference`, and is **not** data-driven. If a
   material you care about is not inferred, write an explicit rule (§4.1) - that works today
   and always takes precedence.
+- The inferred material brings its **accent layers** with it: a modded sandstone gets the
+  same sand sub-sound vanilla sandstone has. The accent belongs to the material, not to the
+  block list that happens to name it.
 - Inferred assignments are logged under the `RESOURCE_LOADING` debug flag, once per block.
 
 #### 4.1 `sound_factories.json` (array)
@@ -652,6 +655,8 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
   `*_blossom` 等），所以 `snowblossom_leaves` 不会被当成雪。
 - 关键词表很短，写在 `MaterialInference` 里，**不是**数据驱动的。若你在意的材质没有被推断，
   直接写显式规则（§4.1）——今天就生效，而且永远优先。
+- 推断出的材质会**连带它自己的副音层**：模组砂岩会拿到和原版砂岩一样的沙地副音——
+  因为副音属于**材质**，不属于恰好列出该材质的方块清单。
 - 被推断的方块会在 `RESOURCE_LOADING` 调试标记下打日志，每个方块只报一次。
 
 #### 4.1 `sound_factories.json`（数组）

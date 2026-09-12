@@ -1298,5 +1298,250 @@
         "soundEvent":  "biome.gnatt",
         "category":  "AMBIENT",
         "volume":  0.5
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 brickstone】walk/run = concrete 原样。1.12.2 的 brickstone acoustic 就是 concrete_walk/concrete_run，无变调；land = concrete_run + concrete_walk@0.5 + delay50(concrete_run)，由 resolveLandSound 的 _run 回退自动推出。",
+        "location":  "dsurround:brickstone/concrete",
+        "soundEvent":  "dsurround:footsteps.concrete",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:brickstone/concrete_run",
+        "soundEvent":  "dsurround:footsteps.concrete_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:brickstone/concrete_wander",
+        "soundEvent":  "dsurround:footsteps.concrete_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 stonemachine】concrete 录音整体升调 1.10~1.20，听感比 brickstone 更「机械」。1.12.2 wander = concrete_wander（无变调）。",
+        "location":  "dsurround:stonemachine/concrete",
+        "soundEvent":  "dsurround:footsteps.concrete",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  1.1,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:stonemachine/concrete_run",
+        "soundEvent":  "dsurround:footsteps.concrete_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  1.1,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:stonemachine/concrete_wander",
+        "soundEvent":  "dsurround:footsteps.concrete_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 stoneutility】concrete@1.10~1.20 ⊕ lino@0.75~0.85 两层【同时】播放：一个升调的实心音加一个降调的薄音，这是红石器件类方块在 1.12.2 的辨识度来源。副音 lino 的 volume 取 0.72 = 0.9(玩家 variator) × 0.8(主 factory 音量中值)，因为 accent 走的是 dsFootstepVolume() 那条不乘 variator 的路径，只有这样才能和主体等响（1.12.2 两层都是默认 0.9）。",
+        "location":  "dsurround:stoneutility/concrete",
+        "soundEvent":  "dsurround:footsteps.concrete",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  1.1,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:stoneutility/concrete_run",
+        "soundEvent":  "dsurround:footsteps.concrete_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  1.1,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:stoneutility/concrete_wander",
+        "soundEvent":  "dsurround:footsteps.concrete_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:stoneutility/lino",
+        "soundEvent":  "dsurround:footsteps.lino",
+        "category":  "PLAYER",
+        "volume":  0.72,
+        "pitch":  {
+                      "min":  0.75,
+                      "max":  0.85
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 obsidian】stone@vol0.8/pitch0.65~0.70 ⊕ lino@0.75~0.85。原来的实现只有 lino，丢了压低的石头主体。land 在 Java 侧用 STONE_LAND（见 FootstepGenerator.LAND_COMPOSITIONS 的 obsidian/stone 条目）。",
+        "location":  "dsurround:obsidian/stone",
+        "soundEvent":  "dsurround:footsteps.stone",
+        "category":  "PLAYER",
+        "volume":  0.8,
+        "pitch":  {
+                      "min":  0.65,
+                      "max":  0.7
+                  }
+    },
+    {
+        "location":  "dsurround:obsidian/stone_run",
+        "soundEvent":  "dsurround:footsteps.stone_run",
+        "category":  "PLAYER",
+        "volume":  0.8,
+        "pitch":  {
+                      "min":  0.65,
+                      "max":  0.7
+                  }
+    },
+    {
+        "location":  "dsurround:obsidian/stone_wander",
+        "soundEvent":  "dsurround:footsteps.stone_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:obsidian/lino",
+        "soundEvent":  "dsurround:footsteps.lino",
+        "category":  "PLAYER",
+        "volume":  0.72,
+        "pitch":  {
+                      "min":  0.75,
+                      "max":  0.85
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 woodutility】bluntwood ⊕ lino@0.75~0.85（唱片机/音符盒）。land = bluntwood_walk + delay50(bluntwood_walk)，正好是 resolveLandSound 无后缀时的默认回退。",
+        "location":  "dsurround:woodutility/bluntwood",
+        "soundEvent":  "dsurround:footsteps.bluntwood",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:woodutility/bluntwood_wander",
+        "soundEvent":  "dsurround:footsteps.bluntwood_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:woodutility/lino",
+        "soundEvent":  "dsurround:footsteps.lino",
+        "category":  "PLAYER",
+        "volume":  0.85,
+        "pitch":  {
+                      "min":  0.75,
+                      "max":  0.85
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 metalsubparts】metalbar@0.5 ⊕ metalbox@0.5，两层等比；比纯 metalbox 更薄更「铁片」。0.5/0.45 是按 accent 不乘 variator 折算后等响（主体实际 0.9×0.5=0.45）。1.12.2 的 metalsubparts 没有 run，所以刻意不注册 _run：跑动时回退到 walk，与原始一致。",
+        "location":  "dsurround:metalsubparts/metalbox",
+        "soundEvent":  "dsurround:footsteps.metalbox",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:metalsubparts/metalbar",
+        "soundEvent":  "dsurround:footsteps.metalbar",
+        "category":  "PLAYER",
+        "volume":  0.45,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:metalsubparts/metalbox_wander",
+        "soundEvent":  "dsurround:footsteps.marble_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
     }
 ]

@@ -36,11 +36,29 @@ public record SoundMapping(ResourceLocation soundEvent, ObjectArray<Mapping> rul
             if (rule.isDefaultRule()) {
                 var inferred = MaterialInference.infer(state);
                 if (inferred.isPresent())
-                    return Optional.of(new Mapping.MatchResult(inferred.get(), result.get().accent()));
+                    return Optional.of(new Mapping.MatchResult(inferred.get(),
+                            accentsFor(inferred.get(), result.get().accent())));
             }
             return result;
         }
         return Optional.empty();
+    }
+
+    /**
+     * The accent belongs to the <em>material</em>, not to the block list that happens to name
+     * it. Vanilla sandstone resolves to {@code concrete} <em>plus} a sand accent; a modded
+     * sandstone that only reaches {@code concrete} through name inference has to get that same
+     * accent, otherwise it plays the primary layer without the sand sub-sound that vanilla
+     * sandstone has. Borrow the accent from whichever rule in this mapping already produces
+     * the inferred factory, falling back to the default rule's accent when the material is not
+     * used by any other rule.
+     */
+    private List<ResourceLocation> accentsFor(final ResourceLocation factory,
+                                              final List<ResourceLocation> fallback) {
+        for (var rule : this.rules)
+            if (rule.factory().equals(factory) && !rule.accent().isEmpty())
+                return rule.accent();
+        return fallback;
     }
 
     public void merge(SoundMappingConfigRule mapping) {

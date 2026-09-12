@@ -107,6 +107,8 @@
   "dsurround.config.entityEffects.enablePlayerToolbarEffect.tooltip": "启用/禁用 玩家工具栏音效",
   "dsurround.config.entityEffects.enableSwingEffect": "物品挥动效果",
   "dsurround.config.entityEffects.enableSwingEffect.tooltip": "启用/禁用 玩家和生物的物品挥动声音效果",
+  "dsurround.config.entityEffects.enableStopScuffSound": "急停擦地音",
+  "dsurround.config.entityEffects.enableStopScuffSound.tooltip": "启用/禁用 玩家急停或急转弯时播放的对应材质擦地摩擦音（1.12.2 原版数据里这个音效叫 wander）",
   "dsurround.config.entityEffects.enableToolbarBlockSounds": "玩家工具栏方块声音",
   "dsurround.config.entityEffects.enableToolbarBlockSounds.tooltip": "启用/禁用 工具栏上方块的声音效果",
   "dsurround.config.entityEffects.entityEffectRange": "实体效果范围",

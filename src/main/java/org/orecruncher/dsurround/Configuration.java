@@ -420,6 +420,11 @@ public class Configuration extends ConfigurationData {
         public boolean enableArmorAccents = true;
 
         @Property
+        @RestartRequired(client = false)
+        @Comment("Infer an armor's weight class (light/medium/heavy/crystal) from its material stats when no explicit armor tag matches, so modded armor gets footstep accents instead of silence. The armor tags always take precedence")
+        public boolean inferArmorClass = true;
+
+        @Property
         @Comment("Enable/disable accents when it is raining or blocks are waterlogged")
         public boolean enableWetSurfaceAccents = true;
 

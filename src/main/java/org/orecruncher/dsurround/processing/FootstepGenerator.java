@@ -611,6 +611,20 @@ public class FootstepGenerator extends AbstractClientHandler {
                         || false /* LeafLitterBlock 1.20.3+ */))
             return footState;
 
+        // Blocks with no collision box (rails, sculk veins, glow lichen, vines, lily pads,
+        // redstone wire, tripwire, ...) are invisible to vanilla's collision-derived
+        // supporting block, so standing on a rail silently reported the block UNDER the rail
+        // and the rail's own material never played. For those blocks the feet cell is the
+        // answer; the collision lookup below simply cannot see them.
+        //
+        // The trigger is an explicit entry in the footstep data, not a collision test: if the
+        // data author deliberately listed this block, DS is expected to sound like it. That
+        // keeps the exception narrow - a cell whose step sound merely happens to differ (tall
+        // grass the player walks through, a torch at the feet) is not preferred unless it has
+        // been given its own material.
+        if (footState.getFluidState().isEmpty() && hasExplicitFootstepMapping(footState))
+            return footState;
+
         // The single pos.above() probe above misses the block-edge case: standing at the
         // edge of a snow layer / leaf litter patch, the feet overlap two cells and
         // blockPosition() (floor of the feet centre) can land on the snow-free neighbour,
@@ -662,6 +676,23 @@ public class FootstepGenerator extends AbstractClientHandler {
             }
         }
         return state;
+    }
+
+    /**
+     * True when the block has its own explicit footstep material in the data, as opposed to
+     * only reaching the catch-all default rule (or a material inferred from its name).
+     *
+     * The deliberate silence sentinel does NOT count: `footsteps.none` is a real value in the
+     * data (the buttons rule uses it) meaning "play nothing", so treating it as a material
+     * would make surface resolution prefer a silent proxy over the block actually stood on.
+     */
+    private static boolean hasExplicitFootstepMapping(final BlockState state) {
+        var stepSound = state.getSoundType().getStepSound();
+        if (!SOUND_LIBRARY.hasExplicitRemap(stepSound, state))
+            return false;
+        return SOUND_LIBRARY.getRemappedSound(stepSound, state)
+                .map(remap -> !NO_FOOTSTEP.equals(remap.factory()))
+                .orElse(false);
     }
 
     /**

@@ -37,7 +37,7 @@ public record SoundMapping(ResourceLocation soundEvent, ObjectArray<Mapping> rul
                 var inferred = MaterialInference.infer(state);
                 if (inferred.isPresent())
                     return Optional.of(new Mapping.MatchResult(inferred.get(),
-                            accentsFor(inferred.get(), result.get().accent())));
+                            accentsFor(inferred.get(), result.get().accent()), false));
             }
             return result;
         }
@@ -114,22 +114,28 @@ public record SoundMapping(ResourceLocation soundEvent, ObjectArray<Mapping> rul
 
         public Optional<MatchResult> findMatch(@Nullable BlockState state) {
             if (this.isDefaultRule())
-                return Optional.of(new MatchResult(this.factory, this.accent));
+                return Optional.of(new MatchResult(this.factory, this.accent, false));
             // Since the rules have BlockState matching if a null state is provided
             // return empty - nothing could be matched.
             if (state == null)
                 return Optional.empty();
             for( var rule : this.blocks) {
                 if (rule.match(state))
-                    return Optional.of(new MatchResult(this.factory, this.accent));
+                    return Optional.of(new MatchResult(this.factory, this.accent, true));
             }
             return Optional.empty();
         }
 
         /**
-         * Result of a sound mapping match: the primary factory plus any layered accent factories.
+         * Result of a sound mapping match: the primary factory plus any layered accent
+         * factories. {@code explicit} is true only when the match came from a rule that
+         * deliberately names blocks - a catch-all default rule matched, or the material was
+         * derived from the block's name by inference, both report false. Surface resolution
+         * uses this to tell "the data author decided this block has its own material" apart
+         * from "nothing matched so we fell through to the generic material".
          */
-        public record MatchResult(ResourceLocation factory, List<ResourceLocation> accent) {}
+        public record MatchResult(ResourceLocation factory, List<ResourceLocation> accent,
+                                 boolean explicit) {}
 
         public boolean isDefaultRule() {
             return this.blocks.isEmpty();

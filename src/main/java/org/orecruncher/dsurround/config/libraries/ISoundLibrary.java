@@ -42,6 +42,15 @@ public interface ISoundLibrary extends ILibrary {
      */
     Optional<SoundRemap> getRemappedSound(SoundEvent event, @Nullable BlockState state);
 
+    /**
+     * True when the block matched a rule that deliberately lists blocks, rather than a
+     * catch-all default rule or a material derived from the block's name. Surface resolution
+     * uses it to prefer a block the player is actually standing in (rails, sculk veins, glow
+     * lichen - blocks with no collision box, which vanilla's supporting-block lookup cannot
+     * see) over the block underneath it.
+     */
+    boolean hasExplicitRemap(SoundEvent event, @Nullable BlockState state);
+
     record SoundRemap(ResourceLocation factory, List<ResourceLocation> accents) {}
 
     boolean isBlocked(final ResourceLocation id);

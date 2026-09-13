@@ -184,6 +184,25 @@ public class FootstepGenerator extends AbstractClientHandler {
             Map.entry("footsteps.lino", fs("footsteps.marble_wander")),
             Map.entry("footsteps/dirt_path", fs("footsteps.grass_wander")));
 
+    // Take-off scuff (JUMP) cross-references. 1.12.2 declares EventType.JUMP(WANDER), i.e. a
+    // material without an explicit jump acoustic falls back to its wander one - which is
+    // exactly what resolveJumpSound() does when no entry is listed here. So this table holds
+    // ONLY the materials whose 1.12.2 jump differs from that fallback:
+    //   metalbar     - jump is the plain bar scrape, while its WANDER is the marble scrape
+    //                  (with a chance of the bar); reusing the wander table made jumping onto
+    //                  an iron bar play the marble scuff.
+    //   organic_dry  - jump is grass_run (the material's walk layer), wander is dirt.
+    // The materials whose 1.12.2 jump equals their wander need no entry - covers snow, ice,
+    // brickstone, armor_*. The materials whose jump is their wander plus a second
+    // simultaneous layer (leaves, organic, organic_solid) are deliberately left out too: the
+    // port's jump is a two-layer composition (generic grunt + material take-off) and has no
+    // slot for a third layer, and the primary layer of those jumps IS the fallback. Leaves in
+    // particular would be a no-op anyway: its jump primary (dirt_wander) is the same
+    // recording its _wander variant resolves to through WANDER_OVERRIDES.
+    private static final Map<String, Identifier> JUMP_OVERRIDES = Map.ofEntries(
+            Map.entry("footsteps.metalbar", fs("footsteps.metalbar_wander")),
+            Map.entry("footsteps.organic_dry", fs("footsteps.grass_run")));
+
     private final IAudioPlayer audioPlayer;
 
     private boolean isFlying = false;
@@ -693,9 +712,20 @@ public class FootstepGenerator extends AbstractClientHandler {
         return override != null ? override : materialVariant(material, "_wander");
     }
 
+    /**
+     * Resolves the take-off scuff (JUMP) sound for a footstep material. 1.12.2 declares
+     * EventType.JUMP(WANDER), so a material without an explicit jump acoustic scuffs with its
+     * wander recording; JUMP_OVERRIDES holds the few materials that override that.
+     */
+    @Nullable
+    static Identifier resolveJumpSound(Identifier material) {
+        var override = JUMP_OVERRIDES.get(material.getPath());
+        return override != null ? override : resolveWanderSound(material);
+    }
+
     private void playJump(final Player player) {
         // A2-9: Match the original 1.12.2 two-layer jump: the generic "grunt"
-        // (dsurround:player.jump) plus a material-specific wander sound for the
+        // (dsurround:player.jump) plus a material-specific take-off scuff for the
         // block below, mirroring the original's simulateJumpingLanding which
         // played the _JUMP acoustic and the material's jump acoustic. Both
         // layers resolve through the JSON factory registry so their configured
@@ -704,16 +734,17 @@ public class FootstepGenerator extends AbstractClientHandler {
         var grunt = SOUND_LIBRARY.getSoundFactoryOrDefault(JUMP).createAsAdditional();
         this.audioPlayer.play(grunt);
 
-        // Material-specific jump sound (e.g. snow_wander on snow, stone_wander on
-        // stone). resolveMaterial() gives the footstep material factory; the wander
-        // variant is the same path with a _wander suffix. Not every material has a
+        // Material-specific take-off scuff (e.g. snow_wander on snow, stone_wander on
+        // stone). resolveMaterial() gives the footstep material factory; the acoustic is
+        // that material's JUMP recording, which 1.12.2 resolves to its wander recording
+        // unless the material overrides it (see JUMP_OVERRIDES). Not every material has a
         // wander recording - those simply skip the extra layer.
         resolveMaterial(player).ifPresent(material -> {
-            var wanderLoc = resolveWanderSound(material);
-            if (wanderLoc != null) {
+            var jumpLoc = resolveJumpSound(material);
+            if (jumpLoc != null) {
                 var feetPos = player.blockPosition();
-                var wander = SOUND_LIBRARY.getSoundFactoryOrDefault(wanderLoc);
-                this.audioPlayer.play(wander.createAtLocationNoAttenuation(feetPos, dsFootstepVolume()));
+                var scuff = SOUND_LIBRARY.getSoundFactoryOrDefault(jumpLoc);
+                this.audioPlayer.play(scuff.createAtLocationNoAttenuation(feetPos, dsFootstepVolume()));
             }
         });
     }

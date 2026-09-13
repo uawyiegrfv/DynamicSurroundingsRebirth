@@ -31,6 +31,14 @@ public class ItemEffectTags {
     public static final TagKey<Item> ARMOR_DIAMOND = of("armor/diamond");
     public static final TagKey<Item> ARMOR_NETHERITE = of("armor/netherite");
 
+    /**
+     * Legacy compat class. In 1.12.2 this was Construct's Armory (c4.conarm) slime armor,
+     * which had an acoustic of its own; the recordings still ship (armor.slimey_walk / _run).
+     * No modern mod provides slime armor, so this tag ships EMPTY - it exists so a mod, or a
+     * pack's own dsconfigs data, can opt in without this code learning a mod-specific rule.
+     */
+    public static final TagKey<Item> ARMOR_SLIMEY = of("armor/slimey");
+
     private static TagKey<Item> of(String id) {
         var tagKey = TagKey.create(Registries.ITEM, ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "effects/" + id));
         TAGS.add(tagKey);

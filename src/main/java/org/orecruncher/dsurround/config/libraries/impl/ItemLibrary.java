@@ -208,6 +208,10 @@ public class ItemLibrary implements IItemLibrary {
      */
     @Nullable
     private String classifyArmorByTag(ItemStack stack) {
+        // Checked before the four weight classes: it is the most specific answer, and the
+        // only one a mod can opt into by itself. See ItemEffectTags.ARMOR_SLIMEY.
+        if (this.tagLibrary.is(ItemEffectTags.ARMOR_SLIMEY, stack))
+            return "armor.slimey";
         if (this.tagLibrary.is(ItemEffectTags.ARMOR_LEATHER, stack))
             return "armor.light";
         if (this.tagLibrary.is(ItemEffectTags.ARMOR_CHAIN, stack))

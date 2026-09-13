@@ -1,6 +1,6 @@
 # Configuration & Data Files Reference · 配置与数据文件参考
 
-Dynamic Surroundings Rebirth **1.2.0** — Minecraft 1.20.1 (Forge) · 1.21.1 (NeoForge) · 26.1 (NeoForge)
+Dynamic Surroundings Rebirth **1.3.1** — Minecraft 1.20.1 (Forge) · 1.21.1 (NeoForge) · 26.1 (NeoForge)
 
 [English](#part-i--english) · [中文说明](#part-ii--中文说明)
 
@@ -68,6 +68,7 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | enableEnhancedSounds | bool | true | — | ★ Enhanced sound processing (reverb, occlusion) |
 | backgroundThreadWorkers | int | 0 | 0–8 (slider) | ★ Background threads for sound processing (0 = internal default) |
 | enableMonoConversion | bool | true | — | Convert stereo to mono on the fly |
+| enableChannelReaper | bool | false | — | **Experimental.** Tries to free sound channels that have become stuck. Off by default because it can crash the game |
 | enableOcclusionProcessing | bool | false | — | Muffle sounds behind blocks |
 | reverbRays | int | 32 | 16–64 | ★ Rays projected per sound to compute reverb |
 | reverbBounces | int | 4 | 2–8 | ★ Reflections per ray |
@@ -105,6 +106,9 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | waterfallsEnabled | bool | true | — | Waterfall effect from flowing water |
 | enableWaterfallSounds | bool | true | — | Waterfall sounds |
 | enableWaterfallParticles | bool | true | — | Waterfall particles |
+| waterfallMaxVolume | double | 0.5 | 0–2 (slider) | Loudest a waterfall is allowed to get (0.5 = default) |
+| furnaceIgniteEnabled | bool | true | — | Crackle and ignite sound when a furnace starts burning |
+| enableEnchantTableSounds | bool | true | — | Page-turn sounds at an enchanting table |
 | waterRippleStyle | enum | PIXELATED_CIRCLE | NONE, PIXELATED_CIRCLE | Ripple style when a drop hits fluid |
 | enableMagmaSteam | bool | true | — | ☆ Steam/smoke when rain hits magma |
 
@@ -117,6 +121,7 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | enablePlayerToolbarEffect | bool | true | — | ☆ Player hotbar sound effects |
 | enableToolbarBlockSounds | bool | false | — | ☆ Sounds for blocks on the hotbar |
 | enableSwingEffect | bool | true | — | ☆ Item swing sounds (players and mobs) |
+| enableProjectileBreakSounds | bool | true | — | Impact sound when an arrow, egg, snowball or pearl breaks |
 | enableBrushStepEffect | bool | true | — | ☆ Walking through dense brush |
 | enablePlayerHeartbeatSound | bool | true | — | ☆ Heartbeat when health is low |
 | playerHurtThreshold | double | 0.25 | 0–1 | Health fraction below which heartbeat plays (0 = off) |
@@ -125,8 +130,10 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | enablePlayerJumpSound | bool | true | — | ☆ Jump sound |
 | enablePlayerLandSound | bool | true | — | ☆ Landing sound from a fall |
 | enableFootstepSounds | bool | true | — | ☆ Footstep sound system (walk/run materials) |
+| enableCreatureFootstepSounds | bool | true | — | Creature footsteps (per-creature material, cadence, landing and stop sounds) |
+| inferFootstepMaterial | bool | true | — | Guess the footstep sound for blocks from other mods from their name. Blocks with an explicit rule are never changed |
+| enableStopScuffSound | bool | true | — | Short scuff played when you stop or turn around suddenly |
 | enableCraftingSound | bool | true | — | ☆ Crafting sound |
-| suppressPotionParticles | bool | false | — | ☆ Hide the player's potion particles |
 | enableFootprints | bool | true | — | ☆ Player footprints while walking |
 | footprintStyle | enum | LOWRES_SQUARE | SHOE, SQUARE, HORSESHOE, BIRD, PAW, SQUARE_SOLID, LOWRES_SQUARE | Footprint style |
 | showCritWords | bool | true | — | ☆ Comic power word on critical hits |
@@ -137,6 +144,7 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | --- | --- | --- | --- |
 | enableAccents | bool | true | Footstep accents globally |
 | enableArmorAccents | bool | true | Armor accents |
+| inferArmorClass | bool | true | Guess an armor's weight class so armor from other mods gets an accent too. Armor with an explicit rule is never changed |
 | enableWetSurfaceAccents | bool | true | Accents when raining / waterlogged |
 | enableFloorSqueaks | bool | true | Squeaky-block accents |
 
@@ -144,28 +152,27 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
 | suppressProjectileParticleTrails | bool | false | Hide projectile particle trails |
+| suppressPotionParticles | bool | false | — | ☆ Hide the player's potion particles |
 
 #### 2.9 `compassAndClockOptions`
 | Option | Type | Default | Range | Notes |
 | --- | --- | --- | --- | --- |
 | enableClock | bool | true | — | Clock display when holding a clock |
 | enableCompass | bool | true | — | Compass display when holding a compass |
+| enableTreasureDistance | bool | true | — | Distance to the treasure target on explorer maps |
 | compassStyle | enum | TRANSPARENT_WITH_INDICATOR | OPAQUE, TRANSPARENT, OPAQUE_WITH_INDICATOR, TRANSPARENT_WITH_INDICATOR | Compass rendering style |
 | scale | double | 1.0 | 0.5–4 | Display scale |
+| enableLowDurabilityHighlight | bool | true | — | Highlight a hotbar item that is about to break |
+| lowDurabilityThreshold | int | 10 | 1–100 (slider) | Remaining durability at which that highlight appears |
 
-#### 2.10 `mapOptions`
-| Option | Type | Default | Notes |
-| --- | --- | --- | --- |
-| enableTreasureDistance | bool | true | Distance to treasure target on explorer maps |
-
-#### 2.11 `weatherOptions`
+#### 2.10 `weatherOptions`
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
 | enableDesertSandstorm | bool | true | Desert sandstorm dust + yellow tint |
 | enableNetherDust | bool | false | Nether dust rain effect |
 | enableBiomeFogColor | bool | true | Biome fog color tint (biomes.json fogColor) |
 
-#### 2.12 `fogOptions`
+#### 2.11 `fogOptions`
 | Option | Type | Default | Range | Notes |
 | --- | --- | --- | --- | --- |
 | enableFogEffects | bool | true | — | Fog effects master switch |
@@ -177,11 +184,11 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | morningFogStartHour | double | 5.0 | 0–24 | Morning fog start (hours of day) |
 | morningFogPeakHour | double | 6.0 | 0–24 | Morning fog peak (hours of day) |
 | morningFogEndHour | double | 8.0 | 0–24 | Morning fog end (hours of day) |
-| morningFogDensity | double | 1.0 | 0.25–4 (slider) | Morning fog density |
+| morningFogDensity | double | 4.0 | 0–4 (slider) | Morning fog haze scale (4.0 = default); higher means the mist reaches closer. Morning fog type follows the season sub-phase, so midsummer mornings have none |
 | biomeFogDensity | double | 1.0 | 0–2 (slider) | Biome fog density (0 = off) |
 | weatherFogDensity | double | 1.0 | 0.25–4 (slider) | Weather fog density |
 
-#### 2.13 `speechBubbles`
+#### 2.12 `speechBubbles`
 | Option | Type | Default | Range | Notes |
 | --- | --- | --- | --- | --- |
 | enableSpeechBubbles | bool | false | — | ☆ Chat bubbles above player heads |
@@ -189,12 +196,12 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | speechBubbleDuration | double | 7.0 | 5–15 | Seconds a bubble stays |
 | speechBubbleRange | int | 16 | 16–32 | Blocks a bubble is visible from |
 
-#### 2.14 `auroraOptions`
+#### 2.13 `auroraOptions`
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
 | enableAurora | bool | true | Aurora (northern lights) rendering |
 
-#### 2.15 `otherOptions`
+#### 2.14 `otherOptions`
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
 | playRandomSoundOnStartup | bool | true | Random sound when loading finishes to main screen |
@@ -437,6 +444,7 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | enableEnhancedSounds | 布尔 | true | — | ★ 增强音效处理（混响、遮挡） |
 | backgroundThreadWorkers | 整数 | 0 | 0–8（滑块） | ★ 后台线程数（0 = 内部默认） |
 | enableMonoConversion | 布尔 | true | — | 立体声实时转单声道 |
+| enableChannelReaper | 布尔 | false | — | **实验性**。尝试释放卡住的音效通道。可能会让游戏崩溃，因此默认关闭 |
 | enableOcclusionProcessing | 布尔 | false | — | 方块后声音变闷 |
 | reverbRays | 整数 | 32 | 16–64 | ★ 每个声音投射的射线数 |
 | reverbBounces | 整数 | 4 | 2–8 | ★ 每条射线反射次数 |
@@ -474,6 +482,9 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | waterfallsEnabled | 布尔 | true | — | 流水瀑布效果 |
 | enableWaterfallSounds | 布尔 | true | — | 瀑布声 |
 | enableWaterfallParticles | 布尔 | true | — | 瀑布粒子 |
+| waterfallMaxVolume | 双精度 | 0.5 | 0–2（滑块） | 瀑布音量的上限（0.5 = 默认） |
+| furnaceIgniteEnabled | 布尔 | true | — | 熔炉点火时的噼啪与点燃声 |
+| enableEnchantTableSounds | 布尔 | true | — | 附魔台翻书声 |
 | waterRippleStyle | 枚举 | PIXELATED_CIRCLE | NONE, PIXELATED_CIRCLE | 水滴落水面涟漪样式 |
 | enableMagmaSteam | 布尔 | true | — | ☆ 雨打岩浆/地狱岩蒸汽 |
 
@@ -486,6 +497,7 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | enablePlayerToolbarEffect | 布尔 | true | — | ☆ 玩家快捷栏音效 |
 | enableToolbarBlockSounds | 布尔 | false | — | ☆ 快捷栏方块音效 |
 | enableSwingEffect | 布尔 | true | — | ☆ 物品挥舞声（玩家与生物） |
+| enableProjectileBreakSounds | 布尔 | true | — | 箭、鸡蛋、雪球、末影珍珠破碎时的撞击声 |
 | enableBrushStepEffect | 布尔 | true | — | ☆ 穿过茂密灌木声 |
 | enablePlayerHeartbeatSound | 布尔 | true | — | ☆ 低血量心跳 |
 | playerHurtThreshold | 双精度 | 0.25 | 0–1 | 低于该血量比例触发心跳（0 关闭） |
@@ -494,8 +506,10 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | enablePlayerJumpSound | 布尔 | true | — | ☆ 起跳声 |
 | enablePlayerLandSound | 布尔 | true | — | ☆ 落地声 |
 | enableFootstepSounds | 布尔 | true | — | ☆ 脚步系统（材质行走/奔跑） |
+| enableCreatureFootstepSounds | 布尔 | true | — | 生物脚步声（按生物材质，含步频、落地与停步声） |
+| inferFootstepMaterial | 布尔 | true | — | 按名称推断其它模组方块的脚步声。已显式指定规则的方块不受影响 |
+| enableStopScuffSound | 布尔 | true | — | 急停或急转弯时播放的短促擦地声 |
 | enableCraftingSound | 布尔 | true | — | ☆ 合成声 |
-| suppressPotionParticles | 布尔 | false | — | ☆ 隐藏玩家药水粒子 |
 | enableFootprints | 布尔 | true | — | ☆ 行走脚印 |
 | footprintStyle | 枚举 | LOWRES_SQUARE | SHOE, SQUARE, HORSESHOE, BIRD, PAW, SQUARE_SOLID, LOWRES_SQUARE | 脚印样式 |
 | showCritWords | 布尔 | true | — | ☆ 暴击漫画字 |
@@ -506,6 +520,7 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | --- | --- | --- | --- |
 | enableAccents | 布尔 | true | 脚步点缀总开关 |
 | enableArmorAccents | 布尔 | true | 盔甲点缀 |
+| inferArmorClass | 布尔 | true | 按盔甲材质推断档位，让其它模组的盔甲也有踏步副音。已显式指定规则的盔甲不受影响 |
 | enableWetSurfaceAccents | 布尔 | true | 雨天/含水方块点缀 |
 | enableFloorSqueaks | 布尔 | true | 吱呀方块点缀 |
 
@@ -513,28 +528,27 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | 选项 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | suppressProjectileParticleTrails | 布尔 | false | 隐藏弹射物粒子尾迹 |
+| suppressPotionParticles | 布尔 | false | — | ☆ 隐藏玩家药水粒子 |
 
 #### 2.9 `compassAndClockOptions`（指南针与时钟）
 | 选项 | 类型 | 默认 | 范围 | 说明 |
 | --- | --- | --- | --- | --- |
 | enableClock | 布尔 | true | — | 手持时钟显示时间 |
 | enableCompass | 布尔 | true | — | 手持指南针显示方位 |
+| enableTreasureDistance | 布尔 | true | — | 藏宝图到宝藏目标的距离 |
 | compassStyle | 枚举 | TRANSPARENT_WITH_INDICATOR | OPAQUE, TRANSPARENT, OPAQUE_WITH_INDICATOR, TRANSPARENT_WITH_INDICATOR | 指南针渲染样式 |
 | scale | 双精度 | 1.0 | 0.5–4 | 显示缩放 |
+| enableLowDurabilityHighlight | 布尔 | true | — | 高亮即将损坏的快捷栏物品 |
+| lowDurabilityThreshold | 整数 | 10 | 1–100（滑块） | 触发高亮的剩余耐久值 |
 
-#### 2.10 `mapOptions`（地图）
-| 选项 | 类型 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| enableTreasureDistance | 布尔 | true | 藏宝图显示目标距离 |
-
-#### 2.11 `weatherOptions`（天气效果）
+#### 2.10 `weatherOptions`（天气效果）
 | 选项 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | enableDesertSandstorm | 布尔 | true | 沙漠沙尘暴 + 黄幕 |
 | enableNetherDust | 布尔 | false | 下界尘埃雨 |
 | enableBiomeFogColor | 布尔 | true | 群系雾色着色（biomes.json 的 fogColor） |
 
-#### 2.12 `fogOptions`（雾效）
+#### 2.11 `fogOptions`（雾效）
 | 选项 | 类型 | 默认 | 范围 | 说明 |
 | --- | --- | --- | --- | --- |
 | enableFogEffects | 布尔 | true | — | 雾效总开关 |
@@ -546,11 +560,11 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | morningFogStartHour | 双精度 | 5.0 | 0–24 | 晨雾开始时刻（小时） |
 | morningFogPeakHour | 双精度 | 6.0 | 0–24 | 晨雾峰值时刻 |
 | morningFogEndHour | 双精度 | 8.0 | 0–24 | 晨雾结束时刻 |
-| morningFogDensity | 双精度 | 1.0 | 0.25–4（滑块） | 晨雾密度 |
+| morningFogDensity | 双精度 | 4.0 | 0–4（滑块） | 晨雾浓度倍率（4.0 = 默认），数值越大雾越贴近；晨雾类型跟随季节子阶段，因此仲夏清晨没有晨雾 |
 | biomeFogDensity | 双精度 | 1.0 | 0–2（滑块） | 群系雾密度（0 关闭） |
 | weatherFogDensity | 双精度 | 1.0 | 0.25–4（滑块） | 天气雾密度 |
 
-#### 2.13 `speechBubbles`（聊天气泡）
+#### 2.12 `speechBubbles`（聊天气泡）
 | 选项 | 类型 | 默认 | 范围 | 说明 |
 | --- | --- | --- | --- | --- |
 | enableSpeechBubbles | 布尔 | false | — | ☆ 玩家头顶聊天气泡 |
@@ -558,12 +572,12 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | speechBubbleDuration | 双精度 | 7.0 | 5–15 | 气泡显示秒数 |
 | speechBubbleRange | 整数 | 16 | 16–32 | 气泡可见距离（格） |
 
-#### 2.14 `auroraOptions`（极光）
+#### 2.13 `auroraOptions`（极光）
 | 选项 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | enableAurora | 布尔 | true | 极光渲染 |
 
-#### 2.15 `otherOptions`（其它）
+#### 2.14 `otherOptions`（其它）
 | 选项 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |
 | playRandomSoundOnStartup | 布尔 | true | 加载完成进入主界面时播放随机音 |

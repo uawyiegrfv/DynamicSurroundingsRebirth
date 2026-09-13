@@ -36,7 +36,11 @@ public class VersionChecker implements IVersionChecker {
                         byte[] bytes = in.readAllBytes();
                         return new String(bytes, StandardCharsets.UTF_8);
                     } catch (Throwable t) {
-                        this.logger.error(t, "Unable to fetch version information from %s", this.modInfo.getUpdateUrl());
+                        // Being offline, or behind a proxy that re-signs TLS, is normal - and a
+                        // failed update check is nothing the player can act on. Logging it at
+                        // ERROR put a full stack trace in every such player's log and got
+                        // reported as a crash. The fetch result is unchanged: no update notice.
+                        this.logger.debug(t, "Unable to fetch version information from %s", this.modInfo.getUpdateUrl());
                     }
                     return null;
                 });

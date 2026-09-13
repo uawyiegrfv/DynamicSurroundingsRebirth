@@ -43,20 +43,25 @@ public final class MaterialInference {
     private static final IModLog LOGGER = Library.LOGGER;
 
     /**
-     * Keyword to material, most specific first ({@code raw_copper} has to be tested before
-     * {@code copper}). Keys are matched against the block's registry path.
+     * Keyword to footstep factory path, most specific first ({@code raw_copper} has to be
+     * tested before {@code copper}). Keys are matched against the block's registry path.
+     * Values are complete factory paths, not just a material suffix: most materials live
+     * under {@code footsteps.}, but the ones the port models as a <em>combination</em> have
+     * a namespace of their own and the table has to be able to reach them. Obsidian is the
+     * case in point - it is a lowered stone body plus a lino layer, so pointing at
+     * {@code footsteps.lino} here would drop the stone layer entirely.
      */
     private static final List<Map.Entry<String, String>> KEYWORDS = List.of(
-            Map.entry("raw_copper", "copper"),
-            Map.entry("sandstone", "concrete"),
-            Map.entry("limestone", "marble"),
-            Map.entry("permafrost", "marble"),
-            Map.entry("marble", "marble"),
-            Map.entry("jasper", "marble"),
-            Map.entry("shale", "marble"),
-            Map.entry("obsidian", "lino"),
-            Map.entry("copper", "copper"),
-            Map.entry("thatch", "leaves_through"));
+            Map.entry("raw_copper", "footsteps.copper"),
+            Map.entry("sandstone", "footsteps.concrete"),
+            Map.entry("limestone", "footsteps.marble"),
+            Map.entry("permafrost", "footsteps.marble"),
+            Map.entry("marble", "footsteps.marble"),
+            Map.entry("jasper", "footsteps.marble"),
+            Map.entry("shale", "footsteps.marble"),
+            Map.entry("obsidian", "obsidian/stone"),
+            Map.entry("copper", "footsteps.copper"),
+            Map.entry("thatch", "footsteps.leaves_through"));
 
     /**
      * A name containing one of these is very unlikely to be the material it otherwise
@@ -106,7 +111,7 @@ public final class MaterialInference {
             if (!matchesWord(path, entry.getKey()))
                 continue;
             final var factory = Identifier.fromNamespaceAndPath(Constants.MOD_ID,
-                    "footsteps." + entry.getValue());
+                    entry.getValue());
             if (REPORTED.size() < REPORT_CAP && REPORTED.add(key))
                 LOGGER.debug(Configuration.Flags.RESOURCE_LOADING,
                         "Inferred footstep material '%s' for %s from the block name ('%s')",

@@ -334,9 +334,9 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         // Material scuff on take-off. The 1.12.2 generic "grunt" layer is skipped -
         // a human grunt on a cow would be wrong; quadruped variators enable this.
         FootstepGenerator.resolveMaterial(entity).ifPresent(material -> {
-            var wanderLoc = FootstepGenerator.resolveWanderSound(material);
-            if (wanderLoc != null)
-                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(wanderLoc)
+            var jumpLoc = FootstepGenerator.resolveJumpSound(material);
+            if (jumpLoc != null)
+                this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(jumpLoc)
                         .createAtLocation(entity.blockPosition(), var.volumeScale() * dsVolume()));
         });
     }

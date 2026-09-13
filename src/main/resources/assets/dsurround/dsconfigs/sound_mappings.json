@@ -494,6 +494,16 @@
         "factory": "dsurround:footsteps.lino"
       },
       {
+        "blocks": [
+          "minecraft:activator_rail",
+          "minecraft:detector_rail",
+          "minecraft:powered_rail",
+          "minecraft:rail"
+        ],
+        "_comment": "【1.12.2 材质补齐 rails】铁轨在 1.12.2 是独立材质：walk/jump/land 三个成员都是 metalbar_run，音量刻意压到 0.2（比铁栏杆还轻）。这里直接用现成的 footsteps.metalbar_run。",
+        "factory": "dsurround:footsteps.metalbar_run"
+      },
+      {
         "factory": "dsurround:footsteps.metalbox"
       }
     ]
@@ -713,6 +723,13 @@
     "soundEvent": "minecraft:block.sculk_vein.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:sculk_vein"
+        ],
+        "_comment": "\u30101.12.2 材质补齐】幽匿脉络没有碰撞箱，原版的碰撞取面看不到它，会误报成下方方块。把它写成显式规则，让取面逻辑能认出来（音效不变）。",
+        "factory": "dsurround:footsteps.sculk_vein"
+      },
+      {
         "factory": "dsurround:footsteps.sculk_vein"
       }
     ]
@@ -855,6 +872,23 @@
         ]
       },
       {
+        "blocks": [
+          "minecraft:piston_head"
+        ],
+        "_comment": "【1.12.2 材质补齐 piston_head】普通活塞头 = wood（单层 wood_walk）。注意活塞底座 minecraft:piston 是 stonemachine，不要混。",
+        "factory": "dsurround:footsteps.wood"
+      },
+      {
+        "blocks": [
+          "minecraft:sticky_piston_head"
+        ],
+        "_comment": "【1.12.2 材质补齐 wood_sticky】黏性活塞头的黏面就是黏液球，所以 1.12.2 给了它独立材质：walk = wood_walk ⊕ mud_walk（各 50）。",
+        "factory": "dsurround:footsteps.wood",
+        "accent": [
+          "dsurround:footstep_accent/mud_soft"
+        ]
+      },
+      {
         "factory": "dsurround:footsteps.stone"
       }
     ]
@@ -918,6 +952,13 @@
   {
     "soundEvent": "minecraft:block.vine.step",
     "rules": [
+      {
+        "blocks": [
+          "minecraft:glow_lichen"
+        ],
+        "_comment": "\u30101.12.2 材质补齐】发光地衣与藤蔓共用 block.vine.step，但它没有碰撞箱、也不会被穿行效果处理，所以单独列出来让取面能认出（音效不变）。",
+        "factory": "dsurround:footsteps.brush_through"
+      },
       {
         "factory": "dsurround:footsteps.brush_through"
       }

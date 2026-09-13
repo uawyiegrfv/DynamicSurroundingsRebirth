@@ -318,6 +318,12 @@ public final class SoundLibrary implements ISoundLibrary {
         return Optional.empty();
     }
 
+    @Override
+    public boolean hasExplicitRemap(SoundEvent event, @Nullable BlockState state) {
+        var mappingRule = this.soundRemappings.get(event.location());
+        return mappingRule != null && mappingRule.findMatch(state).map(SoundMapping.Mapping.MatchResult::explicit).orElse(false);
+    }
+
     private void registerSoundFile(DiscoveredResource<Map<String, SoundMetadataConfig>> soundFile) {
         var result = soundFile.resourceContent();
         result.forEach((key, value) -> {

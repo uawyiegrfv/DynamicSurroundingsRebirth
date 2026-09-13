@@ -503,12 +503,6 @@
     },
 
     {
-        "location":  "dsurround:shroomlight",
-        "soundEvent":  "dsurround:shroomlight",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
         "location":  "dsurround:footsteps.bone",
         "soundEvent":  "dsurround:footsteps.bone",
         "category":  "PLAYER",

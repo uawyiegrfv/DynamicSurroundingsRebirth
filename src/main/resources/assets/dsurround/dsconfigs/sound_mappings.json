@@ -324,7 +324,7 @@
     ]
   },
   {
-    "_comment": "玻璃材质说明（改这块之前务必读完）：1.12.2 mcp.json 的 glass acoustic 是 walk = wood_walk + glass_hit(pitch 0.95~1.05) 两层【同时】播放；land = wood_walk + glass_hard@0.5 + 延迟30ms 的 wood_walk / glass_hit。也就是说玻璃的主体是木头，叮当只是副音 —— 踩上去是「木板上洒了碎玻璃」的声音。所以文件末尾那条玻璃默认规则的 factory 必须是 dsurround:footsteps.wood，dsurround:footsteps.glass 只能出现在 accent 里。若把 factory 改成 footsteps.glass，叮当会响两遍且木头主体完全消失，那不是修复而是回归（2026-09-11 的 abf3968 就是这么错的）。",
+    "_comment": "玻璃材质说明（改这块之前务必读完）：1.12.2 mcp.json 的 glass acoustic 是 walk = wood_walk + glass_hit(pitch 0.95~1.05) 两层【同时】播放；land = wood_walk + glass_hard@0.5 + 延迟30ms 的 wood_walk / glass_hit。也就是说玻璃的主体是木头，叮当只是副音 —— 踩上去是「木板上洒了碎玻璃」的声音。所以文件末尾那条玻璃默认规则的 factory 必须是 dsurround:footsteps.wood，玻璃只能作为 accent 出现（现指向 dsurround:footstep_accent/glass，专为还原 1.12.2 的 pitch 0.95~1.05 而设）。若把 factory 改成 footsteps.glass，叮当会响两遍且木头主体完全消失，那不是修复而是回归（2026-09-11 的 abf3968 就是这么错的）。",
     "soundEvent": "minecraft:block.glass.step",
     "rules": [
       {
@@ -350,7 +350,7 @@
       {
         "factory": "dsurround:footsteps.wood",
         "accent": [
-          "dsurround:footsteps.glass"
+          "dsurround:footstep_accent/glass"
         ]
       }
     ]
@@ -1243,7 +1243,7 @@
         ],
         "factory": "dsurround:footsteps.wood",
         "accent": [
-          "dsurround:footsteps.glass"
+          "dsurround:footstep_accent/glass"
         ]
       }
     ]
@@ -1295,7 +1295,7 @@
         ],
         "factory": "dsurround:footsteps.wood",
         "accent": [
-          "dsurround:footsteps.glass"
+          "dsurround:footstep_accent/glass"
         ]
       }
     ]

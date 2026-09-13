@@ -651,6 +651,20 @@
                   }
     },
     {
+        "_comment":  "【1.12.2 音高还原】mcp.json 的 glass acoustic 要求玻璃副音（glass_hit）用 pitch 0.95~1.05，但 dsurround:footsteps.glass 这个 location 同时兼作蜡烛/饰纹陶罐的主材质、音高是 0.8~1.2。给副音单独一个 location，改副音就不会连带改到主材质。",
+        "location":  "dsurround:footstep_accent/glass",
+        "soundEvent":  "dsurround:footsteps.glass",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.95,
+                      "max":  1.05
+                  }
+    },
+    {
         "location":  "dsurround:footsteps.metalbox",
         "soundEvent":  "dsurround:footsteps.metalbox",
         "category":  "PLAYER",

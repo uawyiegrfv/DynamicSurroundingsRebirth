@@ -378,6 +378,20 @@
                   }
     },
     {
+        "_comment":  "【蜡烛材质】蜡烛的 step sound 是 block.candle.step，原本落到默认的 glass —— 走上去像踩碎玻璃。蜡烛是蜡：硬、闷、而且该轻。这里用 stone 录音压低到 0.55~0.70 并把音量降到 0.5~0.6，得到一个闷而轻的叩击声。",
+        "location":  "dsurround:footsteps.candle",
+        "soundEvent":  "dsurround:footsteps.stone",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.55,
+                      "max":  0.7
+                  },
+        "volume":  {
+                       "min":  0.5,
+                       "max":  0.6
+                   }
+    },
+    {
         "location":  "dsurround:footsteps.stone",
         "soundEvent":  "dsurround:footsteps.stone",
         "category":  "PLAYER",

@@ -22,6 +22,19 @@
     "soundEvent": "minecraft:block.amethyst_cluster.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:large_amethyst_bud",
+          "minecraft:medium_amethyst_bud",
+          "minecraft:amethyst_cluster",
+          "minecraft:small_amethyst_bud"
+        ],
+        "_comment": "【紫水晶晶体材质】晶簇本身是晶体，原本主体是 stone（闷响）只靠 accent 出叮当。主体改为 marble（清脆族），紫水晶钟声仍由 accent 提供。",
+        "factory": "dsurround:footsteps.marble",
+        "accent": [
+          "dsurround:footstep_accent/amethyst"
+        ]
+      },
+      {
         "factory": "dsurround:footsteps.stone",
         "accent": [
           "dsurround:footstep_accent/amethyst"
@@ -113,6 +126,29 @@
     "soundEvent": "minecraft:block.candle.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:black_candle",
+          "minecraft:blue_candle",
+          "minecraft:brown_candle",
+          "minecraft:candle",
+          "minecraft:cyan_candle",
+          "minecraft:gray_candle",
+          "minecraft:green_candle",
+          "minecraft:light_blue_candle",
+          "minecraft:light_gray_candle",
+          "minecraft:lime_candle",
+          "minecraft:magenta_candle",
+          "minecraft:orange_candle",
+          "minecraft:pink_candle",
+          "minecraft:purple_candle",
+          "minecraft:red_candle",
+          "minecraft:white_candle",
+          "minecraft:yellow_candle"
+        ],
+        "_comment": "【蜡烛材质】17 种蜡烛共用 block.candle.step。原本落到默认的 glass（碎玻璃叮当），改成专用的 footsteps.candle（stone 录音压低 + 降音量 = 闷而轻的叩击）。",
+        "factory": "dsurround:footsteps.candle"
+      },
+      {
         "factory": "dsurround:footsteps.glass"
       }
     ]
@@ -192,6 +228,13 @@
   {
     "soundEvent": "minecraft:block.coral_block.step",
     "rules": [
+      {
+        "blocks": [
+          "minecraft:honeycomb_block"
+        ],
+        "_comment": "【蜂巢块材质】蜂巢块是蜡质（和蜡烛同源），原本落到珊瑚块共用的默认 stone。改用 footsteps.candle 的闷叩击。",
+        "factory": "dsurround:footsteps.candle"
+      },
       {
         "factory": "dsurround:footsteps.stone"
       }
@@ -415,6 +458,13 @@
     "soundEvent": "minecraft:block.heavy_core.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:heavy_core"
+        ],
+        "_comment": "【重核材质】重核是一整块金属（锤头），原本落到 stone。改用金属箱材质。",
+        "factory": "dsurround:footsteps.metalbox"
+      },
+      {
         "factory": "dsurround:footsteps.stone"
       }
     ]
@@ -470,6 +520,13 @@
   {
     "soundEvent": "minecraft:block.mangrove_roots.step",
     "rules": [
+      {
+        "blocks": [
+          "minecraft:mangrove_roots"
+        ],
+        "_comment": "【1.12.2 材质补齐 mangrove_roots】红树根是木质方块，原版给它单独的 block.mangrove_roots.step。1.12.2 的 log acoustic = wood_walk 压低到 0.55~0.60，正好对应「木头但更闷」，所以走 log 而不是普通 wood（0.8~1.2）。",
+        "factory": "dsurround:footsteps.log"
+      },
       {
         "factory": "dsurround:footsteps.wood"
       }

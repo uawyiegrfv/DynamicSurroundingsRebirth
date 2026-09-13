@@ -52,8 +52,10 @@ public final class BubbleCommand {
             Network.sendBubbleToPlayer(recipient, message);
             recipients++;
         }
-        LOGGER.info("[BUBBLE-DBG] server: {} -> \"{}\" ({}s), recipients={}",
-                sender.getName().getString(), text, BUBBLE_SECONDS, recipients);
+        // SLF4J logger (not IModLog): {} placeholders, and debug() is level-gated already.
+        // The broadcast used to be logged at INFO on every /bubble, tagged as a debug line.
+        LOGGER.debug("Bubble from {} to {} player(s) within {} blocks: \"{}\" ({}s)",
+                sender.getName().getString(), recipients, BROADCAST_RADIUS, text, BUBBLE_SECONDS);
         return 1;
     }
 }

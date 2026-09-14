@@ -1078,7 +1078,7 @@
         "accent": [
           "dsurround:footstep_accent/mud_quiet"
         ],
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsurround:footsteps.wood_sticky"
       },
       {
         "blocks": [

@@ -477,7 +477,8 @@
         ],
         "factory": "dsurround:footsteps.stone",
         "accent": [
-          "dsurround:footstep_accent/muffledice"
+          "dsurround:footstep_accent/muffledice",
+          "dsurround:footstep_accent/weakice"
         ]
       },
       {
@@ -1078,6 +1079,13 @@
           "dsurround:footstep_accent/mud_quiet"
         ],
         "factory": "dsurround:footsteps.wood"
+      },
+      {
+        "blocks": [
+          "minecraft:bedrock"
+        ],
+        "_comment": "【1.12.2 材质补齐 bedrock】基岩 = stone 录音压低到 55~60，见 footsteps.bedrock 的注释；land 与 stone 同一套合成。",
+        "factory": "dsurround:footsteps.bedrock"
       },
       {
         "factory": "dsurround:footsteps.stone"

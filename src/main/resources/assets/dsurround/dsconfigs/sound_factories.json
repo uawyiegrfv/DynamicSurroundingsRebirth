@@ -402,20 +402,6 @@
                   }
     },
     {
-        "_comment":  "【蜡烛材质】蜡烛的 step sound 是 block.candle.step，原本落到默认的 glass —— 走上去像踩碎玻璃。蜡烛是蜡：硬、闷、而且该轻。这里用 stone 录音压低到 0.55~0.70 并把音量降到 0.5~0.6，得到一个闷而轻的叩击声。",
-        "location":  "dsurround:footsteps.candle",
-        "soundEvent":  "dsurround:footsteps.stone",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.55,
-                      "max":  0.7
-                  },
-        "volume":  {
-                       "min":  0.5,
-                       "max":  0.6
-                   }
-    },
-    {
         "location":  "dsurround:footsteps.stone",
         "soundEvent":  "dsurround:footsteps.stone",
         "category":  "PLAYER",
@@ -512,6 +498,27 @@
                        "min":  0.9,
                        "max":  1.0
                    }
+    },
+    {
+        "_comment":  "【沿用原版特殊脚步声 - 落地】落地沿用同一段原版录音：音量抬到 1.2~1.35 做重落区分，pitch 压低 0.85~0.95。与 1.12.2「落地比走路更沉」的一贯取向一致（对照 log 的 0.55~0.60 与各材质的 land 层）。",
+        "location":  "dsurround:footsteps.mangrove_roots_land",
+        "soundEvent":  "minecraft:block.mangrove_roots.step",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.85,
+                      "max":  0.95
+                  },
+        "volume":  {
+                      "min":  1.2,
+                      "max":  1.35
+                  }
+    },
+    {
+        "_comment":  "【沿用原版特殊脚步声】1.12.2 的素材库里没有红树根这类方块，硬套任何一段都会跑味。做法同 footstep_accent/amethyst 借用 minecraft:block.amethyst_block.break：直接引用原版的 block.mangrove_roots.step，音量归一为 1.0（原版该音效本身偏轻，先归一再交由脚步总音量统一控制）。",
+        "location":  "dsurround:footsteps.mangrove_roots",
+        "soundEvent":  "minecraft:block.mangrove_roots.step",
+        "category":  "PLAYER",
+        "volume":  1.0
     },
     {
         "location":  "dsurround:footsteps.bluntwood",
@@ -914,11 +921,11 @@
         "volume":  0.8
     },
     {
-        "_comment":  "【1.12.2 材质补齐 wood_sticky】黏性活塞头的 walk = wood_walk ⊕ mud_walk，1.12.2 两层都是 vol 50（各半）。accent 走的是不乘玩家 variator 的路径，所以按本文件既有的等响折算取 0.5 × 0.9 = 0.45，才能保持原来 1:1 的比例。",
-        "location":  "dsurround:footstep_accent/mud_soft",
+        "_comment":  "【1.12.2 造法的 50/50 副音】1.12.2 的 organic 是 dirt 主体 ⊕ mud 副音，两层等额。副音走的是不乘玩家 variator 的路径，所以副音音量取主体的 0.5 倍；footsteps.organic 主体被有意归一到 0.4~0.45，故取 0.2，即 0.5 × 0.425 的 1.12.2 比例。",
+        "location":  "dsurround:footstep_accent/mud_quiet",
         "soundEvent":  "dsurround:footsteps.mud",
         "category":  "PLAYER",
-        "volume":  0.45
+        "volume":  0.2
     },
     {
         "location":  "dsurround:footsteps.organic_dry",

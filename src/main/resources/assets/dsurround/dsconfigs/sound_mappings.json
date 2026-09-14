@@ -317,6 +317,13 @@
     "soundEvent": "minecraft:block.decorated_pot.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:decorated_pot"
+        ],
+        "_comment": "【饰纹陶罐】陶罐是陶土制品，原本落到 glass（碎玻璃叮当）不合理。1.12.2 把陶土/黏土归到 brickstone（brickstone 的定义本身就是 concrete 录音），所以改走 brickstone/concrete。",
+        "factory": "dsurround:brickstone/concrete"
+      },
+      {
         "factory": "dsurround:footsteps.glass"
       }
     ]
@@ -902,6 +909,13 @@
   {
     "soundEvent": "minecraft:block.slime_block.step",
     "rules": [
+      {
+        "blocks": [
+          "minecraft:sea_pickle"
+        ],
+        "_comment": "【海泡菜】海泡菜是软体水生植物，原本因为共用 slime_block 的 SoundType 而继承了 footsteps.slime（vol 1.0）。改走 grass —— 它是最轻最软的一族（vol 0.5），符合「柔软植物」应有的听感。slime_block 本身仍是 footsteps.slime。",
+        "factory": "dsurround:footsteps.grass"
+      },
       {
         "factory": "dsurround:footsteps.slime"
       }

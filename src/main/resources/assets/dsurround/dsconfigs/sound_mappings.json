@@ -281,13 +281,6 @@
       },
       {
         "blocks": [
-          "#minecraft:coral_blocks"
-        ],
-        "_comment": "【珊瑚块】珊瑚是活体，不是石头。原本继承 coral_block.step 的默认 stone。改走 organic（1.12.2 的「软有机质」造法）。用 #minecraft:coral_blocks，模组珊瑚自动生效。",
-        "factory": "dsurround:footsteps.organic"
-      },
-      {
-        "blocks": [
           "minecraft:honeycomb_block"
         ],
         "_comment": "【1.12.2 造法还原 - 蜂巢块】蜡质=干而硬的有机质。1.12.2 的 organic 就是 dirt 主体 ⊕ mud 副音（两层等额），这里照搬它的构造。",
@@ -1139,16 +1132,6 @@
   {
     "soundEvent": "minecraft:block.wet_grass.step",
     "rules": [
-      {
-        "blocks": [
-          "#minecraft:corals"
-        ],
-        "_comment": "【珊瑚/珊瑚扇】湿草 SoundType 原本整体映射到 grass（因为草方块也用这个事件）。珊瑚是活体 + 丛生，改 organic 主体 + 灌木副音，并用 #minecraft:corals 覆盖模组珊瑚。",
-        "accent": [
-          "dsurround:footstep_accent/brush"
-        ],
-        "factory": "dsurround:footsteps.organic"
-      },
       {
         "factory": "dsurround:footsteps.grass"
       }

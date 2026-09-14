@@ -1143,6 +1143,43 @@
         ]
       },
       {
+        "blocks": [
+          "minecraft:bricks",
+          "minecraft:brick_slab",
+          "minecraft:brick_stairs"
+        ],
+        "_comment": "【1.12.2 材质补齐 brickstone - 砖】1.12.2 的 brickstone 就含砖方块与砖台阶。",
+        "factory": "dsurround:brickstone/concrete"
+      },
+      {
+        "blocks": [
+          "#minecraft:stone_bricks"
+        ],
+        "_comment": "【1.12.2 材质补齐 brickstone - 石砖族】用原版标签 #minecraft:stone_bricks（石砖/苔石砖/裂石砖/雕纹石砖），模组同族方块进标签即生效。",
+        "factory": "dsurround:brickstone/concrete"
+      },
+      {
+        "blocks": [
+          "#minecraft:terracotta"
+        ],
+        "_comment": "【1.12.2 材质补齐 brickstone - 陶土】1.12.2 把陶土归在 brickstone 系；移植版把 17 种陶土都落在默认的 stone 上，听感是石头而不是陶土。用原版标签 #minecraft:terracotta。",
+        "factory": "dsurround:brickstone/concrete"
+      },
+      {
+        "blocks": [
+          "#c:glazed_terracottas"
+        ],
+        "_comment": "【1.12.2 材质补齐 brickstone - 带釉陶瓦】同理，用通用标签 #c:glazed_terracottas。",
+        "factory": "dsurround:brickstone/concrete"
+      },
+      {
+        "blocks": [
+          "#dsurround:effects/brickstone_family"
+        ],
+        "_comment": "【1.12.2 材质补齐 brickstone - 其余成员】1.12.2 的 brickstone 还含紫珀、海晶石砖、末地石砖、蠹虫石砖、花盆等；这些没有合适的原版/通用标签，故放入本模组的 #dsurround:effects/brickstone_family，模组可自行扩展。",
+        "factory": "dsurround:brickstone/concrete"
+      },
+      {
         "factory": "dsurround:footsteps.stone"
       }
     ]
@@ -1545,16 +1582,23 @@
         "blocks": [
           "minecraft:bricks",
           "minecraft:brick_slab",
-          "minecraft:stone_bricks",
-          "minecraft:stone_brick_slab",
-          "minecraft:smooth_stone_slab",
-          "minecraft:end_stone_bricks",
-          "minecraft:infested_stone",
-          "minecraft:purpur_block",
-          "minecraft:purpur_pillar",
-          "minecraft:purpur_slab",
-          "minecraft:purpur_stairs"
+          "minecraft:brick_stairs"
         ],
+        "_comment": "【1.12.2 材质补齐 brickstone - 砖】1.12.2 的 brickstone 就含砖方块与砖台阶。",
+        "factory": "dsurround:brickstone/concrete"
+      },
+      {
+        "blocks": [
+          "#minecraft:stone_bricks"
+        ],
+        "_comment": "【1.12.2 材质补齐 brickstone - 石砖族】用原版标签 #minecraft:stone_bricks（石砖/苔石砖/裂石砖/雕纹石砖），模组同族方块进标签即生效。",
+        "factory": "dsurround:brickstone/concrete"
+      },
+      {
+        "blocks": [
+          "#c:glazed_terracottas"
+        ],
+        "_comment": "【1.12.2 材质补齐 brickstone - 带釉陶瓦】同理，用通用标签 #c:glazed_terracottas。",
         "factory": "dsurround:brickstone/concrete"
       },
       {

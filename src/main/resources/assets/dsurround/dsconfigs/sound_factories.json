@@ -415,6 +415,20 @@
                    }
     },
     {
+        "_comment":  "【1.12.2 材质补齐 bedrock】1.12.2 的 bedrock = stone 录音【压低到 55~60】（walk/run 都是），land = concrete_run ⊕ stone_walk@50 ⊕ 延迟50 stone_run。移植版之前把基岩挂在默认的 stone（65~70）上，听感与普通石头几乎没区别；这里按 1.12.2 原值压到 0.55~0.60 —— 这就是它「更沉、更大块」的来源。land 复用 footprints.stone 的 LAND_COMPOSITIONS（构建方式逐字相同），无需改 Java。",
+        "location":  "dsurround:footsteps.bedrock",
+        "soundEvent":  "dsurround:footsteps.stone",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.55,
+                      "max":  0.6
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
         "_comment":  "【滴水石变调】滴水石是【可溶石灰岩】，多孔、比实心石头软。同一段 stone 录音再压低一档到 0.60~0.70、音量降到 0.80~0.90（stone 本身已是 0.65~0.70）。",
         "location":  "dsurround:footsteps.dripstone",
         "soundEvent":  "dsurround:footsteps.stone",
@@ -1193,6 +1207,20 @@
                       "min":  0.65,
                       "max":  0.7
                   }
+    },
+    {
+        "_comment":  "【bedrock 的 run 层】1.12.2 的 bedrock run 同样是 stone_run 压到 55~60。移植版的 _run 是从材质自身路径推导的，所以必须显式注册这个 location。",
+        "location":  "dsurround:footsteps.bedrock_run",
+        "soundEvent":  "dsurround:footsteps.stone_run",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.55,
+                      "max":  0.6
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
     },
     {
         "location":  "dsurround:footsteps.concrete_run",

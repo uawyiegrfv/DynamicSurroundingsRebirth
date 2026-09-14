@@ -114,6 +114,13 @@
     "soundEvent": "minecraft:block.bamboo_wood.step",
     "rules": [
       {
+        "blocks": [
+          "#c:ladders"
+        ],
+        "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
+        "factory": "dsurround:footsteps/ladder"
+      },
+      {
         "factory": "dsurround:footsteps.wood"
       }
     ]
@@ -237,6 +244,13 @@
     "soundEvent": "minecraft:block.cherry_wood.step",
     "rules": [
       {
+        "blocks": [
+          "#c:ladders"
+        ],
+        "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
+        "factory": "dsurround:footsteps/ladder"
+      },
+      {
         "factory": "dsurround:footsteps.wood"
       }
     ]
@@ -306,6 +320,16 @@
           "dsurround:footstep_accent/mud_quiet"
         ],
         "factory": "dsurround:footsteps.organic_dry"
+      },
+      {
+        "blocks": [
+          "#minecraft:coral_blocks"
+        ],
+        "_comment": "【珊瑚块 - 湿软层】活的珊瑚块 = 硬壳 + 湿软活体。主体保持石头（硬骨架），副音加一层轻泥做出湿润感。用 #minecraft:coral_blocks，失活珊瑚不在这个标签里，天然排除。",
+        "factory": "dsurround:footsteps.organic",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ]
       },
       {
         "factory": "dsurround:footsteps.stone"
@@ -590,6 +614,13 @@
     "soundEvent": "minecraft:block.ladder.step",
     "rules": [
       {
+        "blocks": [
+          "#c:ladders"
+        ],
+        "_comment": "【梯子同步原版】1.12.2 的 ladder 材质就是 @block.ladder.step（直接引用原版梯子音效）。移植版给 minecraft:ladder 单独挂了 footsteps.bluntwood（非原版），模组梯子（Quark 等 14 个）又各自继承所属木质家族的事件，两边都不对。用 #c:ladders 统一到 footsteps/ladder（= bluntwood 录音 pitch 1.3~1.4，正对应 1.12.2 的 ladder walk = bluntwood_walk p130~140）。",
+        "factory": "dsurround:footsteps/ladder"
+      },
+      {
         "factory": "dsurround:footsteps/ladder"
       }
     ]
@@ -658,8 +689,11 @@
           "minecraft:powered_rail",
           "minecraft:rail"
         ],
-        "_comment": "【1.12.2 材质补齐 rails】铁轨在 1.12.2 是独立材质：walk/jump/land 三个成员都是 metalbar_run，音量刻意压到 0.2（比铁栏杆还轻）。这里直接用现成的 footsteps.metalbar_run。",
-        "factory": "dsurround:footsteps.metalbar_run"
+        "_comment": "【铁轨 - 木枕层】主体仍是被刻意压到 vol 0.2 的 metalbar_run（1.12.2 原值），副音加一层轻木（rail_plank），构成「闷木打底 + 轻金属」的层次。",
+        "factory": "dsurround:footsteps.metalbar_run",
+        "accent": [
+          "dsurround:footstep_accent/rail_plank"
+        ]
       },
       {
         "factory": "dsurround:footsteps.metalbox"
@@ -751,6 +785,13 @@
   {
     "soundEvent": "minecraft:block.nether_wood.step",
     "rules": [
+      {
+        "blocks": [
+          "#c:ladders"
+        ],
+        "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
+        "factory": "dsurround:footsteps/ladder"
+      },
       {
         "factory": "dsurround:footsteps.wood"
       }
@@ -1003,6 +1044,13 @@
     "soundEvent": "minecraft:block.stem.step",
     "rules": [
       {
+        "blocks": [
+          "#c:ladders"
+        ],
+        "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
+        "factory": "dsurround:footsteps/ladder"
+      },
+      {
         "factory": "dsurround:footsteps.wood"
       }
     ]
@@ -1065,27 +1113,34 @@
       },
       {
         "blocks": [
-          "minecraft:piston_head"
-        ],
-        "_comment": "【1.12.2 材质补齐 piston_head】普通活塞头 = wood（单层 wood_walk）。注意活塞底座 minecraft:piston 是 stonemachine，不要混。",
-        "factory": "dsurround:footsteps.wood"
-      },
-      {
-        "blocks": [
-          "minecraft:sticky_piston_head"
-        ],
-        "_comment": "【1.12.2 材质补齐 wood_sticky】黏性活塞头的黏面就是黏液球，所以 1.12.2 给了它独立材质：walk = wood_walk ⊗ mud_walk（各 50）。副音音量按 1.12.2 的两层等额折算。",
-        "accent": [
-          "dsurround:footstep_accent/mud_quiet"
-        ],
-        "factory": "dsurround:footsteps.wood_sticky"
-      },
-      {
-        "blocks": [
           "minecraft:bedrock"
         ],
         "_comment": "【1.12.2 材质补齐 bedrock】基岩 = stone 录音压低到 55~60，见 footsteps.bedrock 的注释；land 与 stone 同一套合成。",
         "factory": "dsurround:footsteps.bedrock"
+      },
+      {
+        "blocks": [
+          "minecraft:beacon"
+        ],
+        "_comment": "【信标】1.12.2 把 beacon 归到 glass 材质。移植版那条 beacon 规则错挂在 block.glass.step 下，而信标自己的 step sound 是 block.stone.step，规则永远命中不到，实际播的是默认 stone。这里挂到正确的入口。",
+        "factory": "dsurround:footsteps.glass"
+      },
+      {
+        "blocks": [
+          "minecraft:piston_head[type=normal]"
+        ],
+        "_comment": "【活塞头 - 普通】1.12.2 的 piston_head[type=normal] = wood。必须写成【方块状态】匹配：现代版没有 sticky_piston_head 这个方块，type 是 piston_head 的状态，写不存在的方块 ID 会被静默吃掉（MatchOnNothing，只留一行 warn）。",
+        "factory": "dsurround:footsteps.wood"
+      },
+      {
+        "blocks": [
+          "minecraft:piston_head[type=sticky]"
+        ],
+        "_comment": "【活塞头 - 黏性】1.12.2 的 piston_head[type=sticky] = wood_sticky（木主体 ⊕ 泥副音，黏性活塞头的黏面就是黏液球）。同样必须用方块状态匹配。",
+        "factory": "dsurround:footsteps.wood_sticky",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ]
       },
       {
         "factory": "dsurround:footsteps.stone"
@@ -1260,18 +1315,17 @@
     "rules": [
       {
         "blocks": [
+          "#c:ladders"
+        ],
+        "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
+        "factory": "dsurround:footsteps/ladder"
+      },
+      {
+        "blocks": [
           "#minecraft:logs",
           "#c:logs"
         ],
         "factory": "dsurround:footsteps.log"
-      },
-      {
-        "blocks": [
-          "#minecraft:fences",
-          "#c:fences",
-          "minecraft:ladder"
-        ],
-        "factory": "dsurround:footsteps.bluntwood"
       },
       {
         "blocks": [

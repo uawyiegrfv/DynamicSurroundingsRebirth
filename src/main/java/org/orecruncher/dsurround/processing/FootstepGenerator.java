@@ -17,6 +17,7 @@ import org.orecruncher.dsurround.eventing.ClientEventHooks;
 import org.orecruncher.dsurround.eventing.CollectDiagnosticsEvent;
 import org.jetbrains.annotations.Nullable;
 import org.orecruncher.dsurround.lib.config.ConfigurationData;
+import org.orecruncher.dsurround.config.libraries.ITagLibrary;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
@@ -208,6 +209,15 @@ public class FootstepGenerator extends AbstractClientHandler {
     private static final Map<String, ResourceLocation> JUMP_OVERRIDES = Map.ofEntries(
             Map.entry("footsteps.metalbar", fs("footsteps.metalbar_wander")),
             Map.entry("footsteps.organic_dry", fs("footsteps.grass_run")));
+
+    private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);
+
+    // Ladder-only tag: `#minecraft:climbable` also covers vines, bamboo and scaffolding, which
+    // must keep their own surface sound. `#c:ladders` is the conventional tag that modded
+    // ladders register into.
+    private static final net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> LADDERS =
+            net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.BLOCK,
+                    ResourceLocation.fromNamespaceAndPath("c", "ladders"));
 
     private final IAudioPlayer audioPlayer;
 
@@ -421,9 +431,24 @@ public class FootstepGenerator extends AbstractClientHandler {
         ResourceLocation soundLoc = stepSound.getLocation();
         var accents = List.<ResourceLocation>of();
 
+        // Climbing a LADDER is treated like any other surface: the `#c:ladders` rule (present
+        // in sound_mappings under every step-sound event a ladder can carry) resolves to the
+        // ladder acoustic, which borrows the vanilla ladder recording and plays it louder.
+        //
+        // Every OTHER climbable (vine, bamboo, scaffolding, cave vines, ...) keeps the old
+        // behaviour of playing its own vanilla surface step sound: only ladders opt in.
+        //
+        // This is the fix for "modded ladders do not use the ladder sound": while climbing,
+        // material resolution used to be skipped outright, so a Quark ladder - whose step
+        // sound is block.wood.step, not block.ladder.step - played a plain wood step and never
+        // reached footsteps/ladder.
+        final boolean ladderClimb = climbing
+                && TAG_LIBRARY.is(net.minecraft.tags.BlockTags.CLIMBABLE, state)
+                && TAG_LIBRARY.is(LADDERS, state);
+
         // Climbing (ladder/vine/bamboo/...) plays the vanilla surface step sound louder,
         // matching the original 1.12.2 mod, instead of the DS per-material replacement.
-        if (!climbing) {
+        if (!climbing || ladderClimb) {
             // If the step sound is remapped to a DS footstep material, play that material
             // sound directly so we can pick the walk/run variant. Running uses the material's
             // *_run sound event when one exists, giving the heavier cadence of the original.

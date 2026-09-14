@@ -145,6 +145,13 @@
     "soundEvent": "minecraft:block.bone_block.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:bone_block"
+        ],
+        "_comment": "【骨块】中空干骨，走 bone_dry 变体（同录音压调，更闷更空）。",
+        "factory": "dsurround:footsteps.bone_dry"
+      },
+      {
         "factory": "dsurround:footsteps.bone"
       }
     ]
@@ -171,11 +178,11 @@
         "blocks": [
           "#minecraft:candles"
         ],
-        "_comment": "【1.12.2 造法还原 - 蜡】蜡烛是干而硬的有机质。1.12.2 的 organic = dirt 主体 ⊕ mud 副音，这里照搬。用 #minecraft:candles 而不是逐个方块：别的模组注册同类蜡烛只要进这个标签即可生效。",
+        "_comment": "【蜡烛】干硬的蜡，走 wax_dry 变体（比 organic 本体更干爽更响一点），保留很轻的泥副音作底。",
+        "factory": "dsurround:footsteps.wax_dry",
         "accent": [
           "dsurround:footstep_accent/mud_quiet"
-        ],
-        "factory": "dsurround:footsteps.organic"
+        ]
       },
       {
         "blocks": [
@@ -267,6 +274,139 @@
     "soundEvent": "minecraft:block.copper.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:copper_door",
+          "minecraft:copper_trapdoor",
+          "minecraft:copper_grate",
+          "minecraft:copper_bulb",
+          "minecraft:copper_chain",
+          "minecraft:copper_bars",
+          "minecraft:copper_lantern",
+          "minecraft:copper_chest"
+        ],
+        "_comment": "【铜 - 薄壳件】门/活板门/格栅/灯泡/锁链/栏杆/提灯/铜箱走薄壳变调 copper_hollow。",
+        "factory": "dsurround:footsteps.copper_hollow"
+      },
+      {
+        "blocks": [
+          "#c:storage_blocks/copper"
+        ],
+        "_comment": "【铜 - 实心块】实心铜块保持默认 copper。",
+        "factory": "dsurround:footsteps.copper"
+      },
+      {
+        "blocks": [
+          "minecraft:exposed_chiseled_copper",
+          "minecraft:exposed_chiseled_copper_bars",
+          "minecraft:exposed_chiseled_copper_bulb",
+          "minecraft:exposed_chiseled_copper_chain",
+          "minecraft:exposed_chiseled_copper_chest",
+          "minecraft:exposed_chiseled_copper_door",
+          "minecraft:exposed_chiseled_copper_golem_statue",
+          "minecraft:exposed_chiseled_copper_grate",
+          "minecraft:exposed_chiseled_copper_lantern",
+          "minecraft:exposed_chiseled_copper_trapdoor",
+          "minecraft:exposed_copper",
+          "minecraft:exposed_copper_bars",
+          "minecraft:exposed_copper_bulb",
+          "minecraft:exposed_copper_chain",
+          "minecraft:exposed_copper_chest",
+          "minecraft:exposed_copper_door",
+          "minecraft:exposed_copper_golem_statue",
+          "minecraft:exposed_copper_grate",
+          "minecraft:exposed_copper_lantern",
+          "minecraft:exposed_copper_trapdoor",
+          "minecraft:exposed_cut_copper",
+          "minecraft:exposed_cut_copper_bars",
+          "minecraft:exposed_cut_copper_bulb",
+          "minecraft:exposed_cut_copper_chain",
+          "minecraft:exposed_cut_copper_chest",
+          "minecraft:exposed_cut_copper_door",
+          "minecraft:exposed_cut_copper_golem_statue",
+          "minecraft:exposed_cut_copper_grate",
+          "minecraft:exposed_cut_copper_lantern",
+          "minecraft:exposed_cut_copper_trapdoor",
+          "minecraft:oxidized_chiseled_copper",
+          "minecraft:oxidized_chiseled_copper_bars",
+          "minecraft:oxidized_chiseled_copper_bulb",
+          "minecraft:oxidized_chiseled_copper_chain",
+          "minecraft:oxidized_chiseled_copper_chest",
+          "minecraft:oxidized_chiseled_copper_door",
+          "minecraft:oxidized_chiseled_copper_golem_statue",
+          "minecraft:oxidized_chiseled_copper_grate",
+          "minecraft:oxidized_chiseled_copper_lantern",
+          "minecraft:oxidized_chiseled_copper_trapdoor",
+          "minecraft:oxidized_copper",
+          "minecraft:oxidized_copper_bars",
+          "minecraft:oxidized_copper_bulb",
+          "minecraft:oxidized_copper_chain",
+          "minecraft:oxidized_copper_chest",
+          "minecraft:oxidized_copper_door",
+          "minecraft:oxidized_copper_golem_statue",
+          "minecraft:oxidized_copper_grate",
+          "minecraft:oxidized_copper_lantern",
+          "minecraft:oxidized_copper_trapdoor",
+          "minecraft:oxidized_cut_copper",
+          "minecraft:oxidized_cut_copper_bars",
+          "minecraft:oxidized_cut_copper_bulb",
+          "minecraft:oxidized_cut_copper_chain",
+          "minecraft:oxidized_cut_copper_chest",
+          "minecraft:oxidized_cut_copper_door",
+          "minecraft:oxidized_cut_copper_golem_statue",
+          "minecraft:oxidized_cut_copper_grate",
+          "minecraft:oxidized_cut_copper_lantern",
+          "minecraft:oxidized_cut_copper_trapdoor",
+          "minecraft:weathered_chiseled_copper",
+          "minecraft:weathered_chiseled_copper_bars",
+          "minecraft:weathered_chiseled_copper_bulb",
+          "minecraft:weathered_chiseled_copper_chain",
+          "minecraft:weathered_chiseled_copper_chest",
+          "minecraft:weathered_chiseled_copper_door",
+          "minecraft:weathered_chiseled_copper_golem_statue",
+          "minecraft:weathered_chiseled_copper_grate",
+          "minecraft:weathered_chiseled_copper_lantern",
+          "minecraft:weathered_chiseled_copper_trapdoor",
+          "minecraft:weathered_copper",
+          "minecraft:weathered_copper_bars",
+          "minecraft:weathered_copper_bulb",
+          "minecraft:weathered_copper_chain",
+          "minecraft:weathered_copper_chest",
+          "minecraft:weathered_copper_door",
+          "minecraft:weathered_copper_golem_statue",
+          "minecraft:weathered_copper_grate",
+          "minecraft:weathered_copper_lantern",
+          "minecraft:weathered_copper_trapdoor",
+          "minecraft:weathered_cut_copper",
+          "minecraft:weathered_cut_copper_bars",
+          "minecraft:weathered_cut_copper_bulb",
+          "minecraft:weathered_cut_copper_chain",
+          "minecraft:weathered_cut_copper_chest",
+          "minecraft:weathered_cut_copper_door",
+          "minecraft:weathered_cut_copper_golem_statue",
+          "minecraft:weathered_cut_copper_grate",
+          "minecraft:weathered_cut_copper_lantern",
+          "minecraft:weathered_cut_copper_trapdoor"
+        ],
+        "_comment": "【铜 - 氧化色】氧化/风化铜表面是钝的铜绿，不像新铜清亮；走 copper_dull 变体（同录音压低 + 降音量）。再加一层很轻的 sand 副音做「哑面细颗粒」的质感（1.12.2 里 sand 层就是用来表达颗粒感的，砂石、砾石都用了它）。这些方块没有专属标签，按 exposed_/weathered_/oxidized_ 前缀归类。",
+        "factory": "dsurround:footsteps.copper_dull",
+        "accent": [
+          "dsurround:footstep_accent/sand"
+        ]
+      },
+      {
+        "blocks": [
+          "minecraft:copper_door",
+          "minecraft:copper_trapdoor",
+          "minecraft:copper_bars",
+          "minecraft:copper_chain",
+          "minecraft:copper_lantern",
+          "minecraft:copper_chest",
+          "minecraft:copper_golem_statue"
+        ],
+        "_comment": "【铜 - 薄壳件】门/活板门/格栅/灯泡/锁链/栏杆/提灯/铜箱是薄壳或镂空件，比实心铜块更亮更薄，走 copper_hollow 变体（同录音升调 1.15~1.25）。",
+        "factory": "dsurround:footsteps.copper_hollow"
+      },
+      {
         "factory": "dsurround:footsteps.copper"
       }
     ]
@@ -275,6 +415,25 @@
     "soundEvent": "minecraft:block.copper_bulb.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:copper_bulb"
+        ],
+        "_comment": "【铜 - 薄壳件】门/活板门/格栅/灯泡/锁链/栏杆/提灯/铜箱是薄壳或镂空件，比实心铜块更亮更薄，走 copper_hollow 变体（同录音升调 1.15~1.25）。",
+        "factory": "dsurround:footsteps.copper_hollow"
+      },
+      {
+        "blocks": [
+          "minecraft:exposed_copper_bulb",
+          "minecraft:weathered_copper_bulb",
+          "minecraft:oxidized_copper_bulb"
+        ],
+        "_comment": "【铜 - 氧化色】灯泡 的氧化/风化态表面是钝的铜绿，走 copper_dull 变体（同录音压低 0.80~0.90 + 降音量），并加很轻的 sand 副音做「哑面细颗粒」质感。",
+        "factory": "dsurround:footsteps.copper_dull",
+        "accent": [
+          "dsurround:footstep_accent/sand"
+        ]
+      },
+      {
         "factory": "dsurround:footsteps.copper"
       }
     ]
@@ -282,6 +441,33 @@
   {
     "soundEvent": "minecraft:block.copper_grate.step",
     "rules": [
+      {
+        "blocks": [
+          "minecraft:copper_grate",
+          "minecraft:cut_copper_grate",
+          "minecraft:chiseled_copper_grate"
+        ],
+        "_comment": "【铜 - 薄壳件】门/活板门/格栅/灯泡/锁链/栏杆/提灯/铜箱是薄壳或镂空件，比实心铜块更亮更薄，走 copper_hollow 变体（同录音升调 1.15~1.25）。",
+        "factory": "dsurround:footsteps.copper_hollow"
+      },
+      {
+        "blocks": [
+          "minecraft:exposed_copper_grate",
+          "minecraft:weathered_copper_grate",
+          "minecraft:oxidized_copper_grate",
+          "minecraft:exposed_cut_copper_grate",
+          "minecraft:weathered_cut_copper_grate",
+          "minecraft:oxidized_cut_copper_grate",
+          "minecraft:exposed_chiseled_copper_grate",
+          "minecraft:weathered_chiseled_copper_grate",
+          "minecraft:oxidized_chiseled_copper_grate"
+        ],
+        "_comment": "【铜 - 氧化色】格栅 的氧化/风化态表面是钝的铜绿，走 copper_dull 变体（同录音压低 0.80~0.90 + 降音量），并加很轻的 sand 副音做「哑面细颗粒」质感。",
+        "factory": "dsurround:footsteps.copper_dull",
+        "accent": [
+          "dsurround:footstep_accent/sand"
+        ]
+      },
       {
         "factory": "dsurround:footsteps.copper"
       }
@@ -294,11 +480,11 @@
         "blocks": [
           "#dsurround:effects/wax_blocks"
         ],
-        "_comment": "【蜡质方块】蜂巢块等蜡质=干而硬的有机质，走 1.12.2 的 organic 造法。用 #dsurround:effects/wax_blocks，模组蜡块可以自行加进这个标签。",
+        "_comment": "【蜂巢块】同为蜡质，走 wax_dry。",
+        "factory": "dsurround:footsteps.wax_dry",
         "accent": [
           "dsurround:footstep_accent/mud_quiet"
-        ],
-        "factory": "dsurround:footsteps.organic"
+        ]
       },
       {
         "blocks": [
@@ -325,7 +511,7 @@
         "blocks": [
           "#minecraft:coral_blocks"
         ],
-        "_comment": "【珊瑚块 - 湿软层】活的珊瑚块 = 硬壳 + 湿软活体。主体保持石头（硬骨架），副音加一层轻泥做出湿润感。用 #minecraft:coral_blocks，失活珊瑚不在这个标签里，天然排除。",
+        "_comment": "【活的珊瑚块】湿润的活体，保持 organic + 泥副音的「湿软」读感，与蜡质区分开。",
         "factory": "dsurround:footsteps.organic",
         "accent": [
           "dsurround:footstep_accent/mud_quiet"
@@ -703,6 +889,33 @@
   {
     "soundEvent": "minecraft:block.moss.step",
     "rules": [
+      {
+        "blocks": [
+          "minecraft:moss_block"
+        ],
+        "_comment": "【苔藓块】活苔藓松软有弹性，走 moss_soft 变体（同录音升调）。",
+        "factory": "dsurround:footsteps.moss_soft"
+      },
+      {
+        "blocks": [
+          "minecraft:pale_moss_block"
+        ],
+        "_comment": "【苍白苔藓块】更干、更贴地，走 moss_dry 变体（同录音压调），并加轻泥副音表达干土味。",
+        "factory": "dsurround:footsteps.moss_dry",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ]
+      },
+      {
+        "blocks": [
+          "minecraft:pale_hanging_moss",
+          "minecraft:pale_moss_carpet",
+          "minecraft:moss_carpet",
+          "minecraft:hanging_roots"
+        ],
+        "_comment": "【苔藓毯/垂苔】毯状与垂挂类的铺地物按 rug（柔软闷响）处理，与整块苔藓区分。",
+        "factory": "dsurround:footsteps.rug"
+      },
       {
         "factory": "dsurround:footsteps.moss"
       }
@@ -1232,6 +1445,21 @@
         "factory": "dsurround:footsteps.tuff_soft"
       },
       {
+        "blocks": [
+          "minecraft:tuff_slab",
+          "minecraft:tuff_stairs",
+          "minecraft:tuff_wall",
+          "minecraft:polished_tuff_slab",
+          "minecraft:polished_tuff_stairs",
+          "minecraft:polished_tuff_wall",
+          "minecraft:tuff_brick_slab",
+          "minecraft:tuff_brick_stairs",
+          "minecraft:tuff_brick_wall"
+        ],
+        "_comment": "【凝灰岩 - 薄件】台阶/半砖/墙是薄件，敲起来比整块更亮，走 tuff_thin 变体（同录音升调到 0.90~1.00）。必须在【拥有默认规则的入口、且在默认规则之前】，否则会被整块的 tuff_soft 默认先命中。",
+        "factory": "dsurround:footsteps.tuff_thin"
+      },
+      {
         "factory": "dsurround:footsteps.tuff"
       }
     ]
@@ -1486,6 +1714,26 @@
           "biomesoplenty:flesh"
         ],
         "factory": "dsurround:footsteps.organic"
+      },
+      {
+        "blocks": [
+          "#dsurround:effects/wax_blocks"
+        ],
+        "_comment": "【蜂巢块】同为蜡质，走 wax_dry。",
+        "factory": "dsurround:footsteps.wax_dry",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ]
+      },
+      {
+        "blocks": [
+          "#minecraft:coral_blocks"
+        ],
+        "_comment": "【活的珊瑚块】湿润的活体，保持 organic + 泥副音的「湿软」读感，与蜡质区分开。",
+        "factory": "dsurround:footsteps.organic",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ]
       }
     ]
   },

@@ -859,9 +859,23 @@
                       "max":  1.2
                   },
         "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
+                       "min":  0.75,
+                       "max":  0.85
                    }
+    },
+    {
+        "_comment":  "【薄金属件变调】锁链、铁栏杆这类【细杆/环扣】件比实心金属块更薄更轻，应该【更小更亮】，而原来的 metalbar 音量 0.90~1.00 比实心铁块（metalbox 0.75~0.85）还响，正好反了。这里用同录音升调 1.12~1.22 + 降到 0.55~0.65，做出「细薄、不压场」的读感。",
+        "location":  "dsurround:footsteps.metalbar_thin",
+        "soundEvent":  "dsurround:footsteps.metalbar",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.12,
+            "max":  1.22
+        },
+        "volume":  {
+            "min":  0.55,
+            "max":  0.65
+        }
     },
     {
         "location":  "dsurround:footsteps.rug",
@@ -1113,6 +1127,13 @@
         "soundEvent":  "dsurround:footsteps.mud",
         "category":  "PLAYER",
         "volume":  0.8
+    },
+    {
+        "_comment":  "【锁链的金属环扣副音】素材库里正好有一组链甲录音 （dsurround:footsteps/armor/medium_walk*，1.12.2 的 chain mail），本身就是「金属环扣互相碰撞」的声音 —— 拿它做锁链的副音最贴切。音量 0.28：副音不乘玩家 variator，取主体（0.55~0.65）的一半左右，形成「细杆主体 + 环扣细响」的层次。",
+        "location":  "dsurround:footstep_accent/chain_rattle",
+        "soundEvent":  "dsurround:armor.medium_walk",
+        "category":  "PLAYER",
+        "volume":  0.28
     },
     {
         "_comment":  "【1.12.2 造法的 50/50 副音】1.12.2 的 organic 是 dirt 主体 ⊕ mud 副音，两层等额。副音走的是不乘玩家 variator 的路径，所以副音音量取主体的 0.5 倍；footsteps.organic 主体被有意归一到 0.4~0.45，故取 0.2，即 0.5 × 0.425 的 1.12.2 比例。",

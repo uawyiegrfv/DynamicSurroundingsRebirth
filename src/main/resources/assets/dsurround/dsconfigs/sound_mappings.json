@@ -11,6 +11,16 @@
     "soundEvent": "minecraft:block.amethyst_block.step",
     "rules": [
       {
+        "blocks": [
+          "#minecraft:crystal_sound_blocks"
+        ],
+        "_comment": "【紫水晶块】晶体不该是 stone 闷响。主体改 marble（移植版的清脆族），钟声仍由 accent 提供。用 #minecraft:crystal_sound_blocks。",
+        "accent": [
+          "dsurround:footstep_accent/amethyst"
+        ],
+        "factory": "dsurround:footsteps.marble"
+      },
+      {
         "factory": "dsurround:footsteps.stone",
         "accent": [
           "dsurround:footstep_accent/amethyst"
@@ -21,6 +31,17 @@
   {
     "soundEvent": "minecraft:block.amethyst_cluster.step",
     "rules": [
+      {
+        "blocks": [
+          "#c:clusters",
+          "#c:buds"
+        ],
+        "_comment": "【晶簇/晶芽】同上；用 #c:clusters 与 #c:buds，模组晶体只要进通用标签即可生效。",
+        "accent": [
+          "dsurround:footstep_accent/amethyst"
+        ],
+        "factory": "dsurround:footsteps.marble"
+      },
       {
         "blocks": [
           "minecraft:large_amethyst_bud",
@@ -45,6 +66,13 @@
   {
     "soundEvent": "minecraft:block.ancient_debris.step",
     "rules": [
+      {
+        "blocks": [
+          "minecraft:ancient_debris"
+        ],
+        "_comment": "【保护规则】#c:ores 里包含 ancient_debris，但它是下界合金矿石=金属块，1.12.2 里对应 hardmetal（金属箱材质）。而通用矿石规则写在 block.deepslate.step 里（为了让深板岩矿石保留深板岩材质），按顺序会先命中，所以这里显式声明。",
+        "factory": "dsurround:footsteps.metalbox"
+      },
       {
         "factory": "dsurround:footsteps.metalbox"
       }
@@ -125,6 +153,16 @@
   {
     "soundEvent": "minecraft:block.candle.step",
     "rules": [
+      {
+        "blocks": [
+          "#minecraft:candles"
+        ],
+        "_comment": "【1.12.2 造法还原 - 蜡】蜡烛是干而硬的有机质。1.12.2 的 organic = dirt 主体 ⊕ mud 副音，这里照搬。用 #minecraft:candles 而不是逐个方块：别的模组注册同类蜡烛只要进这个标签即可生效。",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ],
+        "factory": "dsurround:footsteps.organic"
+      },
       {
         "blocks": [
           "minecraft:black_candle",
@@ -233,6 +271,23 @@
     "rules": [
       {
         "blocks": [
+          "#dsurround:effects/wax_blocks"
+        ],
+        "_comment": "【蜡质方块】蜂巢块等蜡质=干而硬的有机质，走 1.12.2 的 organic 造法。用 #dsurround:effects/wax_blocks，模组蜡块可以自行加进这个标签。",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ],
+        "factory": "dsurround:footsteps.organic"
+      },
+      {
+        "blocks": [
+          "#minecraft:coral_blocks"
+        ],
+        "_comment": "【珊瑚块】珊瑚是活体，不是石头。原本继承 coral_block.step 的默认 stone。改走 organic（1.12.2 的「软有机质」造法）。用 #minecraft:coral_blocks，模组珊瑚自动生效。",
+        "factory": "dsurround:footsteps.organic"
+      },
+      {
+        "blocks": [
           "minecraft:honeycomb_block"
         ],
         "_comment": "【1.12.2 造法还原 - 蜂巢块】蜡质=干而硬的有机质。1.12.2 的 organic 就是 dirt 主体 ⊕ mud 副音（两层等额），这里照搬它的构造。",
@@ -276,6 +331,13 @@
   {
     "soundEvent": "minecraft:block.deepslate.step",
     "rules": [
+      {
+        "blocks": [
+          "#c:ores"
+        ],
+        "_comment": "【矿石】1.12.2 的 ore acoustic 逐字节等于 stone，所以矿石主体就是 stone。放在 block.deepslate.step 的 catch-all 之前，让深板岩矿石先保留深板岩材质。用 #c:ores，模组矿石自动生效。",
+        "factory": "dsurround:footsteps.stone"
+      },
       {
         "factory": "dsurround:footsteps.stone"
       }
@@ -610,6 +672,16 @@
     "soundEvent": "minecraft:block.mud_bricks.step",
     "rules": [
       {
+        "blocks": [
+          "#dsurround:effects/dried_mud_blocks"
+        ],
+        "_comment": "【干泥 - 泥砖】同上。",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ],
+        "factory": "dsurround:footsteps.organic_dry"
+      },
+      {
         "factory": "dsurround:footsteps.mud"
       }
     ]
@@ -692,6 +764,16 @@
   {
     "soundEvent": "minecraft:block.packed_mud.step",
     "rules": [
+      {
+        "blocks": [
+          "#dsurround:effects/dried_mud_blocks"
+        ],
+        "_comment": "【干泥】1.12.2 的 mud 只用于湿海绵一处（湿滑层），干泥/泥砖属于干燥有机质，对应 organic_dry。用 #dsurround:effects/dried_mud_blocks。",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ],
+        "factory": "dsurround:footsteps.organic_dry"
+      },
       {
         "factory": "dsurround:footsteps.mud"
       }
@@ -1057,6 +1139,16 @@
   {
     "soundEvent": "minecraft:block.wet_grass.step",
     "rules": [
+      {
+        "blocks": [
+          "#minecraft:corals"
+        ],
+        "_comment": "【珊瑚/珊瑚扇】湿草 SoundType 原本整体映射到 grass（因为草方块也用这个事件）。珊瑚是活体 + 丛生，改 organic 主体 + 灌木副音，并用 #minecraft:corals 覆盖模组珊瑚。",
+        "accent": [
+          "dsurround:footstep_accent/brush"
+        ],
+        "factory": "dsurround:footsteps.organic"
+      },
       {
         "factory": "dsurround:footsteps.grass"
       }

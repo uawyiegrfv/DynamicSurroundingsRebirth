@@ -580,12 +580,36 @@
                        "max":  0.45
                    }
     },
+    {
+        "_comment":  "【蜡质 - 干硬变调】蜡烛与蜂巢块是【干硬的蜡】，而 organic 本体（0.4~0.45，含泥副音）偏向湿润土质。这里给蜡质一个同录音的独立 location：pitch 0.95~1.05 保持干爽，音量 0.50~0.55（比 organic 本体略响，因为蜡是硬质、不吸音）。",
+        "location":  "dsurround:footsteps.wax_dry",
+        "soundEvent":  "dsurround:footsteps.organic",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.95,
+            "max":  1.05
+        },
+        "volume":  {
+            "min":  0.5,
+            "max":  0.55
+        }
+    },
 
     {
         "location":  "dsurround:footsteps.bone",
         "soundEvent":  "dsurround:footsteps.bone",
         "category":  "PLAYER",
         "volume":  1.0
+    },
+    {
+        "_comment":  "【骨块 - 干空变调】骨块是【中空干骨】，比默认更闷更空。同录音压到 0.80~0.90。",
+        "location":  "dsurround:footsteps.bone_dry",
+        "soundEvent":  "dsurround:footsteps.bone",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.8,
+            "max":  0.9
+        }
     },
     {
         "location":  "dsurround:footsteps.sculk",
@@ -604,6 +628,26 @@
         "soundEvent":  "dsurround:footsteps.moss",
         "category":  "PLAYER",
         "volume":  1.0
+    },
+    {
+        "_comment":  "【苍白苔藓 - 干闷变调】苍白苔藓更干、更贴地，同录音压到 0.85~0.95。",
+        "location":  "dsurround:footsteps.moss_dry",
+        "soundEvent":  "dsurround:footsteps.moss",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.85,
+            "max":  0.95
+        }
+    },
+    {
+        "_comment":  "【苔藓 - 松软变调】活苔藓松软有弹性，同录音升到 1.05~1.15，与干苔藓区分。",
+        "location":  "dsurround:footsteps.moss_soft",
+        "soundEvent":  "dsurround:footsteps.moss",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.05,
+            "max":  1.15
+        }
     },
     {
         "location":  "dsurround:footsteps.tuff",
@@ -626,10 +670,52 @@
                    }
     },
     {
+        "_comment":  "【凝灰岩 - 薄件变调】台阶/半砖是薄件，敲起来比整块更亮。同录音升调到 0.90~1.00。",
+        "location":  "dsurround:footsteps.tuff_thin",
+        "soundEvent":  "dsurround:footsteps.tuff",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.9,
+            "max":  1.0
+        },
+        "volume":  {
+            "min":  0.8,
+            "max":  0.9
+        }
+    },
+    {
         "location":  "dsurround:footsteps.copper",
         "soundEvent":  "dsurround:footsteps.copper",
         "category":  "PLAYER",
         "volume":  1.0
+    },
+    {
+        "_comment":  "【铜 - 氧化变调】氧化/风化铜表面是【钝的铜绿】，不像新铜那样有金属清亮感。同一段录音压到 0.80~0.90 并降音量。",
+        "location":  "dsurround:footsteps.copper_dull",
+        "soundEvent":  "dsurround:footsteps.copper",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.8,
+            "max":  0.9
+        },
+        "volume":  {
+            "min":  0.8,
+            "max":  0.9
+        }
+    },
+    {
+        "_comment":  "【铜 - 薄壳件变调】铜门/活板门/格栅/锁链/提灯是【薄壳/镂空】件，敲上去比实心铜块更亮更薄。同一段 copper 录音升调到 1.15~1.25、音量略降 —— 与 1.12.2 用「同录音 + 变调」造材质同法。",
+        "location":  "dsurround:footsteps.copper_hollow",
+        "soundEvent":  "dsurround:footsteps.copper",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.15,
+            "max":  1.25
+        },
+        "volume":  {
+            "min":  0.85,
+            "max":  0.95
+        }
     },
     {
         "location":  "dsurround:footsteps.bamboo",

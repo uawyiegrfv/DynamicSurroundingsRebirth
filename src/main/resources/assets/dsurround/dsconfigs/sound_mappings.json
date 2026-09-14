@@ -146,6 +146,13 @@
     "soundEvent": "minecraft:block.calcite.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:calcite"
+        ],
+        "_comment": "【方解石】软的粉质亮矿物，改用升调的 footsteps.calcite_soft。",
+        "factory": "dsurround:footsteps.calcite_soft"
+      },
+      {
         "factory": "dsurround:footsteps.marble"
       }
     ]
@@ -379,6 +386,13 @@
     "soundEvent": "minecraft:block.dripstone_block.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:dripstone_block"
+        ],
+        "_comment": "【滴水石】可溶石灰岩，多孔偏软，改用再压低一档的 footsteps.dripstone。",
+        "factory": "dsurround:footsteps.dripstone"
+      },
+      {
         "factory": "dsurround:footsteps.stone"
       }
     ]
@@ -386,6 +400,13 @@
   {
     "soundEvent": "minecraft:block.pointed_dripstone.step",
     "rules": [
+      {
+        "blocks": [
+          "minecraft:pointed_dripstone"
+        ],
+        "_comment": "【滴水石锥】同滴水石，用 footsteps.dripstone。",
+        "factory": "dsurround:footsteps.dripstone"
+      },
       {
         "factory": "dsurround:footsteps.stone"
       }
@@ -990,6 +1011,13 @@
     "rules": [
       {
         "blocks": [
+          "minecraft:magma_block"
+        ],
+        "_comment": "【岩浆块】软的会开裂的热岩，不该是 stone 闷响；改用 concrete 压低的变体 footsteps.magma_soft。",
+        "factory": "dsurround:footsteps.magma_soft"
+      },
+      {
+        "blocks": [
           "#minecraft:cauldrons"
         ],
         "factory": "dsurround:footsteps.metalbar"
@@ -1084,6 +1112,26 @@
     "soundEvent": "minecraft:block.tuff.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:tuff",
+          "minecraft:chiseled_tuff",
+          "minecraft:tuff_bricks",
+          "minecraft:polished_tuff",
+          "minecraft:chiseled_tuff_bricks",
+          "minecraft:tuff_slab",
+          "minecraft:tuff_stairs",
+          "minecraft:tuff_wall",
+          "minecraft:polished_tuff_slab",
+          "minecraft:polished_tuff_stairs",
+          "minecraft:polished_tuff_wall",
+          "minecraft:tuff_brick_slab",
+          "minecraft:tuff_brick_stairs",
+          "minecraft:tuff_brick_wall"
+        ],
+        "_comment": "【凝灰岩家族】凝灰岩是多孔火山岩，比实心石头轻、闷，所以用压低+降音量的变体 footsteps.tuff_soft（见该工厂注释）。注意这个家族【分属三个 step sound 事件】，所以三个事件下都写了规则。",
+        "factory": "dsurround:footsteps.tuff_soft"
+      },
+      {
         "factory": "dsurround:footsteps.tuff"
       }
     ]
@@ -1092,6 +1140,26 @@
     "soundEvent": "minecraft:block.tuff_bricks.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:tuff",
+          "minecraft:chiseled_tuff",
+          "minecraft:tuff_bricks",
+          "minecraft:polished_tuff",
+          "minecraft:chiseled_tuff_bricks",
+          "minecraft:tuff_slab",
+          "minecraft:tuff_stairs",
+          "minecraft:tuff_wall",
+          "minecraft:polished_tuff_slab",
+          "minecraft:polished_tuff_stairs",
+          "minecraft:polished_tuff_wall",
+          "minecraft:tuff_brick_slab",
+          "minecraft:tuff_brick_stairs",
+          "minecraft:tuff_brick_wall"
+        ],
+        "_comment": "【凝灰岩家族】凝灰岩是多孔火山岩，比实心石头轻、闷，所以用压低+降音量的变体 footsteps.tuff_soft（见该工厂注释）。注意这个家族【分属三个 step sound 事件】，所以三个事件下都写了规则。",
+        "factory": "dsurround:footsteps.tuff_soft"
+      },
+      {
         "factory": "dsurround:footsteps.tuff"
       }
     ]
@@ -1099,6 +1167,26 @@
   {
     "soundEvent": "minecraft:block.polished_tuff.step",
     "rules": [
+      {
+        "blocks": [
+          "minecraft:tuff",
+          "minecraft:chiseled_tuff",
+          "minecraft:tuff_bricks",
+          "minecraft:polished_tuff",
+          "minecraft:chiseled_tuff_bricks",
+          "minecraft:tuff_slab",
+          "minecraft:tuff_stairs",
+          "minecraft:tuff_wall",
+          "minecraft:polished_tuff_slab",
+          "minecraft:polished_tuff_stairs",
+          "minecraft:polished_tuff_wall",
+          "minecraft:tuff_brick_slab",
+          "minecraft:tuff_brick_stairs",
+          "minecraft:tuff_brick_wall"
+        ],
+        "_comment": "【凝灰岩家族】凝灰岩是多孔火山岩，比实心石头轻、闷，所以用压低+降音量的变体 footsteps.tuff_soft（见该工厂注释）。注意这个家族【分属三个 step sound 事件】，所以三个事件下都写了规则。",
+        "factory": "dsurround:footsteps.tuff_soft"
+      },
       {
         "factory": "dsurround:footsteps.tuff"
       }

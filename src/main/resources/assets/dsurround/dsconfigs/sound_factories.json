@@ -415,6 +415,20 @@
                    }
     },
     {
+        "_comment":  "【滴水石变调】滴水石是【可溶石灰岩】，多孔、比实心石头软。同一段 stone 录音再压低一档到 0.60~0.70、音量降到 0.80~0.90（stone 本身已是 0.65~0.70）。",
+        "location":  "dsurround:footsteps.dripstone",
+        "soundEvent":  "dsurround:footsteps.stone",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.6,
+                      "max":  0.7
+                  },
+        "volume":  {
+                       "min":  0.8,
+                       "max":  0.9
+                   }
+    },
+    {
         "location":  "dsurround:footsteps.dirt",
         "soundEvent":  "dsurround:footsteps.dirt",
         "category":  "PLAYER",
@@ -575,6 +589,20 @@
         "soundEvent":  "dsurround:footsteps.tuff",
         "category":  "PLAYER",
         "volume":  1.0
+    },
+    {
+        "_comment":  "【凝灰岩变调】凝灰岩是【多孔】火山岩，比实心石头轻、闷。直接沿用原版录音会偏亮，所以取同一段录音压低到 0.80~0.90 并把音量降到 0.85~0.95 —— 与 1.12.2 用「同一段录音 + 变调」造材质的手法一致（对照 log = wood_walk 压到 0.55~0.60）。",
+        "location":  "dsurround:footsteps.tuff_soft",
+        "soundEvent":  "dsurround:footsteps.tuff",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  0.9
+                  },
+        "volume":  {
+                       "min":  0.85,
+                       "max":  0.95
+                   }
     },
     {
         "location":  "dsurround:footsteps.copper",
@@ -793,6 +821,20 @@
                    }
     },
     {
+        "_comment":  "【方解石变调】方解石是软的、粉质的亮色矿物，比大理石更「脆而轻」。同一段 marble 录音升调到 0.90~1.00、音量降到 0.80~0.90。",
+        "location":  "dsurround:footsteps.calcite_soft",
+        "soundEvent":  "dsurround:footsteps.marble",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.9,
+                      "max":  1.0
+                  },
+        "volume":  {
+                       "min":  0.8,
+                       "max":  0.9
+                   }
+    },
+    {
         "location":  "dsurround:footsteps.concrete",
         "soundEvent":  "dsurround:footsteps.concrete",
         "category":  "PLAYER",
@@ -803,6 +845,20 @@
         "volume":  {
                        "min":  0.75,
                        "max":  0.85
+                   }
+    },
+    {
+        "_comment":  "【岩浆块变调】岩浆块是【软的、会开裂的】热岩，不是实心石头（原本继承 stone）。取 concrete 录音（「开裂砖石」质地，与 1.12.2 用 concrete 做 brickstone 同理）压到 0.55~0.65，音量 0.80~0.90。",
+        "location":  "dsurround:footsteps.magma_soft",
+        "soundEvent":  "dsurround:footsteps.concrete",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.55,
+                      "max":  0.65
+                  },
+        "volume":  {
+                       "min":  0.8,
+                       "max":  0.9
                    }
     },
     {

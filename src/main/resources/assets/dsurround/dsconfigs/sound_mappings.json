@@ -145,8 +145,11 @@
           "minecraft:white_candle",
           "minecraft:yellow_candle"
         ],
-        "_comment": "【蜡烛材质】17 种蜡烛共用 block.candle.step。原本落到默认的 glass（碎玻璃叮当），改成专用的 footsteps.candle（stone 录音压低 + 降音量 = 闷而轻的叩击）。",
-        "factory": "dsurround:footsteps.candle"
+        "_comment": "【1.12.2 造法还原 - 蜡烛】蜡烛是蜡：干而硬的有机质。1.12.2 没有蜡烛，按它对同类方块（organic = dirt ⊕ mud）的造法处理；不再用之前的 stone 叩击，更不是更早的 glass 叮当。",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ],
+        "factory": "dsurround:footsteps.organic"
       },
       {
         "factory": "dsurround:footsteps.glass"
@@ -232,8 +235,22 @@
         "blocks": [
           "minecraft:honeycomb_block"
         ],
-        "_comment": "【蜂巢块材质】蜂巢块是蜡质（和蜡烛同源），原本落到珊瑚块共用的默认 stone。改用 footsteps.candle 的闷叩击。",
-        "factory": "dsurround:footsteps.candle"
+        "_comment": "【1.12.2 造法还原 - 蜂巢块】蜡质=干而硬的有机质。1.12.2 的 organic 就是 dirt 主体 ⊕ mud 副音（两层等额），这里照搬它的构造。",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ],
+        "factory": "dsurround:footsteps.organic"
+      },
+      {
+        "blocks": [
+          "minecraft:packed_mud",
+          "minecraft:mud_bricks"
+        ],
+        "_comment": "【1.12.2 造法还原 - 干泥】1.12.2 的 mud 只用于【湿海绵】一处，是湿滑层；压实泥与泥砖是已干燥的土，对应 1.12.2 的 organic_dry（grass_run 主体），再叠一层轻的 mud 副音保留「土」的底子。",
+        "accent": [
+          "dsurround:footstep_accent/mud_quiet"
+        ],
+        "factory": "dsurround:footsteps.organic_dry"
       },
       {
         "factory": "dsurround:footsteps.stone"
@@ -524,8 +541,8 @@
         "blocks": [
           "minecraft:mangrove_roots"
         ],
-        "_comment": "【1.12.2 材质补齐 mangrove_roots】红树根是木质方块，原版给它单独的 block.mangrove_roots.step。1.12.2 的 log acoustic = wood_walk 压低到 0.55~0.60，正好对应「木头但更闷」，所以走 log 而不是普通 wood（0.8~1.2）。",
-        "factory": "dsurround:footsteps.log"
+        "_comment": "【沿用原版特殊脚步声】1.12.2 素材库里没有红树根，沿用原版的 block.mangrove_roots.step 并归一音量；落地用加响压调的同源录音。",
+        "factory": "dsurround:footsteps.mangrove_roots"
       },
       {
         "factory": "dsurround:footsteps.wood"
@@ -783,7 +800,7 @@
         "blocks": [
           "minecraft:sculk_vein"
         ],
-        "_comment": "\u30101.12.2 材质补齐】幽匿脉络没有碰撞箱，原版的碰撞取面看不到它，会误报成下方方块。把它写成显式规则，让取面逻辑能认出来（音效不变）。",
+        "_comment": "【1.12.2 材质补齐】幽匿脉络没有碰撞箱，原版的碰撞取面看不到它，会误报成下方方块。把它写成显式规则，让取面逻辑能认出来（音效不变）。",
         "factory": "dsurround:footsteps.sculk_vein"
       },
       {
@@ -939,11 +956,11 @@
         "blocks": [
           "minecraft:sticky_piston_head"
         ],
-        "_comment": "【1.12.2 材质补齐 wood_sticky】黏性活塞头的黏面就是黏液球，所以 1.12.2 给了它独立材质：walk = wood_walk ⊕ mud_walk（各 50）。",
-        "factory": "dsurround:footsteps.wood",
+        "_comment": "【1.12.2 材质补齐 wood_sticky】黏性活塞头的黏面就是黏液球，所以 1.12.2 给了它独立材质：walk = wood_walk ⊗ mud_walk（各 50）。副音音量按 1.12.2 的两层等额折算。",
         "accent": [
-          "dsurround:footstep_accent/mud_soft"
-        ]
+          "dsurround:footstep_accent/mud_quiet"
+        ],
+        "factory": "dsurround:footsteps.wood"
       },
       {
         "factory": "dsurround:footsteps.stone"
@@ -1013,7 +1030,7 @@
         "blocks": [
           "minecraft:glow_lichen"
         ],
-        "_comment": "\u30101.12.2 材质补齐】发光地衣与藤蔓共用 block.vine.step，但它没有碰撞箱、也不会被穿行效果处理，所以单独列出来让取面能认出（音效不变）。",
+        "_comment": "【1.12.2 材质补齐】发光地衣与藤蔓共用 block.vine.step，但它没有碰撞箱、也不会被穿行效果处理，所以单独列出来让取面能认出（音效不变）。",
         "factory": "dsurround:footsteps.brush_through"
       },
       {

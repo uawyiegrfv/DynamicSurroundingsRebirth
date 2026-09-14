@@ -515,6 +515,20 @@
                    }
     },
     {
+        "_comment":  "【1.12.2 材质补齐 wood_sticky】黏性活塞头的 walk = wood_walk ⊕ mud_walk@50、land = wood_walk ⊕ mud_walk@50 ⊕ 延迟30 wood_walk。这里登记一个【独立路径】的工厂（录音与 footsteps.wood 完全相同），只为了让取面拿到唯一材质路径，从而在 FootstepGenerator.LAND_COMPOSITIONS 里给它一条专属落地合成（主体木 + 叠层泥），落地才不会丢掉那层「黏」。",
+        "location":  "dsurround:footsteps.wood_sticky",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.8,
+            "max":  1.2
+        },
+        "volume":  {
+            "min":  0.9,
+            "max":  1.0
+        }
+    },
+    {
         "location":  "dsurround:footsteps.log",
         "soundEvent":  "dsurround:footsteps.log",
         "category":  "PLAYER",
@@ -1309,6 +1323,16 @@
                       "min":  0.8,
                       "max":  1.2
                   }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 rails - 落地】1.12.2 的 rails 三个成员（walk/jump/land）都是 metalbar_run @【vol 20】。铁轨是极轻的薄金属，落地也必须压着。walk 已经走 footsteps.metalbar_run（该工厂本身音量正常），这里给落地单独一个 0.2 的 location —— playLand 会用命名回退取到它，再叠一层 metalbar_run@50 作为撞击层，与 1.12.2 的「轻落地」一致。",
+        "location":  "dsurround:footsteps.rails_land",
+        "soundEvent":  "dsurround:footsteps.metalbar_run",
+        "category":  "PLAYER",
+        "volume":  {
+            "min":  0.2,
+            "max":  0.2
+        }
     },
     {
         "location":  "dsurround:footsteps.metalbox_run",

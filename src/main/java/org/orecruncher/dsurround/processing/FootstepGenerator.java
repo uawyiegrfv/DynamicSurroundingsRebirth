@@ -123,6 +123,11 @@ public class FootstepGenerator extends AbstractClientHandler {
             Map.entry("footsteps.snow", new LandComposition(fs("footsteps.snow_run"), fs("footsteps.snow"), fs("footsteps.snow_run"))),
             Map.entry("footsteps.wood", WOOD_LAND),
             Map.entry("footsteps.log", WOOD_LAND),
+            // 1.12.2 wood_sticky land = wood_walk + mud_walk@50 + delayed(30) wood_walk.
+            // The sticky piston head is the only user: its sticky face IS a slime ball, so the
+            // landing has to keep the mud layer that the WALK rule supplies as an accent (a rule
+            // accent is not replayed by playLand, so the material needs its own composition).
+            Map.entry("footsteps.wood_sticky", new LandComposition(fs("footsteps.wood"), fs("footsteps.mud"), fs("footsteps.wood"))),
             Map.entry("footsteps.rug", new LandComposition(fs("footsteps.rug"), null, fs("footsteps.rug"))),
             Map.entry("footsteps.metalbar", new LandComposition(fs("footsteps.metalbar"), null, fs("footsteps.metalbar"))),
             // 1.12.2 hardmetal land = metalbox_run + metalbox_walk@50 + delay50(metalbox_run):

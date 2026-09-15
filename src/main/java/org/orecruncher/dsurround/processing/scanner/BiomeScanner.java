@@ -38,12 +38,12 @@ public final class BiomeScanner extends AbstractScanner {
     private BlockPos surveyedPosition = BlockPos.ZERO;
     private final IBiomeLibrary biomeLibrary;
     private final IDimensionInformation dimensionInformation;
-    private final EnclosureScanner enclosureScanner;
+    private final CeilingScanner ceilingScanner;
 
-    public BiomeScanner(IBiomeLibrary biomeLibrary, IDimensionInformation dimensionInformation, EnclosureScanner enclosureScanner) {
+    public BiomeScanner(IBiomeLibrary biomeLibrary, IDimensionInformation dimensionInformation, CeilingScanner ceilingScanner) {
         this.biomeLibrary = biomeLibrary;
         this.dimensionInformation = dimensionInformation;
-        this.enclosureScanner = enclosureScanner;
+        this.ceilingScanner = ceilingScanner;
     }
 
     public BiomeInfo playerLogicBiomeInfo() {
@@ -146,7 +146,7 @@ public final class BiomeScanner extends AbstractScanner {
 
         // Inside check overrides everything else. Some dimensions are always outside,
         // so those are excluded (like the nether).
-        if (!this.dimensionInformation.alwaysOutside() && this.enclosureScanner.isReallyInside()) {
+        if (!this.dimensionInformation.alwaysOutside() && this.ceilingScanner.isReallyInside()) {
             // If it's not underground, and we are inside, return INSIDE
             return this.biomeLibrary.getBiomeInfo(SyntheticBiome.INSIDE);
         }

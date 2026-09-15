@@ -9,27 +9,27 @@ import org.orecruncher.dsurround.eventing.CollectDiagnosticsEvent;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.processing.scanner.BiomeScanner;
-import org.orecruncher.dsurround.processing.scanner.EnclosureScanner;
+import org.orecruncher.dsurround.processing.scanner.CeilingScanner;
 import org.orecruncher.dsurround.processing.scanner.VillageScanner;
 
 public class Scanners extends AbstractClientHandler {
 
     private final BiomeScanner biomeScanner;
     private final VillageScanner villageScanner;
-    private final EnclosureScanner enclosureScanner;
+    private final CeilingScanner ceilingScanner;
     private final ITickCount tickCount;
 
-    public Scanners(BiomeScanner biomeScanner, VillageScanner villageScanner, EnclosureScanner enclosureScanner, Configuration config, ITickCount tickCount, IModLog logger) {
+    public Scanners(BiomeScanner biomeScanner, VillageScanner villageScanner, CeilingScanner ceilingScanner, Configuration config, ITickCount tickCount, IModLog logger) {
         super("Scanners", config, logger);
 
         this.biomeScanner = biomeScanner;
         this.villageScanner = villageScanner;
-        this.enclosureScanner = enclosureScanner;
+        this.ceilingScanner = ceilingScanner;
         this.tickCount = tickCount;
     }
 
     public boolean isInside() {
-        return this.enclosureScanner.isReallyInside();
+        return this.ceilingScanner.isReallyInside();
     }
 
     public boolean isInVillage() {
@@ -56,7 +56,7 @@ public class Scanners extends AbstractClientHandler {
     public void process(final Player player) {
 
         long ticks = this.tickCount.getTickCount();
-        this.enclosureScanner.tick(ticks);
+        this.ceilingScanner.tick(ticks);
         this.villageScanner.tick(ticks);
         this.biomeScanner.tick(ticks);
     }
@@ -64,10 +64,7 @@ public class Scanners extends AbstractClientHandler {
     @Override
     protected void gatherDiagnostics(CollectDiagnosticsEvent event) {
         var panelText = event.getSectionText(CollectDiagnosticsEvent.Section.Survey);
-        panelText.add(Component.literal("enclosure: %.2f (faces %d/4, overhead %s)".formatted(
-                this.enclosureScanner.getCoverageRatio(),
-                this.enclosureScanner.getBlockedFaces(),
-                this.enclosureScanner.isOverheadBlocked())));
+        panelText.add(Component.literal("ceiling coverage: %.2f".formatted(this.ceilingScanner.getCoverageRatio())));
         this.biomeScanner.getBiomes().reference2IntEntrySet().stream()
                 .map(kvp -> "%s [%d]".formatted(kvp.getKey().getBiomeId(), kvp.getIntValue()))
                 .sorted()

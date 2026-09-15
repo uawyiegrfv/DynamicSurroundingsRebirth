@@ -19,6 +19,7 @@ class DumpCommand extends AbstractClientCommand {
     private static final String ITEMS = "items";
     private static final String TAGS = "tags";
     private static final String DIREGISTRATIONS = "diregistrations";
+    private static final String STEPS = "steps";
 
     public void register(CommandDispatcher<ClientCommandRegistrationEvent.ClientCommandSourceStack> dispatcher, CommandBuildContext registryAccess) {
         dispatcher.register(ClientCommandRegistrationEvent.literal(COMMAND)
@@ -33,6 +34,7 @@ class DumpCommand extends AbstractClientCommand {
                 .then(subCommand(ITEMS, DumpCommandHandler::dumpItems))
                 .then(subCommand(TAGS, DumpCommandHandler::dumpTags))
                 .then(subCommand(DIREGISTRATIONS, DumpCommandHandler::dumpDIRegistrations))
+                .then(subCommand(STEPS, DumpCommandHandler::dumpStepTrace))
         );
     }
 }

@@ -422,8 +422,17 @@ public class FootstepGenerator extends AbstractClientHandler {
         final var state = climbing
                 ? player.level().getBlockState(player.blockPosition())
                 : resolveSurfaceBlock(player, player.level(), pos);
-        if (this.logger.isDebugging())
+        if (this.logger.isDebugging()) {
             this.logger.debug("Step at %s, pos %s, state %s, footY %.3f", player.blockPosition(), pos, state, player.position().y);
+            // The feet cell is where the trapdoor/door bug lived, so spell it out whenever the
+            // step lands on something other than the block under the feet.
+            final var feetCell = player.level().getBlockState(player.blockPosition());
+            if (!feetCell.equals(state)) {
+                final List<String> t = new java.util.ArrayList<>();
+                resolveSurfaceBlock(player, player.level(), pos, t);
+                t.forEach(this.logger::debug);
+            }
+        }
         if (state.isAir() || !state.getFluidState().isEmpty())
             return;
 
@@ -527,6 +536,9 @@ public class FootstepGenerator extends AbstractClientHandler {
                 + java.util.concurrent.ThreadLocalRandom.current().nextInt(LAND_ECHO_DELAY_MAX_TICKS - LAND_ECHO_DELAY_MIN_TICKS + 1);
         var feetPos = player.blockPosition();
         var material = resolveMaterial(player);
+        if (this.logger.isDebugging())
+            this.logger.debug("Land at %s, material %s, sound %s, footY %.3f",
+                    feetPos, material.map(Object::toString).orElse("(none)"), resolveLandSound(player), player.getY());
 
         // Left/right foot positions: the block centre offset 0.2 blocks laterally off
         // the facing direction (1.12.2 findAssociation semantics).
@@ -625,6 +637,22 @@ public class FootstepGenerator extends AbstractClientHandler {
      * straddles an edge next to a snow layer in the row below.
      */
     static BlockState resolveSurfaceBlock(Entity entity, Level level, BlockPos pos) {
+        return resolveSurfaceBlock(entity, level, pos, null);
+    }
+
+    /**
+     * Same as {@link #resolveSurfaceBlock(Entity, Level, BlockPos)} but appends a human
+     * readable account of every decision taken to {@code trace} when it is non-null. The
+     * trace is what /dsdump steps prints, so a player standing in the spot that sounds
+     * wrong can report exactly which branch fired.
+     */
+    static BlockState resolveSurfaceBlock(Entity entity, Level level, BlockPos pos,
+                                          @Nullable final List<String> trace) {
+        if (trace != null) {
+            trace.add("pos(blockPosition().below()) = %s   feetCell = %s".formatted(pos, pos.above()));
+            trace.add("entity.getY() = %.4f   onGround = %s   mainSupportingBlockPos = %s".formatted(
+                    entity.getY(), entity.onGround(), entity.mainSupportingBlockPos.map(Object::toString).orElse("(empty)")));
+        }
         // Priority order (see the footstep material resolution). Steps 1 and 2 both consult the
         // feet cell and are gated on isStandingOn(): the cell only wins when the player is on
         // the block, not inside it, so an open trapdoor or an open door in the same cell as the
@@ -650,11 +678,14 @@ public class FootstepGenerator extends AbstractClientHandler {
         // 6. Horizontal scan for the nearest solid block when the player is over an edge.
 
         var footState = level.getBlockState(pos.above());
+        traceFootCell(trace, entity, level, pos.above(), footState);
         if (footState.getFluidState().isEmpty()
                 && isStandingOn(entity, level, pos.above(), footState)
                 && (footState.getBlock() instanceof net.minecraft.world.level.block.SnowLayerBlock
-                        || isLeafLitter(footState)))
+                        || isLeafLitter(footState))) {
+            if (trace != null) trace.add("-> snow/leaf-litter probe (1a) matched");
             return footState;
+        }
 
         // Blocks with no collision box (rails, sculk veins, glow lichen, vines, lily pads,
         // redstone wire, tripwire, ...) are invisible to vanilla's collision-derived
@@ -676,10 +707,20 @@ public class FootstepGenerator extends AbstractClientHandler {
         // head fills the cell - all of them merely neighbour the feet. Without this check the
         // trapdoor/door cell hijacked the step AND the land sound, so standing next to an open
         // trapdoor or in a doorway sounded like thin wood instead of the floor.
+        final boolean explicit = hasExplicitFootstepMapping(footState);
+        if (trace != null) {
+            final boolean standing = isStandingOn(entity, level, pos.above(), footState);
+            trace.add("explicit footstep mapping for the feet cell = %s (fluid empty = %s)".formatted(
+                    explicit, footState.getFluidState().isEmpty()));
+            trace.add("isStandingOn(feetCell) = %s  -> the cell %s be used".formatted(
+                    standing, standing ? "CAN" : "MUST NOT"));
+        }
         if (footState.getFluidState().isEmpty()
                 && isStandingOn(entity, level, pos.above(), footState)
-                && hasExplicitFootstepMapping(footState))
+                && explicit) {
+            if (trace != null) trace.add("-> explicit-mapping probe (1b) matched");
             return footState;
+        }
 
         // The single pos.above() probe above misses the block-edge case: standing at the
         // edge of a snow layer / leaf litter patch, the feet overlap two cells and
@@ -711,18 +752,25 @@ public class FootstepGenerator extends AbstractClientHandler {
         var supportPos = entity.mainSupportingBlockPos.orElse(null);
         if (supportPos != null && entity.onGround()) {
             var support = level.getBlockState(supportPos);
-            if (!support.isAir() && support.getFluidState().isEmpty())
+            if (!support.isAir() && support.getFluidState().isEmpty()) {
+                if (trace != null) trace.add("-> vanilla mainSupportingBlockPos (3) at %s = %s".formatted(supportPos, support));
                 return support;
+            }
         }
+        if (trace != null) trace.add("mainSupportingBlockPos (3) not usable");
 
         if (!footState.isAir() && footState.getFluidState().isEmpty()
                 && !isVegetationBlock(footState)
-                && !footState.getShape(level, pos.above()).isEmpty())
+                && !footState.getShape(level, pos.above()).isEmpty()) {
+            if (trace != null) trace.add("-> feet cell visible-shape branch (4)");
             return footState;
+        }
 
         var state = level.getBlockState(pos);
-        if (!state.isAir() && state.getFluidState().isEmpty())
+        if (!state.isAir() && state.getFluidState().isEmpty()) {
+            if (trace != null) trace.add("-> block below the feet (5) = %s".formatted(state));
             return state;
+        }
 
         if (state.isAir()) {
             for (var dir : Direction.Plane.HORIZONTAL) {
@@ -752,6 +800,56 @@ public class FootstepGenerator extends AbstractClientHandler {
      * that is flush with the floor, and the player does stand on them. Those keep the
      * walk-through branch.
      */
+    /** Appends the feet-cell detail the diagnostic needs: the block, its collision box and
+     * whether that box rises above the feet (which is what decides isStandingOn). */
+    private static void traceFootCell(@Nullable final List<String> trace, final Entity entity,
+                                      final Level level, final BlockPos cell, final BlockState state) {
+        if (trace == null)
+            return;
+        var shape = state.getCollisionShape(level, cell);
+        trace.add("feet cell %s = %s".formatted(cell, state));
+        trace.add("   sound type = %s   step event = %s".formatted(
+                state.getSoundType(), state.getSoundType().getStepSound().getLocation()));
+        trace.add("   collision shape = %s   top Y = %s".formatted(
+                shape.isEmpty() ? "(empty)" : shape.bounds().toString(),
+                shape.isEmpty() ? "(none)" : "%.4f".formatted(shape.max(Direction.Axis.Y))));
+        trace.add("   isStandingOn = %s   (feet %.4f + tolerance %.2f)".formatted(
+                isStandingOn(entity, level, cell, state), entity.getY(), STANDING_TOLERANCE));
+        trace.add("   vanilla getOnPos(0.2) = %s   collisionExtendsVertically = %s".formatted(
+                entity.getOnPosLegacy(), state.collisionExtendsVertically(level, cell, entity)));
+        if (TAG_LIBRARY.is(net.minecraft.tags.BlockTags.TRAPDOORS, state)
+                || TAG_LIBRARY.is(net.minecraft.tags.BlockTags.DOORS, state))
+            trace.add("   NOTE: this cell holds a TRAPDOOR/DOOR - an OPEN one is a 3/16 slab on the cell floor");
+    }
+
+    /**
+     * Builds the /dsdump steps report for the current player: the complete decision chain of
+     * the surface resolution plus the material and landing sound it produces. Printed to chat
+     * so a player can report the exact branch taken at the position that sounds wrong.
+     */
+    public static List<String> dumpStepTrace(final Player player) {
+        final List<String> trace = new java.util.ArrayList<>();
+        final var pos = player.blockPosition().below();
+        trace.add("=== DS footstep surface resolution ===");
+        trace.add("player %s   feet Y %.4f   onGround %s".formatted(player.blockPosition(), player.getY(), player.onGround()));
+        trace.add("climbing(=%s) = %s".formatted(player.onClimbable(), player.onClimbable() && !player.onGround()));
+        final var state = resolveSurfaceBlock(player, player.level(), pos, trace);
+        trace.add("RESULT: %s".formatted(state));
+        final var stepSound = state.getSoundType().getStepSound();
+        trace.add("   step event = %s".formatted(stepSound.getLocation()));
+        final Optional<ISoundLibrary.SoundRemap> remap = SOUND_LIBRARY.getRemappedSound(stepSound, state);
+        if (remap.isPresent()) {
+            trace.add("   material   = %s".formatted(remap.get().factory()));
+            trace.add("   accents    = %s".formatted(remap.get().accents()));
+        } else {
+            trace.add("   material   = (no DS remap -> vanilla sound)");
+        }
+        trace.add("   land sound = %s".formatted(resolveLandSound(player)));
+        trace.add("   material(resolveMaterial) = %s".formatted(
+                resolveMaterial(player).map(Object::toString).orElse("(none)")));
+        return trace;
+    }
+
     private static boolean isStandingOn(final Entity entity, final Level level, final BlockPos cell,
                                         final BlockState state) {
         var shape = state.getCollisionShape(level, cell);

@@ -1,0 +1,16 @@
+{
+  "_comment": "不隔音的通花方块（铁栏杆、锁链、铜栏杆）：室内判定里它们不算墙也不算天花板，否则一个栏杆顶棚会被判成室内。原版没有对应标签（BlockTags.BARS 要到 1.21.2 才有），所以由 DS 提供；其它模组的通花方块可以自己加进来。",
+  "values": [
+    "minecraft:chain",
+    "minecraft:copper_bars",
+    "minecraft:copper_chain",
+    "minecraft:exposed_copper_bars",
+    "minecraft:exposed_copper_chain",
+    "minecraft:gold_chain",
+    "minecraft:iron_bars",
+    "minecraft:oxidized_copper_bars",
+    "minecraft:oxidized_copper_chain",
+    "minecraft:weathered_copper_bars",
+    "minecraft:weathered_copper_chain"
+  ]
+}

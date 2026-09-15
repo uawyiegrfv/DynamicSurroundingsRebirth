@@ -5,6 +5,7 @@ import org.orecruncher.dsurround.config.libraries.*;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.lib.platform.IMinecraftDirectories;
+import org.orecruncher.dsurround.processing.FootstepGenerator;
 
 import java.io.PrintStream;
 import java.util.function.Supplier;
@@ -59,6 +60,18 @@ public class DumpCommandHandler {
 
     public static Component dumpDIRegistrations() {
         return handle("diregistrations", ContainerManager::dumpRegistrations);
+    }
+
+    /**
+     * Prints the footstep surface-resolution decision chain to chat instead of a file: it
+     * describes the exact position the player is standing at, which is what a "this spot sounds
+     * wrong" report needs (which branch of resolveSurfaceBlock fired, and why).
+     */
+    public static Component dumpStepTrace() {
+        final var player = net.minecraft.client.Minecraft.getInstance().player;
+        if (player == null)
+            return Component.literal("dsdump steps: no client player");
+        return Component.literal(String.join("\n", FootstepGenerator.dumpStepTrace(player)));
     }
 
     private static Component handle(final String operation, final Supplier<Stream<String>> supplier) {

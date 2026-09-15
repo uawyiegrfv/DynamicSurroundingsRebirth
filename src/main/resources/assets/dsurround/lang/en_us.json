@@ -4,6 +4,8 @@
   "dsurround.command.dsdump.failure": "Dump of %1$s §4failed§r.  %2$s",
   "dsurround.command.dsdump.success": "Dump of %1$s §2succeeded§r.  Data can be found in %2$s",
   "dsurround.command.dsdump.steps": "Footstep surface trace for your current position:",
+  "dsurround.command.dsdump.enclosure": "Indoor/outdoor enclosure survey for your current position:",
+  "dsurround.command.dsdump.enclosure": "Indoor/outdoor enclosure survey for your current position:",
   "dsurround.command.dsmm.pause.failure": "Unable to pause the Music Manager: %1$s",
   "dsurround.command.dsmm.pause.success": "Music Manager was paused",
   "dsurround.command.dsmm.reset.failure": "Unable to reset the Music Manager: %1$s",

@@ -3,6 +3,7 @@ package org.orecruncher.dsurround.processing;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -92,6 +93,14 @@ public class FootstepGenerator extends AbstractClientHandler {
     // resolved the entity position, while a block the entity stands IN (an open trapdoor /
     // door lying on the cell floor at 3/16, a fence, a wall, a piston head) is far above.
     private static final double STANDING_TOLERANCE = 0.05D;
+    // 1.12.2 sampled the cell BELOW the feet and consulted the cell above it only for its
+    // explicit overlay substrates (carpet / foliage / messy): carpet, snow layer, lily pad,
+    // pressure plates, the four rails, tall grass and vines. Doors and trapdoors are NOT in
+    // that set, which is why the original never mis-sounded them. The port's feet-cell probe
+    // used to accept ANY explicitly mapped block, so a door or trapdoor sharing the player's
+    // cell hijacked the step and the landing sound.
+    private static final TagKey<net.minecraft.world.level.block.Block> FOOT_OVERLAY =
+            org.orecruncher.dsurround.tags.BlockEffectTags.FOOT_OVERLAY;
 
     private static float strideWalk() { return VARIATORS.getPlayerVariator().stride(); }
     private static float strideRun() { return VARIATORS.getPlayerVariator().stride() * 1.06F; }
@@ -692,18 +701,18 @@ public class FootstepGenerator extends AbstractClientHandler {
         // head fills the cell - all of them merely neighbour the feet. Without this check the
         // trapdoor/door cell hijacked the step AND the land sound, so standing next to an open
         // trapdoor or in a doorway sounded like thin wood instead of the floor.
-        final boolean explicit = hasExplicitFootstepMapping(footState);
+        final boolean overlay = TAG_LIBRARY.is(FOOT_OVERLAY, footState);
         if (trace != null) {
             final boolean standing = isStandingOn(entity, level, pos.above(), footState);
-            trace.add("explicit footstep mapping for the feet cell = %s (fluid empty = %s)".formatted(
-                    explicit, footState.getFluidState().isEmpty()));
+            trace.add("feet cell in #dsurround:effects/foot_overlay = %s (fluid empty = %s)".formatted(
+                    overlay, footState.getFluidState().isEmpty()));
             trace.add("isStandingOn(feetCell) = %s  -> the cell %s be used".formatted(
                     standing, standing ? "CAN" : "MUST NOT"));
         }
         if (footState.getFluidState().isEmpty()
                 && isStandingOn(entity, level, pos.above(), footState)
-                && explicit) {
-            if (trace != null) trace.add("-> explicit-mapping probe (1b) matched");
+                && overlay) {
+            if (trace != null) trace.add("-> foot-overlay probe (1b) matched");
             return footState;
         }
 
@@ -746,8 +755,9 @@ public class FootstepGenerator extends AbstractClientHandler {
 
         if (!footState.isAir() && footState.getFluidState().isEmpty()
                 && !isVegetationBlock(footState) /* VegetationBlock is 1.20.5+ */
+                && TAG_LIBRARY.is(FOOT_OVERLAY, footState)
                 && !footState.getShape(level, pos.above()).isEmpty()) {
-            if (trace != null) trace.add("-> feet cell visible-shape branch (4)");
+            if (trace != null) trace.add("-> feet cell overlay branch (4)");
             return footState;
         }
 
@@ -804,7 +814,10 @@ public class FootstepGenerator extends AbstractClientHandler {
                 entity.getOnPosLegacy(), state.collisionExtendsVertically(level, cell, entity)));
         if (TAG_LIBRARY.is(net.minecraft.tags.BlockTags.TRAPDOORS, state)
                 || TAG_LIBRARY.is(net.minecraft.tags.BlockTags.DOORS, state))
-            trace.add("   NOTE: this cell holds a TRAPDOOR/DOOR - an OPEN one is a 3/16 slab on the cell floor");
+            trace.add("   NOTE: this cell holds a TRAPDOOR/DOOR (open=%s). NOT a foot overlay, so it never wins; the sound comes from the block below".formatted(
+                    state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.OPEN)
+                            ? state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.OPEN).toString()
+                            : "false"));
     }
 
     /**
@@ -837,6 +850,12 @@ public class FootstepGenerator extends AbstractClientHandler {
 
     private static boolean isStandingOn(final Entity entity, final Level level, final BlockPos cell,
                                         final BlockState state) {
+        // A floor layer: the block's own top surface is at (or a hair below) the feet, so the
+        // entity is on it. This is decidable from the collision shape alone and holds for every
+        // overlay the tag covers - a carpet (1/16), a pressure plate (1/16), a rail and a 1-layer
+        // snow (both empty collision shapes), a lily pad. A door or an open trapdoor beside the
+        // player has its top face AT THE CELL CEILING (shape y 0..1), so it is rejected, which is
+        // what makes the door/trapdoor cells stop hijacking the sound.
         var shape = state.getCollisionShape(level, cell);
         if (shape.isEmpty())
             return true;

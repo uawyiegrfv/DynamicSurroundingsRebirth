@@ -1,0 +1,33 @@
+{
+  "_comment": "1.12.2 的 \"覆盖层\"(carpet/foliage) 底材集合：这些方块可以出现在玩家脚部所在的那一格，并被当作脚下的地面。移植版的取面探测必须只认这一集合，否则与玩家同格的门/活板门/栅栏等薄板会把脚步声和落地声整个劫持掉。门与活板门刻意不在其中。",
+  "values": [
+    "minecraft:activator_rail",
+    "minecraft:black_carpet",
+    "minecraft:blue_carpet",
+    "minecraft:brown_carpet",
+    "minecraft:cyan_carpet",
+    "minecraft:detector_rail",
+    "minecraft:glow_lichen",
+    "minecraft:gray_carpet",
+    "minecraft:green_carpet",
+    "minecraft:heavy_weighted_pressure_plate",
+    "minecraft:light_blue_carpet",
+    "minecraft:light_gray_carpet",
+    "minecraft:light_weighted_pressure_plate",
+    "minecraft:lily_pad",
+    "minecraft:lime_carpet",
+    "minecraft:magenta_carpet",
+    "minecraft:moss_carpet",
+    "minecraft:orange_carpet",
+    "minecraft:pink_carpet",
+    "minecraft:powered_rail",
+    "minecraft:purple_carpet",
+    "minecraft:rail",
+    "minecraft:red_carpet",
+    "minecraft:sculk_vein",
+    "minecraft:snow",
+    "minecraft:stone_pressure_plate",
+    "minecraft:white_carpet",
+    "minecraft:yellow_carpet"
+  ]
+}

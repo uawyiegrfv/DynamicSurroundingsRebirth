@@ -3,6 +3,7 @@
   "dsurround.command.dsbiome.failure.unknown_biome": "生物群系 %1$s 未知",
   "dsurround.command.dsdump.failure": "转储到 %1$s §4失败§r,  %2$s",
   "dsurround.command.dsdump.success": "转储到 %1$s §2成功§r,  数据可以在 %2$s 找到.",
+  "dsurround.command.dsdump.steps": "当前位置的脚步取面判定过程：",
   "dsurround.command.dsmm.reset.failure": "无法重置音乐管理器: %1$s",
   "dsurround.command.dsmm.reset.success": "音乐管理器已重置",
   "dsurround.command.dsreload.failure": "资源重新加载 §4失败§r,  %1$s",

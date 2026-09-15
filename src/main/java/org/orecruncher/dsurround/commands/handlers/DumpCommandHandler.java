@@ -74,22 +74,6 @@ public class DumpCommandHandler {
         return Component.literal(String.join("\n", FootstepGenerator.dumpStepTrace(player)));
     }
 
-    /**
-     * Prints the indoor/outdoor enclosure survey for the player's current position: which of the
-     * four horizontal faces are blocked (you cannot walk out that way), whether there is a ceiling
-     * overhead, and the resulting verdict. This is what a "this spot should not count as indoors"
-     * report needs.
-     */
-    public static Component dumpEnclosure() {
-        final var minecraft = net.minecraft.client.Minecraft.getInstance();
-        final var player = minecraft.player;
-        if (player == null || minecraft.level == null)
-            return Component.literal("dsdump enclosure: no client player");
-        final var scanner = ContainerManager.resolve(
-                org.orecruncher.dsurround.processing.scanner.EnclosureScanner.class);
-        return Component.literal(String.join("\n", scanner.describe(minecraft.level)));
-    }
-
     private static Component handle(final String operation, final Supplier<Stream<String>> supplier) {
 
         final String fileName = operation + ".txt";

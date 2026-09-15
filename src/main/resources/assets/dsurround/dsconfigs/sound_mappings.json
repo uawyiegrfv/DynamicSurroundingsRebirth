@@ -121,6 +121,13 @@
         "factory": "dsurround:footsteps/ladder"
       },
       {
+        "blocks": [
+          "#minecraft:all_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
+      },
+      {
         "factory": "dsurround:footsteps.wood"
       }
     ]
@@ -256,6 +263,13 @@
         ],
         "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
         "factory": "dsurround:footsteps/ladder"
+      },
+      {
+        "blocks": [
+          "#minecraft:all_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
       },
       {
         "factory": "dsurround:footsteps.wood"
@@ -648,6 +662,15 @@
     "soundEvent": "minecraft:block.froglight.step",
     "rules": [
       {
+        "blocks": [
+          "minecraft:ochre_froglight",
+          "minecraft:pearlescent_froglight",
+          "minecraft:verdant_froglight"
+        ],
+        "_comment": "【蛙明灯】走软化变体 froglight_soft（同录音压调 + 降音量，软而闷）。",
+        "factory": "dsurround:footsteps.froglight_soft"
+      },
+      {
         "factory": "dsurround:footsteps.froglight"
       }
     ]
@@ -760,6 +783,13 @@
   {
     "soundEvent": "minecraft:block.hanging_sign.step",
     "rules": [
+      {
+        "blocks": [
+          "#minecraft:all_hanging_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
+      },
       {
         "factory": "dsurround:footsteps.wood"
       }
@@ -1030,6 +1060,13 @@
         "factory": "dsurround:footsteps/ladder"
       },
       {
+        "blocks": [
+          "#minecraft:all_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
+      },
+      {
         "factory": "dsurround:footsteps.wood"
       }
     ]
@@ -1288,6 +1325,13 @@
         "factory": "dsurround:footsteps/ladder"
       },
       {
+        "blocks": [
+          "#minecraft:all_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
+      },
+      {
         "factory": "dsurround:footsteps.wood"
       }
     ]
@@ -1295,6 +1339,22 @@
   {
     "soundEvent": "minecraft:block.stone.step",
     "rules": [
+      {
+        "blocks": [
+          "minecraft:quartz_block",
+          "minecraft:quartz_pillar",
+          "minecraft:quartz_bricks",
+          "minecraft:smooth_quartz",
+          "minecraft:chiseled_quartz_block",
+          "minecraft:quartz_slab",
+          "minecraft:quartz_stairs"
+        ],
+        "_comment": "【石英】石英族走粉质变体 quartz_powdery，并加一层很轻的 sand 副音做「细粉颗粒」质感（1.12.2 的 sand 层就是用来表达颗粒的）。",
+        "factory": "dsurround:footsteps.quartz_powdery",
+        "accent": [
+          "dsurround:footstep_accent/sand"
+        ]
+      },
       {
         "blocks": [
           "minecraft:magma_block"
@@ -1604,6 +1664,34 @@
     "rules": [
       {
         "blocks": [
+          "minecraft:brown_mushroom_block",
+          "minecraft:red_mushroom_block",
+          "minecraft:mushroom_stem"
+        ],
+        "_comment": "【有机质 - 菌类】蘑菇块/菌柄走松软变体 organic_spongy（见该工厂注释）。",
+        "factory": "dsurround:footsteps.organic_spongy"
+      },
+      {
+        "blocks": [
+          "minecraft:pumpkin",
+          "minecraft:carved_pumpkin",
+          "minecraft:jack_o_lantern",
+          "minecraft:melon",
+          "minecraft:cocoa"
+        ],
+        "_comment": "【有机质 - 硬壳瓜类】南瓜/西瓜/可可走硬壳变体 organic_shell。",
+        "factory": "dsurround:footsteps.organic_shell"
+      },
+      {
+        "blocks": [
+          "minecraft:beehive",
+          "minecraft:bee_nest"
+        ],
+        "_comment": "【有机质 - 蜂巢类】蜂箱/蜂巢走蜡质变体 organic_waxy（与蜡烛那份蜡质区分：这里是蜂窝结构，更空）。",
+        "factory": "dsurround:footsteps.organic_waxy"
+      },
+      {
+        "blocks": [
           "#c:ladders"
         ],
         "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
@@ -1659,6 +1747,111 @@
         "factory": "dsurround:footsteps.rug"
       },
       {
+        "blocks": [
+          "minecraft:acacia_door",
+          "minecraft:birch_door",
+          "minecraft:dark_oak_door",
+          "minecraft:jungle_door",
+          "minecraft:oak_door",
+          "minecraft:spruce_door",
+          "minecraft:mangrove_door",
+          "minecraft:cherry_door",
+          "minecraft:bamboo_door",
+          "minecraft:crimson_door",
+          "minecraft:warped_door",
+          "minecraft:pale_oak_door"
+        ],
+        "_comment": "【木 - 门/活板门】门板是薄板 + 中空，比实心木板更空更亮。1.12.2 的 BlockDoor 已单列为 bluntwood，这里用同录音升调再细分。",
+        "factory": "dsurround:footsteps.wood_door"
+      },
+      {
+        "blocks": [
+          "minecraft:acacia_fence",
+          "minecraft:birch_fence",
+          "minecraft:dark_oak_fence",
+          "minecraft:jungle_fence",
+          "minecraft:oak_fence",
+          "minecraft:spruce_fence",
+          "minecraft:mangrove_fence",
+          "minecraft:cherry_fence",
+          "minecraft:bamboo_fence",
+          "minecraft:crimson_fence",
+          "minecraft:warped_fence",
+          "minecraft:pale_oak_fence",
+          "minecraft:nether_brick_fence"
+        ],
+        "_comment": "【木 - 栅栏/栏杆】细杆件，比整块木板小声。同录音升调 + 降到 0.60~0.70。",
+        "factory": "dsurround:footsteps.wood_fence"
+      },
+      {
+        "blocks": [
+          "minecraft:acacia_button",
+          "minecraft:birch_button",
+          "minecraft:dark_oak_button",
+          "minecraft:jungle_button",
+          "minecraft:oak_button",
+          "minecraft:spruce_button",
+          "minecraft:mangrove_button",
+          "minecraft:cherry_button",
+          "minecraft:bamboo_button",
+          "minecraft:crimson_button",
+          "minecraft:warped_button",
+          "minecraft:pale_oak_button",
+          "minecraft:acacia_pressure_plate",
+          "minecraft:birch_pressure_plate",
+          "minecraft:dark_oak_pressure_plate",
+          "minecraft:jungle_pressure_plate",
+          "minecraft:oak_pressure_plate",
+          "minecraft:spruce_pressure_plate",
+          "minecraft:mangrove_pressure_plate",
+          "minecraft:cherry_pressure_plate",
+          "minecraft:bamboo_pressure_plate",
+          "minecraft:crimson_pressure_plate",
+          "minecraft:warped_pressure_plate",
+          "minecraft:pale_oak_pressure_plate"
+        ],
+        "_comment": "【木 - 按钮/压力板】极小的机构件，应该是一声很轻很脆的嗒。升调到 1.35~1.50、音量 0.45~0.55。",
+        "factory": "dsurround:footsteps.wood_click"
+      },
+      {
+        "blocks": [
+          "minecraft:acacia_trapdoor",
+          "minecraft:birch_trapdoor",
+          "minecraft:dark_oak_trapdoor",
+          "minecraft:jungle_trapdoor",
+          "minecraft:oak_trapdoor",
+          "minecraft:spruce_trapdoor",
+          "minecraft:mangrove_trapdoor",
+          "minecraft:cherry_trapdoor",
+          "minecraft:bamboo_trapdoor",
+          "minecraft:crimson_trapdoor",
+          "minecraft:warped_trapdoor",
+          "minecraft:pale_oak_trapdoor",
+          "minecraft:acacia_fence_gate",
+          "minecraft:birch_fence_gate",
+          "minecraft:dark_oak_fence_gate",
+          "minecraft:jungle_fence_gate",
+          "minecraft:oak_fence_gate",
+          "minecraft:spruce_fence_gate",
+          "minecraft:mangrove_fence_gate",
+          "minecraft:cherry_fence_gate",
+          "minecraft:bamboo_fence_gate",
+          "minecraft:crimson_fence_gate",
+          "minecraft:warped_fence_gate",
+          "minecraft:pale_oak_fence_gate",
+          "minecraft:scaffolding"
+        ],
+        "_comment": "【木 - 活板门/栅栏门/脚手架】薄板或细构件，比整块木板轻。同录音小幅升调。",
+        "factory": "dsurround:footsteps.wood_thin"
+      },
+      {
+        "blocks": [
+          "#minecraft:all_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
+      },
+      {
         "factory": "dsurround:footsteps.wood"
       }
     ]
@@ -1680,6 +1873,13 @@
           "#minecraft:buttons"
         ],
         "factory": "dsurround:footsteps.none"
+      },
+      {
+        "blocks": [
+          "#minecraft:all_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
       }
     ]
   },
@@ -1709,6 +1909,13 @@
     "soundEvent": "minecraft:block.bamboo_wood_hanging_sign.step",
     "rules": [
       {
+        "blocks": [
+          "#minecraft:all_hanging_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
+      },
+      {
         "factory": "dsurround:footsteps.wood"
       }
     ]
@@ -1717,6 +1924,13 @@
     "soundEvent": "minecraft:block.cherry_wood_hanging_sign.step",
     "rules": [
       {
+        "blocks": [
+          "#minecraft:all_hanging_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
+      },
+      {
         "factory": "dsurround:footsteps.wood"
       }
     ]
@@ -1724,6 +1938,13 @@
   {
     "soundEvent": "minecraft:block.nether_wood_hanging_sign.step",
     "rules": [
+      {
+        "blocks": [
+          "#minecraft:all_hanging_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
+      },
       {
         "factory": "dsurround:footsteps.wood"
       }
@@ -1856,6 +2077,13 @@
           "quark:paper_wall_sakura"
         ],
         "factory": "dsurround:footsteps.organic_dry"
+      },
+      {
+        "blocks": [
+          "#minecraft:all_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
       }
     ]
   },
@@ -1984,6 +2212,13 @@
         "accent": [
           "dsurround:footstep_accent/glass"
         ]
+      },
+      {
+        "blocks": [
+          "#minecraft:all_signs"
+        ],
+        "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
+        "factory": "dsurround:footsteps.wood_sign"
       }
     ]
   },

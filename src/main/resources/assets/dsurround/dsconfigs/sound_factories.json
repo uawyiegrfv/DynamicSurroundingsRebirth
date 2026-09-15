@@ -531,6 +531,90 @@
                    }
     },
     {
+        "_comment":  "【木 - 书架/置物架】架板是薄木板，比整块木板轻一点（26.1 新增方块）。",
+        "location":  "dsurround:footsteps.wood_shelf",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.05,
+            "max":  1.15
+        },
+        "volume":  {
+            "min":  0.75,
+            "max":  0.85
+        }
+    },
+    {
+        "_comment":  "【木 - 活板门/栅栏门/脚手架】都是【薄板或细构件】，比整块木板轻。同录音小幅升调。",
+        "location":  "dsurround:footsteps.wood_thin",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.08,
+            "max":  1.18
+        },
+        "volume":  {
+            "min":  0.7,
+            "max":  0.8
+        }
+    },
+    {
+        "_comment":  "【木 - 告示牌】牌面是【悬空的薄板】，比木板轻、带一点空腔共鸣。同录音升调。",
+        "location":  "dsurround:footsteps.wood_sign",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.18,
+            "max":  1.28
+        },
+        "volume":  {
+            "min":  0.7,
+            "max":  0.8
+        }
+    },
+    {
+        "_comment":  "【木 - 按钮/压力板】这两个是【极小的机构件】，踩上去应该是一声【很轻很脆的嗒】。同录音大幅升调到 1.35~1.50、音量降到 0.45~0.55。",
+        "location":  "dsurround:footsteps.wood_click",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.35,
+            "max":  1.5
+        },
+        "volume":  {
+            "min":  0.45,
+            "max":  0.55
+        }
+    },
+    {
+        "_comment":  "【木 - 栅栏/栏杆】栅栏是【细杆件】，不完整方块应当比整块木板小声。同录音升调 + 降到 0.60~0.70。",
+        "location":  "dsurround:footsteps.wood_fence",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.12,
+            "max":  1.22
+        },
+        "volume":  {
+            "min":  0.6,
+            "max":  0.7
+        }
+    },
+    {
+        "_comment":  "【木 - 门/活板门】门板是【薄板 + 中空】，敲起来比实心木板更空、更亮、更小。1.12.2 的 BlockDoor 本来就单列为 bluntwood；这里再用「同录音 + 升调 + 降音量」把门类从整块木板里分出来。",
+        "location":  "dsurround:footsteps.wood_door",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.1,
+            "max":  1.2
+        },
+        "volume":  {
+            "min":  0.7,
+            "max":  0.8
+        }
+    },
+    {
         "_comment":  "【1.12.2 材质补齐 wood_sticky】黏性活塞头的 walk = wood_walk ⊕ mud_walk@50、land = wood_walk ⊕ mud_walk@50 ⊕ 延迟30 wood_walk。这里登记一个【独立路径】的工厂（录音与 footsteps.wood 完全相同），只为了让取面拿到唯一材质路径，从而在 FootstepGenerator.LAND_COMPOSITIONS 里给它一条专属落地合成（主体木 + 叠层泥），落地才不会丢掉那层「黏」。",
         "location":  "dsurround:footsteps.wood_sticky",
         "soundEvent":  "dsurround:footsteps.wood",
@@ -603,6 +687,48 @@
                        "min":  0.4,
                        "max":  0.45
                    }
+    },
+    {
+        "_comment":  "【有机质 - 蜂巢类】蜂箱与蜂巢是【蜡质蜂窝】，轻、空、带一点脆。同录音升调到 1.15~1.25、音量降到 0.55~0.65（蜡质不吸音但整体轻）。",
+        "location":  "dsurround:footsteps.organic_waxy",
+        "soundEvent":  "dsurround:footsteps.organic",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.15,
+            "max":  1.25
+        },
+        "volume":  {
+            "min":  0.55,
+            "max":  0.65
+        }
+    },
+    {
+        "_comment":  "【有机质 - 硬壳瓜类】南瓜/西瓜/可可的外皮是【干硬的壳】，敲上去比菌类实、比菌类响。同录音 pitch 0.90~1.00 保持实心感的厚度。",
+        "location":  "dsurround:footsteps.organic_shell",
+        "soundEvent":  "dsurround:footsteps.organic",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.9,
+            "max":  1.0
+        },
+        "volume":  {
+            "min":  0.9,
+            "max":  1.0
+        }
+    },
+    {
+        "_comment":  "【有机质 - 菌类】蘑菇块与菌柄是【松软多孔】的，比干壳类更软更闷一点。同录音升调到 1.08~1.18（升调听感更「轻软」），音量略降到 0.80~0.90。",
+        "location":  "dsurround:footsteps.organic_spongy",
+        "soundEvent":  "dsurround:footsteps.organic",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.08,
+            "max":  1.18
+        },
+        "volume":  {
+            "min":  0.8,
+            "max":  0.9
+        }
     },
     {
         "_comment":  "【蜡质 - 干硬变调】蜡烛与蜂巢块是【干硬的蜡】，而 organic 本体（0.4~0.45，含泥副音）偏向湿润土质。这里给蜡质一个同录音的独立 location：pitch 0.95~1.05 保持干爽，音量 0.50~0.55（比 organic 本体略响，因为蜡是硬质、不吸音）。",
@@ -757,6 +883,20 @@
         "soundEvent":  "dsurround:footsteps.froglight",
         "category":  "PLAYER",
         "volume":  1.0
+    },
+    {
+        "_comment":  "【蛙明灯】蛙明灯是【软的水润团块】，不是硬质发光体。同录音压到 0.85~0.95 并降音量，做出「闷、实、有点水感」的读感，与萤石/菌光体那种脆亮区分开。",
+        "location":  "dsurround:footsteps.froglight_soft",
+        "soundEvent":  "dsurround:footsteps.froglight",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.85,
+            "max":  0.95
+        },
+        "volume":  {
+            "min":  0.8,
+            "max":  0.9
+        }
     },
     {
         "location":  "dsurround:footsteps.slime",
@@ -963,6 +1103,20 @@
                        "min":  0.9,
                        "max":  1.0
                    }
+    },
+    {
+        "_comment":  "【石英】石英是软的【粉质】矿物，比大理石更闷、更细。同录音 pitch 0.95~1.05（比大理石略低，避免和晶体一样脆），音量降到 0.85~0.95。",
+        "location":  "dsurround:footsteps.quartz_powdery",
+        "soundEvent":  "dsurround:footsteps.marble",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.95,
+            "max":  1.05
+        },
+        "volume":  {
+            "min":  0.85,
+            "max":  0.95
+        }
     },
     {
         "_comment":  "【方解石变调】方解石是软的、粉质的亮色矿物，比大理石更「脆而轻」。同一段 marble 录音升调到 0.90~1.00、音量降到 0.80~0.90。",

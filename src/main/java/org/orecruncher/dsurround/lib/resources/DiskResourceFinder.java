@@ -65,4 +65,24 @@ public class DiskResourceFinder extends AbstractResourceFinder {
 
         return result;
     }
+    @Override
+    public Collection<RawTextResource> findRaw(final String path) {
+        if (this.namespacesOnDisk.isEmpty())
+            return ImmutableList.of();
+
+        final String fileName = path.endsWith(".json") ? path : path + ".json";
+        final Collection<RawTextResource> result = new ObjectArray<>();
+        for (var dir : this.namespacesOnDisk) {
+            var filePath = Paths.get(dir.toString(), fileName);
+            if (!Files.exists(filePath))
+                continue;
+            try {
+                result.add(new RawTextResource(dir.getFileName().toString(), filePath.toString(),
+                        Files.readString(filePath)));
+            } catch (Throwable t) {
+                this.logger.error(t, "[%s] - Unable to read %s", path, filePath);
+            }
+        }
+        return result;
+    }
 }

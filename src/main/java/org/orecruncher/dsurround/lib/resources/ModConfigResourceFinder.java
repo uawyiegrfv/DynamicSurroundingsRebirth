@@ -48,4 +48,22 @@ public class ModConfigResourceFinder extends AbstractResourceFinder {
 
         return result;
     }
+    @Override
+    public Collection<RawTextResource> findRaw(final String path) {
+        final String fileName = path.endsWith(".json") ? path : path + ".json";
+        final Collection<RawTextResource> result = new ObjectArray<>();
+        for (var kvp : this.resources.entrySet()) {
+            if (!kvp.getKey().getPath().endsWith(fileName))
+                continue;
+            for (var r : kvp.getValue()) {
+                try (var inputStream = r.open()) {
+                    result.add(new RawTextResource(kvp.getKey().getNamespace(),
+                            kvp.getKey().toString(), new String(inputStream.readAllBytes(), Charset.defaultCharset())));
+                } catch (Throwable t) {
+                    this.logger.error(t, "[%s] - Unable to read resource stream", kvp.getKey());
+                }
+            }
+        }
+        return result;
+    }
 }

@@ -68,7 +68,7 @@ public class BlockLibrary implements IBlockLibrary {
 
         this.blockConfigs.clear();
 
-        var findResults = resourceUtilities.findModResources(CODEC, FILE_NAME);
+        var findResults = resourceUtilities.findModResources(CODEC, FILE_NAME, true);
         findResults.forEach(result -> this.blockConfigs.addAll(result.resourceContent()));
 
         this.logger.info("[BlockLibrary] %d block configs loaded; version is now %d", blockConfigs.size(), version);

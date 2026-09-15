@@ -69,4 +69,31 @@ public class ClientResourceFinder extends AbstractResourceFinder {
 
         return results.values().stream().flatMap(Collection::stream).toList();
     }
+    @Override
+    public Collection<RawTextResource> findRaw(final String path) {
+        final String assetPath = path.endsWith(".json") ? path : path + ".json";
+        final Collection<RawTextResource> result = new ObjectArray<>();
+        var assets = this.resourceManager.listResourceStacks(assetPath, location -> true);
+        if (assets.isEmpty() || assetPath.endsWith(".json")) {
+            for (String namespace : this.resourceManager.getNamespaces()) {
+                var fileLoc = ResourceLocation.fromNamespaceAndPath(namespace, assetPath);
+                if (!assets.containsKey(fileLoc)) {
+                    var stack = this.resourceManager.getResourceStack(fileLoc);
+                    if (!stack.isEmpty())
+                        assets.put(fileLoc, stack);
+                }
+            }
+        }
+        for (var kvp : assets.entrySet()) {
+            for (var r : kvp.getValue()) {
+                try (var inputStream = r.open()) {
+                    result.add(new RawTextResource(kvp.getKey().getNamespace(), kvp.getKey().toString(),
+                            new String(inputStream.readAllBytes(), Charset.defaultCharset())));
+                } catch (Throwable t) {
+                    this.logger.error(t, "[%s] - Unable to read %s", assetPath, kvp.getKey());
+                }
+            }
+        }
+        return result;
+    }
 }

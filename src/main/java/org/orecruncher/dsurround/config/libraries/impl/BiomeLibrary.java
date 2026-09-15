@@ -68,7 +68,7 @@ public final class BiomeLibrary implements IBiomeLibrary {
         this.biomeConfigs.clear();
         this.biomeConditionEvaluator.reset();
 
-        var findResults = resourceUtilities.findModResources(CODEC, FILE_NAME);
+        var findResults = resourceUtilities.findModResources(CODEC, FILE_NAME, true);
         findResults.forEach(result -> this.biomeConfigs.addAll(result.resourceContent()));
 
         // Ensure they are in priority order where the least is towards the beginning

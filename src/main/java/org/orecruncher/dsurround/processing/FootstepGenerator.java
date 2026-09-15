@@ -87,6 +87,11 @@ public class FootstepGenerator extends AbstractClientHandler {
     // Climbing steps play the vanilla surface step sound; the boost was left at 1.0
     // (no amplification) after user feedback that louder values were too strong.
     private static final float CLIMB_VOLUME_BOOST = 1.0F;
+    // Feet-to-collision-top tolerance for "is the entity standing ON this cell's block".
+    // An eighth of a pixel: any real floor is at most this far below the feet after vanilla
+    // resolved the entity position, while a block the entity stands IN (an open trapdoor /
+    // door lying on the cell floor at 3/16, a fence, a wall, a piston head) is far above.
+    private static final double STANDING_TOLERANCE = 0.05D;
 
     private static float strideWalk() { return VARIATORS.getPlayerVariator().stride(); }
     private static float strideRun() { return VARIATORS.getPlayerVariator().stride() * 1.06F; }
@@ -620,26 +625,33 @@ public class FootstepGenerator extends AbstractClientHandler {
      * straddles an edge next to a snow layer in the row below.
      */
     static BlockState resolveSurfaceBlock(Entity entity, Level level, BlockPos pos) {
-        // Priority order (see the footstep material resolution):
+        // Priority order (see the footstep material resolution). Steps 1 and 2 both consult the
+        // feet cell and are gated on isStandingOn(): the cell only wins when the player is on
+        // the block, not inside it, so an open trapdoor or an open door in the same cell as the
+        // player cannot hijack the surface.
         // 1. A snow layer or leaf litter the player's feet are in (pos.above()). The player
         //    stands on these and their step sound must win over the block below. Vanilla's
         //    mainSupportingBlockPos cannot be used for this: a 1-layer snow and leaf litter
         //    are registered noCollision() (an almost empty collision box), so collision
         //    detection reports the block underneath.
-        // 2. Vanilla's collision-derived support block (mainSupportingBlockPos). This is the
+        // 2. A block the player's feet are in (pos.above()) that the data explicitly mapped -
+        //    the no-collision-box blocks vanilla's collision lookup is blind to (rails, sculk
+        //    veins, glow lichen, vines, lily pads, redstone wire, tripwire).
+        // 3. Vanilla's collision-derived support block (mainSupportingBlockPos). This is the
         //    most reliable "what is the player actually standing on" answer: it uses the
         //    entity's collision box against block shapes, so thin/partial blocks
         //    (trapdoors, doors, buttons, pressure plates, carpets) that merely neighbour
         //    the feet never get misreported as the walked surface (the naive pos /
         //    pos.above() heuristics would grab them whenever the player stands at an edge).
-        // 3. The block the player's feet are in (pos.above()) - handles other visible
+        // 4. The block the player's feet are in (pos.above()) - handles other visible
         //    non-solid surfaces. Restricted to blocks with a visible shape and not
         //    vegetation (tall grass has a shape but is walked through).
-        // 4. The block directly below the feet (pos).
-        // 5. Horizontal scan for the nearest solid block when the player is over an edge.
+        // 5. The block directly below the feet (pos).
+        // 6. Horizontal scan for the nearest solid block when the player is over an edge.
 
         var footState = level.getBlockState(pos.above());
         if (footState.getFluidState().isEmpty()
+                && isStandingOn(entity, level, pos.above(), footState)
                 && (footState.getBlock() instanceof net.minecraft.world.level.block.SnowLayerBlock
                         || isLeafLitter(footState)))
             return footState;
@@ -655,7 +667,18 @@ public class FootstepGenerator extends AbstractClientHandler {
         // keeps the exception narrow - a cell whose step sound merely happens to differ (tall
         // grass the player walks through, a torch at the feet) is not preferred unless it has
         // been given its own material.
-        if (footState.getFluidState().isEmpty() && hasExplicitFootstepMapping(footState))
+        //
+        // The author's intent is about "you stepped ON this", so it must still be the thing
+        // underfoot. When the block's own collision box rises from the floor of the cell the
+        // player stands in, the player is INSIDE the block, not on it, and the cell is not the
+        // surface: an open trapdoor and an open door are 3/16-thick slabs lying on the floor
+        // of their cell (Block.boxZ(16, 13, 16) rotated onto the floor), a fence/wall/piston
+        // head fills the cell - all of them merely neighbour the feet. Without this check the
+        // trapdoor/door cell hijacked the step AND the land sound, so standing next to an open
+        // trapdoor or in a doorway sounded like thin wood instead of the floor.
+        if (footState.getFluidState().isEmpty()
+                && isStandingOn(entity, level, pos.above(), footState)
+                && hasExplicitFootstepMapping(footState))
             return footState;
 
         // The single pos.above() probe above misses the block-edge case: standing at the
@@ -674,8 +697,10 @@ public class FootstepGenerator extends AbstractClientHandler {
         int feetY = pos.getY() + 1;
         for (int x = xMin; x <= xMax; x++) {
             for (int z = zMin; z <= zMax; z++) {
-                var cell = level.getBlockState(new BlockPos(x, feetY, z));
+                var cellPos = new BlockPos(x, feetY, z);
+                var cell = level.getBlockState(cellPos);
                 if (cell.getFluidState().isEmpty()
+                        && isStandingOn(entity, level, cellPos, cell)
                         && (cell.getBlock() instanceof net.minecraft.world.level.block.SnowLayerBlock
                                 || isLeafLitter(cell))) {
                     return cell;
@@ -709,6 +734,30 @@ public class FootstepGenerator extends AbstractClientHandler {
             }
         }
         return state;
+    }
+
+    /**
+     * True when the block in the given cell is something the entity is standing ON rather than
+     * merely standing IN.
+     *
+     * Blocks that fill the cell (a fence, a wall, a closed door, a piston head) or that lie on
+     * its floor (an OPEN trapdoor / OPEN door: Block.boxZ(16.0, 13.0, 16.0) rotated onto the
+     * floor gives a 3/16-thick slab at y 0..3/16) have a collision box rising above the feet,
+     * so the feet are inside it. Such a cell is not the walked surface even when the data gives
+     * the block an explicit footstep material.
+     *
+     * The counterpart case is the reason the check cannot simply require a collision box: the
+     * blocks this probe exists for (rails, sculk veins, glow lichen, vines, lily pads, redstone
+     * wire, tripwire, and a 1-layer snow or leaf litter) have an EMPTY collision shape or one
+     * that is flush with the floor, and the player does stand on them. Those keep the
+     * walk-through branch.
+     */
+    private static boolean isStandingOn(final Entity entity, final Level level, final BlockPos cell,
+                                        final BlockState state) {
+        var shape = state.getCollisionShape(level, cell);
+        if (shape.isEmpty())
+            return true;
+        return shape.max(Direction.Axis.Y) <= entity.getY() + STANDING_TOLERANCE;
     }
 
     /**

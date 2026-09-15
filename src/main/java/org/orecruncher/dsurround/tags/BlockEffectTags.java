@@ -24,6 +24,9 @@ public class BlockEffectTags {
     public static final TagKey<Block> WATERY_STEP = of("watery_step");
     public static final TagKey<Block> STEAM_PRODUCERS = of("steam_producers");
     public static final TagKey<Block> HEAT_PRODUCERS = of("heat_producers");
+    // The 1.12.2 "overlay" substrates (carpet / foliage / messy): the blocks that may sit
+    // in the same cell as the player's feet and still count as the walked surface.
+    public static final TagKey<Block> FOOT_OVERLAY = of("foot_overlay");
 
     private static TagKey<Block> of(String id) {
         var tagKey = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath(Constants.MOD_ID, "effects/" + id));

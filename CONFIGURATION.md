@@ -365,6 +365,64 @@ Standard tag format (`replace`, `values` with `#`-refs and `required`). Namespac
 #### 4.8 `chat/<lang>.lang` — entity speech bubbles
 Format (documented in the file header): `chat.<entity>.<index>=weight,text`. `villager.flee` is a special flee-line table; `$MINECRAFT$` plays a random vanilla splash text. The file name follows the client language (`en_us.lang`, `zh_cn.lang`).
 
+#### 4.9 One file per mod - the aggregate `dsurround.json`
+
+The files above are split by **type**, which is convenient for the mod's own data but awkward when
+you adapt a third-party mod: one mod's entries end up spread over half a dozen files. For that case
+you can put **every section in a single file**, exactly like the original 1.12.2 mod did with its
+`data/<modid>.json`:
+
+```
+config/dsurround/configs/<namespace>/dsurround.json
+assets/<namespace>/dsconfigs/dsurround.json          (same thing from inside a mod jar)
+```
+
+The section names are the names of the dedicated files, and each section is decoded with **the same
+codec**, so a rule means exactly the same thing in either place:
+
+```json
+{
+  "sound_mappings": [ { "soundEvent": "minecraft:block.stone.step",
+                        "rules": [ { "blocks": ["yourmodid:marble"], "factory": "dsurround:footsteps.marble" } ] } ],
+  "blocks":         [ { "blocks": ["yourmodid:ember"], "effects": [ { "effect": "fire_jet", "spawnChance": "0.005" } ] } ],
+  "biomes":         [ { "biomeSelector": "biome.id == 'yourmodid:ashen_waste'", "acoustics": [ { "factory": "biome.wind" } ] } ]
+}
+```
+
+Sections you can use: `sound_mappings`, `blocks`, `biomes`, `dimensions`, `sound_factories`,
+`variators`, `entity_variators`. Anything else in the file is ignored.
+
+**Precedence.** For a given namespace a dedicated `<section>.json` **wins** over the section inside
+the aggregate file, so the mod's built-in data stays authoritative for the namespaces that ship it.
+
+**A typo never breaks the load.** The file is read as raw JSON and only the section of interest is
+handed to a codec. A section that is missing, null or of the wrong shape contributes nothing and
+logs one `WARN` line naming the file and the reason; the other sections in the same file still
+apply. Unknown keys are ignored silently.
+
+#### 4.9.1 Testing it
+
+1. Create the file (the namespace folder must match a **loaded** mod id, otherwise it is ignored):
+
+```json
+{
+  "sound_mappings": [
+    { "soundEvent": "minecraft:block.stone.step",
+      "rules": [ { "blocks": ["yourmodid:some_stone_block"], "factory": "dsurround:footsteps.wood" } ] }
+  ],
+  "biomes": "not an array - this section is meant to fail",
+  "notASection": { "unknown keys are ignored": true }
+}
+```
+
+2. Run `/dsreload` in game. Walk on `yourmodid:some_stone_block`: its footstep must now sound like
+   **wood** instead of stone. That is the section being read from the aggregate file.
+3. Check `logs/latest.log` for the one warning about the `biomes` section. Seeing it proves the
+   loader read the file; the `sound_mappings` section still working proves a broken section does
+   not take the file down with it.
+4. Remove the file (or rename it to `dsurround.json.disabled`) and `/dsreload` again: the block
+   goes back to stone, which proves the effect came from your file and nothing else.
+
 ### 5. Commands
 
 | Command | Side | Notes |
@@ -726,6 +784,60 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 
 #### 4.8 `chat/<lang>.lang` —— 生物气泡台词
 格式（文件头已注明）：`chat.<实体>.<序号>=权重,文本`。`villager.flee` 是特殊的逃跑台词表；`$MINECRAFT$` 播放随机原版闪烁标语。文件名跟随客户端语言（`en_us.lang`、`zh_cn.lang`）。
+
+#### 4.9 一个模组一个文件 —— 聚合 `dsurround.json`
+
+上面的数据文件是**按类型**拆分的：对模组自带的内部数据最方便，但给第三方模组写适配时就很别扭
+—— 一个模组的规则要散落到五六个文件里。为此提供**一个文件承载全部段落**的写法，形态与
+1.12.2 当年的 `data/<modid>.json` 一致：
+
+```
+config/dsurround/configs/<namespace>/dsurround.json
+assets/<namespace>/dsconfigs/dsurround.json          （模组 jar 内的等价位置）
+```
+
+**段落名就是专用文件的名字**，每个段落用**相同的 codec** 解码，所以同一条规则放在哪边含义完全一样：
+
+```json
+{
+  "sound_mappings": [ { "soundEvent": "minecraft:block.stone.step",
+                        "rules": [ { "blocks": ["yourmodid:marble"], "factory": "dsurround:footsteps.marble" } ] } ],
+  "blocks":         [ { "blocks": ["yourmodid:ember"], "effects": [ { "effect": "fire_jet", "spawnChance": "0.005" } ] } ],
+  "biomes":         [ { "biomeSelector": "biome.id == 'yourmodid:ashen_waste'", "acoustics": [ { "factory": "biome.wind" } ] } ]
+}
+```
+
+可用的段落：`sound_mappings`、`blocks`、`biomes`、`dimensions`、`sound_factories`、`variators`、
+`entity_variators`。文件里的其它键会被忽略。
+
+**优先级**：同一个 namespace 下，专用 `<段落名>.json` **优先于**聚合文件里的同段内容，
+所以内建数据对自带它的 namespace 始终权威。
+
+**写错不会拖垮数据**：文件按原始 JSON 读取，只有需要的那个段落会交给 codec。段落缺失、写成 null、
+或者类型不对时该段不生效并打一行 `WARN`（会写明文件和原因），**同文件里的其它段落照常生效**；
+未知键安静忽略。
+
+#### 4.9.1 怎么测试
+
+1. 建好文件（`<namespace>` 目录名必须是**已加载模组**的 id，否则整个目录会被忽略）：
+
+```json
+{
+  "sound_mappings": [
+    { "soundEvent": "minecraft:block.stone.step",
+      "rules": [ { "blocks": ["yourmodid:some_stone_block"], "factory": "dsurround:footsteps.wood" } ] }
+  ],
+  "biomes": "这里故意写错类型，用来验证容错",
+  "notASection": { "未知键会被忽略": true }
+}
+```
+
+2. 游戏里执行 `/dsreload`，然后走到 `yourmodid:some_stone_block` 上：脚步声应当变成**木料声**
+   （原本是石头声）。这就是聚合文件的段落生效了。
+3. 打开 `logs/latest.log`，应当有**一行**关于 `biomes` 段落的 WARN。看到它说明加载器确实读了
+   这个文件；而 `sound_mappings` 依然生效，说明一个段落写坏不会连带废掉整个文件。
+4. 把文件删掉（或改名成 `dsurround.json.disabled`）再 `/dsreload`：该方块恢复石头声，
+   证明之前的效果确实来自你的文件。
 
 ### 5. 指令
 

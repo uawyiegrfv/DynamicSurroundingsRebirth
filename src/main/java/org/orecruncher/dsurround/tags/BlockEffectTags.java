@@ -24,9 +24,6 @@ public class BlockEffectTags {
     // The 1.12.2 "overlay" substrates (carpet / foliage / messy): the blocks that may sit
     // in the same cell as the player's feet and still count as the walked surface.
     public static final TagKey<Block> FOOT_OVERLAY = of("foot_overlay");
-    // Open-work blocks that do not stop sound (iron bars, chains, panes): a grille roof or
-    // wall must not read as "indoors". Vanilla has no tag for these in this version.
-    public static final TagKey<Block> SOUND_PASSER = of("sound_passer");
 
     private static TagKey<Block> of(String id) {
         var tagKey = TagKey.create(Registries.BLOCK, ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "effects/" + id));

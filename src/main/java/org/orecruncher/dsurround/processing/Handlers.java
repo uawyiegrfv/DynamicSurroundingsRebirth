@@ -19,7 +19,7 @@ import org.orecruncher.dsurround.lib.threading.IClientTasking;
 import org.orecruncher.dsurround.lib.world.WorldUtils;
 import org.orecruncher.dsurround.processing.accents.FootstepAccents;
 import org.orecruncher.dsurround.processing.scanner.BiomeScanner;
-import org.orecruncher.dsurround.processing.scanner.EnclosureScanner;
+import org.orecruncher.dsurround.processing.scanner.CeilingScanner;
 import org.orecruncher.dsurround.processing.scanner.VillageScanner;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
 import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
@@ -200,7 +200,7 @@ public class Handlers {
     public static void registerHandlers() {
         // Register so that Scanners can be instantiated
         ContainerManager.getRootContainer()
-            .registerSingleton(EnclosureScanner.class)
+            .registerSingleton(CeilingScanner.class)
             .registerSingleton(VillageScanner.class)
             .registerSingleton(BiomeScanner.class)
             .registerSingleton(Scanners.class)

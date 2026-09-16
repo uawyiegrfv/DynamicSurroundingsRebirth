@@ -431,13 +431,15 @@
   "dsurround.command.dsdump.validate": "DS data self-check:",
   "dsurround.config.popoffNumbers": "Damage / crit text",
   "dsurround.config.popoffNumbers.sizePercent": "Text size",
-  "dsurround.config.popoffNumbers.sizePercent.tooltip": "Size of the damage, healing and crit text as a percentage of the default. 100% matches the original mod",
+  "dsurround.config.popoffNumbers.sizePercent.tooltip": "Size of the damage, healing and crit text as a percentage of the original mod's size. 100% matches 1.12.2; lower it if a thicker resource-pack font makes it look too large",
   "dsurround.config.popoffNumbers.growFactor": "Growth per tick",
-  "dsurround.config.popoffNumbers.growFactor.tooltip": "How fast the text grows, in percent per tick. 108% is the original mod's rate",
-  "dsurround.config.popoffNumbers.shrinkFactor": "Shrink per tick",
-  "dsurround.config.popoffNumbers.shrinkFactor.tooltip": "How fast the text shrinks after it has grown, in percent per tick. 96% is the original mod's rate; lower shrinks faster",
+  "dsurround.config.popoffNumbers.growFactor.tooltip": "How fast the text grows, in percent per tick. It grows only up to the peak tick, then shrinks slowly back to the size it started",
   "dsurround.config.popoffNumbers.maxScalePercent": "Size at which it starts shrinking",
-  "dsurround.config.popoffNumbers.maxScalePercent.tooltip": "The text grows until it reaches this percentage of its spawn size, then shrinks. 160% reaches the flip about halfway through the animation; higher values grow for longer before shrinking",
+  "dsurround.config.popoffNumbers.maxScalePercent.tooltip": "Upper guard on the text size, as a percentage of the spawn size. The animation stays below this unless the growth is set unreasonably high",
   "dsurround.config.popoffNumbers.driftPercent": "Horizontal travel",
-  "dsurround.config.popoffNumbers.driftPercent.tooltip": "How far the text drifts sideways as it launches, as a percentage of the default. Positive drifts away from the attacker, negative drifts toward it, 0 rises straight up"
+  "dsurround.config.popoffNumbers.driftPercent.tooltip": "How far the text drifts sideways as it launches, as a percentage of the default. Positive drifts away from the attacker, negative drifts toward it, 0 rises straight up",
+  "dsurround.config.popoffNumbers.lifetimeTicks": "Lifetime (ticks)",
+  "dsurround.config.popoffNumbers.lifetimeTicks.tooltip": "How long the text lives, in ticks (20 ticks = 1 second). Higher values make it fall further and linger longer",
+  "dsurround.config.popoffNumbers.peakTickTicks": "Tick of the largest size",
+  "dsurround.config.popoffNumbers.peakTickTicks.tooltip": "Which tick the text reaches its largest. Low values grow fast and then shrink slowly; the shrink rate is derived so the text ends at the size it started"
 }

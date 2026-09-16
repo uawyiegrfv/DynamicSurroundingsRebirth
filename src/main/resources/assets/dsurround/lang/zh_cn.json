@@ -423,13 +423,15 @@
   "dsurround.command.dsdump.validate": "DS 数据自检：",
   "dsurround.config.popoffNumbers": "伤害/暴击文字",
   "dsurround.config.popoffNumbers.sizePercent": "文字大小",
-  "dsurround.config.popoffNumbers.sizePercent.tooltip": "伤害、治疗与暴击文字相对默认大小的百分比。100% 与原版模组一致",
+  "dsurround.config.popoffNumbers.sizePercent.tooltip": "伤害、治疗与暴击文字相对原版模组尺寸的百分比。100% 与 1.12.2 一致；若所用资源包字体较粗显得太大，就调低",
   "dsurround.config.popoffNumbers.growFactor": "每刻放大比例",
-  "dsurround.config.popoffNumbers.growFactor.tooltip": "文字每刻放大的百分比。108% 是原版模组的速率",
-  "dsurround.config.popoffNumbers.shrinkFactor": "每刻缩小比例",
-  "dsurround.config.popoffNumbers.shrinkFactor.tooltip": "文字放大到位后每刻缩小的百分比。96% 是原版模组的速率；调低则缩小更快",
+  "dsurround.config.popoffNumbers.growFactor.tooltip": "文字每刻放大的百分比。只放大到「最大尺寸所在刻」为止，之后缓慢缩回起始大小",
   "dsurround.config.popoffNumbers.maxScalePercent": "开始缩小的尺寸",
-  "dsurround.config.popoffNumbers.maxScalePercent.tooltip": "文字放大到出生尺寸的这个百分比后转为缩小。160% 大约在动画一半处开始缩小；调高则放大阶段更长",
+  "dsurround.config.popoffNumbers.maxScalePercent.tooltip": "文字尺寸上限，出生尺寸的百分比。除非把放大率调得过大，动画不会触及这个上限",
   "dsurround.config.popoffNumbers.driftPercent": "水平抛出距离",
-  "dsurround.config.popoffNumbers.driftPercent.tooltip": "文字抛出时的水平位移，默认值的百分比。正值朝远离攻击者的方向，负值朝攻击者的方向，0 表示垂直上升"
+  "dsurround.config.popoffNumbers.driftPercent.tooltip": "文字抛出时的水平位移，默认值的百分比。正值朝远离攻击者的方向，负值朝攻击者的方向，0 表示垂直上升",
+  "dsurround.config.popoffNumbers.lifetimeTicks": "存在时长（刻）",
+  "dsurround.config.popoffNumbers.lifetimeTicks.tooltip": "文字存活多少刻（20 刻 = 1 秒）。调高则下落距离更远、停留更久",
+  "dsurround.config.popoffNumbers.peakTickTicks": "最大尺寸所在刻",
+  "dsurround.config.popoffNumbers.peakTickTicks.tooltip": "文字在第几刻达到最大。数值越小则放大越快、之后缩小越慢；缩小率由公式反推，保证最终缩回起始大小"
 }

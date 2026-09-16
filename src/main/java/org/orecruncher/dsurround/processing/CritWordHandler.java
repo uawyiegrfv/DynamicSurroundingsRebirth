@@ -52,7 +52,8 @@ public class CritWordHandler {
     private static final int DAMAGE_TEXT_COLOR = 0xFFFF5555;
     private static final int HEAL_TEXT_COLOR = 0xFF55FF55;
 
-    private static final int LIFETIME = 12;
+    /** Default lifetime; the live value comes from the config (popoffNumbers.lifetimeTicks). */
+    private static final int DEFAULT_LIFETIME = 18;
     private static final int FADE_START = 6;
 
     // ---- numbers taken from 1.12.2 ParticleTextPopOff ------------------------------------
@@ -91,6 +92,8 @@ public class CritWordHandler {
 
         /** true while growing; flips to false once the scale passes the configured peak. */
         boolean growing = true;
+        /** set once the drift has been reversed at the midpoint. */
+        boolean driftFlipped = false;
         /** +1 while the text drifts away from the attacker, -1 after the flip. */
         double drift = 1.0D;
         /** the launch velocity, kept so the drift can be reversed on the flip. */
@@ -125,20 +128,37 @@ public class CritWordHandler {
 
     // Animation values, refreshed from config on every spawn so a config edit applies without a
     // restart. 1.12.2's own numbers are the defaults: grow 1.08, shrink 0.96, peak 3x.
-    private float growFactor = 1.08F;
-    private float shrinkFactor = 0.96F;
-    private float maxScale = 3.0F;
+    private float growFactor = 1.16F;
+    private float shrinkFactor = 0.93F;
+    private float maxScale = 4.0F;
+    private int peakTick = 4;
     private float sizeScale = 1.0F;
+    private int lifetime = DEFAULT_LIFETIME;
     private float driftScale = 1.0F;
 
     /** Pull the current popoff settings; called when a word is spawned. */
+    /** Fade begins at the same fraction of the life as the original (6 of 12). */
+    private int fadeStart() {
+        return Math.max(1, (this.lifetime + 1) / 2);
+    }
+
     private void refreshAnimationSettings() {
         final var cfg = this.config.popoffNumbers;
         this.sizeScale = cfg.sizePercent / 100.0F;
         this.growFactor = cfg.growFactor / 100.0F;
-        this.shrinkFactor = cfg.shrinkFactor / 100.0F;
         this.maxScale = cfg.maxScalePercent / 100.0F;
         this.driftScale = cfg.driftPercent / 100.0F;
+        this.lifetime = Math.max(3, cfg.lifetimeTicks);
+        this.peakTick = Math.max(1, Math.min(this.lifetime - 2, cfg.peakTickTicks));
+
+        // Derive the shrink rate so the text returns to its starting size. Deriving it (rather than
+        // exposing it) is what makes "fast growth" and "same size at the end" hold simultaneously:
+        // a user-chosen shrink rate cannot satisfy both.
+        final int shrinkTicks = this.lifetime - 1 - this.peakTick;
+        this.shrinkFactor = shrinkTicks > 0 && this.growFactor > 1.0F
+                ? (float) Math.pow(this.growFactor, -this.peakTick / (double) shrinkTicks)
+                : 1.0F;
+        this.lifetime = Math.max(2, cfg.lifetimeTicks);
     }
 
     public CritWordHandler(Configuration config, IModLog logger) {
@@ -317,21 +337,32 @@ public class CritWordHandler {
             // 1.12.2 grows by 1.08 per frame and shrinks by 0.96 once the scale passes SIZE*3.
             // All three numbers are configurable, and the horizontal drift reverses with the
             // scale flip, so the text is thrown at the target and then pulled back.
-            if (w.growing) {
+            // Symmetric by construction: grow for the first half of the life, shrink for the
+            // second. With shrink == 1/grow the text ends at exactly the size it started, and the
+            // peak lands on the middle tick - which is the behaviour observed in the original.
+            // Deciding the flip by the clock (not by a scale threshold) keeps that symmetry intact.
+            // Fast growth, slow shrink, and the shrink rate is derived so the text ends at exactly
+            // the size it started:
+            //     shrink = grow ^ (-peakTick / (lifetime - 1 - peakTick))
+            // The drift reverses at the peak.
+            final boolean growing = w.age < this.peakTick;
+            if (growing) {
                 w.scale *= this.growFactor;
-                if (w.scale >= this.maxScale) {
-                    w.growing = false;
-                    w.drift = -1.0D;
-                }
+                if (this.maxScale > 0.0F && w.scale > this.maxScale)
+                    w.scale = this.maxScale;
             } else {
                 w.scale *= this.shrinkFactor;
+                if (!w.driftFlipped) {
+                    w.driftFlipped = true;
+                    w.drift = -1.0D;
+                }
             }
             w.vx = w.vx0 * w.drift;
             w.vz = w.vz0 * w.drift;
             w.x += w.vx;
             w.y += w.vy;
             w.z += w.vz;
-            return ++w.age >= LIFETIME;
+            return ++w.age >= this.lifetime;
         });
     }
 
@@ -395,8 +426,9 @@ public class CritWordHandler {
             float textScale = this.computeTextScale(entry, depth, mc, height);
 
             int alpha = 255;
-            if (entry.age > FADE_START)
-                alpha = (int) (255F * (LIFETIME - entry.age) / (float) (LIFETIME - FADE_START));
+            if (entry.age > this.fadeStart())
+                alpha = (int) (255F * (this.lifetime - entry.age)
+                        / (float) (this.lifetime - this.fadeStart()));
             int color = (entry.color & 0x00FFFFFF) | (alpha << 24);
 
             final int drawX = -font.width(entry.text) / 2 + 1;

@@ -68,7 +68,7 @@ public class ItemLibrary implements IItemLibrary {
         this.itemSwingFactories.clear();
         this.itemArmorStepFactories.clear();
         this.itemSoundRules.clear();
-        var findResults = resourceUtilities.findModResources(ITEM_SOUND_CODEC, ITEM_SOUND_FILE);
+        var findResults = resourceUtilities.findModResources(ITEM_SOUND_CODEC, ITEM_SOUND_FILE, true);
         findResults.forEach(result -> this.itemSoundRules.addAll(result.resourceContent()));
         this.logger.info("[ItemLibrary] %d item sound overrides loaded; version is now %d", this.itemSoundRules.size(), this.version);
     }

@@ -43,7 +43,7 @@ public final class DimensionLibrary implements IDimensionLibrary {
         this.configs.clear();
         this.dimensionRules.clear();
 
-        var findResults = resourceUtilities.findModResources(CODEC, FILE_NAME);
+        var findResults = resourceUtilities.findModResources(CODEC, FILE_NAME, true);
         findResults.forEach(result -> this.dimensionRules.addAll(result.resourceContent()));
 
         this.logger.info("[DimensionLibrary] %d dimension rules loaded; version is now %d", this.dimensionRules.size(), this.version);

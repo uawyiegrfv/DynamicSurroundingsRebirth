@@ -41,12 +41,12 @@ public class VariatorLibrary implements ILibrary {
             return;
 
         Map<String, Variator> loaded = new HashMap<>();
-        var findResults = resourceUtilities.findModResources(CODEC, FILE_NAME);
+        var findResults = resourceUtilities.findModResources(CODEC, FILE_NAME, true);
         findResults.forEach(result -> loaded.putAll(result.resourceContent()));
         this.variators = loaded;
 
         Map<String, String> loadedEntities = new HashMap<>();
-        var entityResults = resourceUtilities.findModResources(ENTITY_CODEC, ENTITY_FILE_NAME);
+        var entityResults = resourceUtilities.findModResources(ENTITY_CODEC, ENTITY_FILE_NAME, true);
         entityResults.forEach(result -> loadedEntities.putAll(result.resourceContent()));
         this.entityVariators = loadedEntities;
 

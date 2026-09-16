@@ -124,11 +124,11 @@ public final class SoundLibrary implements ISoundLibrary {
         soundFiles.forEach(this::registerSoundFile);
 
         // Gather the sound factory definitions. We scan the local data directory as well.
-        var findResults = resourceUtilities.findModResources(FACTORY_FILE_CODEC, FACTORY_JSON);
+        var findResults = resourceUtilities.findModResources(FACTORY_FILE_CODEC, FACTORY_JSON, true);
         findResults.forEach(this::registerSoundFactories);
 
 
-        var soundMappings = resourceUtilities.findModResources(SOUND_MAPPING_CODEC, SOUND_MAPPING_JSON);
+        var soundMappings = resourceUtilities.findModResources(SOUND_MAPPING_CODEC, SOUND_MAPPING_JSON, true);
         soundMappings.forEach(this::registerSoundRemappings);
 
         this.logger.info("Number of SoundEvents cached: %d", this.myRegistry.size());

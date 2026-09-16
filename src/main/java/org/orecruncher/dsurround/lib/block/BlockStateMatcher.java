@@ -11,6 +11,7 @@ import org.orecruncher.dsurround.lib.IMatcher;
 import org.orecruncher.dsurround.lib.IdentityUtils;
 import org.orecruncher.dsurround.lib.Library;
 import org.orecruncher.dsurround.lib.logging.IModLog;
+import org.orecruncher.dsurround.lib.diagnostics.DataDiagnostics;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -41,6 +42,7 @@ public abstract class BlockStateMatcher implements IMatcher<BlockState> {
             // Keep the entry, make it match nothing, and say so loudly.
             LOGGER.warn("Unable to resolve block specification '%s' on this version; the entry will never match: %s",
                     blockId, t.getMessage());
+            DataDiagnostics.fail("unresolvable block in a rule", blockId);
             return DataResult.success(new MatchOnNothing(blockId));
         }
     }

@@ -67,6 +67,22 @@ public class DumpCommandHandler {
      * describes the exact position the player is standing at, which is what a "this spot sounds
      * wrong" report needs (which branch of resolveSurfaceBlock fired, and why).
      */
+    /**
+     * Runs the data self-check and prints it to chat.
+     * <p>
+     * This exists because every failure worth chasing in this port was silent: a tag that loaded
+     * with no members, a rule naming a block this version does not have, a factory event with no
+     * sound behind it. None of them threw, and none were visible by reading the data files.
+     */
+    public static Component validateData() {
+        try {
+            return Component.literal(String.join("\n", org.orecruncher.dsurround.lib.diagnostics.DataValidator.validate()));
+        } catch (Throwable t) {
+            LOGGER.error(t, "Data validation failed");
+            return Component.literal("dsdump validate failed: " + t.getMessage());
+        }
+    }
+
     public static Component dumpStepTrace() {
         final var player = net.minecraft.client.Minecraft.getInstance().player;
         if (player == null)

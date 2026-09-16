@@ -427,5 +427,6 @@
   "dsurround.sound.caption.egg_break": "Egg cracks",
   "dsurround.sound.caption.snowball_break": "Snowball smashes",
   "dsurround.config.particleTweaks.suppressPotionParticles": "Suppress Potion Particles",
-  "dsurround.config.particleTweaks.suppressPotionParticles.tooltip": "Suppress rendering of the player's potion particles"
+  "dsurround.config.particleTweaks.suppressPotionParticles.tooltip": "Suppress rendering of the player's potion particles",
+  "dsurround.command.dsdump.validate": "DS data self-check:"
 }

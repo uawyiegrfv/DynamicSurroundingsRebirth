@@ -322,6 +322,11 @@ copy of a vanilla block would otherwise take the wrong material.
 
 > `location` ≠ `soundEvent` by design: the factory name is stable, the sound it plays can be re-targeted.
 
+
+> The whole footstep pipeline (material vocabulary, accents, armour accents, surface
+> resolution, landing compositions, variators, debugging) is documented separately in
+> **[docs/FOOTSTEPS.md](FOOTSTEPS.md)**. Read that before writing footstep rules.
+
 #### 4.2 `sound_mappings.json` (array)
 Remaps an incoming vanilla sound event to a DS factory:
 ```json
@@ -741,6 +746,10 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | pitch | 对象 | 可选 `{"min":0.8,"max":1.2}` 随机音调区间 |
 
 > 设计上 `location` ≠ `soundEvent`：工厂名稳定，实际播放的声音可重定向。
+
+
+> 脚步系统的完整说明（材质词汇表、副音、盔甲副音、取面规则、落地合成、variator、排错）
+> 见 **[docs/FOOTSTEPS.md](FOOTSTEPS.md)**。写脚步规则之前请先读它。
 
 #### 4.2 `sound_mappings.json`（数组）
 把传入的原版声音事件重映射到 DS 工厂：

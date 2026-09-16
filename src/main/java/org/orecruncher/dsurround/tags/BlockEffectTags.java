@@ -24,6 +24,12 @@ public class BlockEffectTags {
     public static final TagKey<Block> WATERY_STEP = of("watery_step");
     public static final TagKey<Block> STEAM_PRODUCERS = of("steam_producers");
     public static final TagKey<Block> HEAT_PRODUCERS = of("heat_producers");
+    // Referenced by sound_mappings as brick/terracotta, dried-mud and wax families. They
+    // need a constant here or TagLibrary.is() answers false for every query and the rules
+    // that use them are silently inert.
+    public static final TagKey<Block> BRICKSTONE_FAMILY = of("brickstone_family");
+    public static final TagKey<Block> DRIED_MUD_BLOCKS = of("dried_mud_blocks");
+    public static final TagKey<Block> WAX_BLOCKS = of("wax_blocks");
     // The 1.12.2 "overlay" substrates (carpet / foliage / messy): the blocks that may sit
     // in the same cell as the player's feet and still count as the walked surface.
     public static final TagKey<Block> FOOT_OVERLAY = of("foot_overlay");

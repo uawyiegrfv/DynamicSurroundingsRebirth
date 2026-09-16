@@ -62,7 +62,6 @@ public class CritWordHandler {
     // constant UP_SPEED with an independent horizontal component is not equivalent: it made the
     // text rise less and fall deeper than the original.
     private static final float GRAVITY = 0.8F;
-    private static final float GROW_FACTOR = 1.08F;
     /** Total launch speed; the direction is normalised to exactly this (1.12.2: 0.12). */
     private static final float MOTION_MAGNITUDE = 0.12F;
 
@@ -88,6 +87,12 @@ public class CritWordHandler {
         double vx, vy, vz;
         float scale;
         int age;
+        /** true while growing; flips to false once the scale passes the configured peak. */
+        boolean growing = true;
+        /** +1 while the text drifts away from the attacker, -1 after the flip. */
+        double drift = 1.0D;
+        /** the launch velocity, kept so the drift can be reversed on the flip. */
+        double vx0, vz0;
 
         final float worldUnitsPerFontPx;
 
@@ -103,6 +108,8 @@ public class CritWordHandler {
             this.vz = vz;
             this.scale = 1.0F;
             this.worldUnitsPerFontPx = worldUnitsPerFontPx;
+            this.vx0 = vx;
+            this.vz0 = vz;
         }
     }
 
@@ -116,6 +123,24 @@ public class CritWordHandler {
     private final IRandomizer random = Randomizer.current();
     private final ObjectArray<CritWord> active = new ObjectArray<>(4);
     private final Map<Integer, Float> lastHealth = new HashMap<>();
+
+    // Animation values, refreshed from config on every spawn so a config edit applies without a
+    // restart. 1.12.2's own numbers are the defaults: grow 1.08, shrink 0.96, peak 3x.
+    private float growFactor = 1.08F;
+    private float shrinkFactor = 0.96F;
+    private float maxScale = 3.0F;
+    private float sizeScale = 1.0F;
+    private float driftScale = 1.0F;
+
+    /** Pull the current popoff settings; called when a word is spawned. */
+    private void refreshAnimationSettings() {
+        final var cfg = this.config.popoffNumbers;
+        this.sizeScale = cfg.sizePercent / 100.0F;
+        this.growFactor = cfg.growFactor / 100.0F;
+        this.shrinkFactor = cfg.shrinkFactor / 100.0F;
+        this.maxScale = cfg.maxScalePercent / 100.0F;
+        this.driftScale = cfg.driftPercent / 100.0F;
+    }
     private final Matrix4f viewProj = new Matrix4f();
     private final Vector4f clip = new Vector4f();
     private static final Matrix4f CAPTURED_VIEW_PROJ = new Matrix4f();
@@ -163,6 +188,8 @@ public class CritWordHandler {
                 dz = dir.z / len;
             }
         }
+
+        refreshAnimationSettings();
 
         // Damage number above the entity (original used the top + 0.5).
         if (showNumbers) {
@@ -238,12 +265,12 @@ public class CritWordHandler {
      * along the attack direction". Exposed as three components because that is what the CritWord
      * constructor takes.
      */
-    private static double launchX(final double dx, final double dz) {
-        return horizontalMagnitude() * unitX(dx, dz);
+    private double launchX(final double dx, final double dz) {
+        return horizontalMagnitude() * this.driftScale * unitX(dx, dz);
     }
 
-    private static double launchZ(final double dx, final double dz) {
-        return horizontalMagnitude() * unitZ(dx, dz);
+    private double launchZ(final double dx, final double dz) {
+        return horizontalMagnitude() * this.driftScale * unitZ(dx, dz);
     }
 
     private static double launchY() {
@@ -351,7 +378,7 @@ public class CritWordHandler {
         final float fov = mc.options.fov().get();
         final float tanHalfFov = (float) Math.tan(Math.toRadians(fov) / 2.0D);
 
-        final float worldUnitsPerFontPx = entry.worldUnitsPerFontPx * entry.scale;
+        final float worldUnitsPerFontPx = entry.worldUnitsPerFontPx * entry.scale * this.sizeScale;
         float scale = worldUnitsPerFontPx * (guiHeight / 2.0F) / (float) (depth * tanHalfFov);
 
         // guard rails only: never microscopic, never absurdly large on screen
@@ -408,7 +435,20 @@ public class CritWordHandler {
             w.x += w.vx;
             w.y += w.vy;
             w.z += w.vz;
-            w.scale *= GROW_FACTOR;
+            // 1.12.2 grows by 1.08 per frame and shrinks by 0.96 once the scale passes SIZE*3.
+            // All three numbers are configurable, and the horizontal drift reverses with the
+            // scale flip so the text is thrown at the target and then pulled back.
+            if (w.growing) {
+                w.scale *= this.growFactor;
+                if (w.scale >= this.maxScale) {
+                    w.growing = false;
+                    w.drift = -1.0D;
+                }
+            } else {
+                w.scale *= this.shrinkFactor;
+            }
+            w.vx = w.vx0 * w.drift;
+            w.vz = w.vz0 * w.drift;
             return ++w.age >= LIFETIME;
         });
     }

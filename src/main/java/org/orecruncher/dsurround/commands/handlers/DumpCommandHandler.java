@@ -76,7 +76,7 @@ public class DumpCommandHandler {
      */
     public static Component validateData() {
         try {
-            return Component.literal(String.join("\n", org.orecruncher.dsurround.lib.diagnostics.DataValidator.validate()));
+            return Component.literal(String.join("\n", org.orecruncher.dsurround.lib.diagnostics.DataValidator.validateAndLog()));
         } catch (Throwable t) {
             LOGGER.error(t, "Data validation failed");
             return Component.literal("dsdump validate failed: " + t.getMessage());

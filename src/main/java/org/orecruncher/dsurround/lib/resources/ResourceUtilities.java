@@ -11,6 +11,8 @@ import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.lib.platform.IMinecraftDirectories;
 
+import static org.orecruncher.dsurround.Configuration.Flags.RESOURCE_LOADING;
+
 import java.util.*;
 
 @SuppressWarnings("unused")
@@ -20,8 +22,10 @@ public final class ResourceUtilities {
     private final DiskResourceFinder diskResourceHelper;
     private final ClientResourceFinder resourceFinder;
     private final ServerResourceFinder packResourceFinder;
+    private final IModLog logger;
 
     ResourceUtilities(IModLog modLog, IMinecraftDirectories minecraftDirectories, ResourceManager resourceManager) {
+        this.logger = modLog;
         this.modConfigHelper = new ModConfigResourceFinder(modLog, resourceManager, "dsconfigs");
         this.diskResourceHelper = new DiskResourceFinder(modLog, minecraftDirectories.getModDataDirectory());
         this.resourceFinder = new ClientResourceFinder(modLog, resourceManager);
@@ -50,6 +54,39 @@ public final class ResourceUtilities {
         var result = new ObjectArray<DiscoveredResource<T>>();
         result.addAll(this.modConfigHelper.find(codec, assetPath));
         result.addAll(this.diskResourceHelper.find(codec, assetPath));
+        return result;
+    }
+
+    /**
+     * Same as {@link #findModResources(Codec, String)} but additionally accepts the per-namespace
+     * aggregate file {@code <namespace>/dsurround.json}, whose single {@code section} is decoded with
+     * the same codec. Restores the original 1.12.2 convenience of writing one file per mod.
+     *
+     * <p>Both sources contribute: rule-level precedence is handled where it belongs, because
+     * SoundLibrary inserts a rule whose factory is new BEFORE the catch-all default. An earlier
+     * version dropped the aggregate section whenever the namespace also shipped a dedicated file,
+     * which silently discarded every aggregate rule of every mod that ships DS data (Biomes O'
+     * Plenty, Quark, ...) and of DS's own namespace.
+     */
+    public <T> Collection<DiscoveredResource<T>> findModResources(final Codec<T> codec, final String assetPath,
+                                                                  final boolean includeAggregate) {
+        final String section = assetPath.endsWith(".json")
+                ? assetPath.substring(0, assetPath.length() - ".json".length())
+                : assetPath;
+
+        final var result = new ObjectArray<DiscoveredResource<T>>();
+        result.addAll(findModResources(codec, assetPath));
+        if (!includeAggregate)
+            return result;
+
+        for (final var finder : new IResourceFinder[] { this.modConfigHelper, this.diskResourceHelper }) {
+            for (final var r : AggregateDataFile.find(finder, this.logger, codec, section, null)) {
+                this.logger.debug(RESOURCE_LOADING, "[%s] - '%s' taken from the aggregate %s of namespace %s",
+                        assetPath, section, AggregateDataFile.FILE_NAME, r.namespace());
+                result.add(r);
+            }
+        }
+
         return result;
     }
 

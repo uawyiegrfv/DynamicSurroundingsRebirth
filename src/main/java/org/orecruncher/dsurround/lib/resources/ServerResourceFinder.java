@@ -51,4 +51,22 @@ public class ServerResourceFinder extends AbstractResourceFinder {
 
         return results;
     }
+    @Override
+    public Collection<RawTextResource> findRaw(final String path) {
+        final Collection<RawTextResource> result = new ObjectArray<>();
+        var resource = Identifier.tryParse(path);
+        if (resource == null)
+            return result;
+        var filePath = path.replace(":", "/");
+        if (!filePath.endsWith(".json"))
+            filePath = filePath + ".json";
+        for (var p : lookupHelper.findResourcePaths(filePath)) {
+            try {
+                result.add(new RawTextResource(resource.getNamespace(), p.toString(), Files.readString(p)));
+            } catch (Throwable t) {
+                this.logger.error(t, "[%s] - Unable to read %s", resource, p);
+            }
+        }
+        return result;
+    }
 }

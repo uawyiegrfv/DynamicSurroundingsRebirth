@@ -428,5 +428,16 @@
   "dsurround.config.compassAndClockOptions.lowDurabilityThreshold.tooltip": "Durability percentage at or below which the highlight shows",
   "dsurround.config.compassAndClockOptions.enableTreasureDistance": "Treasure Distance",
   "dsurround.config.compassAndClockOptions.enableTreasureDistance.tooltip": "Enable/disable showing the horizontal distance to the treasure target on explorer maps",
-  "dsurround.command.dsdump.validate": "DS data self-check:"
+  "dsurround.command.dsdump.validate": "DS data self-check:",
+  "dsurround.config.popoffNumbers": "Damage / crit text",
+  "dsurround.config.popoffNumbers.sizePercent": "Text size",
+  "dsurround.config.popoffNumbers.sizePercent.tooltip": "Size of the damage, healing and crit text as a percentage of the default. 100% matches the original mod",
+  "dsurround.config.popoffNumbers.growFactor": "Growth per tick",
+  "dsurround.config.popoffNumbers.growFactor.tooltip": "How fast the text grows, in percent per tick. 108% is the original mod's rate",
+  "dsurround.config.popoffNumbers.shrinkFactor": "Shrink per tick",
+  "dsurround.config.popoffNumbers.shrinkFactor.tooltip": "How fast the text shrinks after it has grown, in percent per tick. 96% is the original mod's rate; lower shrinks faster",
+  "dsurround.config.popoffNumbers.maxScalePercent": "Size at which it starts shrinking",
+  "dsurround.config.popoffNumbers.maxScalePercent.tooltip": "The text grows until it reaches this percentage of its spawn size, then shrinks. 160% reaches the flip about halfway through the animation; higher values grow for longer before shrinking",
+  "dsurround.config.popoffNumbers.driftPercent": "Horizontal travel",
+  "dsurround.config.popoffNumbers.driftPercent.tooltip": "How far the text drifts sideways as it launches, as a percentage of the default. Positive drifts away from the attacker, negative drifts toward it, 0 rises straight up"
 }

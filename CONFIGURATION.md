@@ -365,6 +365,29 @@ Standard tag format (`replace`, `values` with `#`-refs and `required`). Namespac
 #### 4.8 `chat/<lang>.lang` — entity speech bubbles
 Format (documented in the file header): `chat.<entity>.<index>=weight,text`. `villager.flee` is a special flee-line table; `$MINECRAFT$` plays a random vanilla splash text. The file name follows the client language (`en_us.lang`, `zh_cn.lang`).
 
+#### 4.8.1 `popoffNumbers` — damage, healing and critical-hit text
+
+Controls the text that pops off an entity when it takes damage, is healed, or takes a critical hit.
+Every option is a slider, so the animation can be tuned in game without editing files.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `sizePercent` | 100 | Text size. 100% matches the 1.12.2 original; lower it if the text looks too large (a thicker resource-pack font makes the same nominal size read bigger) |
+| `growFactor` | 108 | Growth per tick, in percent. 108% is the original's rate |
+| `shrinkFactor` | 96 | Shrink per tick once the text has grown, in percent. 96% is the original's rate; lower shrinks faster |
+| `maxScalePercent` | 160 | Size at which growth turns into shrinking, as a percentage of the spawn size. 160% flips about halfway through the animation; 300% and above grows for the whole life without ever shrinking |
+| `driftPercent` | 100 | Horizontal travel. Positive drifts away from the attacker, negative drifts toward it, 0 rises straight up |
+
+The sequence at the defaults (one step per tick, 12 ticks total):
+
+```
+tick   0    1    2    3    4    5    6    7    8    9   10   11
+size 1.00 1.08 1.17 1.26 1.36 1.47 1.59 1.71 1.65 1.58 1.52 1.46
+```
+
+It grows for eight ticks, then visibly shrinks while fading, and the horizontal drift reverses at
+the peak - which is what makes the text read as "thrown at the target and pulled back".
+
 #### 4.9 One file per mod - the aggregate `dsurround.json`
 
 The files above are split by **type**, which is convenient for the mod's own data but awkward when
@@ -820,6 +843,27 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 
 #### 4.8 `chat/<lang>.lang` —— 生物气泡台词
 格式（文件头已注明）：`chat.<实体>.<序号>=权重,文本`。`villager.flee` 是特殊的逃跑台词表；`$MINECRAFT$` 播放随机原版闪烁标语。文件名跟随客户端语言（`en_us.lang`、`zh_cn.lang`）。
+
+#### 4.8.1 `popoffNumbers` —— 伤害/治疗/暴击文字
+
+控制实体受伤、被治疗、被暴击时弹出来的文字。每一项都是滑条，可以直接在游戏里调，不用改文件。
+
+| 选项 | 默认 | 含义 |
+| --- | --- | --- |
+| `sizePercent` | 100 | 文字大小。100% 与原版 1.12.2 一致；觉得太大就调低（字体比原版粗的话，同样的字号看起来会更大） |
+| `growFactor` | 108 | 每刻放大比例（%）。108% 是原版的速率 |
+| `shrinkFactor` | 96 | 放大到位后每刻缩小比例（%）。96% 是原版的速率；调低则缩小更快 |
+| `maxScalePercent` | 160 | 放大到出生尺寸的这个百分比后转为缩小。160% 大约在动画一半处翻转；300% 及以上会整段都在放大、不会缩小 |
+| `driftPercent` | 100 | 水平抛出距离。正值朝远离攻击者方向，负值朝攻击者方向，0 表示垂直上升 |
+
+默认值下的逐刻变化（共 12 刻）：
+
+```
+刻     0    1    2    3    4    5    6    7    8    9   10   11
+尺寸 1.00 1.08 1.17 1.26 1.36 1.47 1.59 1.71 1.65 1.58 1.52 1.46
+```
+
+先放大 8 刻，然后一边变小一边淡出；水平漂移在峰值处反向 —— 这就是"先抛出去再被拉回来"的观感来源。
 
 #### 4.9 一个模组一个文件 —— 聚合 `dsurround.json`
 

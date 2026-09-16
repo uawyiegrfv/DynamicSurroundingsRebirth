@@ -35,6 +35,10 @@ public class Configuration extends ConfigurationData {
     public final EntityEffects entityEffects = new EntityEffects();
 
     @Property
+    @Comment("Configuration options for the damage, healing and critical-hit text popoffs")
+    public final PopoffNumbers popoffNumbers = new PopoffNumbers();
+
+    @Property
     @Comment("Configuration options for footstep accent effects")
     public final FootstepAccents footstepAccents = new FootstepAccents();
 
@@ -298,6 +302,39 @@ public class Configuration extends ConfigurationData {
         @RestartRequired(client = false)
         @Comment("Enable/disable enchanting table book sounds")
         public boolean enableEnchantTableSounds = true;
+    }
+
+    @Comment("Configuration options for the damage, healing and critical-hit text popoffs")
+    public static class PopoffNumbers {
+        @Property
+        @IntegerRange(min = 50, max = 300)
+        @Slider
+        @Comment("Text size as a percentage of the default (1.12.2 parity). Raise it if the text looks too small, lower it if too large")
+        public int sizePercent = 100;
+
+        @Property
+        @IntegerRange(min = 101, max = 150)
+        @Slider
+        @Comment("Growth per tick as a percentage (108 = 1.08x, matching the original mod)")
+        public int growFactor = 108;
+
+        @Property
+        @IntegerRange(min = 80, max = 100)
+        @Slider
+        @Comment("Shrink per tick as a percentage once the text has grown enough (96 = 0.96x, matching the original mod; lower shrinks faster)")
+        public int shrinkFactor = 96;
+
+        @Property
+        @IntegerRange(min = 100, max = 600)
+        @Slider
+        @Comment("Size at which growth turns into shrinking, as a percentage of the spawn size. 160% reaches the flip about halfway through the animation")
+        public int maxScalePercent = 160;
+
+        @Property
+        @IntegerRange(min = -200, max = 200)
+        @Slider
+        @Comment("Horizontal travel as a percentage of the default. Positive drifts away from the attacker, negative drifts toward it, 0 rises straight up")
+        public int driftPercent = 100;
     }
 
     public static class EntityEffects {

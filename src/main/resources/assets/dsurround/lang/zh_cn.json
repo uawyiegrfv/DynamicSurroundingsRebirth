@@ -420,5 +420,16 @@
   "dsurround.config.compassAndClockOptions.enableTreasureDistance.tooltip": "启用/禁用 手持探险者地图时在右上角显示到宝藏的水平距离",
   "dsurround.config.particleTweaks.suppressPotionParticles": "抑制药水粒子",
   "dsurround.config.particleTweaks.suppressPotionParticles.tooltip": "抑制渲染玩家的药水粒子",
-  "dsurround.command.dsdump.validate": "DS 数据自检："
+  "dsurround.command.dsdump.validate": "DS 数据自检：",
+  "dsurround.config.popoffNumbers": "伤害/暴击文字",
+  "dsurround.config.popoffNumbers.sizePercent": "文字大小",
+  "dsurround.config.popoffNumbers.sizePercent.tooltip": "伤害、治疗与暴击文字相对默认大小的百分比。100% 与原版模组一致",
+  "dsurround.config.popoffNumbers.growFactor": "每刻放大比例",
+  "dsurround.config.popoffNumbers.growFactor.tooltip": "文字每刻放大的百分比。108% 是原版模组的速率",
+  "dsurround.config.popoffNumbers.shrinkFactor": "每刻缩小比例",
+  "dsurround.config.popoffNumbers.shrinkFactor.tooltip": "文字放大到位后每刻缩小的百分比。96% 是原版模组的速率；调低则缩小更快",
+  "dsurround.config.popoffNumbers.maxScalePercent": "开始缩小的尺寸",
+  "dsurround.config.popoffNumbers.maxScalePercent.tooltip": "文字放大到出生尺寸的这个百分比后转为缩小。160% 大约在动画一半处开始缩小；调高则放大阶段更长",
+  "dsurround.config.popoffNumbers.driftPercent": "水平抛出距离",
+  "dsurround.config.popoffNumbers.driftPercent.tooltip": "文字抛出时的水平位移，默认值的百分比。正值朝远离攻击者的方向，负值朝攻击者的方向，0 表示垂直上升"
 }

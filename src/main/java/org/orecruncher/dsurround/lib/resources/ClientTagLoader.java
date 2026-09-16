@@ -122,9 +122,16 @@ public class ClientTagLoader {
             // difference between "this pack does not define the tag" (normal) and "the file exists
             // but nothing could be read out of it" (a decode failure that silently disables every
             // block in the tag - exactly what a stray escape sequence produced once).
-            if (!tagFiles.isEmpty() && entries.isEmpty())
-                DataDiagnostics.fail("tag defined but loaded empty",
+            if (!tagFiles.isEmpty() && entries.isEmpty()) {
+                // A tag whose file exists but yields nothing CAN mean the file could not be read -
+                // which is exactly how one stray escape sequence silently disabled every
+                // no-collision block. That case is now reported precisely by the "undecodable file"
+                // finding, so this is informational: several DS tags ship with "values": [] on
+                // purpose (occlusion/medium, reflectance/very_high, armor/slimey, ...), and flagging
+                // those as problems buries the findings that matter.
+                DataDiagnostics.note("tag with no members",
                         String.format("%s (%d file(s) found, 0 entries)", tagKey, tagFiles.size()));
+            }
 
             if (!entries.isEmpty()) {
                 this.logger.debug(RESOURCE_LOADING, "%s - %d entries found", tagKey, entries.size());

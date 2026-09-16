@@ -365,6 +365,100 @@ Standard tag format (`replace`, `values` with `#`-refs and `required`). Namespac
 #### 4.8 `chat/<lang>.lang` — entity speech bubbles
 Format (documented in the file header): `chat.<entity>.<index>=weight,text`. `villager.flee` is a special flee-line table; `$MINECRAFT$` plays a random vanilla splash text. The file name follows the client language (`en_us.lang`, `zh_cn.lang`).
 
+#### 4.9 One file per mod - the aggregate `dsurround.json`
+
+The files above are split by **type**, which is convenient for the mod's own data but awkward when
+you adapt a third-party mod: one mod's entries end up spread over half a dozen files. For that case
+you can put **every section in a single file**, exactly like the original 1.12.2 mod did with its
+`data/<modid>.json`:
+
+```
+config/dsurround/configs/<namespace>/dsurround.json
+assets/<namespace>/dsconfigs/dsurround.json          (same thing from inside a mod jar)
+```
+
+The section names are the names of the dedicated files, and each section is decoded with **the same
+codec**, so a rule means exactly the same thing in either place:
+
+```json
+{
+  "sound_mappings": [ { "soundEvent": "minecraft:block.stone.step",
+                        "rules": [ { "blocks": ["yourmodid:marble"], "factory": "dsurround:footsteps.marble" } ] } ],
+  "blocks":         [ { "blocks": ["yourmodid:ember"], "effects": [ { "effect": "fire_jet", "spawnChance": "0.005" } ] } ],
+  "biomes":         [ { "biomeSelector": "biome.id == 'yourmodid:ashen_waste'", "acoustics": [ { "factory": "biome.wind" } ] } ]
+}
+```
+
+Sections you can use: `sound_mappings`, `blocks`, `biomes`, `dimensions`, `sound_factories`,
+`variators`, `entity_variators`, `critwords`. Anything else in the file is ignored.
+
+**Precedence.** Both sources contribute. A dedicated `<section>.json` and the section inside the
+aggregate file are merged, and within a mapping the more specific rule wins (a rule that names blocks
+is inserted before the catch-all default). A mod's built-in data is therefore not overridden by
+accident, and an aggregate file can still add to it.
+
+**A typo never breaks the load.** The file is read as raw JSON and only the section of interest is
+handed to a codec. A section that is missing, null or of the wrong shape contributes nothing; the
+other sections in the same file still apply. Unknown keys are ignored silently.
+
+#### 4.9.1 Testing it
+
+1. Create the file (the namespace folder must match a **loaded** mod id, otherwise it is ignored):
+
+```json
+{
+  "sound_mappings": [
+    { "soundEvent": "minecraft:block.stone.step",
+      "rules": [ { "blocks": ["yourmodid:some_stone_block"], "factory": "dsurround:footsteps.wood" } ] }
+  ],
+  "biomes": "not an array - this section is meant to fail",
+  "notASection": { "unknown keys are ignored": true }
+}
+```
+
+2. Run `/dsreload` in game. Walk on `yourmodid:some_stone_block`: its footstep must now sound like
+   **wood** instead of stone. That is the section being read from the aggregate file. If it does not,
+   `/dsdump steps` prints the whole surface-resolution chain for where you are standing.
+3. Confirm the loader read the file and that the bad section is reported but harmless. The data
+   self-check names it: the report is written to `logs/latest.log` when you join a world, and
+   `/dsdump validate` prints the same report to chat. Expect an entry naming `dsurround.json` and the
+   reason the `biomes` section failed - while `sound_mappings` keeps working, which is the point of
+   reading each section independently.
+4. Remove the file (or rename it to `dsurround.json.disabled`) and `/dsreload` again: the block goes
+   back to stone, which proves the effect came from your file and nothing else.
+
+#### 4.10 `critwords.json` — the comic words on a critical hit
+
+A plain JSON array of strings. The word appears above the entity that took the critical hit, with an
+exclamation mark appended, thrown up and away from the attacker while growing.
+
+```json
+{
+  "values": ["BONK", "WHACK", "ZOK", "SPLAT"]
+}
+```
+
+**Adding your own.** Ship a file with the same name and it is **merged with** the built-in list — you
+do not replace the defaults. Put it in any of the locations listed in §4.0:
+
+- inside a mod: `assets/<yourmodid>/dsconfigs/critwords.json`
+- on disk: `config/dsurround/configs/<anyname>/critwords.json` (loaded after the jar, so a mod pack
+  can add words both for itself and for another mod)
+
+Sources are concatenated in load order, so more files means a larger pool. Duplicates are allowed and
+simply make a word more likely. Entries are trimmed, empty strings are ignored, and the list is capped
+at 4096 entries. It can also be supplied as the `"critwords"` section of an aggregate file (§4.9).
+
+**Language.** The built-in list is the original 1.12.2 onomatopoeia (AIEEE, BONK, KAPOW, ZZZZWAP, …)
+and is **not translated**. Because the list is data, replacing it with your own words is how you
+localise it — see §4.10 of the Chinese part for a Chinese example.
+
+> For anyone comparing against the original: the text size, growth rate and launch arc are taken from
+> 1.12.2's `ParticleTextPopOff` — a text height of `0.024` world units per font pixel, `×1.08` per
+> tick, initial velocity normalised to a total magnitude of `0.12`, and gravity `0.8`. The three
+> editions render through different pipelines (a 3D particle pass in 1.12.2, a projected 2D GUI
+> overlay here) but use the same numbers, so the on-screen result matches.
+
 ### 5. Commands
 
 | Command | Side | Notes |
@@ -726,6 +820,93 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 
 #### 4.8 `chat/<lang>.lang` —— 生物气泡台词
 格式（文件头已注明）：`chat.<实体>.<序号>=权重,文本`。`villager.flee` 是特殊的逃跑台词表；`$MINECRAFT$` 播放随机原版闪烁标语。文件名跟随客户端语言（`en_us.lang`、`zh_cn.lang`）。
+
+#### 4.9 一个模组一个文件 —— 聚合 `dsurround.json`
+
+上面的数据文件是**按类型**拆分的：对模组自带的内部数据最方便，但给第三方模组写适配时就很别扭
+—— 一个模组的规则要散落到五六个文件里。为此提供**一个文件承载全部段落**的写法，形态与
+1.12.2 当年的 `data/<modid>.json` 一致：
+
+```
+config/dsurround/configs/<namespace>/dsurround.json
+assets/<namespace>/dsconfigs/dsurround.json          （模组 jar 内的等价位置）
+```
+
+**段落名就是专用文件的名字**，每个段落用**相同的 codec** 解码，所以同一条规则放在哪边含义完全一样：
+
+```json
+{
+  "sound_mappings": [ { "soundEvent": "minecraft:block.stone.step",
+                        "rules": [ { "blocks": ["yourmodid:marble"], "factory": "dsurround:footsteps.marble" } ] } ],
+  "blocks":         [ { "blocks": ["yourmodid:ember"], "effects": [ { "effect": "fire_jet", "spawnChance": "0.005" } ] } ],
+  "biomes":         [ { "biomeSelector": "biome.id == 'yourmodid:ashen_waste'", "acoustics": [ { "factory": "biome.wind" } ] } ]
+}
+```
+
+可用的段落：`sound_mappings`、`blocks`、`biomes`、`dimensions`、`sound_factories`、`variators`、
+`entity_variators`、`critwords`。文件里的其它键会被忽略。
+
+**优先级**：两边的内容**都会生效**。专用 `<段落名>.json` 与聚合文件里的同段内容会被合并；
+在同一个映射里，**更具体的规则胜出**（带方块匹配的规则会插到兜底默认之前）。所以内建数据不会
+被误覆盖，同时聚合文件依然能给它追加内容。
+
+**写错不会拖垮数据**：文件按原始 JSON 读取，只有需要的那个段落会交给 codec。段落缺失、写成 null、
+或者类型不对时该段不生效，**同文件里的其它段落照常生效**；未知键安静忽略。
+
+#### 4.9.1 怎么测试
+
+1. 建好文件（`<namespace>` 目录名必须是**已加载模组**的 id，否则整个目录会被忽略）：
+
+```json
+{
+  "sound_mappings": [
+    { "soundEvent": "minecraft:block.stone.step",
+      "rules": [ { "blocks": ["yourmodid:some_stone_block"], "factory": "dsurround:footsteps.wood" } ] }
+  ],
+  "biomes": "这里故意写错类型，用来验证容错",
+  "notASection": { "未知键会被忽略": true }
+}
+```
+
+2. 游戏里执行 `/dsreload`，然后走到 `yourmodid:some_stone_block` 上：脚步声应当变成**木料声**
+   （原本是石头声）。这就是聚合文件的段落生效了。如果没变，用 `/dsdump steps` 打出你所站位置的
+   完整取面判定链来定位。
+3. 确认加载器确实读了这个文件，而且坏段落只报不废。数据自检会列出它：进入世界时写入
+   `logs/latest.log`，`/dsdump validate` 也会把同一份报告打到聊天栏。预期看到一条写明
+   `dsurround.json` 与 `biomes` 段落失败原因的条目 —— 同时 `sound_mappings` 仍然生效，
+   这正是"分段独立读取"的意义。
+4. 把文件删掉（或改名成 `dsurround.json.disabled`）再 `/dsreload`：该方块恢复石头声，
+   证明之前的效果确实来自你的文件。
+
+#### 4.10 `critwords.json` —— 暴击时弹出的拟声词
+
+一个纯 JSON 字符串数组。词会显示在被暴击的实体上方（末尾自动加感叹号），朝远离攻击者的方向
+抛起并逐渐变大。
+
+```json
+{
+  "values": ["哐", "砰", "咚", "啪"]
+}
+```
+
+**怎么加自己的词。** 放一个同名文件即可，它会与内置词表**合并**（不会替换默认值）。文件可放在
+§4.0 列出的任一位置：
+
+- 模组内：`assets/<你的模组id>/dsconfigs/critwords.json`
+- 磁盘上：`config/dsurround/configs/<任意名字>/critwords.json`（在 jar 之后加载，所以整合包既能
+  给自己的词，也能给别的模组的词表追加）
+
+多个来源按加载顺序**拼接**，文件越多、词池越大。允许重复（重复只会让该词出现得更频繁）；条目
+会去掉首尾空白、忽略空串，并限制在 4096 条以内。也可以作为聚合文件（§4.9）的 `"critwords"`
+段落提供。
+
+**关于语言。** 内置词表沿用 1.12.2 原始的英文拟声词（AIEEE、BONK、KAPOW、ZZZZWAP…），**没有做
+翻译**。由于词表是数据，想本地化就直接换成你自己的词 —— 上面那个例子就是中文拟声词。
+
+> 行为说明（供与原版对照）：字号、变大速率、抛起曲线都取自 1.12.2 的 `ParticleTextPopOff` ——
+> 文本高度 `0.024` 世界单位/字体像素、每 tick `×1.08`、初速度归一化到总长 `0.12`、重力 `0.8`。
+> 三个版本的渲染管线不同（1.12.2 是三维粒子通道，这里是投影到二维 GUI 层），但**用的是同一组
+> 数值**，所以屏幕上的效果是一致的。
 
 ### 5. 指令
 

@@ -32,7 +32,11 @@ import org.orecruncher.dsurround.lib.random.Randomizer;
  */
 public class CritWordHandler {
 
-    private static final String[] CRIT_WORDS = {
+    /**
+     * Built-in words, used when no data file provides any. Kept as the fallback so the feature
+     * works out of the box; see {@code critwords.json} and CONFIGURATION.md for adding to it.
+     */
+    private static final String[] BUILT_IN_CRIT_WORDS = {
             "AIEEE", "AIIEEE", "ARRGH", "AWK", "AWKKKKKK", "BAM", "BANG", "BANG-ETH", "BIFF", "BLOOP", "BLURP", "BOFF",
             "BONK", "CLANK", "CLANK-EST", "CLASH", "CLUNK", "CLUNK-ETH", "CRRAACK", "CRASH", "CRUNCH", "CRUNCH-ETH",
             "EEE-YOW", "FLRBBBBB", "GLIPP", "GLURPP", "KAPOW", "KAYO", "KER-SPLOOSH", "KERPLOP", "KLONK", "KLUNK",
@@ -51,11 +55,29 @@ public class CritWordHandler {
     private static final int LIFETIME = 12;
     private static final int FADE_START = 6;
 
-    // Physics (original ParticleTextPopOff): upward bounce + gravity, growing text.
+    // ---- numbers taken from 1.12.2 ParticleTextPopOff ------------------------------------
+    // Physics: the original passes (0.001, 0.05 * BOUNCE_STRENGTH, 0.001) with
+    // BOUNCE_STRENGTH = 1.5 and then NORMALISES the vector to a total magnitude of 0.12. Using a
+    // constant UP_SPEED with an independent horizontal component is not equivalent: it made the
+    // text rise less and fall deeper than the original.
     private static final float GRAVITY = 0.8F;
     private static final float GROW_FACTOR = 1.08F;
-    private static final float HORIZONTAL_SPEED = 0.05F;
-    private static final float UP_SPEED = 0.10F;
+    /** Total launch speed; the direction is normalised to exactly this (1.12.2: 0.12). */
+    private static final float MOTION_MAGNITUDE = 0.12F;
+
+    /**
+     * Text size for the comic power word: 1.12.2 draws it at
+     * {@code particleScale(3.0) * 0.008 = 0.024} world units per font pixel, as a fixed
+     * world-space billboard.
+     */
+    private static final float CRIT_WORLD_UNITS_PER_FONT_PX = 0.024F;
+
+    /**
+     * Text size for the damage / heal number, which 1.12.2 spawns as a separate particle of the
+     * same class. The port shares one handler, so the smaller size is expressed here; it matches
+     * the value SpeechBubbleHandler uses for its bubbles so the two features agree on scale.
+     */
+    private static final float ADDITION_WORLD_UNITS_PER_FONT_PX = 0.015F;
 
     private static final class CritWord {
         final String text;
@@ -66,7 +88,10 @@ public class CritWordHandler {
         float scale;
         int age;
 
-        CritWord(String text, int color, double x, double y, double z, double vx, double vy, double vz) {
+        final float worldUnitsPerFontPx;
+
+        CritWord(String text, int color, double x, double y, double z, double vx, double vy, double vz,
+                 float worldUnitsPerFontPx) {
             this.text = text;
             this.color = color;
             this.x = this.prevX = x;
@@ -76,6 +101,7 @@ public class CritWordHandler {
             this.vy = vy;
             this.vz = vz;
             this.scale = 1.0F;
+            this.worldUnitsPerFontPx = worldUnitsPerFontPx;
         }
     }
 
@@ -131,20 +157,32 @@ public class CritWordHandler {
         if (showNumbers) {
             this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
-                    dx * HORIZONTAL_SPEED, UP_SPEED, dz * HORIZONTAL_SPEED));
+                    launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX));
         }
 
         // Critical hit (>= 40% of max health): an extra comic word one block up.
         if (showCrits && damage >= entity.getMaxHealth() / 2.5F) {
-            final String word = CRIT_WORDS[this.random.nextInt(CRIT_WORDS.length)] + "!";
+            final String word = pickWord() + "!";
             this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),
-                    dx * HORIZONTAL_SPEED, UP_SPEED, dz * HORIZONTAL_SPEED));
+                    launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX));
             this.logger.debug("Crit word [%s] at %s", word, entity.blockPosition());
         }
     }
 
-    public void onLivingHeal(LivingHealEvent event) {
+    /**
+     * Picks a word: the data-provided list when there is one, otherwise the built-in defaults.
+     * The data list is loaded by {@link CritWordsLibrary} from {@code critwords.json} using the
+     * same discovery as every other DS data file, so mod packs can extend it without replacing it.
+     */
+    private String pickWord() {
+        final java.util.List<String> fromData = CritWordsLibrary.words();
+        if (!fromData.isEmpty())
+            return fromData.get(this.random.nextInt(fromData.size()));
+        return BUILT_IN_CRIT_WORDS[this.random.nextInt(BUILT_IN_CRIT_WORDS.length)];
+    }
+
+    private void onLivingHeal(LivingHealEvent event) {
         if (!this.config.entityEffects.showDamageNumbers)
             return;
 
@@ -164,8 +202,79 @@ public class CritWordHandler {
             return;
 
         this.active.add(new CritWord(String.valueOf(actual), HEAL_TEXT_COLOR,
-                entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
-                0.0D, UP_SPEED, 0.0D));
+                    entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
+                    launchX(0.0D, 0.0D), launchY(), launchZ(0.0D, 0.0D), ADDITION_WORLD_UNITS_PER_FONT_PX));
+    }
+
+    /**
+     * Text scale for the 2D GUI draw, derived so that a fixed WORLD-SPACE text height projects the
+     * same way it did in 1.12.2.
+     * <p>
+     * A quad of world height {@code H} subtends {@code H / (2 * depth * tan(fov/2))} of the viewport,
+     * and GUI pixels are the viewport divided by the GUI scale factor - the same factor implicit in
+     * {@code getGuiScaledHeight()}. So
+     * <pre>
+     *     guiScale = worldUnitsPerFontPixel * growth * (guiHeight / 2) / (depth * tan(fov/2))
+     * </pre>
+     * which is exactly what SpeechBubbleHandler does for its bubbles; the only difference between
+     * the two features is the world size (1.12.2: 0.024 for the crit word, 0.015 for a bubble).
+     */
+    private float computeTextScale(final CritWord entry, final float depth, final Minecraft mc,
+                                   final float guiHeight) {
+        final float fov = mc.options.fov().get();
+        final float tanHalfFov = (float) Math.tan(Math.toRadians(fov) / 2.0D);
+
+        final float worldUnitsPerFontPx = entry.worldUnitsPerFontPx * entry.scale;
+        float scale = worldUnitsPerFontPx * (guiHeight / 2.0F) / (float) (depth * tanHalfFov);
+
+        // guard rails only: never microscopic, never absurdly large on screen
+        return Mth.clamp(scale, 0.10F, 6.0F);
+    }
+
+    /**
+     * A launch velocity whose TOTAL magnitude is {@link #MOTION_MAGNITUDE}, mirroring 1.12.2,
+     * which normalises the initial motion vector to 0.12.
+     * <p>
+     * The original passes {@code (0.001, 0.05 * 1.5, 0.001)} - an almost purely vertical vector -
+     * and normalises it, so the behaviour is "launch nearly straight up at 0.12, tilted slightly
+     * along the attack direction".
+     */
+    /**
+     * Launch velocity components, each with a TOTAL magnitude of {@link #MOTION_MAGNITUDE},
+     * mirroring 1.12.2 which normalises its initial motion vector to 0.12.
+     * <p>
+     * The original passes {@code (0.001, 0.05 * 1.5, 0.001)} - an almost purely vertical vector -
+     * and normalises it, so the behaviour is "launch nearly straight up at 0.12, tilted slightly
+     * along the attack direction". Exposed as three components because that is what the CritWord
+     * constructor takes.
+     */
+    private static double launchX(final double dx, final double dz) {
+        return horizontalMagnitude() * unitX(dx, dz);
+    }
+
+    private static double launchZ(final double dx, final double dz) {
+        return horizontalMagnitude() * unitZ(dx, dz);
+    }
+
+    private static double launchY() {
+        // 1.12.2's proportions: the vertical part dominates the negligible horizontal parts
+        final double verticalShare = 0.075D / Math.sqrt(0.075D * 0.075D + 2.0D * 0.001D * 0.001D);
+        return MOTION_MAGNITUDE * verticalShare;
+    }
+
+    private static double horizontalMagnitude() {
+        final double vy = launchY();
+        return Math.sqrt(Math.max(0.0D, MOTION_MAGNITUDE * MOTION_MAGNITUDE - vy * vy));
+    }
+
+    private static double unitX(final double dx, final double dz) {
+        final double len = Math.sqrt(dx * dx + dz * dz);
+        return len < 1.0E-6D ? 0.0D : dx / len;
+    }
+
+    private static double unitZ(final double dx, final double dz) {
+        final double len = Math.sqrt(dx * dx + dz * dz);
+        return len < 1.0E-6D ? 0.0D : dz / len;
     }
 
     private void onTick(Minecraft mc) {
@@ -242,7 +351,7 @@ public class CritWordHandler {
             final float sy = (1.0F - (this.clip.y / depth * 0.5F + 0.5F)) * height;
 
             // Distance fade + shrink: scale by 1/depth so a word on a far target stays small.
-            float textScale = Mth.clamp(entry.scale * 2.0F / depth, 0.25F, 2.0F);
+            float textScale = this.computeTextScale(entry, depth, mc, height);
 
             int alpha = 255;
             if (entry.age > FADE_START)

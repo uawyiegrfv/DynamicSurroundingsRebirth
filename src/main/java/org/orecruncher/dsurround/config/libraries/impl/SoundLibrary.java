@@ -350,7 +350,8 @@ public final class SoundLibrary implements ISoundLibrary {
                 existingMapping.merge(mapping);
             }
         }
-        this.logger.debug("Registered %d sound remappings for namespace %s", mappings.resourceContent().size(), mappings.namespace());
+        this.logger.debug("Registered %d sound remappings for namespace %s",
+                mappings.resourceContent().size(), mappings.namespace());
     }
 
     private void registerSoundFactories(DiscoveredResource<List<SoundFactory>> factories) {

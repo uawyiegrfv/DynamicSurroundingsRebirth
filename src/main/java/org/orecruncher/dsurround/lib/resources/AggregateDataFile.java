@@ -81,7 +81,8 @@ public final class AggregateDataFile {
                         file.path(), section, FILE_NAME, parsed.error().get().message());
                 continue;
             }
-            parsed.result().ifPresent(value -> result.add(new DiscoveredResource<>(file.namespace(), value)));
+            parsed.result().ifPresent(value ->
+                    result.add(new DiscoveredResource<>(file.namespace(), value)));
         }
 
         return result;

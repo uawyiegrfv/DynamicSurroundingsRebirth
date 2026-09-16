@@ -390,15 +390,16 @@ codec**, so a rule means exactly the same thing in either place:
 ```
 
 Sections you can use: `sound_mappings`, `blocks`, `biomes`, `dimensions`, `sound_factories`,
-`variators`, `entity_variators`. Anything else in the file is ignored.
+`variators`, `entity_variators`, `critwords`. Anything else in the file is ignored.
 
-**Precedence.** For a given namespace a dedicated `<section>.json` **wins** over the section inside
-the aggregate file, so the mod's built-in data stays authoritative for the namespaces that ship it.
+**Precedence.** Both sources contribute. A dedicated `<section>.json` and the section inside the
+aggregate file are merged, and within a mapping the more specific rule wins (a rule that names blocks
+is inserted before the catch-all default). A mod's built-in data is therefore not overridden by
+accident, and an aggregate file can still add to it.
 
 **A typo never breaks the load.** The file is read as raw JSON and only the section of interest is
-handed to a codec. A section that is missing, null or of the wrong shape contributes nothing and
-logs one `WARN` line naming the file and the reason; the other sections in the same file still
-apply. Unknown keys are ignored silently.
+handed to a codec. A section that is missing, null or of the wrong shape contributes nothing; the
+other sections in the same file still apply. Unknown keys are ignored silently.
 
 #### 4.9.1 Testing it
 
@@ -416,12 +417,47 @@ apply. Unknown keys are ignored silently.
 ```
 
 2. Run `/dsreload` in game. Walk on `yourmodid:some_stone_block`: its footstep must now sound like
-   **wood** instead of stone. That is the section being read from the aggregate file.
-3. Check `logs/latest.log` for the one warning about the `biomes` section. Seeing it proves the
-   loader read the file; the `sound_mappings` section still working proves a broken section does
-   not take the file down with it.
-4. Remove the file (or rename it to `dsurround.json.disabled`) and `/dsreload` again: the block
-   goes back to stone, which proves the effect came from your file and nothing else.
+   **wood** instead of stone. That is the section being read from the aggregate file. If it does not,
+   `/dsdump steps` prints the whole surface-resolution chain for where you are standing.
+3. Confirm the loader read the file and that the bad section is reported but harmless. The data
+   self-check names it: the report is written to `logs/latest.log` when you join a world, and
+   `/dsdump validate` prints the same report to chat. Expect an entry naming `dsurround.json` and the
+   reason the `biomes` section failed - while `sound_mappings` keeps working, which is the point of
+   reading each section independently.
+4. Remove the file (or rename it to `dsurround.json.disabled`) and `/dsreload` again: the block goes
+   back to stone, which proves the effect came from your file and nothing else.
+
+#### 4.10 `critwords.json` — the comic words on a critical hit
+
+A plain JSON array of strings. The word appears above the entity that took the critical hit, with an
+exclamation mark appended, thrown up and away from the attacker while growing.
+
+```json
+{
+  "values": ["BONK", "WHACK", "ZOK", "SPLAT"]
+}
+```
+
+**Adding your own.** Ship a file with the same name and it is **merged with** the built-in list — you
+do not replace the defaults. Put it in any of the locations listed in §4.0:
+
+- inside a mod: `assets/<yourmodid>/dsconfigs/critwords.json`
+- on disk: `config/dsurround/configs/<anyname>/critwords.json` (loaded after the jar, so a mod pack
+  can add words both for itself and for another mod)
+
+Sources are concatenated in load order, so more files means a larger pool. Duplicates are allowed and
+simply make a word more likely. Entries are trimmed, empty strings are ignored, and the list is capped
+at 4096 entries. It can also be supplied as the `"critwords"` section of an aggregate file (§4.9).
+
+**Language.** The built-in list is the original 1.12.2 onomatopoeia (AIEEE, BONK, KAPOW, ZZZZWAP, …)
+and is **not translated**. Because the list is data, replacing it with your own words is how you
+localise it — see §4.10 of the Chinese part for a Chinese example.
+
+> For anyone comparing against the original: the text size, growth rate and launch arc are taken from
+> 1.12.2's `ParticleTextPopOff` — a text height of `0.024` world units per font pixel, `×1.08` per
+> tick, initial velocity normalised to a total magnitude of `0.12`, and gravity `0.8`. The three
+> editions render through different pipelines (a 3D particle pass in 1.12.2, a projected 2D GUI
+> overlay here) but use the same numbers, so the on-screen result matches.
 
 ### 5. Commands
 
@@ -808,14 +844,14 @@ assets/<namespace>/dsconfigs/dsurround.json          （模组 jar 内的等价�
 ```
 
 可用的段落：`sound_mappings`、`blocks`、`biomes`、`dimensions`、`sound_factories`、`variators`、
-`entity_variators`。文件里的其它键会被忽略。
+`entity_variators`、`critwords`。文件里的其它键会被忽略。
 
-**优先级**：同一个 namespace 下，专用 `<段落名>.json` **优先于**聚合文件里的同段内容，
-所以内建数据对自带它的 namespace 始终权威。
+**优先级**：两边的内容**都会生效**。专用 `<段落名>.json` 与聚合文件里的同段内容会被合并；
+在同一个映射里，**更具体的规则胜出**（带方块匹配的规则会插到兜底默认之前）。所以内建数据不会
+被误覆盖，同时聚合文件依然能给它追加内容。
 
 **写错不会拖垮数据**：文件按原始 JSON 读取，只有需要的那个段落会交给 codec。段落缺失、写成 null、
-或者类型不对时该段不生效并打一行 `WARN`（会写明文件和原因），**同文件里的其它段落照常生效**；
-未知键安静忽略。
+或者类型不对时该段不生效，**同文件里的其它段落照常生效**；未知键安静忽略。
 
 #### 4.9.1 怎么测试
 
@@ -833,11 +869,44 @@ assets/<namespace>/dsconfigs/dsurround.json          （模组 jar 内的等价�
 ```
 
 2. 游戏里执行 `/dsreload`，然后走到 `yourmodid:some_stone_block` 上：脚步声应当变成**木料声**
-   （原本是石头声）。这就是聚合文件的段落生效了。
-3. 打开 `logs/latest.log`，应当有**一行**关于 `biomes` 段落的 WARN。看到它说明加载器确实读了
-   这个文件；而 `sound_mappings` 依然生效，说明一个段落写坏不会连带废掉整个文件。
+   （原本是石头声）。这就是聚合文件的段落生效了。如果没变，用 `/dsdump steps` 打出你所站位置的
+   完整取面判定链来定位。
+3. 确认加载器确实读了这个文件，而且坏段落只报不废。数据自检会列出它：进入世界时写入
+   `logs/latest.log`，`/dsdump validate` 也会把同一份报告打到聊天栏。预期看到一条写明
+   `dsurround.json` 与 `biomes` 段落失败原因的条目 —— 同时 `sound_mappings` 仍然生效，
+   这正是"分段独立读取"的意义。
 4. 把文件删掉（或改名成 `dsurround.json.disabled`）再 `/dsreload`：该方块恢复石头声，
    证明之前的效果确实来自你的文件。
+
+#### 4.10 `critwords.json` —— 暴击时弹出的拟声词
+
+一个纯 JSON 字符串数组。词会显示在被暴击的实体上方（末尾自动加感叹号），朝远离攻击者的方向
+抛起并逐渐变大。
+
+```json
+{
+  "values": ["哐", "砰", "咚", "啪"]
+}
+```
+
+**怎么加自己的词。** 放一个同名文件即可，它会与内置词表**合并**（不会替换默认值）。文件可放在
+§4.0 列出的任一位置：
+
+- 模组内：`assets/<你的模组id>/dsconfigs/critwords.json`
+- 磁盘上：`config/dsurround/configs/<任意名字>/critwords.json`（在 jar 之后加载，所以整合包既能
+  给自己的词，也能给别的模组的词表追加）
+
+多个来源按加载顺序**拼接**，文件越多、词池越大。允许重复（重复只会让该词出现得更频繁）；条目
+会去掉首尾空白、忽略空串，并限制在 4096 条以内。也可以作为聚合文件（§4.9）的 `"critwords"`
+段落提供。
+
+**关于语言。** 内置词表沿用 1.12.2 原始的英文拟声词（AIEEE、BONK、KAPOW、ZZZZWAP…），**没有做
+翻译**。由于词表是数据，想本地化就直接换成你自己的词 —— 上面那个例子就是中文拟声词。
+
+> 行为说明（供与原版对照）：字号、变大速率、抛起曲线都取自 1.12.2 的 `ParticleTextPopOff` ——
+> 文本高度 `0.024` 世界单位/字体像素、每 tick `×1.08`、初速度归一化到总长 `0.12`、重力 `0.8`。
+> 三个版本的渲染管线不同（1.12.2 是三维粒子通道，这里是投影到二维 GUI 层），但**用的是同一组
+> 数值**，所以屏幕上的效果是一致的。
 
 ### 5. 指令
 

@@ -128,7 +128,8 @@ public class CritWordHandler {
 
     // Animation values, refreshed from config on every spawn so a config edit applies without a
     // restart. 1.12.2's own numbers are the defaults: grow 1.08, shrink 0.96, peak 3x.
-    private float growFactor = 1.16F;
+    private float growFactor = 1.12F;
+    private float gravityScale = 0.57F;
     private float shrinkFactor = 0.93F;
     private float maxScale = 4.0F;
     private int peakTick = 4;
@@ -149,6 +150,7 @@ public class CritWordHandler {
         this.maxScale = cfg.maxScalePercent / 100.0F;
         this.driftScale = cfg.driftPercent / 100.0F;
         this.lifetime = Math.max(3, cfg.lifetimeTicks);
+        this.gravityScale = cfg.gravityPercent / 100.0F;
         this.peakTick = Math.max(1, Math.min(this.lifetime - 2, cfg.peakTickTicks));
 
         // Derive the shrink rate so the text returns to its starting size. Deriving it (rather than
@@ -333,7 +335,7 @@ public class CritWordHandler {
             w.prevX = w.x;
             w.prevY = w.y;
             w.prevZ = w.z;
-            w.vy -= 0.04D * GRAVITY;
+            w.vy -= 0.04D * GRAVITY * this.gravityScale;
             // 1.12.2 grows by 1.08 per frame and shrinks by 0.96 once the scale passes SIZE*3.
             // All three numbers are configurable, and the horizontal drift reverses with the
             // scale flip, so the text is thrown at the target and then pulled back.

@@ -13,9 +13,10 @@ import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.effects.particles.FootprintParticle;
 import org.orecruncher.dsurround.eventing.ClientState;
 import org.orecruncher.dsurround.lib.GameUtils;
+import org.orecruncher.dsurround.config.libraries.ITagLibrary;
+import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
-
-import java.util.Set;
+import org.orecruncher.dsurround.tags.BlockEffectTags;
 
 /**
  * Leaves footprints under the player while walking, ported from the original
@@ -26,18 +27,15 @@ import java.util.Set;
  */
 public class FootprintHandler {
 
-    // Only these materials leave prints, matching the original FOOTPRINT_MATERIAL
-    // whitelist (clay, grass, ground, sand, snow). Wood/stone don't. Ice is
-    // deliberately excluded - the player slides across ice without leaving prints
-    // (a user-requested deviation from the original, which included Material.ICE).
-    private static final Set<Block> FOOTPRINT_BLOCKS = Set.of(
-            Blocks.DIRT, Blocks.COARSE_DIRT, Blocks.GRASS_BLOCK, Blocks.PODZOL, Blocks.MYCELIUM,
-            Blocks.ROOTED_DIRT, Blocks.DIRT_PATH, Blocks.FARMLAND, Blocks.MUD,
-            Blocks.SAND, Blocks.RED_SAND, Blocks.SUSPICIOUS_SAND, Blocks.SOUL_SAND, Blocks.GRAVEL,
-            Blocks.SNOW, Blocks.SNOW_BLOCK,
-            Blocks.CLAY);
+    // Which blocks take a footprint is DATA, not a hardcoded list: the handler consults
+    // #dsurround:effects/footprintable so a mod can opt its own soft ground in, and a
+    // modpack can retune the set through a resource pack.
 
     private final Configuration config;
+
+    private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);
+    private static final net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> FOOTPRINTABLE =
+            BlockEffectTags.FOOTPRINTABLE;
 
     // Distance to travel before dropping the next footprint (~one vanilla step).
     private static final double STEP_DISTANCE = 0.9D;
@@ -182,7 +180,7 @@ public class FootprintHandler {
             // slabs (0.5), bottom trapdoors (0.1875), pressure plates (0.0625), carpets
             // (0.0625) and buttons (0.1875) - their tops all sit within the 0.5 window of
             // the block beneath them, so the old loop accepted that block as the surface.
-            if (!FOOTPRINT_BLOCKS.contains(probeState.getBlock()))
+            if (!TAG_LIBRARY.is(FOOTPRINTABLE, probeState))
                 return;
             // Sit the print on the block's visible surface (snow layer top), not the
             // player's foot which sinks slightly into the snow.

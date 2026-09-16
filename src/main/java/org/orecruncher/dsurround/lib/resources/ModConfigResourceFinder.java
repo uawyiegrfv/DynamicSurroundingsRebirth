@@ -30,7 +30,12 @@ public class ModConfigResourceFinder extends AbstractResourceFinder {
         var result = new ObjectArray<DiscoveredResource<T>>();
         for (var kvp : this.resources.entrySet()) {
             var resourcePath = kvp.getKey().getPath();
-            if (resourcePath.endsWith(path)) {
+            // A namespace-qualified request must match the whole id; a plain path must match
+            // exactly or sit under a directory. See resourcePathMatches().
+            final boolean matches = path.contains(":")
+                    ? kvp.getKey().toString().equals(path)
+                    : resourcePathMatches(resourcePath, path);
+            if (matches) {
                 this.logger.debug(RESOURCE_LOADING, "[%s] - Processing %s", resourcePath, kvp.getKey());
                 for (var r : kvp.getValue()) {
                     try (var inputStream = r.open()) {
@@ -53,7 +58,7 @@ public class ModConfigResourceFinder extends AbstractResourceFinder {
         final String fileName = path.endsWith(".json") ? path : path + ".json";
         final Collection<RawTextResource> result = new ObjectArray<>();
         for (var kvp : this.resources.entrySet()) {
-            if (!kvp.getKey().getPath().endsWith(fileName))
+            if (!resourcePathMatches(kvp.getKey().getPath(), fileName))
                 continue;
             for (var r : kvp.getValue()) {
                 try (var inputStream = r.open()) {

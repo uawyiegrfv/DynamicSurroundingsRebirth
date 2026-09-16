@@ -26,6 +26,10 @@ import java.util.List;
  */
 public final class DataValidator {
 
+    private static final org.orecruncher.dsurround.lib.logging.IModLog LOGGER =
+            org.orecruncher.dsurround.lib.logging.ModLog.createChild(
+                    org.orecruncher.dsurround.lib.Library.LOGGER, "DataValidator");
+
     private static final ISoundLibrary SOUND_LIBRARY = ContainerManager.resolve(ISoundLibrary.class);
 
     /**
@@ -76,6 +80,20 @@ public final class DataValidator {
         }
 
         return List.copyOf(report);
+    }
+
+    /**
+     * Runs the self-check and writes it to the LOG as well as returning it.
+     * <p>
+     * Chat output cannot be copied, so a report that only goes to chat is of limited use for
+     * reporting a problem to someone else. The log copy is the full, greppable record; the caller
+     * still shows the same text in chat for immediate reading.
+     */
+    public static List<String> validateAndLog() {
+        final List<String> report = validate();
+        for (final String line : report)
+            LOGGER.info("%s", line);
+        return report;
     }
 
     /**

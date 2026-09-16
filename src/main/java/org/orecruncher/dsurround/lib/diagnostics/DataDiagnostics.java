@@ -44,6 +44,30 @@ public final class DataDiagnostics {
     private static final Map<String, Integer> PROBLEMS = new LinkedHashMap<>();
     private static final Map<String, Integer> NOTES = new LinkedHashMap<>();
 
+    static {
+        // Emit the collected findings once the client is in a world, which is after every data
+        // library has reloaded. Without this the failures stay invisible exactly as before.
+        // The full self-check (not just the load-time findings) is logged, because chat output
+        // cannot be copied and the log is what someone can actually read afterwards.
+        org.orecruncher.dsurround.eventing.ClientState.ON_CONNECT.register(
+                client -> reportAndValidate(),
+                org.orecruncher.dsurround.lib.events.HandlerPriority.LOW);
+    }
+
+    /**
+     * Logs the findings, then the complete self-check, so a single log read covers everything.
+     * Kept here rather than in the command layer so it runs without the user typing anything.
+     */
+    private static void reportAndValidate() {
+        report();
+        try {
+            for (final String line : org.orecruncher.dsurround.lib.diagnostics.DataValidator.validate())
+                LOGGER.info("%s", line);
+        } catch (Throwable t) {
+            LOGGER.warn("Data self-check could not complete: %s", t.getMessage());
+        }
+    }
+
     private DataDiagnostics() {
     }
 

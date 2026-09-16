@@ -427,5 +427,6 @@
   "dsurround.config.compassAndClockOptions.lowDurabilityThreshold": "Low Durability Threshold",
   "dsurround.config.compassAndClockOptions.lowDurabilityThreshold.tooltip": "Durability percentage at or below which the highlight shows",
   "dsurround.config.compassAndClockOptions.enableTreasureDistance": "Treasure Distance",
-  "dsurround.config.compassAndClockOptions.enableTreasureDistance.tooltip": "Enable/disable showing the horizontal distance to the treasure target on explorer maps"
+  "dsurround.config.compassAndClockOptions.enableTreasureDistance.tooltip": "Enable/disable showing the horizontal distance to the treasure target on explorer maps",
+  "dsurround.command.dsdump.validate": "DS data self-check:"
 }

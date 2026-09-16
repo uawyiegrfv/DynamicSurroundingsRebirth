@@ -310,31 +310,35 @@ public class Configuration extends ConfigurationData {
         @IntegerRange(min = 50, max = 300)
         @Slider
         @Comment("Text size as a percentage of the default (1.12.2 parity). Raise it if the text looks too small, lower it if too large")
-        public int sizePercent = 100;
+        public int sizePercent = 90;
 
         @Property
-        @IntegerRange(min = 101, max = 150)
+        @IntegerRange(min = 101, max = 200)
         @Slider
         @Comment("Growth per tick as a percentage (108 = 1.08x, matching the original mod)")
-        public int growFactor = 108;
+        public int growFactor = 116;
 
         @Property
-        @IntegerRange(min = 80, max = 100)
+        @IntegerRange(min = 1, max = 10)
         @Slider
-        @Comment("Shrink per tick as a percentage once the text has grown enough (96 = 0.96x, matching the original mod; lower shrinks faster)")
-        public int shrinkFactor = 96;
+        @Comment("Which tick the text reaches its largest. Low values grow fast then shrink slowly")
+        public int peakTickTicks = 4;
 
         @Property
-        @IntegerRange(min = 100, max = 600)
-        @Slider
-        @Comment("Size at which growth turns into shrinking, as a percentage of the spawn size. 160% reaches the flip about halfway through the animation")
-        public int maxScalePercent = 160;
+        @Comment("Upper guard on the text size, as a percentage of the spawn size")
+        public int maxScalePercent = 400;
 
         @Property
         @IntegerRange(min = -200, max = 200)
         @Slider
         @Comment("Horizontal travel as a percentage of the default. Positive drifts away from the attacker, negative drifts toward it, 0 rises straight up")
-        public int driftPercent = 100;
+        public int driftPercent = 200;
+
+        @Property
+        @IntegerRange(min = 8, max = 40)
+        @Slider
+        @Comment("How many ticks the text lives. Higher values make it fall further and linger longer")
+        public int lifetimeTicks = 13;
     }
 
     public static class EntityEffects {

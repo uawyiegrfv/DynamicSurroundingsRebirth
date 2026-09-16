@@ -368,25 +368,36 @@ Format (documented in the file header): `chat.<entity>.<index>=weight,text`. `vi
 #### 4.8.1 `popoffNumbers` — damage, healing and critical-hit text
 
 Controls the text that pops off an entity when it takes damage, is healed, or takes a critical hit.
-Every option is a slider, so the animation can be tuned in game without editing files.
+All options are sliders, so the animation can be tuned in game.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `sizePercent` | 100 | Text size. 100% matches the 1.12.2 original; lower it if the text looks too large (a thicker resource-pack font makes the same nominal size read bigger) |
-| `growFactor` | 108 | Growth per tick, in percent. 108% is the original's rate |
-| `shrinkFactor` | 96 | Shrink per tick once the text has grown, in percent. 96% is the original's rate; lower shrinks faster |
-| `maxScalePercent` | 160 | Size at which growth turns into shrinking, as a percentage of the spawn size. 160% flips about halfway through the animation; 300% and above grows for the whole life without ever shrinking |
-| `driftPercent` | 100 | Horizontal travel. Positive drifts away from the attacker, negative drifts toward it, 0 rises straight up |
+| `sizePercent` | 90 | Text size, as a percentage of the 1.12.2 original. Lower it if a thicker resource-pack font makes the same nominal size read larger |
+| `growFactor` | 116 | Growth per tick, in percent |
+| `peakTickTicks` | 4 | Which tick the text reaches its largest. Low values grow fast and then shrink slowly |
+| `driftPercent` | 200 | Horizontal travel. Positive drifts away from the attacker, negative drifts toward it, 0 rises straight up |
+| `lifetimeTicks` | 13 | How long the text lives. Higher values make it fall further and linger longer |
 
-The sequence at the defaults (one step per tick, 12 ticks total):
+**The shape.** The text grows until `peakTickTicks`, then shrinks for the rest of its life. The
+shrink rate is **derived** from the growth rate and the peak tick, because that is the only way to
+have both "grows fast" and "ends at the size it started" at once:
 
 ```
-tick   0    1    2    3    4    5    6    7    8    9   10   11
-size 1.00 1.08 1.17 1.26 1.36 1.47 1.59 1.71 1.65 1.58 1.52 1.46
+shrink = grow ^ (-peakTick / (lifetime - 1 - peakTick))
 ```
 
-It grows for eight ticks, then visibly shrinks while fading, and the horizontal drift reverses at
-the peak - which is what makes the text read as "thrown at the target and pulled back".
+At the defaults that gives `1.16 ^ (-4 / 8) = 0.9285`, and the curve is:
+
+```
+tick   0    1    2    3    4    5    6    7    8    9   10   11   12
+size 1.00 1.16 1.35 1.56 1.81 1.68 1.56 1.45 1.35 1.25 1.16 1.08 1.00
+                          peak                          back to start
+```
+
+**Why no shrink slider.** A shrink rate chosen by hand cannot satisfy both ends of that
+specification - it would either cut the text off before it returns to its starting size or leave it
+larger than it began. The peak tick is the knob that controls the shape instead: lower it for a
+snappier pop, raise it for a gentler swell.
 
 #### 4.9 One file per mod - the aggregate `dsurround.json`
 
@@ -846,24 +857,34 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 
 #### 4.8.1 `popoffNumbers` —— 伤害/治疗/暴击文字
 
-控制实体受伤、被治疗、被暴击时弹出来的文字。每一项都是滑条，可以直接在游戏里调，不用改文件。
+控制实体受伤、被治疗、被暴击时弹出来的文字。全部是滑条，可以直接在游戏里调。
 
 | 选项 | 默认 | 含义 |
 | --- | --- | --- |
-| `sizePercent` | 100 | 文字大小。100% 与原版 1.12.2 一致；觉得太大就调低（字体比原版粗的话，同样的字号看起来会更大） |
-| `growFactor` | 108 | 每刻放大比例（%）。108% 是原版的速率 |
-| `shrinkFactor` | 96 | 放大到位后每刻缩小比例（%）。96% 是原版的速率；调低则缩小更快 |
-| `maxScalePercent` | 160 | 放大到出生尺寸的这个百分比后转为缩小。160% 大约在动画一半处翻转；300% 及以上会整段都在放大、不会缩小 |
-| `driftPercent` | 100 | 水平抛出距离。正值朝远离攻击者方向，负值朝攻击者方向，0 表示垂直上升 |
+| `sizePercent` | 90 | 文字大小，相对 1.12.2 原版的百分比。若所用资源包字体较粗、同样字号显得更大，就调低 |
+| `growFactor` | 116 | 每刻放大比例（%） |
+| `peakTickTicks` | 4 | 在第几刻达到最大。数值越小则放大越快、之后缩小越慢 |
+| `driftPercent` | 200 | 水平抛出距离。正值朝远离攻击者方向，负值朝攻击者方向，0 表示垂直上升 |
+| `lifetimeTicks` | 13 | 存在时长（刻）。调高则下落更远、停留更久 |
 
-默认值下的逐刻变化（共 12 刻）：
+**变化形状。** 文字放大到 `peakTickTicks` 刻为止，之后一路缩小。缩小率是**由公式反推**的，因为
+只有这样才能同时满足"放大要快"和"结束时回到起始大小"：
 
 ```
-刻     0    1    2    3    4    5    6    7    8    9   10   11
-尺寸 1.00 1.08 1.17 1.26 1.36 1.47 1.59 1.71 1.65 1.58 1.52 1.46
+缩小率 = 放大率 ^ (-峰值刻 / (时长 - 1 - 峰值刻))
 ```
 
-先放大 8 刻，然后一边变小一边淡出；水平漂移在峰值处反向 —— 这就是"先抛出去再被拉回来"的观感来源。
+默认值下即 `1.16 ^ (-4/8) = 0.9285`，曲线为：
+
+```
+刻     0    1    2    3    4    5    6    7    8    9   10   11   12
+尺寸 1.00 1.16 1.35 1.56 1.81 1.68 1.56 1.45 1.35 1.25 1.16 1.08 1.00
+                          峰值                     缩回起始大小
+```
+
+**为什么没有"缩小比例"滑条。** 手调的缩小率无法同时满足上述两端 —— 要么文字还没缩回起始大小就
+消失了，要么结束时比开始时更大。控制形状的旋钮是「最大尺寸所在刻」：调小则弹出更利落，调大则
+放大更绵长。
 
 #### 4.9 一个模组一个文件 —— 聚合 `dsurround.json`
 

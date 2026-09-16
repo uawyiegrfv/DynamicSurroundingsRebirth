@@ -20,6 +20,7 @@ class DumpCommand extends AbstractClientCommand {
     private static final String TAGS = "tags";
     private static final String DIREGISTRATIONS = "diregistrations";
     private static final String STEPS = "steps";
+    private static final String VALIDATE = "validate";
 
     public void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext registryAccess) {
         dispatcher.register(net.minecraft.commands.Commands.literal(COMMAND)
@@ -35,6 +36,7 @@ class DumpCommand extends AbstractClientCommand {
                 .then(subCommand(TAGS, DumpCommandHandler::dumpTags))
                 .then(subCommand(DIREGISTRATIONS, DumpCommandHandler::dumpDIRegistrations))
                 .then(subCommand(STEPS, DumpCommandHandler::dumpStepTrace))
+                .then(subCommand(VALIDATE, DumpCommandHandler::validateData))
         );
     }
 }

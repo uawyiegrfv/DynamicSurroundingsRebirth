@@ -28,16 +28,36 @@ public interface CodecExtensions<A> extends Codec<A> {
     }
 
     static <A> Optional<A> deserialize(String content, Codec<A> codec) {
+        return deserializeWithError(content, codec).value();
+    }
+
+    /**
+     * The result of a decode attempt, together with why it failed.
+     *
+     * @param value       the decoded value, or empty when decoding failed
+     * @param errorDetail the failure reason, or null on success. Callers that know WHICH file the
+     *                    content came from record this, so a broken file is reported as
+     *                    "file X could not be read: reason" instead of silently having no content.
+     */
+    record DecodeResult<A>(Optional<A> value, String errorDetail) {
+    }
+
+    static <A> DecodeResult<A> deserializeWithError(String content, Codec<A> codec) {
         try {
             var jsonElement = JsonParser.parseString(content);
             var dynamic = new Dynamic<>(JsonOps.INSTANCE, jsonElement);
             DataResult<A> result = codec.parse(dynamic);
-            return result.resultOrPartial(Library.LOGGER::warn);
+
+            var error = result.error();
+            if (error.isPresent())
+                return new DecodeResult<>(Optional.empty(), error.get().message());
+
+            // resultOrPartial keeps the "partial" warnings on the log as before
+            return new DecodeResult<>(result.resultOrPartial(Library.LOGGER::warn), null);
         } catch (Throwable t) {
             Library.LOGGER.error(t, "Unable to parse input");
+            return new DecodeResult<>(Optional.empty(), t.getMessage() == null ? t.toString() : t.getMessage());
         }
-
-        return Optional.empty();
     }
 
     static <A> Optional<String> serialize(Codec<A> codec, A entity) {

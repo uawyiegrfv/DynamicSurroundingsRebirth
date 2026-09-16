@@ -11,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.orecruncher.dsurround.lib.Library;
 import org.orecruncher.dsurround.lib.MinecraftServerType;
+import org.orecruncher.dsurround.lib.diagnostics.DataDiagnostics;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.lib.logging.ModLog;
 import org.orecruncher.dsurround.lib.registry.RegistryUtils;
@@ -116,6 +117,14 @@ public class ClientTagLoader {
             this.logger.debug(RESOURCE_LOADING, "[%s] Find client tags took %dmillis", tagKey, stopwatch.elapsed(TimeUnit.MILLISECONDS));
 
             tagFiles.forEach(tf -> entries.addAll(tf.entries()));
+
+            // A tag that HAS definitions but yields no entries is broken, not empty. That is the
+            // difference between "this pack does not define the tag" (normal) and "the file exists
+            // but nothing could be read out of it" (a decode failure that silently disables every
+            // block in the tag - exactly what a stray escape sequence produced once).
+            if (!tagFiles.isEmpty() && entries.isEmpty())
+                DataDiagnostics.fail("tag defined but loaded empty",
+                        String.format("%s (%d file(s) found, 0 entries)", tagKey, tagFiles.size()));
 
             if (!entries.isEmpty()) {
                 this.logger.debug(RESOURCE_LOADING, "%s - %d entries found", tagKey, entries.size());

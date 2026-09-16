@@ -1,17 +1,22 @@
 {
+  "_comment": "松软、容易踩出印子的方块 —— 只有这些会留下脚印。这里刻意不含冰/浮冰/蓝冰：冰面硬而滑，玩家在上面是滑行，不该留脚印。石质、木质、金属等硬质方块一律不留印。其它模组把自己的松软地面（泥、沙、雪、耕地之类）加进本标签即可自动生效；整合包也可以通过资源包覆盖这个文件来调整。",
   "values": [
-    "minecraft:dirt",
+    "minecraft:clay",
     "minecraft:coarse_dirt",
+    "minecraft:dirt",
+    "minecraft:dirt_path",
+    "minecraft:farmland",
     "minecraft:grass_block",
-    "minecraft:podzol",
+    "minecraft:gravel",
+    "minecraft:mud",
     "minecraft:mycelium",
-    "minecraft:sand",
+    "minecraft:podzol",
     "minecraft:red_sand",
+    "minecraft:rooted_dirt",
+    "minecraft:sand",
     "minecraft:snow",
     "minecraft:snow_block",
-    "minecraft:ice",
-    "minecraft:packed_ice",
-    "minecraft:blue_ice",
-    "minecraft:clay"
+    "minecraft:soul_sand",
+    "minecraft:suspicious_sand"
   ]
 }

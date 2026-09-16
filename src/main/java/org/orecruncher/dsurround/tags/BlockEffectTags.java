@@ -24,6 +24,9 @@ public class BlockEffectTags {
     // The 1.12.2 "overlay" substrates (carpet / foliage / messy): the blocks that may sit
     // in the same cell as the player's feet and still count as the walked surface.
     public static final TagKey<Block> FOOT_OVERLAY = of("foot_overlay");
+    // Soft ground that takes a footprint impression: soil, sand, snow, clay, gravel.
+    // Hard or slippery blocks (stone, wood, ICE) are excluded on purpose.
+    public static final TagKey<Block> FOOTPRINTABLE = of("footprintable");
 
     private static TagKey<Block> of(String id) {
         var tagKey = TagKey.create(Registries.BLOCK, ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "effects/" + id));

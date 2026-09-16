@@ -80,25 +80,25 @@ public final class ResourceUtilities {
         if (!includeAggregate)
             return dedicated;
 
-        // The dedicated file has already been read by the mods' asset finder, so its namespace is
-        // authoritative and the aggregate lookup must not decode it a second time.
-        final var aggregate = new ObjectArray<DiscoveredResource<T>>();
-        final var seen = new HashSet<String>();
-        dedicated.forEach(r -> seen.add(r.namespace()));
+        // Both sources contribute. The first cut of this code dropped the aggregate section for any
+        // namespace that also ships a dedicated file, to express "dedicated wins" - which silently
+        // threw away every aggregate rule of every mod that ships DS data (Biomes O' Plenty, Quark,
+        // ...) and of DS's own namespace. Rule-level precedence is already handled where it belongs:
+        // SoundLibrary merges later rules into the existing mapping and inserts a rule with new
+        // block matchers BEFORE the catch-all default, so appending the aggregate after the
+        // dedicated data gives exactly the intended "specific rules win" behaviour without losing
+        // anything.
+        final var result = new ObjectArray<DiscoveredResource<T>>();
+        result.addAll(dedicated);
 
         for (final var finder : new IResourceFinder[] { this.modConfigHelper, this.diskResourceHelper }) {
             for (final var r : AggregateDataFile.find(finder, this.logger, codec, section, null)) {
-                if (seen.add(r.namespace())) {
-                    this.logger.debug(RESOURCE_LOADING, "[%s] - '%s' taken from the aggregate %s of namespace %s",
-                            assetPath, section, AggregateDataFile.FILE_NAME, r.namespace());
-                    aggregate.add(r);
-                }
+                this.logger.debug(RESOURCE_LOADING, "[%s] - '%s' taken from the aggregate %s of namespace %s",
+                        assetPath, section, AggregateDataFile.FILE_NAME, r.namespace());
+                result.add(r);
             }
         }
 
-        var result = new ObjectArray<DiscoveredResource<T>>();
-        result.addAll(dedicated);
-        result.addAll(aggregate);
         return result;
     }
 

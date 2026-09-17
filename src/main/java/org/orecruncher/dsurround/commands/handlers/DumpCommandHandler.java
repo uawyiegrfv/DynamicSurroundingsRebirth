@@ -90,6 +90,13 @@ public class DumpCommandHandler {
         return Component.literal(String.join("\n", FootstepGenerator.dumpStepTrace(player)));
     }
 
+    public static Component dumpBrushTrace() {
+        final var player = net.minecraft.client.Minecraft.getInstance().player;
+        if (player == null)
+            return Component.literal("dsdump brush: no client player");
+        return Component.literal(String.join("\n", org.orecruncher.dsurround.effects.entity.StepThroughBrushEffect.dumpBrushTrace(player)));
+    }
+
     private static Component handle(final String operation, final Supplier<Stream<String>> supplier) {
 
         final String fileName = operation + ".txt";

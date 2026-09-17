@@ -1,6 +1,13 @@
 {
+  "_comment": "干燥/纤维质植被的擦身音（straw = 用 leaves_through 录音，更干、更脆）。对应 1.12.2 的 #vine（藤蔓=straw）与 #reed（甘蔗=straw），加上干枯类（枯木丛）与大型垂滴叶茎。注意：这个标签优先于 brush_step 判定，所以同时出现在两个文件里的方块会走 straw。",
   "replace": false,
   "values": [
+    "minecraft:vine",
+    "minecraft:cave_vines_plant",
+    "minecraft:weeping_vines",
+    "minecraft:weeping_vines_plant",
+    "minecraft:twisting_vines",
+    "minecraft:twisting_vines_plant",
     "minecraft:sugar_cane",
     "minecraft:dead_bush",
     "minecraft:big_dripleaf_stem",

@@ -350,7 +350,7 @@ public class Configuration extends ConfigurationData {
         @IntegerRange(min = 8, max = 40)
         @Slider
         @Comment("How many ticks the text lives. Higher values make it fall further and linger longer")
-        public int lifetimeTicks = 16;
+        public int lifetimeTicks = 20;
     }
 
     public static class EntityEffects {

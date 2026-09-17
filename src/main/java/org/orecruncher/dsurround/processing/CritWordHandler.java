@@ -54,7 +54,7 @@ public class CritWordHandler {
     private static final int HEAL_TEXT_COLOR = 0xFF55FF55;
 
     /** Default lifetime; the live value comes from the config (popoffNumbers.lifetimeTicks). */
-    private static final int DEFAULT_LIFETIME = 18;
+    private static final int DEFAULT_LIFETIME = 20;
     private static final int FADE_START = 6;
 
     // ---- numbers taken from 1.12.2 ParticleTextPopOff ------------------------------------
@@ -86,7 +86,6 @@ public class CritWordHandler {
         double prevX, prevY, prevZ;
         double x, y, z;
         double vx, vy, vz;
-        float scale;
         int age;
         /** true while growing; flips to false once the scale passes the configured peak. */
         boolean growing = true;
@@ -115,7 +114,7 @@ public class CritWordHandler {
             this.vx = vx;
             this.vy = vy;
             this.vz = vz;
-            this.scale = 1.0F;
+
             this.worldUnitsPerFontPx = worldUnitsPerFontPx;
             this.ownedByLocalPlayer = ownedByLocalPlayer;
             this.vx0 = vx;
@@ -171,39 +170,6 @@ public class CritWordHandler {
         return entity.getId() == clientPlayerId();
     }
 
-    // ---- TEMPORARY DIAGNOSTIC: [TEXTDIAG] (remove once the report is closed) ------------------
-    // Logs every world-space text this class draws near the camera, with the text itself, the camera
-    // mode and the distance to the eye - so a report of "I see my own number in first person" can be
-    // matched to the exact renderer and the exact entity that produced it.
-    private static final int TEXTDIAG_CAP = 40;
-    private static int textDiagCount;
-
-    /** Shared entry point: also called by the speech-bubble renderer. */
-    public static void textDiag(final String kind, final String text, final double dist) {
-        if (textDiagCount >= TEXTDIAG_CAP)
-            return;
-        textDiagCount++;
-        var mc = Minecraft.getInstance();
-        org.orecruncher.dsurround.lib.logging.ModLog
-                .createChild(org.orecruncher.dsurround.lib.Library.LOGGER, "TextDiag")
-                .info("[TEXTDIAG] #%d %s text=%s camera=%s dist=%.2f".formatted(
-                        textDiagCount, kind, text, mc.options.getCameraType(), dist));
-    }
-
-    /** Creation-time record: whose text is this, on which thread, at which camera mode, how much. */
-    public static void spawnDiag(final String source, final LivingEntity entity, final boolean own,
-                                 final float amount) {
-        if (textDiagCount >= TEXTDIAG_CAP)
-            return;
-        textDiagCount++;
-        var mc = Minecraft.getInstance();
-        org.orecruncher.dsurround.lib.logging.ModLog
-                .createChild(org.orecruncher.dsurround.lib.Library.LOGGER, "TextDiag")
-                .info("[TEXTDIAG] #%d spawn-%s entity=%s class=%s id=%d clientId=%d own=%s camera=%s amount=%.1f thread=%s".formatted(
-                        textDiagCount, source, entity.getType(), entity.getClass().getName(), entity.getId(),
-                        mc.player == null ? -1 : mc.player.getId(), own,
-                        mc.options.getCameraType(), amount, Thread.currentThread().getName()));
-    }
 
 
     /** True when the camera is the local player's own eyes. */
@@ -254,9 +220,20 @@ public class CritWordHandler {
         // Derive the shrink rate so the text returns to its starting size. Deriving it (rather than
         // exposing it) is what makes "fast growth" and "same size at the end" hold simultaneously:
         // a user-chosen shrink rate cannot satisfy both.
+        // Shrink rate for equal start and end sizes.
+        //
+        // The text is DRAWN before the scale is advanced, so the frames actually shown run from
+        // age 0 (size 1) up to the peak at age = peakTick and back down to the last frame at
+        // age = lifetime - 1. With n1 = peakTick rise frames and n2 = lifetime - 1 - peakTick fall
+        // frames, requiring last == first means
+        //     g^n1 * shrink^n2 == 1     ->     shrink = g ^ (-n1 / n2)
+        // (the exponent is n1/n2, not n1/(n2-1): there are exactly n2 multiplies from the peak to
+        // the final frame). Getting this wrong makes the text end visibly smaller than it started,
+        // which is what the user spotted.
         final int shrinkTicks = this.lifetime - 1 - this.peakTick;
+        final int shrinkSteps = Math.max(1, shrinkTicks);
         this.shrinkFactor = shrinkTicks > 0 && this.growFactor > 1.0F
-                ? (float) Math.pow(this.growFactor, -this.peakTick / (double) shrinkTicks)
+                ? (float) Math.pow(this.growFactor, -this.peakTick / (double) shrinkSteps)
                 : 1.0F;
         this.lifetime = Math.max(2, cfg.lifetimeTicks);
     }
@@ -314,7 +291,6 @@ public class CritWordHandler {
 
         // Damage number above the entity (original used the top + 0.5).
         if (showNumbers) {
-            spawnDiag("number", entity, isLocalPlayer(entity), damage);
             this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
                     launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
@@ -323,7 +299,6 @@ public class CritWordHandler {
         // Critical hit (>= 40% of max health): an extra comic word one block up.
         if (showCrits && damage >= entity.getMaxHealth() / 2.5F) {
             final String word = pickWord() + "!";
-            spawnDiag("crit", entity, isLocalPlayer(entity), damage);
             this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),
                     launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
@@ -362,7 +337,6 @@ public class CritWordHandler {
         if (actual <= 0)
             return;
 
-        spawnDiag("heal", entity, isLocalPlayer(entity), actual);
         this.active.add(new CritWord(String.valueOf(actual), HEAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
                     launchX(0.0D, 0.0D), launchY(), launchZ(0.0D, 0.0D), ADDITION_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
@@ -460,7 +434,6 @@ public class CritWordHandler {
             // covers a word created in third person that outlives the switch back to first person.
             if (entry.ownedByLocalPlayer && ownCameraFirstPerson())
                 continue;
-            textDiag(entry.ownedByLocalPlayer ? "critword-self" : "critword-other", entry.text, Math.sqrt(sqDist));
 
             this.clip.set((float) (px - camPos.x), (float) (py - camPos.y), (float) (pz - camPos.z), 1.0F);
             this.viewProj.transform(this.clip);
@@ -501,6 +474,27 @@ public class CritWordHandler {
     }
 
     /**
+     * Text size for a given age of the animation, as a factor of the base size.
+     * <p>
+     * Derived from the age rather than accumulated into the entry, so the first and last frames are
+     * exactly equal by construction: {@code sizeAtAge(0) == sizeAtAge(lifetime - 1) == 1}. The peak
+     * sits on the frame at {@code peakTickTicks} and equals {@code grow ^ peakTick}, which is what
+     * makes the rise read as fast and the fall as slow (the rise spends ~6 frames reaching the peak,
+     * the fall ~13 coming back).
+     * <p>
+     * The old code multiplied a stored scale once per tick before drawing, so the first frame was
+     * already {@code grow} (1.14) while the shrink aimed at 1.0 - the number ended visibly smaller
+     * than it started, which the user spotted immediately.
+     */
+    private float sizeAtAge(final int age) {
+        final float peakSize = (float) Math.pow(this.growFactor, this.peakTick);
+        final float size = age <= this.peakTick
+                ? (float) Math.pow(this.growFactor, age)
+                : (float) (peakSize * Math.pow(this.shrinkFactor, age - this.peakTick));
+        return this.maxScale > 0.0F ? Math.min(size, this.maxScale) : size;
+    }
+
+    /**
      * Text scale for the 2D GUI draw, derived so that a fixed WORLD-SPACE text height projects the
      * same way it did in 1.12.2.
      * <p>
@@ -518,7 +512,7 @@ public class CritWordHandler {
         final float fov = mc.options.fov().get();
         final float tanHalfFov = (float) Math.tan(Math.toRadians(fov) / 2.0D);
 
-        final float worldUnitsPerFontPx = entry.worldUnitsPerFontPx * entry.scale * this.sizeScale;
+        final float worldUnitsPerFontPx = entry.worldUnitsPerFontPx * sizeAtAge(entry.age) * this.sizeScale;
         float scale = worldUnitsPerFontPx * (guiHeight / 2.0F) / (float) (depth * tanHalfFov);
 
         // guard rails only: never microscopic, never absurdly large on screen
@@ -586,17 +580,9 @@ public class CritWordHandler {
             // the size it started:
             //     shrink = grow ^ (-peakTick / (lifetime - 1 - peakTick))
             // The drift reverses at the peak.
-            final boolean growing = w.age < this.peakTick;
-            if (growing) {
-                w.scale *= this.growFactor;
-                if (this.maxScale > 0.0F && w.scale > this.maxScale)
-                    w.scale = this.maxScale;
-            } else {
-                w.scale *= this.shrinkFactor;
-                if (!w.driftFlipped) {
-                    w.driftFlipped = true;
-                    w.drift = -1.0D;
-                }
+            if (w.age >= this.peakTick && !w.driftFlipped) {
+                w.driftFlipped = true;
+                w.drift = -1.0D;
             }
             w.vx = w.vx0 * w.drift;
             w.vz = w.vz0 * w.drift;
@@ -645,7 +631,6 @@ public class CritWordHandler {
         // Damage number above the entity (top + 0.5).
         if (showNumbers && damage >= 0.5F) {
             final int delta = Math.max(1, Math.round(damage));
-            spawnDiag("number", entity, isLocalPlayer(entity), damage);
             this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
                     launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
@@ -654,7 +639,6 @@ public class CritWordHandler {
         // Critical hit (>= 40% of max health): an extra comic word one block up.
         if (showCrits && damage >= entity.getMaxHealth() / 2.5F) {
             final String word = pickWord() + "!";
-            spawnDiag("crit", entity, isLocalPlayer(entity), damage);
             this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),
                     launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));

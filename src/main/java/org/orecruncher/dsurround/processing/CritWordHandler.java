@@ -174,8 +174,8 @@ public class CritWordHandler {
         var mc = Minecraft.getInstance();
         org.orecruncher.dsurround.lib.logging.ModLog
                 .createChild(org.orecruncher.dsurround.lib.Library.LOGGER, "TextDiag")
-                .info("[TEXTDIAG] #%d spawn-%s entity=%s id=%d own=%s camera=%s amount=%.1f thread=%s".formatted(
-                        textDiagCount, source, entity.getType(), entity.getId(), own,
+                .info("[TEXTDIAG] #%d spawn-%s entity=%s class=%s id=%d own=%s camera=%s amount=%.1f thread=%s".formatted(
+                        textDiagCount, source, entity.getType(), entity.getClass().getName(), entity.getId(), own,
                         mc.options.getCameraType(), amount, Thread.currentThread().getName()));
     }
 
@@ -188,6 +188,16 @@ public class CritWordHandler {
 
     // Don't render words beyond this depth (blocks) - they'd be unreadably tiny.
     private static final float MAX_RENDER_DEPTH = 40F;
+
+    /**
+     * Don't render words closer than this to the camera (blocks, squared).
+     * <p>
+     * A world-space text within a few centimetres of the eye covers the entire viewport, so the
+     * number of whatever is standing on top of the player smears over the screen and reads as the
+     * player's own text. Such a word is dropped for that frame only - if the camera moves away it
+     * appears normally later.
+     */
+    private static final double MIN_DRAW_DISTANCE_SQR = 0.75D * 0.75D;
 
     private final Configuration config;
     private final IModLog logger;
@@ -479,15 +489,25 @@ public class CritWordHandler {
 
             // Cheap projection first: words behind the camera or beyond the render depth
             // are dropped before the (comparatively expensive) occlusion raycast runs.
+            final double sqDist = (px - camPos.x) * (px - camPos.x)
+                    + (py - camPos.y) * (py - camPos.y)
+                    + (pz - camPos.z) * (pz - camPos.z);
+
+            // Too close to the eye to draw. A world-space text a few centimetres from the camera
+            // projects across the whole viewport (on-screen size goes as 1/depth), so the number for
+            // whatever is standing on top of the player smears over the screen and reads as the
+            // player's own text. This is what a first-person report of "my own damage number"
+            // actually was - the damaging entity was close enough that its number landed inside the
+            // player's head. Nothing legible can be shown there, so it is dropped for this frame.
+            if (sqDist < MIN_DRAW_DISTANCE_SQR)
+                continue;
+
             // The local player's own numbers are not drawn while looking through their own eyes.
             // 1.12.2 refused to CREATE them in first person; this refuses to DRAW them, which also
             // covers a word created in third person that outlives the switch back to first person.
             if (entry.ownedByLocalPlayer && suppressOwnNumbers())
                 continue;
-            textDiag(entry.ownedByLocalPlayer ? "critword-self" : "critword-other", entry.text,
-                    Math.sqrt((px - camPos.x) * (px - camPos.x)
-                            + (py - camPos.y) * (py - camPos.y)
-                            + (pz - camPos.z) * (pz - camPos.z)));
+            textDiag(entry.ownedByLocalPlayer ? "critword-self" : "critword-other", entry.text, Math.sqrt(sqDist));
 
             this.clip.set(
                     (float) (px - camPos.x),

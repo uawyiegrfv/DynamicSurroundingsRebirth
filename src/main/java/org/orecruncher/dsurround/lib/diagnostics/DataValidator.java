@@ -3,8 +3,10 @@ package org.orecruncher.dsurround.lib.diagnostics;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
+import org.orecruncher.dsurround.config.libraries.ITagLibrary;
 import org.orecruncher.dsurround.lib.collections.ObjectArray;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
+import org.orecruncher.dsurround.tags.BlockEffectTags;
 
 import java.util.List;
 
@@ -31,6 +33,47 @@ public final class DataValidator {
                     org.orecruncher.dsurround.lib.Library.LOGGER, "DataValidator");
 
     private static final ISoundLibrary SOUND_LIBRARY = ContainerManager.resolve(ISoundLibrary.class);
+
+    private static final java.util.function.Function<String, net.minecraft.resources.ResourceLocation> RESOURCE_ID_PARSER =
+            net.minecraft.resources.ResourceLocation::tryParse;
+
+    private static final ITagLibrary TAG_LIBRARY =
+            ContainerManager.resolve(ITagLibrary.class);
+
+    /**
+     * The DS effect tags whose contents decide whether a player hears anything, and one block that
+     * MUST be in each of them. This exists because the worst failure in this area is silent and
+     * version-specific: a tag entry naming a block id that does not exist in THIS Minecraft version
+     * simply resolves to nothing, so the tag loads "fine" and the feature it drives does nothing.
+     * <p>
+     * That is not hypothetical - the brush tag shipped {@code minecraft:short_grass} in the 1.20.1
+     * repo (the id is {@code grass} there; {@code short_grass} arrived in 1.21) and omitted
+     * {@code grass}, so short grass had no brush sound in that version and nobody could see why.
+     * <p>
+     * The witness list is deliberately tiny: one unambiguous, stable member per tag. It is the
+     * canary, not an inventory - the question is "did this version's ids resolve at all", not "is
+     * every block accounted for".
+     */
+    private static final List<TagWitness> TAG_WITNESSES = List.of(
+            new TagWitness(BlockEffectTags.BRUSH_STEP, "minecraft:fern",
+                    "ferns and grass have no brush-through sound"),
+            new TagWitness(BlockEffectTags.STRAW_STEP, "minecraft:sugar_cane",
+                    "sugar cane and vines have no dry-straw rustle"),
+            new TagWitness(BlockEffectTags.CROP_STEP, "minecraft:wheat",
+                    "crops never rustle at any growth stage"),
+            new TagWitness(BlockEffectTags.FOOT_OVERLAY, "minecraft:white_carpet",
+                    "carpets stop counting as the walked surface"),
+            new TagWitness(BlockEffectTags.LEAVES_STEP, "minecraft:oak_leaves",
+                    "leaves have no rustle"),
+            new TagWitness(BlockEffectTags.WATERY_STEP, "minecraft:lily_pad",
+                    "lily pads have no watery step"),
+            new TagWitness(BlockEffectTags.FLOOR_SQUEAKS, "minecraft:oak_planks",
+                    "wooden floors stop squeaking"));
+
+    private record TagWitness(net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> tag,
+                              String requiredMember,
+                              String consequence) {
+    }
 
     /**
      * Prefixes of the sound events DS itself defines. An event in these namespaces that has no
@@ -67,6 +110,7 @@ public final class DataValidator {
         final int before = report.size();
         checkSoundEvents(report);
         checkSoundConfiguration(report);
+        checkEffectTags(report);
         countUnmappedBlocks(report);
         if (report.size() == before)
             report.add("  OK - nothing to report.");
@@ -169,6 +213,43 @@ public final class DataValidator {
             report.add("  sound config: every entry names a registered event.");
         else
             report.add("  sound config: " + dangling + " entry(ies) name events that do not exist");
+    }
+
+    /**
+     * Do the effect tags actually contain what this Minecraft version has?
+     * <p>
+     * A tag entry that names a block id absent from this version resolves to nothing without any
+     * error: the tag still loads, still reports members, and simply does not cover the block the
+     * author meant. The failure is invisible in the data file (which looks right) and invisible at
+     * runtime (which is just quiet), so it is checked here against a witness block per tag.
+     */
+    private static void checkEffectTags(final ObjectArray<String> report) {
+        int missing = 0;
+        for (final TagWitness witness : TAG_WITNESSES) {
+            final var id = RESOURCE_ID_PARSER.apply(witness.requiredMember());
+            if (id == null) {
+                report.add("  TAG WITNESS BUG: unparsable id " + witness.requiredMember());
+                continue;
+            }
+            final var block = BuiltInRegistries.BLOCK.getOptional(id).orElse(null);
+            if (block == null) {
+                // The witness itself does not exist in this version - that is a bug in this check,
+                // not in the data, so say so plainly rather than blaming the tag file.
+                report.add("  TAG WITNESS BUG: %s does not exist in this version".formatted(witness.requiredMember()));
+                continue;
+            }
+            if (TAG_LIBRARY.is(witness.tag(), block.defaultBlockState()))
+                continue;
+            missing++;
+            report.add("  effect tag %s does NOT contain %s -> %s".formatted(
+                    witness.tag().location(), witness.requiredMember(), witness.consequence()));
+        }
+
+        if (missing == 0)
+            report.add("  effect tags: every checked tag contains this version's blocks.");
+        else
+            report.add("  effect tags: " + missing + " tag(s) are missing a block this version has"
+                    + " (a tag entry naming an id from ANOTHER Minecraft version does exactly this)");
     }
 
     /**

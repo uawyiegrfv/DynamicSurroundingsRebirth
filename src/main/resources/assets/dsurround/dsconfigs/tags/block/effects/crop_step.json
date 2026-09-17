@@ -1,0 +1,10 @@
+{
+  "_comment": "成熟作物穿过时的擦身音。1.12.2 没有标签形式的作物条目 —— 它的 BlockMap 用 #wheat / #crop / #beets 三组「按 age 变化」的宏来表达，所以这里用标签选出「哪些方块算作物」，具体吐什么音由 StepThroughBrushEffect.cropAt 按生长阶段决定（未熟=静音，半熟=brush，成熟=straw，过渡段两者叠加）。任何模组把自己的作物加进这个标签即可自动获得同样的语义，前提是该方块有整数 age 属性（1.20.1 原版四种作物的 age 都是 0..7）。",
+  "replace": false,
+  "values": [
+    "minecraft:wheat",
+    "minecraft:carrots",
+    "minecraft:potatoes",
+    "minecraft:beetroots"
+  ]
+}

@@ -16,6 +16,11 @@ public class BlockEffectTags {
     public static final TagKey<Block> FIREFLIES = of("fireflies");
     public static final TagKey<Block> FLOOR_SQUEAKS = of("floor_squeaks");
     public static final TagKey<Block> BRUSH_STEP = of("brush_step");
+    // Crops: matched by block, but the foliage sound depends on the growth state (see
+    // StepThroughBrushEffect.cropFoliage). 1.12.2 had no tag for these - its BlockMap carried
+    // per-age macro entries for #wheat / #crop / #beets - so this tag is the modern equivalent
+    // and anything tagged gets the same age semantics.
+    public static final TagKey<Block> CROP_STEP = of("crop_step");
     public static final TagKey<Block> LEAVES_STEP = of("leaves_step");
     public static final TagKey<Block> STRAW_STEP = of("straw_step");
     public static final TagKey<Block> WATERY_STEP = of("watery_step");

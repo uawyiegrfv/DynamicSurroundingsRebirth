@@ -29,6 +29,7 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ArrayList;
 
 /**
  * A2-1: Dynamic Surroundings own footstep generator, ported from the original 1.12.2
@@ -681,6 +682,7 @@ public class FootstepGenerator extends AbstractClientHandler {
      * Resolves the footstep material factory for the block below the entity (for looking up
      * its landing composition), or empty if no remap applies.
      */
+
     static Optional<ResourceLocation> resolveMaterial(final Entity entity) {
         var state = resolveSurfaceBlock(entity, entity.level(), entity.blockPosition().below());
         if (isNotSolidSurface(state))

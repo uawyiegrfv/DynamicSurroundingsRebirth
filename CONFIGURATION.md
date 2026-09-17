@@ -379,6 +379,12 @@ All options are sliders, so the animation can be tuned in game.
 | `lifetimeTicks` | 16 | How long the text lives (20 ticks = 1 second) |
 | `driftPercent` | 60 | Horizontal travel, as a percentage of the original mod's launch. Positive drifts away from the attacker, negative toward it, 0 rises straight up |
 
+**What appears in the settings screen.** Only `sizePercent` does. The other six values are
+`@Hidden`: they stay in `dsurround.json`, can be edited by hand, and are read on `/dsreload`, but they
+are deliberately kept out of the GUI. The defaults were tuned against the original 1.12.2 animation,
+and exposing growth rates and gravity invites misconfiguration more than it helps — the 1.12.2 mod
+itself offered only two on/off switches for this feature.
+
 **The shape.** The text grows until `peakTickTicks`, then shrinks for the rest of its life. The
 shrink rate is **derived** so it ends at exactly the size it started:
 
@@ -875,6 +881,11 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | `gravityPercent` | 90 | 下落速度，原版重力的百分比 |
 | `lifetimeTicks` | 16 | 存在时长（刻），20 刻 = 1 秒 |
 | `driftPercent` | 60 | 水平抛出距离，原版抛出量的百分比。正值朝远离攻击者方向，负值朝攻击者方向，0 表示垂直上升 |
+
+**设置界面里能看到什么。** 只有「文字大小」一项。其余六项都标记为 `@Hidden`：它们仍写在
+`dsurround.json` 里，可以手工修改，`/dsreload` 也会读取，但**刻意不放进界面**。这些默认值是照着
+1.12.2 原版动画调出来的，把放大率和重力暴露出来更容易被误调而不是带来帮助 —— 而且 1.12.2 原版这个
+功能本来也只有两个开关。
 
 **变化形状。** 文字放大到 `peakTickTicks` 刻为止，之后一路缩小。缩小率是**由公式反推**的，保证结束时
 恰好回到起始大小：

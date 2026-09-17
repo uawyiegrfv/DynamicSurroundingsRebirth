@@ -146,6 +146,26 @@ public class CritWordHandler {
         return entity instanceof LocalPlayer;
     }
 
+    // ---- TEMPORARY DIAGNOSTIC: [TEXTDIAG] (remove once the report is closed) ------------------
+    // Logs every world-space text this class draws near the camera, with the text itself, the camera
+    // mode and the distance to the eye - so a report of "I see my own number in first person" can be
+    // matched to the exact renderer and the exact entity that produced it.
+    private static final int TEXTDIAG_CAP = 40;
+    private static int textDiagCount;
+
+    /** Shared entry point: also called by the speech-bubble renderer. */
+    public static void textDiag(final String kind, final String text, final double dist) {
+        if (textDiagCount >= TEXTDIAG_CAP)
+            return;
+        textDiagCount++;
+        var mc = Minecraft.getInstance();
+        org.orecruncher.dsurround.lib.logging.ModLog
+                .createChild(org.orecruncher.dsurround.lib.Library.LOGGER, "TextDiag")
+                .info("[TEXTDIAG] #%d %s text=%s camera=%s dist=%.2f".formatted(
+                        textDiagCount, kind, text, mc.options.getCameraType(), dist));
+    }
+
+
     /** True when the local player's own numbers must not be drawn right now. */
     private static boolean suppressOwnNumbers() {
         return Minecraft.getInstance().options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON;
@@ -447,6 +467,10 @@ public class CritWordHandler {
             // covers a word created in third person that outlives the switch back to first person.
             if (entry.ownedByLocalPlayer && suppressOwnNumbers())
                 continue;
+            textDiag(entry.ownedByLocalPlayer ? "critword-self" : "critword-other", entry.text,
+                    Math.sqrt((px - camPos.x) * (px - camPos.x)
+                            + (py - camPos.y) * (py - camPos.y)
+                            + (pz - camPos.z) * (pz - camPos.z)));
 
             this.clip.set(
                     (float) (px - camPos.x),

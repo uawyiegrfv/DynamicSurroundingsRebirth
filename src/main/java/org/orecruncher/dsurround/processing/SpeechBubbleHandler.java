@@ -567,6 +567,12 @@ public class SpeechBubbleHandler {
 
     private void renderBubble(GuiGraphicsExtractor graphics, Minecraft mc, Font font, float width, float height,
             Vec3 camPos, Entity entity, List<String> lines, float partialTick, boolean command) {
+        // TEMPORARY DIAGNOSTIC (remove): is this the local player's own bubble, and how close is it?
+        if (entity == mc.player)
+            org.orecruncher.dsurround.processing.CritWordHandler.textDiag(
+                    "bubble-self", String.join(" | ", lines),
+                    new Vec3(camPos.x - entity.getX(), camPos.y - entity.getY(), camPos.z - entity.getZ()).length());
+
         // 1.12.2 canBeSeen: invisible entities don't get bubbles, and there must be line
         // of sight (checked with a raycast below, like the name-tag occlusion).
         if (entity.isInvisible() && entity != mc.player)

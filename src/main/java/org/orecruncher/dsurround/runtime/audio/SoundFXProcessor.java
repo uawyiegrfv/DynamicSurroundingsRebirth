@@ -137,7 +137,7 @@ public final class SoundFXProcessor {
     }
 
     // ---- TEMPORARY DIAGNOSTIC: [RVB] (remove once the reverb report is closed) ---------------
-    private static final int RVB_CAP = 400;
+    private static final int RVB_CAP = 1500;
     private static final java.util.concurrent.atomic.AtomicInteger RVB_COUNT =
             new java.util.concurrent.atomic.AtomicInteger();
 

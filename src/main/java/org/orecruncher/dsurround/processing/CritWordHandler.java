@@ -140,6 +140,34 @@ public class CritWordHandler {
         return Minecraft.getInstance().options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON;
     }
 
+    // ---- TEMPORARY DIAGNOSTIC (remove once the "own text in first person" report is closed) ---
+    // Unconditional INFO lines, greppable as [CRITWORD]. They answer the three questions a report
+    // cannot: was the word created for the local player, at what camera type, and did the draw get
+    // suppressed. Capped so a long session cannot flood the log.
+    private static final int DIAG_CAP = 60;
+    private static int diagSpawn;
+    private static int diagDraw;
+
+    private void diagSpawn(final String source, final LivingEntity entity, final boolean guardHit) {
+        if (diagSpawn >= DIAG_CAP)
+            return;
+        diagSpawn++;
+        final var mc = Minecraft.getInstance();
+        this.logger.info("[CRITWORD] spawn#%d %s entity=%s(%d) localPlayer=%s camera=%s guardHit=%s active=%d".formatted(
+                diagSpawn, source, entity.getType(), entity.getId(), isLocalPlayer(entity),
+                mc.options.getCameraType(), guardHit, this.active.size()));
+    }
+
+    private void diagDraw(final CritWord entry, final boolean suppressed) {
+        if (diagDraw >= DIAG_CAP)
+            return;
+        diagDraw++;
+        final var mc = Minecraft.getInstance();
+        this.logger.info("[CRITWORD] draw#%d text=%s ownFlag=%s camera=%s suppressed=%s age=%d active=%d".formatted(
+                diagDraw, entry.text, entry.ownedByLocalPlayer, mc.options.getCameraType(),
+                suppressed, entry.age, this.active.size()));
+    }
+
     // Don't render words beyond this depth (blocks) - they'd be unreadably tiny.
     private static final float MAX_RENDER_DEPTH = 40F;
 
@@ -217,8 +245,11 @@ public class CritWordHandler {
 
         // Don't show for the local player in first-person view.
         var mc = Minecraft.getInstance();
-        if (entity instanceof LocalPlayer && mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON)
+        if (entity instanceof LocalPlayer && mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON) {
+            this.diagSpawn("damage-guard", entity, true);
             return;
+        }
+        this.diagSpawn("damage", entity, false);
 
         final float damage = event.getNewDamage();
         final int delta = Math.max(1, Math.round(Math.min(damage, entity.getHealth())));
@@ -275,8 +306,11 @@ public class CritWordHandler {
             return;
 
         var mc = Minecraft.getInstance();
-        if (entity instanceof LocalPlayer && mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON)
+        if (entity instanceof LocalPlayer && mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON) {
+            this.diagSpawn("heal-guard", entity, true);
             return;
+        }
+        this.diagSpawn("heal", entity, false);
 
         // Show the actual health restored: clamped to how much the entity can heal
         // (so a full-health mob shows nothing), no "+" prefix.
@@ -372,6 +406,7 @@ public class CritWordHandler {
             // The local player's own numbers are not drawn while looking through their own eyes.
             // 1.12.2 refused to CREATE them in first person; this refuses to DRAW them, which also
             // covers a word created in third person that outlives the switch back to first person.
+            this.diagDraw(entry, entry.ownedByLocalPlayer && suppressOwnNumbers());
             if (entry.ownedByLocalPlayer && suppressOwnNumbers())
                 continue;
 
@@ -529,8 +564,11 @@ public class CritWordHandler {
         if (!showNumbers && !showCrits)
             return;
         var mc = Minecraft.getInstance();
-        if (entity instanceof LocalPlayer && mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON)
+        if (entity instanceof LocalPlayer && mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON) {
+            this.diagSpawn("client-damage-guard", entity, true);
             return;
+        }
+        this.diagSpawn("client-damage", entity, false);
 
         // Damage amount is not in the 1.20.1 packet; estimate it from the health delta.
         final int id = entity.getId();

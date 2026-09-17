@@ -189,6 +189,16 @@ public class CritWordHandler {
     // Don't render words beyond this depth (blocks) - they'd be unreadably tiny.
     private static final float MAX_RENDER_DEPTH = 40F;
 
+    /**
+     * Don't render words closer than this to the camera (blocks, squared).
+     * <p>
+     * A world-space text within a few centimetres of the eye covers the entire viewport (on-screen
+     * size goes as 1/depth), so the number of whatever is standing on top of the player smears over
+     * the screen and reads as the player's own text. Such a word is dropped for that frame only - if
+     * the camera moves away it appears normally later.
+     */
+    private static final double MIN_DRAW_DISTANCE_SQR = 0.75D * 0.75D;
+
     public static CritWordHandler INSTANCE;
 
     private final Configuration config;
@@ -418,15 +428,25 @@ public class CritWordHandler {
             final double py = Mth.lerp(partialTick, entry.prevY, entry.y);
             final double pz = Mth.lerp(partialTick, entry.prevZ, entry.z);
 
+            final double sqDist = (px - camPos.x) * (px - camPos.x)
+                    + (py - camPos.y) * (py - camPos.y)
+                    + (pz - camPos.z) * (pz - camPos.z);
+
+            // Too close to the eye to draw. A world-space text a few centimetres from the camera
+            // projects across the whole viewport, so the number for whatever is standing on top of
+            // the player smears over the screen and reads as the player's own text. This is what a
+            // first-person report of "my own damage number" actually was - the damaging entity was
+            // close enough that its number landed inside the player's head. Nothing useful can be
+            // shown at that distance, so it is dropped.
+            if (sqDist < MIN_DRAW_DISTANCE_SQR)
+                continue;
+
             // The local player's own numbers are not drawn while looking through their own eyes.
             // 1.12.2 refused to CREATE them in first person; this refuses to DRAW them, which also
             // covers a word created in third person that outlives the switch back to first person.
             if (entry.ownedByLocalPlayer && suppressOwnNumbers())
                 continue;
-            textDiag(entry.ownedByLocalPlayer ? "critword-self" : "critword-other", entry.text,
-                    Math.sqrt((px - camPos.x) * (px - camPos.x)
-                            + (py - camPos.y) * (py - camPos.y)
-                            + (pz - camPos.z) * (pz - camPos.z)));
+            textDiag(entry.ownedByLocalPlayer ? "critword-self" : "critword-other", entry.text, Math.sqrt(sqDist));
 
             this.clip.set((float) (px - camPos.x), (float) (py - camPos.y), (float) (pz - camPos.z), 1.0F);
             this.viewProj.transform(this.clip);

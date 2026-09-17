@@ -443,5 +443,6 @@
   "dsurround.config.popoffNumbers.peakTickTicks": "Tick of the largest size",
   "dsurround.config.popoffNumbers.peakTickTicks.tooltip": "Which tick the text reaches its largest. Low values grow fast and then shrink slowly; the shrink rate is derived so the text ends at the size it started",
   "dsurround.config.popoffNumbers.gravityPercent": "Fall speed",
-  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "How fast the text drops, as a percentage of the original mod's gravity. Lower falls more slowly and travels less; raise it for a heavier drop"
+  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "How fast the text drops, as a percentage of the original mod's gravity. Lower falls more slowly and travels less; raise it for a heavier drop",
+  "dsurround.command.dsdump.footsteps": "Footstep chain for your current position:"
 }

@@ -7,6 +7,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.orecruncher.dsurround.effects.IBlockEffect;
 import org.orecruncher.dsurround.effects.IBlockEffectProducer;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
+import org.orecruncher.dsurround.lib.diagnostics.DataDiagnostics;
 import org.orecruncher.dsurround.lib.random.IRandomizer;
 import org.orecruncher.dsurround.lib.scripting.Script;
 import org.orecruncher.dsurround.runtime.IConditionEvaluator;
@@ -38,7 +39,18 @@ public abstract class BlockEffectProducer implements IBlockEffectProducer {
     @Override
     public Optional<IBlockEffect> produce(Level world, BlockState state, BlockPos pos, IRandomizer rand) {
         if (this.canTrigger(world, state, pos, rand)) {
-            return this.produceImpl(world, state, pos, rand);
+            // A block effect is decoration. It runs from the tick loop, so an exception here does not
+            // merely break one particle - it kills the game, every tick, until the mod is removed
+            // (observed with a producer whose effect class could not be resolved at runtime). Catch
+            // broadly, report once with the real reason, and skip this effect.
+            try {
+                return this.produceImpl(world, state, pos, rand);
+            } catch (Throwable t) {
+                DataDiagnostics.fail("block effect producer failed",
+                        this.getClass().getSimpleName() + ": " + t.getClass().getSimpleName()
+                                + (t.getMessage() == null ? "" : " - " + t.getMessage()));
+                return Optional.empty();
+            }
         }
         return Optional.empty();
     }

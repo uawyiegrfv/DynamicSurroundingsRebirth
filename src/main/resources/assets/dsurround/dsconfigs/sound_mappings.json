@@ -966,7 +966,8 @@
     "soundEvent": "minecraft:block.nether_gold_ore.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.stone"
+        "_comment": "【下界矿石 = 下界岩】下界石英矿/下界金矿在 1.16+ 有各自的 SoundType（NETHER_ORE / NETHER_GOLD_ORE，见 SoundType.java），也就有各自的踩踏录音，所以按原版「逐事件」映射会落到泛用 stone —— 但那样在成片下界岩里走过去，脚下压到矿石的一瞬间音色会突变。移植版把下界岩建模成 gravel（1.12.2: netherrack = gravel,sand），这里让下界矿石走同一个材质，接缝消失。**这是相对 1.16+ 原版的故意偏离**，依据是观感一致性优先于还原原版的事件划分；1.12.2 也没有「下界矿石独立音效」这个概念（它的 quartz_ore 归 ore = stone，而 nether gold ore 尚不存在）。",
+        "factory": "dsurround:footsteps.gravel"
       }
     ]
   },
@@ -974,7 +975,8 @@
     "soundEvent": "minecraft:block.nether_ore.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.stone"
+        "_comment": "【下界矿石 = 下界岩】下界石英矿/下界金矿在 1.16+ 有各自的 SoundType（NETHER_ORE / NETHER_GOLD_ORE，见 SoundType.java），也就有各自的踩踏录音，所以按原版「逐事件」映射会落到泛用 stone —— 但那样在成片下界岩里走过去，脚下压到矿石的一瞬间音色会突变。移植版把下界岩建模成 gravel（1.12.2: netherrack = gravel,sand），这里让下界矿石走同一个材质，接缝消失。**这是相对 1.16+ 原版的故意偏离**，依据是观感一致性优先于还原原版的事件划分；1.12.2 也没有「下界矿石独立音效」这个概念（它的 quartz_ore 归 ore = stone，而 nether gold ore 尚不存在）。",
+        "factory": "dsurround:footsteps.gravel"
       }
     ]
   },

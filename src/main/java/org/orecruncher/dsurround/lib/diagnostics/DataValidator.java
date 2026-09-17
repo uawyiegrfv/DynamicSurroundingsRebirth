@@ -70,6 +70,56 @@ public final class DataValidator {
             new TagWitness(BlockEffectTags.FLOOR_SQUEAKS, "minecraft:oak_planks",
                     "wooden floors stop squeaking"));
 
+    /**
+     * Animation values whose live (config file) setting must match the shipped default, with the
+     * symptom of a mismatch.
+     * <p>
+     * This exists because of a real, repeated confusion: these are {@code @Hidden} options that no
+     * GUI exposes, they are read from {@code config/dsurround/dsurround.json} on every load, and an
+     * existing config file WINS over the code default. So a change to a default silently does
+     * nothing on an installation whose file already carries the old number - which looks exactly
+     * like "the tweak had no effect". Reporting the divergence turns that into a one-line answer.
+     */
+    private static final List<String[]> TUNED_DEFAULTS = List.of(
+            new String[]{"popoffNumbers.lifetimeTicks", "17", "the damage/heal text lives the wrong length of time"},
+            new String[]{"popoffNumbers.peakTickTicks", "5", "the text peaks too early or too late"},
+            new String[]{"popoffNumbers.gravityPercent", "80", "the text falls too far or too little"},
+            new String[]{"popoffNumbers.growFactor", "114", "the text grows at the wrong rate"},
+            new String[]{"popoffNumbers.driftPercent", "60", "the text is thrown the wrong distance"});
+
+    private static void checkTunedDefaults(final ObjectArray<String> report) {
+        final var config = org.orecruncher.dsurround.lib.config.ConfigurationData
+                .getConfig(org.orecruncher.dsurround.Configuration.class);
+        int drift = 0;
+        for (final String[] entry : TUNED_DEFAULTS) {
+            final String key = entry[0];
+            final String expected = entry[1];
+            final String live = liveValueOf(config, key);
+            if (live == null || live.equals(expected))
+                continue;
+            drift++;
+            report.add("  %s = %s in the config file, shipped default is %s -> %s".formatted(
+                    key, live, expected, entry[2]));
+        }
+        if (drift == 0)
+            report.add("  tuned animation: defaults and config file agree.");
+        else
+            report.add("  tuned animation: " + drift + " hidden option(s) differ from the shipped default"
+                    + " (the config file wins - this is only a problem if you did not choose it)");
+    }
+
+    /** Current value of a "section.field" of the loaded config, or null if it cannot be read. */
+    private static String liveValueOf(final Object config, final String key) {
+        try {
+            final int dot = key.indexOf('.');
+            var section = config.getClass().getField(key.substring(0, dot)).get(config);
+            final Object value = section.getClass().getField(key.substring(dot + 1)).get(section);
+            return String.valueOf(value);
+        } catch (final ReflectiveOperationException e) {
+            return null;
+        }
+    }
+
     private record TagWitness(net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> tag,
                               String requiredMember,
                               String consequence) {
@@ -111,6 +161,7 @@ public final class DataValidator {
         checkSoundEvents(report);
         checkSoundConfiguration(report);
         checkEffectTags(report);
+        checkTunedDefaults(report);
         countUnmappedBlocks(report);
         if (report.size() == before)
             report.add("  OK - nothing to report.");

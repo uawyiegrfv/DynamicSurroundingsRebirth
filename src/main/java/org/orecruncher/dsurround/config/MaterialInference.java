@@ -66,11 +66,18 @@ public final class MaterialInference {
     /**
      * A name containing one of these is very unlikely to be the material it otherwise
      * looks like: {@code snowdrop}, {@code snowblossom_sapling} and
-     * {@code snowblossom_leaves} are plants, not snow.
+     * {@code snowblossom_leaves} are plants, not snow, and {@code copper_ore} is stone
+     * rather than copper.
      */
     private static final List<String> NOT_A_MATERIAL = List.of(
             "potted", "sapling", "leaves", "flower", "blossom", "drops", "seed", "sprout",
-            "vine", "bush", "berry", "grass");
+            "vine", "bush", "berry", "grass",
+            // An ore is never the material its name contains: copper_ore is STONE with copper in it,
+            // deepslate_copper_ore is deepslate. Without this the keyword table claimed them (the
+            // matcher accepts a keyword anywhere after an underscore, so "copper" matched
+            // "copper_ore") and the ore stepped like a block of refined copper. 1.12.2 had a
+            // dedicated "ore" material for exactly this reason.
+            "ore");
 
     /**
      * Inference runs on every step and every block sound, so the debug trace is reported

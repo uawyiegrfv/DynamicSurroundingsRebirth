@@ -54,7 +54,7 @@ public class CritWordHandler {
     private static final int HEAL_TEXT_COLOR = 0xFF55FF55;
 
     /** Default lifetime; the live value comes from the config (popoffNumbers.lifetimeTicks). */
-    private static final int DEFAULT_LIFETIME = 20;
+    private static final int DEFAULT_LIFETIME = 17;
     private static final int FADE_START = 6;
 
     // ---- numbers taken from 1.12.2 ParticleTextPopOff ------------------------------------

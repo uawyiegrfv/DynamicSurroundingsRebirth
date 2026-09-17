@@ -324,7 +324,7 @@ public class Configuration extends ConfigurationData {
         @IntegerRange(min = 1, max = 10)
         @Slider
         @Comment("Which tick the text reaches its largest. Low values grow fast then shrink slowly")
-        public int peakTickTicks = 6;
+        public int peakTickTicks = 5;
 
         @Hidden
         @Property
@@ -343,14 +343,14 @@ public class Configuration extends ConfigurationData {
         @IntegerRange(min = 10, max = 200)
         @Slider
         @Comment("How fast the text drops, as a percentage of the original gravity")
-        public int gravityPercent = 90;
+        public int gravityPercent = 80;
 
         @Hidden
         @Property
         @IntegerRange(min = 8, max = 40)
         @Slider
         @Comment("How many ticks the text lives. Higher values make it fall further and linger longer")
-        public int lifetimeTicks = 20;
+        public int lifetimeTicks = 17;
     }
 
     public static class EntityEffects {

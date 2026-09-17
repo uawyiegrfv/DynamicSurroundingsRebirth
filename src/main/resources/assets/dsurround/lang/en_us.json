@@ -118,6 +118,8 @@
   "dsurround.config.entityEffects.enableSwingEffect.tooltip": "Enable/disable item swing sound effects from players and mobs",
   "dsurround.config.entityEffects.enableStopScuffSound": "Stop Scuff Sounds",
   "dsurround.config.entityEffects.enableStopScuffSound.tooltip": "Play a short scuff sound when you stop or turn around suddenly. Turn off if you find it distracting",
+  "dsurround.config.entityEffects.enableSneakFootstepSounds": "Footsteps While Sneaking",
+  "dsurround.config.entityEffects.enableSneakFootstepSounds.tooltip": "Play footstep sounds while sneaking. The original 1.12.2 mod was completely silent while sneaking; turn this off to get that behaviour back",
   "dsurround.config.entityEffects.enableToolbarBlockSounds": "Player Toolbar Block Sounds",
   "dsurround.config.entityEffects.enableToolbarBlockSounds.tooltip": "Enable/disable sound effects for blocks on the toolbar",
   "dsurround.config.entityEffects.entityEffectRange": "Entity Effect Range",

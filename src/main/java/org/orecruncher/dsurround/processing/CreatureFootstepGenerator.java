@@ -374,6 +374,11 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
             // Fallback: material land/run thud per foot + delayed echo (1.12.2
             // playMultifoot semantics without a configured composition).
             var landLoc = FootstepGenerator.resolveLandSound(entity);
+            // A mute material (the buttons rule points at footsteps.none) must land silently, the
+            // same way playStep bails out above. Without this the sentinel is looked up as a sound
+            // factory, misses the registry and logs "Unable to locate sound" on every such landing.
+            if (FootstepGenerator.NO_FOOTSTEP.equals(landLoc))
+                return;
             var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(landLoc);
             this.audioPlayer.play(primary.createAtLocation(leftFoot, scale));
             this.audioPlayer.play(primary.createAtLocation(rightFoot, scale));

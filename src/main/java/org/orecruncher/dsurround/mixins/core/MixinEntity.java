@@ -55,8 +55,12 @@ public abstract class MixinEntity {
         if (MixinHelpers.footstepAccentsConfig.enableAccents && this.level.isClientSide()) {
             var self = (Entity) ((Object) this);
 
-            // Is the entity in range?  If not, avoid generating an event
-            if (GameUtils.getPlayer().orElseThrow().distanceToSqr(self) > DSURROUND_MAX_ACCENT_RANGE)
+            // Is the entity in range?  If not, avoid generating an event. getPlayer() is empty for
+            // the ticks where the client level exists but the local player does not (the disconnect
+            // and respawn windows), and this runs from a TAIL injector inside the entity tick, so
+            // it must bail out rather than throw into the client tick loop.
+            var player = GameUtils.getPlayer();
+            if (player.isEmpty() || player.get().distanceToSqr(self) > DSURROUND_MAX_ACCENT_RANGE)
                 return;
 
             // Lastly, the entity has to be tagged

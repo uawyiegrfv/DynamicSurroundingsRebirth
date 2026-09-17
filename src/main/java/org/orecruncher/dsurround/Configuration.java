@@ -316,13 +316,13 @@ public class Configuration extends ConfigurationData {
         @IntegerRange(min = 101, max = 200)
         @Slider
         @Comment("Growth per tick as a percentage (108 = 1.08x, matching the original mod)")
-        public int growFactor = 112;
+        public int growFactor = 114;
 
         @Property
         @IntegerRange(min = 1, max = 10)
         @Slider
         @Comment("Which tick the text reaches its largest. Low values grow fast then shrink slowly")
-        public int peakTickTicks = 8;
+        public int peakTickTicks = 6;
 
         @Property
         @Comment("Upper guard on the text size, as a percentage of the spawn size")
@@ -332,19 +332,19 @@ public class Configuration extends ConfigurationData {
         @IntegerRange(min = -200, max = 200)
         @Slider
         @Comment("Horizontal travel as a percentage of the default. Positive drifts away from the attacker, negative drifts toward it, 0 rises straight up")
-        public int driftPercent = 200;
+        public int driftPercent = 60;
 
         @Property
         @IntegerRange(min = 10, max = 200)
         @Slider
         @Comment("How fast the text drops, as a percentage of the original gravity")
-        public int gravityPercent = 57;
+        public int gravityPercent = 90;
 
         @Property
         @IntegerRange(min = 8, max = 40)
         @Slider
         @Comment("How many ticks the text lives. Higher values make it fall further and linger longer")
-        public int lifetimeTicks = 22;
+        public int lifetimeTicks = 16;
     }
 
     public static class EntityEffects {

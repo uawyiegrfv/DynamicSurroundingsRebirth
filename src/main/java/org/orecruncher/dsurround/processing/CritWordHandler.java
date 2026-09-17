@@ -89,6 +89,12 @@ public class CritWordHandler {
         int age;
 
         final float worldUnitsPerFontPx;
+        /**
+         * True when this word belongs to the local player. Recorded so the render pass can hide the
+         * player's own numbers in first person even when the camera changed after they were created
+         * (see suppressOwnNumbers).
+         */
+        final boolean ownedByLocalPlayer;
 
         /** true while growing; flips to false once the scale passes the configured peak. */
         boolean growing = true;
@@ -100,7 +106,7 @@ public class CritWordHandler {
         double vx0, vz0;
 
         CritWord(String text, int color, double x, double y, double z, double vx, double vy, double vz,
-                 float worldUnitsPerFontPx) {
+                 float worldUnitsPerFontPx, boolean ownedByLocalPlayer) {
             this.text = text;
             this.color = color;
             this.x = this.prevX = x;
@@ -111,9 +117,27 @@ public class CritWordHandler {
             this.vz = vz;
             this.scale = 1.0F;
             this.worldUnitsPerFontPx = worldUnitsPerFontPx;
+            this.ownedByLocalPlayer = ownedByLocalPlayer;
             this.vx0 = vx;
             this.vz0 = vz;
         }
+    }
+
+    // ---- "is this text the local player's own?" -------------------------------------------
+    // 1.12.2 decided this once, when the number was created (EntityHealthPopoffEffect:104
+    // "Don't display if it is the current player in first person view"). Deciding only there
+    // leaves a hole: a number created in third person and still alive when the player returns to
+    // first person (F5) keeps drawing across the player's own view for the rest of its life. So
+    // the owner is recorded at creation and re-checked on every frame.
+
+    /** True when this entity is the local player whose camera we are rendering. */
+    private static boolean isLocalPlayer(final LivingEntity entity) {
+        return entity == Minecraft.getInstance().player;
+    }
+
+    /** True when the local player's own numbers must not be drawn right now. */
+    private static boolean suppressOwnNumbers() {
+        return Minecraft.getInstance().options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON;
     }
 
     // Don't render words beyond this depth (blocks) - they'd be unreadably tiny.
@@ -207,7 +231,7 @@ public class CritWordHandler {
         if (showNumbers) {
             this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
-                    launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX));
+                    launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
         }
 
         // Critical hit (>= 40% of max health): an extra comic word one block up.
@@ -215,7 +239,7 @@ public class CritWordHandler {
             final String word = pickWord() + "!";
             this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),
-                    launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX));
+                    launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
             this.logger.debug("Crit word [%s] at %s", word, entity.blockPosition());
         }
     }
@@ -253,7 +277,7 @@ public class CritWordHandler {
 
         this.active.add(new CritWord(String.valueOf(actual), HEAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
-                    launchX(0.0D, 0.0D), launchY(), launchZ(0.0D, 0.0D), ADDITION_WORLD_UNITS_PER_FONT_PX));
+                    launchX(0.0D, 0.0D), launchY(), launchZ(0.0D, 0.0D), ADDITION_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
     }
 
     /**
@@ -406,6 +430,12 @@ public class CritWordHandler {
 
             // Cheap projection first: words behind the camera or beyond the render depth
             // are dropped before the (comparatively expensive) occlusion raycast runs.
+            // The local player's own numbers are not drawn while looking through their own eyes.
+            // 1.12.2 refused to CREATE them in first person; this refuses to DRAW them, which also
+            // covers a word created in third person that outlives the switch back to first person.
+            if (entry.ownedByLocalPlayer && suppressOwnNumbers())
+                continue;
+
             this.clip.set(
                     (float) (px - camPos.x),
                     (float) (py - camPos.y),

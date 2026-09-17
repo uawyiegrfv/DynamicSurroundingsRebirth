@@ -3,7 +3,6 @@ package org.orecruncher.dsurround.processing.accents;
 import org.orecruncher.dsurround.lib.platform.PlatformCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.block.SimpleWaterloggedBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.Constants;
@@ -30,7 +29,9 @@ public class FootstepAccents {
     }
 
     public void collect(final LivingEntity entity, final BlockPos pos, final BlockState blockState, final ObjectArray<ISoundFactory> in) {
-        var isWaterLogged = blockState.getBlock() instanceof SimpleWaterloggedBlock && !blockState.getFluidState().isEmpty();
+        // Any state holding a fluid counts, not just vanilla's SimpleWaterloggedBlock: a modded
+        // waterlogged block carries a fluid state without implementing that interface.
+        var isWaterLogged = !blockState.getFluidState().isEmpty();
         this.providers.forEach(provider -> {
             if (provider.isEnabled())
                 provider.collect(entity, pos, blockState, isWaterLogged, in);

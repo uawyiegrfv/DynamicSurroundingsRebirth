@@ -92,7 +92,7 @@ public class CritWordHandler {
         /**
          * True when this word belongs to the local player. Recorded so the render pass can hide the
          * player's own numbers in first person even when the camera changed after they were created
-         * (see suppressOwnNumbers).
+         * (see isOwnTextInFirstPerson).
          */
         final boolean ownedByLocalPlayer;
 
@@ -143,7 +143,32 @@ public class CritWordHandler {
      * the 1.12.2 original used (EnvironState.isPlayer).
      */
     private static boolean isLocalPlayer(final LivingEntity entity) {
-        return entity instanceof LocalPlayer;
+        return entity.getId() == clientPlayerId();
+    }
+
+    /** The client player's entity id, or -1 when there is none (title screen, disconnect). */
+    private static int clientPlayerId() {
+        var player = Minecraft.getInstance().player;
+        return player == null ? -1 : player.getId();
+    }
+
+    /**
+     * True when the text belongs to the local player AND the camera is the player's own eyes.
+     * <p>
+     * Both halves are needed. The id half is what makes this work at all: the damage and heal events
+     * that create these numbers fire on the SERVER thread in single player, where the entity is the
+     * integrated server's {@code ServerPlayer} - a different object, and a different CLASS, from the
+     * client's {@code LocalPlayer}. Testing {@code instanceof LocalPlayer} there answered "not me" for
+     * the player's own damage, so the number was recorded as belonging to somebody else and every
+     * later suppression check let it through. An entity id carries no such trap: it is the same value
+     * on both sides and readable from any thread. 1.12.2 did the equivalent (EnvironState.isPlayer
+     * compared the entity's UUID).
+     */
+    private static boolean isOwnTextInFirstPerson(final LivingEntity entity) {
+        var mc = Minecraft.getInstance();
+        if (mc.options.getCameraType() != net.minecraft.client.CameraType.FIRST_PERSON)
+            return false;
+        return entity.getId() == clientPlayerId();
     }
 
     // ---- TEMPORARY DIAGNOSTIC: [TEXTDIAG] (remove once the report is closed) ------------------
@@ -180,8 +205,8 @@ public class CritWordHandler {
     }
 
 
-    /** True when the local player's own numbers must not be drawn right now. */
-    private static boolean suppressOwnNumbers() {
+    /** True when the camera is the local player's own eyes. */
+    private static boolean ownCameraFirstPerson() {
         return Minecraft.getInstance().options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON;
     }
 
@@ -189,15 +214,6 @@ public class CritWordHandler {
     // Don't render words beyond this depth (blocks) - they'd be unreadably tiny.
     private static final float MAX_RENDER_DEPTH = 40F;
 
-    /**
-     * Don't render words closer than this to the camera (blocks, squared).
-     * <p>
-     * A world-space text within a few centimetres of the eye covers the entire viewport, so the
-     * number of whatever is standing on top of the player smears over the screen and reads as the
-     * player's own text. Such a word is dropped for that frame only - if the camera moves away it
-     * appears normally later.
-     */
-    private static final double MIN_DRAW_DISTANCE_SQR = 0.75D * 0.75D;
 
     private final Configuration config;
     private final IModLog logger;
@@ -263,8 +279,8 @@ public class CritWordHandler {
 
         // Don't show for the local player in first-person view.
         var mc = Minecraft.getInstance();
-        if (entity instanceof LocalPlayer && mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON)
-        return;
+        if (isOwnTextInFirstPerson(entity))
+            return;
 
         final float damage = event.getNewDamage();
         final int delta = Math.max(1, Math.round(Math.min(damage, entity.getHealth())));
@@ -323,8 +339,8 @@ public class CritWordHandler {
             return;
 
         var mc = Minecraft.getInstance();
-        if (entity instanceof LocalPlayer && mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON)
-        return;
+        if (isOwnTextInFirstPerson(entity))
+            return;
 
         // Show the actual health restored: clamped to how much the entity can heal
         // (so a full-health mob shows nothing), no "+" prefix.
@@ -499,13 +515,11 @@ public class CritWordHandler {
             // player's own text. This is what a first-person report of "my own damage number"
             // actually was - the damaging entity was close enough that its number landed inside the
             // player's head. Nothing legible can be shown there, so it is dropped for this frame.
-            if (sqDist < MIN_DRAW_DISTANCE_SQR)
-                continue;
 
             // The local player's own numbers are not drawn while looking through their own eyes.
             // 1.12.2 refused to CREATE them in first person; this refuses to DRAW them, which also
             // covers a word created in third person that outlives the switch back to first person.
-            if (entry.ownedByLocalPlayer && suppressOwnNumbers())
+            if (entry.ownedByLocalPlayer && ownCameraFirstPerson())
                 continue;
             textDiag(entry.ownedByLocalPlayer ? "critword-self" : "critword-other", entry.text, Math.sqrt(sqDist));
 

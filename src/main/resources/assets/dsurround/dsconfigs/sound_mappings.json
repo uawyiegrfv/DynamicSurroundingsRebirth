@@ -1278,6 +1278,13 @@
     "rules": [
       {
         "blocks": [
+          "minecraft:copper_ore"
+        ],
+        "_comment": "【矿石】铜矿是石头里含铜，1.12.2 里矿石是独立材质 ore（= stone）。通用矿石规则只写在 block.deepslate.step 下（为了深板岩矿石保留深板岩），而铜矿的 step 事件是 stone.step，匹配不到那条 —— 于是落到兜底，再被按名字推断成「铜」（copper_ore 含 _copper）。除了在 MaterialInference 里加 ore 名字保护，这里显式声明一次，不依赖 #c:ores 是否解析得到。",
+        "factory": "dsurround:footsteps.stone"
+      },
+      {
+        "blocks": [
           "minecraft:quartz_block",
           "minecraft:quartz_pillar",
           "minecraft:quartz_bricks",

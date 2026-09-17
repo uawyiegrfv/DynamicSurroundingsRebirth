@@ -106,6 +106,16 @@ public class FootstepGenerator extends AbstractClientHandler {
     private static float strideWalk() { return VARIATORS.getPlayerVariator().stride(); }
     private static float strideRun() { return VARIATORS.getPlayerVariator().stride() * 1.06F; }
     private static float strideLadder() { return VARIATORS.getPlayerVariator().strideLadder(); }
+
+    /**
+     * Stride while climbing stairs. 1.12.2 gave stairs their own {@code strideStair} (default
+     * {@code stride * 0.65}: shorter, so the cadence is faster) and switched to it whenever the
+     * player rose more than 0.4 blocks. The port carried the field but never read it.
+     */
+    private static float strideStair(final boolean running) {
+        final float stair = VARIATORS.getPlayerVariator().strideStair();
+        return running ? stair * 1.06F : stair;
+    }
     private static float landHardDistanceMin() { return VARIATORS.getPlayerVariator().landHardDistanceMin(); }
     private static float footstepVolume() { return VARIATORS.getPlayerVariator().volumeScale(); }
     // Config-driven volume multiplier applied to every footstep sound (sound-options slider).
@@ -313,6 +323,10 @@ public class FootstepGenerator extends AbstractClientHandler {
         final boolean onGround = player.onGround();
         final boolean onLadder = player.onClimbable();
         final boolean inWater = player.isInWater();
+        // Rising more than 0.4 blocks in a tick means a stair or a full block was
+        // stepped up; declared here because the travelled distance is updated after the
+        // step branch below has closed.
+        boolean ascended = false;
         final boolean sneaking = player.isShiftKeyDown();
 
         // Stop/wander sounds (1.12.2 Generator mechanics): when the dot product of the
@@ -403,11 +417,21 @@ public class FootstepGenerator extends AbstractClientHandler {
             // Stepped down one block (the ground level dropped more than a slab)? Play a
             // step immediately - this is what makes walking down stairs/ledges reliable.
             boolean steppedDown = onGround && !inWater && !sneaking && this.yPosition - pos.y > 0.4;
+            ascended = onGround && !inWater && pos.y - this.yPosition > 0.4D;
             if (steppedDown) {
                 this.playStep(player, running);
                 this.dmwBase = this.distanceWalked;
             } else {
-                final float stride = onLadder && !onGround ? strideLadder() : (running ? strideRun() : strideWalk());
+                // Going upstairs has its own stride: while climbing, vanilla reduces the
+                // horizontal movement, so a purely horizontal accumulator fires far too late.
+                // 1.12.2 switched to strideStair (shorter) as soon as the player rose 0.4+ blocks.
+                final float stride;
+                if (onLadder && !onGround)
+                    stride = strideLadder();
+                else if (ascended)
+                    stride = strideStair(running);
+                else
+                    stride = running ? strideRun() : strideWalk();
                 if (this.distanceWalked - this.dmwBase > stride) {
                     this.playStep(player, running);
                     this.dmwBase = this.distanceWalked;
@@ -416,6 +440,13 @@ public class FootstepGenerator extends AbstractClientHandler {
         } else {
             this.lastPos = pos;
         }
+
+        // Count the climb itself. Ascending moves the player vertically by design and horizontally
+        // by less than a normal walk, so the vertical part has to contribute to the travelled
+        // distance; without it even the shorter stair stride fires late. Descending is already
+        // handled by the steppedDown branch, which plays a step immediately.
+        if (ascended)
+            this.distanceWalked += pos.y - this.yPosition;
 
         if (onGround)
             this.yPosition = pos.y;

@@ -136,19 +136,39 @@ public final class SoundFXProcessor {
         }
     }
 
+    // ---- TEMPORARY DIAGNOSTIC: [RVB] (remove once the reverb report is closed) ---------------
+    private static final int RVB_CAP = 400;
+    private static final java.util.concurrent.atomic.AtomicInteger RVB_COUNT =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    /** One line per sound, naming the gate and the decision. Greppable as [RVB]. */
+    public static void rvb(final String stage, final String detail) {
+        if (RVB_COUNT.incrementAndGet() > RVB_CAP)
+            return;
+        org.orecruncher.dsurround.lib.logging.ModLog
+                .createChild(org.orecruncher.dsurround.lib.Library.LOGGER, "Reverb")
+                .info("[RVB] %-14s %s".formatted(stage, detail));
+    }
+
     private static boolean shouldIgnoreSound(SoundInstance sound) {
         if (sound.isRelative()
                 || sound.getSource() == SoundSource.MASTER
                 || sound.getSource() == SoundSource.MUSIC
-                || sound.getSource() == SoundSource.WEATHER)
+                || sound.getSource() == SoundSource.WEATHER) {
+            rvb("ignored", "%s  reason=relative/master/music/weather".formatted(AudioUtilities.debugString(sound)));
             return true;
+        }
         // Non-attenuated (NONE) sounds are still processed when they carry a real position -
         // the player's own footsteps render centered (stereo, no distance attenuation) yet still
         // benefit from reverb zones and water damping, matching the original 1.12.2 where
         // footsteps ran through the sound effect processing. NONE sounds at the origin (config
         // preview, background loops) stay ignored.
-        if (sound.getAttenuation() == SoundInstance.Attenuation.NONE)
-            return sound.getX() == 0.0D && sound.getY() == 0.0D && sound.getZ() == 0.0D;
+        if (sound.getAttenuation() == SoundInstance.Attenuation.NONE) {
+            final boolean origin = sound.getX() == 0.0D && sound.getY() == 0.0D && sound.getZ() == 0.0D;
+            if (origin)
+                rvb("ignored", "%s  reason=attenuation NONE at the origin".formatted(AudioUtilities.debugString(sound)));
+            return origin;
+        }
         return false;
     }
 
@@ -161,8 +181,10 @@ public final class SoundFXProcessor {
      */
     public static void onSoundPlay(final SoundInstance sound, final ChannelAccess.ChannelHandle entry) {
 
-        if (!isAvailable())
+        if (!isAvailable()) {
+            rvb("no-processor", "%s  reason=SoundFXProcessor not available".formatted(AudioUtilities.debugString(sound)));
             return;
+        }
 
         if (shouldIgnoreSound(sound))
             return;
@@ -170,6 +192,7 @@ public final class SoundFXProcessor {
         ISourceContext source = (ISourceContext)(((IChannelHandle) entry).dsurround_getSource());
         assert source != null;
         int id = source.dsurround_getId();
+        rvb("attached", "id=%d %s".formatted(id, AudioUtilities.debugString(sound)));
         if (id > 0) {
             final SourceContext ctx = new SourceContext(id);
             ctx.attachSound(sound);

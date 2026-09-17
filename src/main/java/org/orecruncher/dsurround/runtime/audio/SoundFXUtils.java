@@ -213,6 +213,12 @@ public final class SoundFXUtils {
                 || !this.source.isEnabled()
                 || !SoundInstanceHandler.inRange(ctx.playerEyePosition, this.source.getSound())
                 || this.source.getPosition().equals(Vec3.ZERO)) {
+            SoundFXProcessor.rvb("calc-cleared",
+                    "%s  ctxInvalid=%s enabled=%s inRange=%s posIsZero=%s pos=%s"
+                            .formatted(AudioUtilities.debugString(this.source.getSound()),
+                                    ctx.isNotValid(), this.source.isEnabled(),
+                                    SoundInstanceHandler.inRange(ctx.playerEyePosition, this.source.getSound()),
+                                    this.source.getPosition().equals(Vec3.ZERO), this.source.getPosition()));
             this.clearSettings();
             return;
         }
@@ -300,6 +306,11 @@ public final class SoundFXUtils {
         final float waterGainFactor = Math.max(0.15F, (float) Math.sqrt(gainFactor));
 
 
+        SoundFXProcessor.rvb("send-gains",
+                "%s  send=[%.3f %.3f %.3f %.3f] direct=%.3f occlusion=%.3f water=%.3f pos=%s"
+                        .formatted(AudioUtilities.debugString(this.source.getSound()),
+                                reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
+                                directCutoff, occlusionAccumulation, waterFactor, soundPos));
         uploadSettings(reverb, directCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
 

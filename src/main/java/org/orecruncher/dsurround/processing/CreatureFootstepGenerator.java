@@ -288,7 +288,7 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         final var surface = climbing
                 ? entity.level().getBlockState(feetPos)
                 : FootstepGenerator.resolveSurfaceBlock(entity, entity.level(), feetPos.below());
-        if (surface.isAir() || !surface.getFluidState().isEmpty())
+        if (FootstepGenerator.isNotSolidSurface(surface))
             return;
 
         // Raise the step event so accent handlers (brush rustle, ...) fire for
@@ -384,7 +384,7 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         // Landing accents: surface's layered accents (grass+brush, ice+muffledice, ...)
         if (this.config.footstepAccents.enableAccents) {
             final var landState = FootstepGenerator.resolveSurfaceBlock(entity, entity.level(), feetPos.below());
-            if (!landState.isAir() && landState.getFluidState().isEmpty()) {
+            if (!FootstepGenerator.isNotSolidSurface(landState)) {
                 SOUND_LIBRARY.getRemappedSound(landState.getSoundType().getStepSound(), landState)
                         .ifPresent(remap -> remap.accents().forEach(accent ->
                                 this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(accent)

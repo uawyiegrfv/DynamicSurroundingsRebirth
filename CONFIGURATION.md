@@ -385,6 +385,12 @@ are deliberately kept out of the GUI. The defaults were tuned against the origin
 and exposing growth rates and gravity invites misconfiguration more than it helps — the 1.12.2 mod
 itself offered only two on/off switches for this feature.
 
+**Your own numbers in first person.** A word belonging to the local player is never drawn while
+the camera is in first person — the 1.12.2 original refused to create them there, and this port
+also refuses to *draw* them, so pressing F5 right after taking a hit no longer leaves your own
+number floating across your view. Third person (including the front view) shows them normally.
+Everything else — mobs, other players — is unaffected.
+
 **The shape.** The text grows until `peakTickTicks`, then shrinks for the rest of its life. The
 shrink rate is **derived** so it ends at exactly the size it started:
 
@@ -886,6 +892,10 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 `dsurround.json` 里，可以手工修改，`/dsreload` 也会读取，但**刻意不放进界面**。这些默认值是照着
 1.12.2 原版动画调出来的，把放大率和重力暴露出来更容易被误调而不是带来帮助 —— 而且 1.12.2 原版这个
 功能本来也只有两个开关。
+
+**第一人称下不显示自己的字幕。** 属于本地玩家的文字，在第一人称视角下**永远不绘制** ——
+1.12.2 原版的做法是在创建时就不生成，移植版另外在绘制时再挡一道，所以挨了一下之后按 F5 切换视角，
+自己的数字也不会残留在视野里横着。第三人称（含前置视角）照常显示。怪物和其它玩家的字幕不受影响。
 
 **变化形状。** 文字放大到 `peakTickTicks` 刻为止，之后一路缩小。缩小率是**由公式反推**的，保证结束时
 恰好回到起始大小：

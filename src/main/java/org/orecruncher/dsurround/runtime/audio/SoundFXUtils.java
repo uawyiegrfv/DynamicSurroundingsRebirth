@@ -307,10 +307,15 @@ public final class SoundFXUtils {
 
 
         SoundFXProcessor.rvb("send-gains",
-                "%s  send=[%.3f %.3f %.3f %.3f] direct=%.3f occlusion=%.3f water=%.3f pos=%s"
+                "%s  eval#%d send=[%.3f %.3f %.3f %.3f] direct=%.3f occ=%.3f water=%.3f thread=%s rayOrigin=%s rawSound=%s eye=%s dist=%.2f"
                         .formatted(AudioUtilities.debugString(this.source.getSound()),
+                                this.source.rvbEvals,
                                 reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
-                                directCutoff, occlusionAccumulation, waterFactor, soundPos));
+                                directCutoff, occlusionAccumulation, waterFactor,
+                                Thread.currentThread().getName(), soundPos,
+                                new Vec3(this.source.getSound().getX(), this.source.getSound().getY(),
+                                        this.source.getSound().getZ()),
+                                ctx.playerEyePosition, this.source.getPosition().distanceTo(ctx.playerEyePosition)));
         uploadSettings(reverb, directCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
 

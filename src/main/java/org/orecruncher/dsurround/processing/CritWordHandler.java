@@ -165,6 +165,20 @@ public class CritWordHandler {
                         textDiagCount, kind, text, mc.options.getCameraType(), dist));
     }
 
+    /** Creation-time record: whose text is this, on which thread, at which camera mode, how much. */
+    public static void spawnDiag(final String source, final LivingEntity entity, final boolean own,
+                                 final float amount) {
+        if (textDiagCount >= TEXTDIAG_CAP)
+            return;
+        textDiagCount++;
+        var mc = Minecraft.getInstance();
+        org.orecruncher.dsurround.lib.logging.ModLog
+                .createChild(org.orecruncher.dsurround.lib.Library.LOGGER, "TextDiag")
+                .info("[TEXTDIAG] #%d spawn-%s entity=%s id=%d own=%s camera=%s amount=%.1f thread=%s".formatted(
+                        textDiagCount, source, entity.getType(), entity.getId(), own,
+                        mc.options.getCameraType(), amount, Thread.currentThread().getName()));
+    }
+
 
     /** True when the local player's own numbers must not be drawn right now. */
     private static boolean suppressOwnNumbers() {
@@ -271,6 +285,7 @@ public class CritWordHandler {
 
         // Damage number above the entity (original used the top + 0.5).
         if (showNumbers) {
+            spawnDiag("number", entity, isLocalPlayer(entity), damage);
             this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
                     launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
@@ -279,6 +294,7 @@ public class CritWordHandler {
         // Critical hit (>= 40% of max health): an extra comic word one block up.
         if (showCrits && damage >= entity.getMaxHealth() / 2.5F) {
             final String word = pickWord() + "!";
+            spawnDiag("crit", entity, isLocalPlayer(entity), damage);
             this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),
                     launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
@@ -317,6 +333,7 @@ public class CritWordHandler {
         if (actual <= 0)
             return;
 
+        spawnDiag("heal", entity, isLocalPlayer(entity), actual);
         this.active.add(new CritWord(String.valueOf(actual), HEAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
                     launchX(0.0D, 0.0D), launchY(), launchZ(0.0D, 0.0D), ADDITION_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
@@ -594,6 +611,7 @@ public class CritWordHandler {
         // Damage number above the entity (top + 0.5).
         if (showNumbers && damage >= 0.5F) {
             final int delta = Math.max(1, Math.round(damage));
+            spawnDiag("number", entity, isLocalPlayer(entity), damage);
             this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
                     launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
@@ -602,6 +620,7 @@ public class CritWordHandler {
         // Critical hit (>= 40% of max health): an extra comic word one block up.
         if (showCrits && damage >= entity.getMaxHealth() / 2.5F) {
             final String word = pickWord() + "!";
+            spawnDiag("crit", entity, isLocalPlayer(entity), damage);
             this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
                     entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),
                     launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));

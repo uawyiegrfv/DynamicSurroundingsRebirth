@@ -312,34 +312,40 @@ public class Configuration extends ConfigurationData {
         @Comment("Text size as a percentage of the default (1.12.2 parity). Raise it if the text looks too small, lower it if too large")
         public int sizePercent = 73;
 
+        @Hidden
         @Property
         @IntegerRange(min = 101, max = 200)
         @Slider
         @Comment("Growth per tick as a percentage (108 = 1.08x, matching the original mod)")
         public int growFactor = 114;
 
+        @Hidden
         @Property
         @IntegerRange(min = 1, max = 10)
         @Slider
         @Comment("Which tick the text reaches its largest. Low values grow fast then shrink slowly")
         public int peakTickTicks = 6;
 
+        @Hidden
         @Property
         @Comment("Upper guard on the text size, as a percentage of the spawn size")
         public int maxScalePercent = 400;
 
+        @Hidden
         @Property
         @IntegerRange(min = -200, max = 200)
         @Slider
         @Comment("Horizontal travel as a percentage of the default. Positive drifts away from the attacker, negative drifts toward it, 0 rises straight up")
         public int driftPercent = 60;
 
+        @Hidden
         @Property
         @IntegerRange(min = 10, max = 200)
         @Slider
         @Comment("How fast the text drops, as a percentage of the original gravity")
         public int gravityPercent = 90;
 
+        @Hidden
         @Property
         @IntegerRange(min = 8, max = 40)
         @Slider

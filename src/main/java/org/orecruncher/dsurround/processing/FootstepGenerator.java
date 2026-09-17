@@ -9,6 +9,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.phys.Vec3;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.Constants;
@@ -442,7 +443,8 @@ public class FootstepGenerator extends AbstractClientHandler {
                 t.forEach(this.logger::debug);
             }
         }
-        if (state.isAir() || !state.getFluidState().isEmpty())
+        // A waterlogged solid block is still a surface; only air and real fluids are not.
+        if (isNotSolidSurface(state))
             return;
 
         // Raise the step event so accent handlers (armor clank, floor squeak, wet surface)
@@ -616,7 +618,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // sound_mappings drives both the step and landing layers.
         if (this.config.footstepAccents.enableAccents) {
             final var landState = resolveSurfaceBlock(player, player.level(), feetPos.below());
-            if (!landState.isAir() && landState.getFluidState().isEmpty()) {
+            if (!isNotSolidSurface(landState)) {
                 SOUND_LIBRARY.getRemappedSound(landState.getSoundType().getStepSound(), landState)
                         .ifPresent(remap -> remap.accents().forEach(accent ->
                                 this.audioPlayer.play(SOUND_LIBRARY.getSoundFactoryOrDefault(accent)
@@ -626,12 +628,37 @@ public class FootstepGenerator extends AbstractClientHandler {
     }
 
     /**
+     * True when a state is air, or a fluid block the player wades through rather than a surface.
+     *
+     * <p>Deliberately NOT "carries a fluid". A waterlogged solid block - stairs, slabs, fences,
+     * coral, or a modded block - reports a fluid level in its own cell, yet the player still stands
+     * on its top face and expects that block's material. Testing
+     * {@code !getFluidState().isEmpty()} as "not a surface" therefore silenced the footstep AND the
+     * landing sound of every waterlogged block.
+     *
+     * <p>A fluid one wades through is a dedicated fluid block (water, lava, and their flowing
+     * states); a waterlogged solid is an ordinary block that merely holds a fluid level.
+     */
+    static boolean isNotSolidSurface(final BlockState state) {
+        return state.isAir() || state.getBlock() instanceof LiquidBlock;
+    }
+
+    /**
+     * True when a solid surface holds a fluid level, i.e. it is waterlogged. Used for reporting and
+     * for the watery-surface accent; the two conditions are what {@link #isNotSolidSurface} separates.
+     */
+    static boolean isWaterlogged(final BlockState state) {
+        return !state.getFluidState().isEmpty() && !isNotSolidSurface(state);
+    }
+
+    /** Recognises a block that cannot be walked on, for the whole footstep pipeline. */
+    /**
      * Resolves the footstep material factory for the block below the entity (for looking up
      * its landing composition), or empty if no remap applies.
      */
     static Optional<ResourceLocation> resolveMaterial(final Entity entity) {
         var state = resolveSurfaceBlock(entity, entity.level(), entity.blockPosition().below());
-        if (state.isAir() || !state.getFluidState().isEmpty())
+        if (isNotSolidSurface(state))
             return Optional.empty();
         var stepSound = state.getSoundType().getStepSound();
         return SOUND_LIBRARY.getRemappedSound(stepSound, state).map(r -> r.factory());
@@ -688,7 +715,7 @@ public class FootstepGenerator extends AbstractClientHandler {
 
         var footState = level.getBlockState(pos.above());
         traceFootCell(trace, entity, level, pos.above(), footState);
-        if (footState.getFluidState().isEmpty()
+        if (!isNotSolidSurface(footState)
                 && isStandingOn(entity, level, pos.above(), footState)
                 && (footState.getBlock() instanceof net.minecraft.world.level.block.SnowLayerBlock
                         || isLeafLitter(footState))) {
@@ -719,12 +746,12 @@ public class FootstepGenerator extends AbstractClientHandler {
         final boolean overlay = TAG_LIBRARY.is(FOOT_OVERLAY, footState);
         if (trace != null) {
             final boolean standing = isStandingOn(entity, level, pos.above(), footState);
-            trace.add("feet cell in #dsurround:effects/foot_overlay = %s (fluid empty = %s)".formatted(
-                    overlay, footState.getFluidState().isEmpty()));
+            trace.add("feet cell in #dsurround:effects/foot_overlay = %s (waterlogged = %s)".formatted(
+                    overlay, isWaterlogged(footState)));
             trace.add("isStandingOn(feetCell) = %s  -> the cell %s be used".formatted(
                     standing, standing ? "CAN" : "MUST NOT"));
         }
-        if (footState.getFluidState().isEmpty()
+        if (!isNotSolidSurface(footState)
                 && isStandingOn(entity, level, pos.above(), footState)
                 && overlay) {
             if (trace != null) trace.add("-> foot-overlay probe (1b) matched");
@@ -749,7 +776,7 @@ public class FootstepGenerator extends AbstractClientHandler {
             for (int z = zMin; z <= zMax; z++) {
                 var cellPos = new BlockPos(x, feetY, z);
                 var cell = level.getBlockState(cellPos);
-                if (cell.getFluidState().isEmpty()
+                if (!isNotSolidSurface(cell)
                         && isStandingOn(entity, level, cellPos, cell)
                         && (cell.getBlock() instanceof net.minecraft.world.level.block.SnowLayerBlock
                                 || isLeafLitter(cell))) {
@@ -761,14 +788,14 @@ public class FootstepGenerator extends AbstractClientHandler {
         var supportPos = entity.mainSupportingBlockPos.orElse(null);
         if (supportPos != null && entity.onGround()) {
             var support = level.getBlockState(supportPos);
-            if (!support.isAir() && support.getFluidState().isEmpty()) {
+            if (!isNotSolidSurface(support)) {
                 if (trace != null) trace.add("-> vanilla mainSupportingBlockPos (3) at %s = %s".formatted(supportPos, support));
                 return support;
             }
         }
         if (trace != null) trace.add("mainSupportingBlockPos (3) not usable");
 
-        if (!footState.isAir() && footState.getFluidState().isEmpty()
+        if (!isNotSolidSurface(footState)
                 && !isVegetationBlock(footState)
                 && TAG_LIBRARY.is(FOOT_OVERLAY, footState)
                 && !footState.getShape(level, pos.above()).isEmpty()) {
@@ -777,7 +804,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         }
 
         var state = level.getBlockState(pos);
-        if (!state.isAir() && state.getFluidState().isEmpty()) {
+        if (!isNotSolidSurface(state)) {
             if (trace != null) trace.add("-> block below the feet (5) = %s".formatted(state));
             return state;
         }
@@ -902,7 +929,8 @@ public class FootstepGenerator extends AbstractClientHandler {
      */
     static ResourceLocation resolveLandSound(final Entity entity) {
         var state = resolveSurfaceBlock(entity, entity.level(), entity.blockPosition().below());
-        if (state.isAir() || !state.getFluidState().isEmpty())
+        // Waterlogged blocks keep their own landing recording; only air and real fluids fall back.
+        if (isNotSolidSurface(state))
             return LAND;
 
         var stepSound = state.getSoundType().getStepSound();

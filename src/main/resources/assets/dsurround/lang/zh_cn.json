@@ -112,6 +112,8 @@
   "dsurround.config.entityEffects.enableSwingEffect.tooltip": "启用/禁用 玩家和生物的物品挥动声音效果",
   "dsurround.config.entityEffects.enableStopScuffSound": "急停擦地音",
   "dsurround.config.entityEffects.enableStopScuffSound.tooltip": "急停或急转弯时播放短促的擦地声。觉得吵可以关掉",
+  "dsurround.config.entityEffects.enableSneakFootstepSounds": "潜行时的脚步声",
+  "dsurround.config.entityEffects.enableSneakFootstepSounds.tooltip": "潜行（按住 Shift）时是否还有脚步声。1.12.2 原版模组潜行时是完全无声的；关掉这个开关即可恢复原版行为",
   "dsurround.config.entityEffects.enableToolbarBlockSounds": "玩家工具栏方块声音",
   "dsurround.config.entityEffects.enableToolbarBlockSounds.tooltip": "启用/禁用 工具栏上方块的声音效果",
   "dsurround.config.entityEffects.entityEffectRange": "实体效果范围",

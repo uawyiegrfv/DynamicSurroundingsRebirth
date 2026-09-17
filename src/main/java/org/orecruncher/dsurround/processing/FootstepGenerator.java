@@ -23,13 +23,11 @@ import org.orecruncher.dsurround.config.libraries.ITagLibrary;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
-import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
 
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.ArrayList;
 
 /**
  * A2-1: Dynamic Surroundings own footstep generator, ported from the original 1.12.2
@@ -250,16 +248,10 @@ public class FootstepGenerator extends AbstractClientHandler {
     private boolean wasRunning = false;
     private boolean didJump = false;
     private double fallDistance = 0D;
-    private boolean isRightFoot = false;
     private double distanceWalked = 0D;
     private double dmwBase = 0D;
     private double yPosition = 0D;
     private Vec3 lastPos;
-    // Leaf-litter steps play once per block position (mirroring the brush-step "messyPos"
-    // dedup in StepThroughBrushEffect): lingering on the same litter cell does not
-    // re-trigger the crunch on every stride - it fires again only after leaving the
-    // cell and re-entering (the position changes).
-    private BlockPos lastLeafLitterPos;
 
     // Delayed landing echo: the land layers play again ~1-2 ticks (50-100ms) later,
     // matching the real playback distribution of the 1.12.2 delayed land composition
@@ -307,10 +299,15 @@ public class FootstepGenerator extends AbstractClientHandler {
         if (!shouldSuppressVanillaStep()) {
             this.pendingEchoes.clear();
             this.lastPos = null;
-            this.lastLeafLitterPos = null;
             this.isFlying = false;
             this.didJump = false;
             this.fallDistance = 0D;
+            // yPosition too: it is the baseline of the step-up/step-down test, and it only
+            // advances while on the ground. A descent during the disabled period (stairs, a
+            // drop, a cave) would otherwise leave it high and fire ONE phantom step on the
+            // first tick after re-enabling, for a move the player never made. Seeding it
+            // with the current height is safe - yPosition is only ever read as a delta.
+            this.yPosition = player.getY();
             return;
         }
 
@@ -415,17 +412,39 @@ public class FootstepGenerator extends AbstractClientHandler {
             this.wasRunning = running;
 
             // Stepped down one block (the ground level dropped more than a slab)? Play a
-            // step immediately - this is what makes walking down stairs/ledges reliable.
+            // step immediately. NOTE: this branch does NOT actually produce the sound heard when
+            // walking down stairs, and it never has. The airborne state machine above runs first
+            // and, on the exact tick the feet touch the lower step, its small-fall path
+            // (fallDistance > 0) plays the step - so going downstairs is handled there, which is
+            // also where the "going UP sounds different from going DOWN" asymmetry comes from
+            // (the ascent gets strideStair() + this stride branch; the descent gets the walk
+            // sound). What this branch still covers is the residual case where the player lands
+            // with fallDistance == 0: a one-tick air crossing, e.g. sprinting down a flat stair
+            // run. Do not "fix" it into an audible path without re-checking the stair descent -
+            // firing here as well would double the step on every step down.
             boolean steppedDown = onGround && !inWater && !sneaking && this.yPosition - pos.y > 0.4;
+            // Mirror of the above for the ascent: 1.12.2 tested |yPosition - posY| > 0.4 and then
+            // chose strideStair / the UP events by direction. Only the stride survived the port.
             ascended = onGround && !inWater && pos.y - this.yPosition > 0.4D;
             if (steppedDown) {
                 this.playStep(player, running);
                 this.dmwBase = this.distanceWalked;
             } else {
                 // Going upstairs uses its own, shorter stride (1.12.2 switched to strideStair as
-                // soon as the player rose 0.4+ blocks). That alone fixes the sluggish climb: at the
-                // default 0.4875 against a walking stride of 0.9 the cadence becomes continuous,
-                // without the machine-gun effect that also counting the climb produced.
+                // soon as the player rose 0.4+ blocks). That alone fixes the sluggish climb: the
+                // shipped player sidesteps the machine-gun effect that also counting the climb
+                // produced.
+                //
+                // NOT the 1.12.2 value: the original accumulated the FULL 3D distance
+                // (sqrt(dX^2+dY^2+dZ^2) * 0.6, Generator.java:196) while the loop above accumulates
+                // the HORIZONTAL distance only, so the original's STRIDE_STAIR (0.75 * 0.65 =
+                // 0.4875) collects 0.4243 units per riser against the port's 0.3000 - a factor of
+                // exactly sqrt(2) on a 45-degree staircase. variators.json therefore ships 0.3 for
+                // the player, which is that 0.4875 divided by ~1.41: one step per stair tread,
+                // measured by ear against the walking stride of 0.9. Every other variator in the
+                // file keeps the original ratio (0.95 * 0.65 = 0.6175, 0.375 * 0.65 = 0.24375);
+                // the player is the deliberate exception, so do NOT "restore" 0.4875 here - it
+                // halves the stair cadence.
                 final float stride;
                 if (onLadder && !onGround)
                     stride = strideLadder();
@@ -448,6 +467,16 @@ public class FootstepGenerator extends AbstractClientHandler {
 
     private void playStep(final Player player, final boolean running) {
         if (player.isSpectator() || player.isSilent())
+            return;
+
+        // Sneak footsteps. 1.12.2 suppressed them outright (its proceedWithStep() returned
+        // !isSneaking and gated both playSinglefoot and playMultifoot), so a sneaking player was
+        // completely silent. This port deliberately keeps them audible - a silent sneak reads as a
+        // bug to a modern player - which is why enableSneakFootstepSounds defaults to true; the
+        // option exists so the original behaviour is one click away. Note the vanilla step is
+        // still suppressed by the mixin either way, so turning this off gives silence rather than
+        // double sounds.
+        if (!this.config.entityEffects.enableSneakFootstepSounds && player.isShiftKeyDown())
             return;
 
         final boolean climbing = player.onClimbable() && !player.onGround();
@@ -513,16 +542,11 @@ public class FootstepGenerator extends AbstractClientHandler {
             }
         }
 
-        // Leaf litter follows the brush-step "messyPos" convention: play only once per
-        // block position so an entity walking around within the same litter cell does not
-        // re-trigger the crunch every stride. It fires again only after the entity leaves
-        // the cell and re-enters (the position changes).
-        if (false /* LeafLitterBlock is 1.20.3+; not in 1.20.1 */) {
-            var feetPos = player.blockPosition();
-            if (feetPos.equals(this.lastLeafLitterPos))
-                return;
-            this.lastLeafLitterPos = feetPos;
-        }
+        // (No leaf-litter dedup here: the "play once per block position" brush-step convention
+        // needs 1.20.3's LeafLitterBlock, which this version does not have. 1.20.1 has no leaf
+        // litter block at all, so there is no per-cell crunch to dedup in the first place. When
+        // this repo is ever backported forward, see 26.1's inline `instanceof LeafLitterBlock`
+        // in the two overlay probes - that is the version that has the block.)
 
         var feetPos = player.blockPosition();
         // Resolve the factory by its location (sound_factories.json maps the location to
@@ -592,6 +616,13 @@ public class FootstepGenerator extends AbstractClientHandler {
         } else {
             // Fallback: material's own land/run + walk@50 + echo, also per foot.
             var landLoc = resolveLandSound(player);
+            // A mute material (the buttons rule points at footsteps.none) must land silently, the
+            // same way playStep bails out above. Without this the sentinel is looked up as a sound
+            // factory, misses the registry and logs "Unable to locate sound" on every such landing.
+            // The armor clank and the land accents below are skipped as well: the material itself
+            // is declared mute, so inventing a simultaneous clank for it would undo that decision.
+            if (NO_FOOTSTEP.equals(landLoc))
+                return;
             var baseLoc = landLoc;
             if (landLoc.getPath().endsWith("_land")) {
                 baseLoc = ResourceLocation.fromNamespaceAndPath(landLoc.getNamespace(), landLoc.getPath().substring(0, landLoc.getPath().length() - 5));
@@ -658,7 +689,7 @@ public class FootstepGenerator extends AbstractClientHandler {
      * True when a solid surface holds a fluid level, i.e. it is waterlogged. Used for reporting and
      * for the watery-surface accent; the two conditions are what {@link #isNotSolidSurface} separates.
      */
-    static boolean isWaterlogged(final BlockState state) {
+    public static boolean isWaterlogged(final BlockState state) {
         return !state.getFluidState().isEmpty() && !isNotSolidSurface(state);
     }
 
@@ -807,13 +838,17 @@ public class FootstepGenerator extends AbstractClientHandler {
         }
         if (trace != null) trace.add("mainSupportingBlockPos (3) not usable");
 
-        if (!isNotSolidSurface(footState)
-                && !isVegetationBlock(footState) /* VegetationBlock is 1.20.5+ */
-                && TAG_LIBRARY.is(FOOT_OVERLAY, footState)
-                && !footState.getShape(level, pos.above()).isEmpty()) {
-            if (trace != null) trace.add("-> feet cell overlay branch (4)");
-            return footState;
-        }
+        // There used to be a fifth probe here - "the feet cell by visible shape, if it is in the
+        // overlay tag" - kept from the port's earlier structure. It was UNREACHABLE: probe (1b)
+        // above already returns the feet cell whenever it is in the overlay tag, is a solid
+        // surface and passes isStandingOn, and this copy added only "has a non-empty shape" and a
+        // vegetation exclusion. Every overlay block the tag covers (carpets, rails, pressure
+        // plates, snow, lily pads, glow lichen, sculk veins) has a non-empty shape and is not
+        // BushBlock, so the earlier probe always fired first - and when it did not fire (a raised
+        // block in the feet cell) neither did this one. Removed rather than left as a decoy: with
+        // isStandingOn working again, (1b) is the single place where the feet cell can win.
+        // (1.12.2's AcousticResolver had the equivalent probe as an explicit "substrate" set;
+        // the overlay tag is the port of that set, so nothing was lost.)
 
         var state = level.getBlockState(pos);
         if (!isNotSolidSurface(state)) {
@@ -910,27 +945,18 @@ public class FootstepGenerator extends AbstractClientHandler {
         // snow (both empty collision shapes), a lily pad. A door or an open trapdoor beside the
         // player has its top face AT THE CELL CEILING (shape y 0..1), so it is rejected, which is
         // what makes the door/trapdoor cells stop hijacking the sound.
+        //
+        // getCollisionShape returns the shape in CELL-LOCAL coordinates (0..1, a fence 1.5), so it
+        // must be lifted by the cell's own Y before being compared with the entity's world Y. The
+        // earlier form compared 1.5 against ~64 and was therefore ALWAYS true - the guard below
+        // was inert and /dsdump steps printed "isStandingOn = true" for every cell. Nothing
+        // audibly broke while it was inert because #dsurround:effects/foot_overlay holds only flat
+        // overlays (carpets, rails, plates, snow, lily pads, glow lichen, sculk veins); a raised
+        // block added to that tag by a datapack would have re-created the door/hijacked-sound bug.
         var shape = state.getCollisionShape(level, cell);
         if (shape.isEmpty())
             return true;
-        return shape.max(Direction.Axis.Y) <= entity.getY() + STANDING_TOLERANCE;
-    }
-
-    /**
-     * True when the block has its own explicit footstep material in the data, as opposed to
-     * only reaching the catch-all default rule (or a material inferred from its name).
-     *
-     * The deliberate silence sentinel does NOT count: `footsteps.none` is a real value in the
-     * data (the buttons rule uses it) meaning "play nothing", so treating it as a material
-     * would make surface resolution prefer a silent proxy over the block actually stood on.
-     */
-    private static boolean hasExplicitFootstepMapping(final BlockState state) {
-        var stepSound = state.getSoundType().getStepSound();
-        if (!SOUND_LIBRARY.hasExplicitRemap(stepSound, state))
-            return false;
-        return SOUND_LIBRARY.getRemappedSound(stepSound, state)
-                .map(remap -> !NO_FOOTSTEP.equals(remap.factory()))
-                .orElse(false);
+        return cell.getY() + shape.max(Direction.Axis.Y) <= entity.getY() + STANDING_TOLERANCE;
     }
 
     /**
@@ -1033,7 +1059,6 @@ public class FootstepGenerator extends AbstractClientHandler {
         this.dmwBase = 0D;
         this.yPosition = 0D;
         this.lastPos = null;
-        this.lastLeafLitterPos = null;
     }
 
     @Override

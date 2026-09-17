@@ -10,6 +10,7 @@ import org.orecruncher.dsurround.config.libraries.IItemLibrary;
 import org.orecruncher.dsurround.config.libraries.ITagLibrary;
 import org.orecruncher.dsurround.lib.collections.ObjectArray;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
+import org.orecruncher.dsurround.processing.FootstepGenerator;
 import org.orecruncher.dsurround.sound.ISoundFactory;
 
 public class FootstepAccents {
@@ -29,9 +30,12 @@ public class FootstepAccents {
     }
 
     public void collect(final LivingEntity entity, final BlockPos pos, final BlockState blockState, final ObjectArray<ISoundFactory> in) {
-        // Any state holding a fluid counts, not just vanilla's SimpleWaterloggedBlock: a modded
-        // waterlogged block carries a fluid state without implementing that interface.
-        var isWaterLogged = !blockState.getFluidState().isEmpty();
+        // One definition of "waterlogged" for the whole mod: a SOLID surface holding a fluid, i.e.
+        // not air and not a fluid block. Asking only for a non-empty fluid state would be true for
+        // pure water and lava as well, which contradicts the discriminator the footstep pipeline
+        // uses (FootstepGenerator.isNotSolidSurface) and would make the two disagree the moment a
+        // new caller raises a step event with a fluid state.
+        var isWaterLogged = FootstepGenerator.isWaterlogged(blockState);
         this.providers.forEach(provider -> {
             if (provider.isEnabled())
                 provider.collect(entity, pos, blockState, isWaterLogged, in);

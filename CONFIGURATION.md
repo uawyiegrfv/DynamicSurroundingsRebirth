@@ -372,39 +372,40 @@ All options are sliders, so the animation can be tuned in game.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `sizePercent` | 73 | **Starting** size, relative to the 1.12.2 original. The text grows to about 2.5x this at its peak, so this is what makes the change in size read; raise it for bigger text overall |
-| `growFactor` | 112 | Growth per tick, in percent |
-| `peakTickTicks` | 8 | Which tick the text reaches its largest. Low values pop faster, high values swell more gradually |
-| `gravityPercent` | 57 | Fall speed, as a percentage of the original mod's gravity. Lower falls more slowly and covers less ground |
-| `lifetimeTicks` | 22 | How long the text lives (20 ticks = 1 second) |
-| `driftPercent` | 200 | Horizontal travel. Positive drifts away from the attacker, negative toward it, 0 rises straight up |
+| `sizePercent` | 73 | **Starting** size, relative to the 1.12.2 original. The text grows to about 2.2x this at the peak, so this is what makes the change in size read |
+| `growFactor` | 114 | Growth per tick, in percent |
+| `peakTickTicks` | 6 | Which tick the text reaches its largest |
+| `gravityPercent` | 90 | Fall speed, as a percentage of the original mod's gravity |
+| `lifetimeTicks` | 16 | How long the text lives (20 ticks = 1 second) |
+| `driftPercent` | 60 | Horizontal travel, as a percentage of the original mod's launch. Positive drifts away from the attacker, negative toward it, 0 rises straight up |
 
 **The shape.** The text grows until `peakTickTicks`, then shrinks for the rest of its life. The
-shrink rate is **derived** so the text ends at exactly the size it started:
+shrink rate is **derived** so it ends at exactly the size it started:
 
 ```
-shrink = grow ^ (-peakTick / (lifetime - 1 - peakTick))
+shrink = grow ^ (-peakTick / (lifetime - 1 - peakTick))     = 1.14 ^ (-6/9) = 0.9164 at the defaults
 ```
 
-At the defaults that gives `1.12 ^ (-8 / 13) = 0.9326`, and the animation is:
+At the defaults the whole animation is:
 
 ```
-tick   0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21
-size 1.00 1.12 1.25 1.40 1.57 1.76 1.97 2.21 2.48 2.31 2.15 2.01 1.87 1.75 1.63 1.52 1.42 1.32 1.23 1.15 1.07 1.00
-                                                 peak                                     back to start
+tick    0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+size  1.00 1.14 1.30 1.48 1.69 1.93 2.19 2.01 1.84 1.69 1.55 1.42 1.30 1.19 1.09 1.00
+height 0.00 0.09 0.15 0.19 0.19 0.17 0.12 0.03 -0.08 -0.22 -0.38 -0.58 -0.81 -1.06 -1.34 -1.66
 ```
 
-The start is small, the peak is 2.5x that in the middle of the life, and it fades out as it returns
-to the starting size. Duration is 1.1 s, and the text falls about 2 blocks.
+It rises for four ticks, then falls for eleven while growing to 2.2x and shrinking back to where it
+started, fading out at the end. Total 0.8 s, falling 2 blocks, with almost no sideways travel.
 
 **Two knobs interact.** `lifetimeTicks` and `gravityPercent` together decide how far the text falls:
-with gravity fixed, a longer life always falls further. To make the animation slower *without* it
-dropping further, lower `gravityPercent` as you raise `lifetimeTicks` — the defaults (22 ticks at 57%)
-were solved for a 2-block drop.
+with gravity fixed a longer life always falls further. They also decide how the motion *reads* —
+making the text hang in the air for longer lets the camera's own movement dominate what you see, so
+a very long life can look like the text is being flung around rather than falling. The defaults were
+solved for a 2-block fall over 0.8 s.
 
 **Why there is no shrink slider.** A hand-picked shrink rate cannot satisfy both "grows quickly" and
-"ends at the size it started" at once: it would either cut the text off early or leave it larger than
-it began. `peakTickTicks` is the knob that shapes the curve instead.
+"ends at the size it started"; it would either cut the text off early or leave it larger than it
+began. `peakTickTicks` shapes the curve instead.
 
 #### 4.9 One file per mod - the aggregate `dsurround.json`
 
@@ -868,33 +869,34 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 
 | 选项 | 默认 | 含义 |
 | --- | --- | --- |
-| `sizePercent` | 73 | **起始**大小，相对 1.12.2 原版的百分比。文字会在峰值放大到约 2.5 倍，所以这一项决定了"变化幅度"看起来明不明显；想要整体更大就调高 |
-| `growFactor` | 112 | 每刻放大比例（%） |
-| `peakTickTicks` | 8 | 在第几刻达到最大。调小则弹出更利落，调大则放大更绵长 |
-| `gravityPercent` | 57 | 下落速度，原版重力的百分比。调低则下落更慢、位移更小 |
-| `lifetimeTicks` | 22 | 存在时长（刻），20 刻 = 1 秒 |
-| `driftPercent` | 200 | 水平抛出距离。正值朝远离攻击者方向，负值朝攻击者方向，0 表示垂直上升 |
+| `sizePercent` | 73 | **起始**大小，相对 1.12.2 原版的百分比。文字会在峰值放大到约 2.2 倍，所以这一项决定"变化幅度"看起来明不明显 |
+| `growFactor` | 114 | 每刻放大比例（%） |
+| `peakTickTicks` | 6 | 在第几刻达到最大 |
+| `gravityPercent` | 90 | 下落速度，原版重力的百分比 |
+| `lifetimeTicks` | 16 | 存在时长（刻），20 刻 = 1 秒 |
+| `driftPercent` | 60 | 水平抛出距离，原版抛出量的百分比。正值朝远离攻击者方向，负值朝攻击者方向，0 表示垂直上升 |
 
 **变化形状。** 文字放大到 `peakTickTicks` 刻为止，之后一路缩小。缩小率是**由公式反推**的，保证结束时
 恰好回到起始大小：
 
 ```
-缩小率 = 放大率 ^ (-峰值刻 / (时长 - 1 - 峰值刻))
+缩小率 = 放大率 ^ (-峰值刻 / (时长 - 1 - 峰值刻))   默认值即 1.14 ^ (-6/9) = 0.9164
 ```
 
-默认值下即 `1.12 ^ (-8/13) = 0.9326`，整段动画为：
+默认值下整段动画为：
 
 ```
-刻     0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21
-尺寸 1.00 1.12 1.25 1.40 1.57 1.76 1.97 2.21 2.48 2.31 2.15 2.01 1.87 1.75 1.63 1.52 1.42 1.32 1.23 1.15 1.07 1.00
-                                                 峰值                              缩回起始大小
+刻     0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+尺寸 1.00 1.14 1.30 1.48 1.69 1.93 2.19 2.01 1.84 1.69 1.55 1.42 1.30 1.19 1.09 1.00
+高度 0.00 0.09 0.15 0.19 0.19 0.17 0.12 0.03 -0.08 -0.22 -0.38 -0.58 -0.81 -1.06 -1.34 -1.66
 ```
 
-起始很小、中段放大到 2.5 倍、最后一边缩小一边淡出。总时长 1.1 秒，下落约 2 格。
+前 4 刻上升，随后 11 刻一边下落一边从 2.2 倍缩回起始大小，最后淡出。总时长 0.8 秒，下落 2 格，
+水平位移几乎为零。
 
-**两个滑条会互相影响。** `lifetimeTicks` 与 `gravityPercent` 共同决定下落距离：重力不变时，时长越长
-一定落得越远。所以想"更慢但不多落"，就要在调高时长的同时调低重力 —— 默认值（22 刻 / 57%）就是按
-"下落 2 格"解出来的。
+**两个滑条会互相影响。** `lifetimeTicks` 与 `gravityPercent` 共同决定下落距离：重力不变时时长越长
+一定落得越远。它们也决定运动的**观感** —— 文字在空中停留越久，相机自身的移动就越主导你看到的位移，
+所以时长过长会显得文字是被甩来甩去而不是在下落。默认值是按"0.8 秒内下落 2 格"解出来的。
 
 **为什么没有"缩小比例"滑条。** 手调的缩小率无法同时满足"放大要快"和"结束时回到起始大小"：要么
 文字还没缩回就消失了，要么结束时比开始时更大。控制形状的旋钮是「最大尺寸所在刻」。

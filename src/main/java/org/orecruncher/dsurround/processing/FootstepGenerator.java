@@ -422,9 +422,10 @@ public class FootstepGenerator extends AbstractClientHandler {
                 this.playStep(player, running);
                 this.dmwBase = this.distanceWalked;
             } else {
-                // Going upstairs has its own stride: while climbing, vanilla reduces the
-                // horizontal movement, so a purely horizontal accumulator fires far too late.
-                // 1.12.2 switched to strideStair (shorter) as soon as the player rose 0.4+ blocks.
+                // Going upstairs uses its own, shorter stride (1.12.2 switched to strideStair as
+                // soon as the player rose 0.4+ blocks). That alone fixes the sluggish climb: at the
+                // default 0.4875 against a walking stride of 0.9 the cadence becomes continuous,
+                // without the machine-gun effect that also counting the climb produced.
                 final float stride;
                 if (onLadder && !onGround)
                     stride = strideLadder();
@@ -440,13 +441,6 @@ public class FootstepGenerator extends AbstractClientHandler {
         } else {
             this.lastPos = pos;
         }
-
-        // Count the climb itself. Ascending moves the player vertically by design and horizontally
-        // by less than a normal walk, so the vertical part has to contribute to the travelled
-        // distance; without it even the shorter stair stride fires late. Descending is already
-        // handled by the steppedDown branch, which plays a step immediately.
-        if (ascended)
-            this.distanceWalked += pos.y - this.yPosition;
 
         if (onGround)
             this.yPosition = pos.y;

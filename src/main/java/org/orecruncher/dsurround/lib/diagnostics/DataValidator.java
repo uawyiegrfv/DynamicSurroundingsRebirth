@@ -106,6 +106,29 @@ public final class DataValidator {
             return;
         }
 
+        // Every footstep material must have a sounds.json entry behind its event. An event that is
+        // REGISTERED but has no metadata still raises the event and shows its subtitle, yet plays
+        // nothing at all - which is precisely the "correct subtitle, no sound" failure, so name them
+        // explicitly instead of relying on the prefix scan below.
+        int materialWithoutSound = 0;
+        for (final var event : registered) {
+            final Identifier location = event.location();
+            if (!"dsurround".equals(location.getNamespace()))
+                continue;
+            if (!location.getPath().startsWith("footsteps"))
+                continue;
+            if (!SOUND_LIBRARY.getSoundMetadata(location).isDefault())
+                continue;
+            materialWithoutSound++;
+            if (materialWithoutSound <= MAX_LISTED)
+                report.add("  footstep event with NO sound behind it: " + location);
+        }
+        if (materialWithoutSound == 0)
+            report.add("  footstep materials: every registered footstep event has sound behind it.");
+        else
+            report.add("  footstep materials: " + materialWithoutSound
+                    + " event(s) are silent (listed above) - these will show a subtitle but play nothing");
+
         int silent = 0;
         for (final var event : registered) {
             final Identifier location = event.location();

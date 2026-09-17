@@ -7,7 +7,7 @@
     "stride": 0.9,
     "landHardDistanceMin": 1.5,
     "volumeScale": 0.9,
-    "strideStair": 0.375
+    "strideStair": 0.3
   },
   "playerSlow": {
     "playJump": true,

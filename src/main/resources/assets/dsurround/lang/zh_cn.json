@@ -435,5 +435,6 @@
   "dsurround.config.popoffNumbers.peakTickTicks": "最大尺寸所在刻",
   "dsurround.config.popoffNumbers.peakTickTicks.tooltip": "文字在第几刻达到最大。数值越小则放大越快、之后缩小越慢；缩小率由公式反推，保证最终缩回起始大小",
   "dsurround.config.popoffNumbers.gravityPercent": "下落速度",
-  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "文字下落速度，原版重力的百分比。调低则下落更慢、位移更小；调高则落得更沉"
+  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "文字下落速度，原版重力的百分比。调低则下落更慢、位移更小；调高则落得更沉",
+  "dsurround.command.dsdump.footsteps": "当前位置的脚步链路："
 }

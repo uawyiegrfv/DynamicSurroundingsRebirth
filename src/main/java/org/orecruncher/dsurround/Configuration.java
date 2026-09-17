@@ -438,6 +438,11 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @RestartRequired(client = false)
+        @Comment("Enable/disable footstep sounds while sneaking. The original 1.12.2 mod played no footsteps at all while sneaking; this port keeps them audible by default because a sneaking player would otherwise hear nothing, but the behaviour can be switched back")
+        public boolean enableSneakFootstepSounds = true;
+
+        @Property
+        @RestartRequired(client = false)
         @Comment("Enable/disable creature footstep sounds (per-creature material footsteps with cadence, volume, landing and stop sounds)")
         public boolean enableCreatureFootstepSounds = true;
 

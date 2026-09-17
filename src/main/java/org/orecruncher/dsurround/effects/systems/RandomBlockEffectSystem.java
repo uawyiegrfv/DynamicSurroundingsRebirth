@@ -67,7 +67,12 @@ public class RandomBlockEffectSystem extends AbstractEffectSystem {
         if (++this.tickCounter % this.tickInterval != 0)
             return;
 
-        var player = GameUtils.getPlayer().orElseThrow();
+        // No local player during the disconnect / respawn windows; this runs from the client tick,
+        // so bail out instead of throwing.
+        var playerOpt = GameUtils.getPlayer();
+        if (playerOpt.isEmpty())
+            return;
+        var player = playerOpt.get();
         var world = player.level();
 
         var iterator = iterateRandomly(Randomizer.current(), ITERATION_COUNT, player.blockPosition(), this.range);

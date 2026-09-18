@@ -154,6 +154,12 @@ public class Configuration extends ConfigurationData {
         public boolean evaluateOnSoundThread = true;
 
         @Property
+        @Slider
+        @DoubleRange(min = 1.0D, max = 4.0D)
+        @Comment("Occlusion only: how much more the restored high frequencies are damped than the level when sound bends around an obstacle's edge. 1.0 = broadband restore (original behaviour, and brighter than reality). 2.0 means a source behind a wall comes back audible but still dull, which is what edge diffraction actually does - it attenuates the short wavelengths first")
+        public double diffractionHfDamping = 1.0D;
+
+        @Property
         @IntegerRange(min = 16, max = 64)
         @RestartRequired
         @Comment("The number of rays to project around a sound location to calculate reverb effect")

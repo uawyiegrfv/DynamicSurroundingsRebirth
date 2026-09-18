@@ -24,7 +24,6 @@
     "core.MixinClientChunkManager",
     "core.MixinClientChunkMap",
     "core.MixinClientWorld",
-    "core.MixinClientWorldProperties",
     "core.MixinClothAbstractConfigEntry",
     "core.MixinEnchantingTableBook",
     "core.MixinEntity",

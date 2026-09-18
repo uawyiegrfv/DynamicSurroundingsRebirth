@@ -726,7 +726,7 @@
       "dsurround:ambient/droplets/drop1",
       "dsurround:ambient/droplets/drop2",
       "dsurround:ambient/droplets/drop3",
-      "dsurround:ambient/droplets/drop3"
+      "dsurround:ambient/droplets/drop4"
     ]
   },
   "seagulls": {
@@ -2404,7 +2404,8 @@
     "sounds": [
       "dsurround:footsteps/armor/heavy_foot1",
       "dsurround:footsteps/armor/heavy_foot2",
-      "dsurround:footsteps/armor/heavy_foot3"
+      "dsurround:footsteps/armor/heavy_foot3",
+      "dsurround:footsteps/armor/heavy_foot4"
     ]
   },
   "armor.crystal_foot": {

@@ -150,17 +150,14 @@ public final class SoundFXUtils {
     /** Hard cap on the aperture radius in blocks, so a very low frequency cannot trace for ever. */
     private static final float MAX_APERTURE_RADIUS = 16F;
     /**
-     * Octave bands the zone is measured in, lowest first. A real sound is broadband and the Fresnel zone
-     * scales as 1/sqrt(frequency), so one hill covers the high band's zone while leaving the low band's
-     * zone partly clear - which is why a source on a hill heard from the valley is dull but present, not
-     * silent. Measuring a single frequency (the previous behaviour) made the hill block everything.
+     * Fallback octave bands, used only if the configuration supplies nothing usable. A real sound is
+     * broadband and the Fresnel zone scales as 1/sqrt(frequency), so one hill covers the high band's zone
+     * while leaving the low band's zone partly clear - which is why a source on a hill heard from the
+     * valley is dull but present, not silent. The live values come from {@link AudioTuning}.
      */
-    private static final float[] BAND_FREQUENCIES = {125F, 500F, 2000F};
-    /**
-     * Weight of each band in the combined attenuation. Low frequencies dominate, because they are the
-     * ones that reach the listener around the obstacle; the weights sum to 1.
-     */
-    private static final float[] BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
+    private static final float[] DEFAULT_BAND_FREQUENCIES = {125F, 500F, 2000F};
+    /** Fallback band weights: low frequencies dominate because they are the ones that get around. */
+    private static final float[] DEFAULT_BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
     /**
      * Material thickness a plane's band must add before it counts as blocking that part of the
      * wavefront. The band spans a fraction of the line, so a one-block wall contributes roughly half a
@@ -300,6 +297,8 @@ public final class SoundFXUtils {
     private float lastFanAverage;
     /** Excess attenuation in dB from the Fresnel-zone model on the most recent measurement. */
     private float lastZoneLossDb;
+    /** Cost of the ring-based diffraction probe on the most recent measurement, microseconds. */
+    private double lastDiffractionCostUs;
     /**
      * Scratch space for the per-plane breakdown of the most recent aperture trace: the cumulative
      * distance-weighted occlusion at each plane crossing, and the cumulative raw material thickness.
@@ -469,14 +468,14 @@ public final class SoundFXUtils {
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
-                        + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus",
+                        + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus ring=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 directCutoff <= 0F ? 0F : (directCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 this.lastCenterOcclusion, this.lastApertureLeak, sendOcclusionGain,
                 this.lastFresnelRadius, this.lastFanAverage, this.lastZoneLossDb,
-                (System.nanoTime() - evaluationStart) / 1000.0D));
+                (System.nanoTime() - evaluationStart) / 1000.0D, this.lastDiffractionCostUs));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -600,7 +599,12 @@ public final class SoundFXUtils {
      */
     private float applyDiffraction(final WorldContext ctx, final Vec3 soundPos, final Vec3 listener,
             float directCutoff, final boolean snap, final ReverbTrace reverb, final float[] hfOut) {
+        // The ring probe's own cost, reported separately: it is the one component that could be retired
+        // in exchange for more realism elsewhere (the aperture answers the same question with an area,
+        // material weighting and wavelength).
+        final long diffractionStart = System.nanoTime();
         final float geometricDiffraction = calculateDiffraction(ctx, soundPos, listener, this.lastOccluderPos);
+        this.lastDiffractionCostUs = (System.nanoTime() - diffractionStart) / 1000.0D;
         // Aperture contribution (the genuinely Huygens form of the same idea). The ring probe above
         // can only see edges it happens to sample; the aperture disc measures how much of the
         // wavefront area between the two ends is actually clear, which is what decides whether a
@@ -920,7 +924,7 @@ public final class SoundFXUtils {
         // behind it, not silenced. A single-frequency measurement could not express that.
         final float configuredRadius = AudioTuning.apertureRadius();
         final boolean wavelength = AudioTuning.realismWavelength();
-        final int bandCount = wavelength ? BAND_FREQUENCIES.length : 1;
+        final int bandCount = bandCount();
         final int planes = AudioTuning.aperturePlanes();
         final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
 
@@ -1187,15 +1191,27 @@ public final class SoundFXUtils {
     private static float bandFrequency(final int index) {
         if (!AudioTuning.realismWavelength())
             return AudioTuning.realismFrequencyHz();
-        final int i = Math.max(0, Math.min(BAND_FREQUENCIES.length - 1, index));
-        return BAND_FREQUENCIES[i];
+        final float[] bands = AudioTuning.bandFrequencies();
+        final float[] fallback = bands.length == 0 ? DEFAULT_BAND_FREQUENCIES : bands;
+        final int i = Math.max(0, Math.min(fallback.length - 1, index));
+        return fallback[i];
     }
 
-    /** Weight of band {@code index}, renormalised if the band arrays ever get out of step. */
+    /** Number of bands to measure: one when the wavelength model is off, else the configured count. */
+    private static int bandCount() {
+        if (!AudioTuning.realismWavelength())
+            return 1;
+        final float[] bands = AudioTuning.bandFrequencies();
+        return bands.length == 0 ? DEFAULT_BAND_FREQUENCIES.length : bands.length;
+    }
+
+    /** Weight of band {@code index}, renormalised if the configured arrays get out of step. */
     private static float bandWeight(final int index) {
-        if (index < 0 || index >= BAND_WEIGHTS.length)
-            return 1F / BAND_FREQUENCIES.length;
-        return BAND_WEIGHTS[index];
+        final float[] weights = AudioTuning.bandWeights();
+        final float[] use = weights.length == 0 ? DEFAULT_BAND_WEIGHTS : weights;
+        if (index < 0 || index >= use.length)
+            return 1F / use.length;
+        return use[index];
     }
 
     private static double occlusionDistanceWeight(final double along, final double totalDistance) {

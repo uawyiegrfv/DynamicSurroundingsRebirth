@@ -51,6 +51,14 @@ public final class SoundFXUtils {
     private static final int OCCLUSION_FAN_RINGS =
             Math.max(1, (Math.max(1, CONFIG.occlusionFanRays) - 1) / 4);
     /**
+     * Exponent applied to the diffraction restore when it drives the HIGH-frequency gain, so a
+     * partial restore comes back much duller than it does loud. 1.0 reproduces the original
+     * broadband behaviour; see Configuration.EnhancedSounds.diffractionHfDamping.
+     */
+    private static final float DIFFRACTION_HF_DAMPING =
+            Math.max(1F, (float) CONFIG.diffractionHfDamping);
+
+    /**
      * Length of the source-enclosure / player-openness probe rays. Must reach the
      * walls of a normal room - a 4-block probe could not see the room's walls from a
      * source in its centre, so a closed room still read as open and the compensation
@@ -268,7 +276,12 @@ public final class SoundFXUtils {
                 calculateOcclusion(ctx, soundPos, ctx.playerEyePosition), snap);
         final float sendCoeff = -occlusionAccumulation * absorptionCoeff;
 
+        // Broadband restore value: drives the level through pow(x, 0.1) and, unless diffraction
+        // damps it, the high-frequency gain as well.
         float directCutoff = (float) MathStuff.exp(sendCoeff);
+        // High-frequency restore value. Equal to directCutoff unless diffraction applies with
+        // diffractionHfDamping > 1, which damps the restored highs without touching the level.
+        float directHfCutoff = directCutoff;
 
         // Handle any dampening effects from the player, like head in water
         directCutoff *= 1F - ctx.auralDampening;
@@ -285,7 +298,13 @@ public final class SoundFXUtils {
         // hugged wall stayed muffled through the reverb path even after the direct was
         // restored.
         if (this.lastCenterOcclusion > 0F) {
-            directCutoff = applyDiffraction(ctx, soundPos, ctx.playerEyePosition, directCutoff, snap, reverb);
+            // Seed with the pre-diffraction cutoff: the original code produced
+            // max(compensation, exp(sendCoeff)) for the high-frequency gain, so starting from 0
+            // here would silently drop the occlusion term whenever the compensation is lower.
+            final float[] hfOut = new float[]{directCutoff};
+            directCutoff = applyDiffraction(ctx, soundPos, ctx.playerEyePosition, directCutoff, snap,
+                    reverb, hfOut);
+            directHfCutoff = hfOut[0];
         } else {
             // Direct line is clear (or occlusion is skipped): ease the compensation
             // back to zero so leaving a shadow fades rather than pops.
@@ -325,7 +344,7 @@ public final class SoundFXUtils {
         final float waterGainFactor = Math.max(0.15F, (float) Math.sqrt(gainFactor));
 
 
-        uploadSettings(reverb, directCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
+        uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
 
     /**
@@ -446,7 +465,7 @@ public final class SoundFXUtils {
      * @return the updated direct cutoff; the reverb cutoffs are lifted in place.
      */
     private float applyDiffraction(final WorldContext ctx, final Vec3 soundPos, final Vec3 listener,
-            float directCutoff, final boolean snap, final ReverbTrace reverb) {
+            float directCutoff, final boolean snap, final ReverbTrace reverb, final float[] hfOut) {
         final float geometricDiffraction = calculateDiffraction(ctx, soundPos, listener, this.lastOccluderPos);
         // Auxiliary factor: a wide obstacle still has a reachable edge, but the
         // long detour makes the geometric falloff inaudible. Floor it (only when an
@@ -469,7 +488,15 @@ public final class SoundFXUtils {
         // enclosure both step at once) fades the muffling instead of snapping it.
         final float smoothedComp = this.source.smoothDiffraction(compensation, snap);
         directCutoff = Math.max(smoothedComp, directCutoff);
-        final float reverbComp = smoothedComp * DIFFRACTION_REVERB_SCALE;
+        // The restore drives the high-frequency gain through this power rather than linearly, so a
+        // partial restore returns most of the level but little of the brightness - which is what an
+        // edge-diffracted path actually does. At DIFFRACTION_HF_DAMPING == 1 this is the original
+        // expression.
+        final float hfComp = DIFFRACTION_HF_DAMPING == 1F
+                ? smoothedComp
+                : (float) MathStuff.pow(smoothedComp, DIFFRACTION_HF_DAMPING);
+        hfOut[0] = Math.max(hfComp, hfOut[0]);
+        final float reverbComp = hfComp * DIFFRACTION_REVERB_SCALE;
         reverb.sendCutoff0 = Math.max(reverb.sendCutoff0, reverbComp);
         reverb.sendCutoff1 = Math.max(reverb.sendCutoff1, reverbComp);
         reverb.sendCutoff2 = Math.max(reverb.sendCutoff2, reverbComp);
@@ -495,7 +522,7 @@ public final class SoundFXUtils {
     }
 
     /** Writes the computed effect parameters onto the source under its sync lock. */
-    private void uploadSettings(final ReverbTrace reverb, final float directCutoff, final float directGain,
+    private void uploadSettings(final ReverbTrace reverb, final float directHfCutoff, final float directGain,
             final float waterFactor, final float waterGainFactor, final float airAbsorptionFactor) {
 
         final LowPassData lp0 = this.source.getLowPass0();
@@ -523,7 +550,7 @@ public final class SoundFXUtils {
             lp3.setProcess(true);
 
             direct.gain = directGain * waterGainFactor;
-            direct.gainHF = directCutoff * waterFactor;
+            direct.gainHF = directHfCutoff * waterFactor;
             direct.setProcess(true);
 
             prop.setValue(airAbsorptionFactor);

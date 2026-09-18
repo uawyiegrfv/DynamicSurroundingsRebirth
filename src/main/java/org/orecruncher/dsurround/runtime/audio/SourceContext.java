@@ -71,9 +71,6 @@ public final class SourceContext implements Callable<Void> {
     // entering/exiting water responds with no audible lag.
     private volatile boolean immediateUpdate;
 
-    // TEMPORARY DIAGNOSTIC (remove once the reverb report is closed).
-    public int rvbEvals;
-
     public SourceContext(int sourceId) {
         this.sourceId = sourceId;
         this.lowPass0 = new LowPassData();
@@ -305,7 +302,6 @@ public final class SourceContext implements Callable<Void> {
 
     private void updateImpl() {
         try {
-            this.rvbEvals++;
             this.fxProcessor.calculate(SoundFXProcessor.getWorldContext());
         } catch (final Throwable t) {
             // Suppress to keep a failing source from killing the processing thread, but

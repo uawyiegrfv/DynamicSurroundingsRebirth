@@ -146,7 +146,7 @@ public final class Effects {
 
         activeSends = Math.min(4, AudioUtilities.getMaxAuxSends());
         // DIAG(1.20.1): reverb slots
-        org.orecruncher.dsurround.lib.Library.LOGGER.info("REVERB_INIT activeSends=%d maxAuxSends=%d", getActiveSends(), AudioUtilities.getMaxAuxSends());
+        org.orecruncher.dsurround.lib.Library.LOGGER.debug("REVERB_INIT activeSends=%d", getActiveSends());
         if (activeSends <= 0)
             return;
 
@@ -161,9 +161,8 @@ public final class Effects {
             // are static per zone, so the binding never needs to change afterwards.
             REVERB_SLOTS[i].apply(REVERB_DATA[i], AUX_SLOTS[i]);
             // DIAG(1.20.1): confirm the OpenAL objects are real (non-zero handles)
-            org.orecruncher.dsurround.lib.Library.LOGGER.info("REVERB_SLOT[%d] aux=%d effect=%d effectGain=%.4f decay=%.2f reflections=%.3f late=%.3f",
-                    i, AUX_SLOTS[i].getSlot(), REVERB_SLOTS[i].getSlot(), REVERB_DATA[i].gain, REVERB_DATA[i].decayTime,
-                    REVERB_DATA[i].reflectionsGain, REVERB_DATA[i].lateReverbGain);
+            org.orecruncher.dsurround.lib.Library.LOGGER.debug("REVERB_SLOT[%d] aux=%d effect=%d effectGain=%.3f decay=%.2f",
+                    i, AUX_SLOTS[i].getSlot(), REVERB_SLOTS[i].getSlot(), REVERB_DATA[i].gain, REVERB_DATA[i].decayTime);
         }
     }
 
@@ -202,11 +201,8 @@ public final class Effects {
         if (++applyCounter % 140 == 0) {
             var sound = source.getSound();
             var soundId = sound == null ? "?" : sound.getLocation().toString();
-            // TEMPORARY DIAGNOSTIC (remove): the SoundSource category, so the reverb profile of
-            // block sounds can be compared against the player's own sounds (steps / voice).
-            var rvbCategory = sound == null ? "?" : sound.getSource().getName();
-            LOGGER.info("REVERB_STEADY src=%d cat=%s sound=%s pos=%.1f,%.1f,%.1f sends=%d process=[%s,%s,%s,%s] gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f/%s] filters=[%d,%d,%d,%d]/%d",
-                    sourceId, rvbCategory, soundId, source.getPosition().x, source.getPosition().y, source.getPosition().z, activeSends,
+            LOGGER.debug("REVERB_STEADY src=%d sound=%s pos=%.1f,%.1f,%.1f sends=%d process=[%s,%s,%s,%s] gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f/%s] filters=[%d,%d,%d,%d]/%d",
+                    sourceId, soundId, source.getPosition().x, source.getPosition().y, source.getPosition().z, activeSends,
                     source.getLowPass(0).doProcess(), source.getLowPass(1).doProcess(),
                     source.getLowPass(2).doProcess(), source.getLowPass(3).doProcess(),
                     source.getLowPass(0).gain, source.getLowPass(1).gain, source.getLowPass(2).gain, source.getLowPass(3).gain,

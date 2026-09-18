@@ -44,11 +44,6 @@ public abstract class MixinSoundEngine {
      */
     @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V", at = @At("HEAD"), cancellable = true)
     private void dsurround_play(SoundInstance sound, CallbackInfo ci) {
-        // TEMPORARY DIAGNOSTIC (remove): every sound vanilla actually asks to play, before any DS
-        // decision. Pairs with the [RVB] lines: a sound with play-entry but no attached/ignored was
-        // swallowed between here and the channel setup.
-        org.orecruncher.dsurround.runtime.audio.SoundFXProcessor.rvb("play-entry",
-                "%s".formatted(org.orecruncher.dsurround.runtime.audio.AudioUtilities.debugString(sound)));
         try {
             // A hard-blocked sound is cancelled outright - a matching remap rule must
             // not resurrect it. Culled sounds cancel below but keep falling through to
@@ -100,9 +95,6 @@ public abstract class MixinSoundEngine {
      */
     @Inject(method = "play(Lnet/minecraft/client/resources/sounds/SoundInstance;)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/phys/Vec3;<init>(DDD)V"), cancellable = true)
     private void dsurround_soundRangeCheck(SoundInstance soundInstance, CallbackInfo ci) {
-        // TEMPORARY DIAGNOSTIC (remove): a cull here means the sound never reaches a channel.
-        org.orecruncher.dsurround.runtime.audio.SoundFXProcessor.rvb("range-cull",
-                "%s".formatted(org.orecruncher.dsurround.runtime.audio.AudioUtilities.debugString(soundInstance)));
         if (MixinHelpers.soundSystemConfig.enableSoundPruning) {
             if (SoundInstanceHandler.outOfRange(soundInstance, 4)) {
                 MixinHelpers.LOGGER.debug(Configuration.Flags.BASIC_SOUND_PLAY, () -> "TOO FAR: " + AudioUtilities.debugString(soundInstance));

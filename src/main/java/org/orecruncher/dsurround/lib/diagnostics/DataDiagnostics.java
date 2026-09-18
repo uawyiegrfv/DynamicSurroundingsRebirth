@@ -113,6 +113,14 @@ public final class DataDiagnostics {
         NOTES.clear();
     }
 
+    /** Distinct findings per kind, so the one-line summary says what is wrong, not just how much. */
+    private static Map<String, Integer> summariseByKind(final List<Finding> findings) {
+        final Map<String, Integer> byKind = new LinkedHashMap<>();
+        for (final Finding f : findings)
+            byKind.merge(f.kind(), 1, Integer::sum);
+        return byKind;
+    }
+
     /**
      * Emits the collected findings. Called after all data has loaded, so one log read is enough to
      * see everything that did not work.
@@ -125,10 +133,20 @@ public final class DataDiagnostics {
             LOGGER.info("Data self-check: no problems found%s",
                     notes.isEmpty() ? "" : String.format(" (%d note(s))", notes.size()));
         } else {
-            LOGGER.warn("Data self-check: %d problem(s) - the data named below did NOT load or does nothing",
-                    problems.size());
-            for (final Finding f : problems)
-                LOGGER.warn("  %s", f);
+            // ONE line. Itemising every problem here duplicated the self-check that runs
+            // immediately afterwards, and on a build whose data still carries blocks from other
+            // game versions the itemised form produced a wall of warnings in which the ids that
+            // were actually wrong were indistinguishable from the ones merely absent. The
+            // breakdown by kind is what makes the count actionable; the itemised list still
+            // reaches the log at info level, or /dsdump validate on demand.
+            final StringBuilder kinds = new StringBuilder();
+            for (final Map.Entry<String, Integer> e : summariseByKind(problems).entrySet()) {
+                if (kinds.length() > 0)
+                    kinds.append(", ");
+                kinds.append(e.getKey()).append('=').append(e.getValue());
+            }
+            LOGGER.warn("Data self-check: %d problem(s) - the data named below did NOT load or does nothing (%s); the itemised list follows below or via /dsdump validate",
+                    problems.size(), kinds);
         }
 
         for (final Finding f : notes)

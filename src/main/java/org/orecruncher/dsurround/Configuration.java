@@ -221,6 +221,14 @@ public class Configuration extends ConfigurationData {
         public boolean logAudioTrace = false;
 
         @Property
+        @Comment("Occlusion only: relative weight of each octave band (lowest first) when the per-band attenuations are combined. The defaults (0.50 low, 0.35 mid, 0.15 high) follow the principle that low frequencies are the ones that reach the listener around an obstacle; they are a judgement call rather than a measured spectrum, so they are exposed for testing. '/dstune bandWeights 0.7,0.25,0.05' makes a hill even more transparent")
+        public String bandWeights = "0.50,0.35,0.15";
+
+        @Property
+        @Comment("Occlusion only: the octave bands in Hz the Fresnel zone is measured in, lowest first. The zone radius scales as 1/sqrt(frequency), so the lowest band decides whether a large obstacle (a hill) is a wall or a nuisance. '/dstune bandFrequencies 63,250,1000' shifts the whole model down an octave")
+        public String bandFrequencies = "125,500,2000";
+
+        @Property
         @IntegerRange(min = 16, max = 64)
         @RestartRequired
         @Comment("The number of rays to project around a sound location to calculate reverb effect")

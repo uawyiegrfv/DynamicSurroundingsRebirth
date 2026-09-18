@@ -40,6 +40,9 @@ public final class AudioTuning {
     private static volatile float realismFrequencyHz = clamp((float) CONFIG.realismFrequencyHz, 100F, 4000F);
     private static volatile int aperturePlanes = clamp(CONFIG.aperturePlanes, 1, 4);
     private static volatile float occlusionFocusDistance = clamp((float) CONFIG.occlusionFocusDistance, 0F, 64F);
+    private static volatile float occlusionConeDegrees = clamp((float) CONFIG.occlusionConeDegrees, 0F, 45F);
+    private static volatile boolean occlusionFresnelZone = CONFIG.occlusionFresnelZone;
+    private static volatile float occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
 
     /**
      * The most recent evaluation's numbers, for {@code /dstune}. Diagnostics only: two rounds of
@@ -133,6 +136,24 @@ public final class AudioTuning {
      */
     public static float occlusionFocusDistance() {
         return occlusionFocusDistance;
+    }
+
+    /**
+     * Half-angle in degrees of the cone the occlusion rays sample. An angle, so it behaves the same at
+     * any distance; 0 puts every ray on the axis.
+     */
+    public static float occlusionConeDegrees() {
+        return occlusionConeDegrees;
+    }
+
+    /** Whether the occlusion comes from the Fresnel-zone clear fraction rather than a material sum. */
+    public static boolean occlusionFresnelZone() {
+        return occlusionFresnelZone;
+    }
+
+    /** Excess attenuation in dB when an aperture plane is completely covered. */
+    public static float occlusionLossDb() {
+        return occlusionLossDb;
     }
 
     /** Total rays the occlusion fan traces, for diagnostics. */
@@ -243,12 +264,31 @@ public final class AudioTuning {
                 occlusionFocusDistance = v;
                 return describe(key, old, v);
             }
+            case "occlusionConeDegrees": {
+                final float v = clamp(parseFloat(key, value), 0F, 45F);
+                final float old = occlusionConeDegrees;
+                occlusionConeDegrees = v;
+                return describe(key, old, v);
+            }
+            case "occlusionFresnelZone": {
+                final boolean v = Boolean.parseBoolean(value);
+                final boolean old = occlusionFresnelZone;
+                occlusionFresnelZone = v;
+                return describe(key, old, v);
+            }
+            case "occlusionLossDb": {
+                final float v = clamp(parseFloat(key, value), 0F, 60F);
+                final float old = occlusionLossDb;
+                occlusionLossDb = v;
+                return describe(key, old, v);
+            }
             default:
                 throw new IllegalArgumentException("Unknown key '" + key + "'. Try: "
                         + "diffractionLevelStrength, diffractionHfStrength, diffractionRings, "
                         + "occlusionSegments, occlusionFanRays, evaluateOnSoundThread, "
                         + "apertureStrength, apertureRadius, realismWavelength, realismFrequencyHz, "
-                        + "aperturePlanes, occlusionFocusDistance");
+                        + "aperturePlanes, occlusionFocusDistance, occlusionConeDegrees, "
+                        + "occlusionFresnelZone, occlusionLossDb");
         }
     }
 
@@ -266,6 +306,9 @@ public final class AudioTuning {
         realismFrequencyHz = clamp((float) CONFIG.realismFrequencyHz, 100F, 4000F);
         aperturePlanes = clamp(CONFIG.aperturePlanes, 1, 4);
         occlusionFocusDistance = clamp((float) CONFIG.occlusionFocusDistance, 0F, 64F);
+        occlusionConeDegrees = clamp((float) CONFIG.occlusionConeDegrees, 0F, 45F);
+        occlusionFresnelZone = CONFIG.occlusionFresnelZone;
+        occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
         return "Restored from config:\n" + describeAll();
     }
 
@@ -284,12 +327,16 @@ public final class AudioTuning {
                         + "  realismFrequencyHz       = %.0f   (config: enhancedSounds.realismFrequencyHz, 100-4000)%n"
                         + "  aperturePlanes           = %d   (config: enhancedSounds.aperturePlanes, 1-4)%n"
                         + "  occlusionFocusDistance   = %.1f   (config: enhancedSounds.occlusionFocusDistance, 0-64 blocks; 0 = every block counts fully)%n"
+                        + "  occlusionConeDegrees     = %.1f   (config: enhancedSounds.occlusionConeDegrees, 0-45; half-angle of the sampled cone)%n"
+                        + "  occlusionFresnelZone     = %b   (config: enhancedSounds.occlusionFresnelZone; zone clear fraction instead of a material sum)%n"
+                        + "  occlusionLossDb          = %.1f   (config: enhancedSounds.occlusionLossDb, 0-60; excess attenuation for a fully covered plane)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
                         + "Last evaluation: %s",
                 diffractionLevelStrength, diffractionHfStrength, diffractionRings, diffractionRings * 8,
                 occlusionSegments, occlusionFanRays(), evaluateOnSoundThread,
                 apertureStrength, apertureRadius,
-                realismWavelength, realismFrequencyHz, aperturePlanes, occlusionFocusDistance, lastTrace);
+                realismWavelength, realismFrequencyHz, aperturePlanes, occlusionFocusDistance,
+                occlusionConeDegrees, occlusionFresnelZone, occlusionLossDb, lastTrace);
     }
 
     // ------------------------------------------------------------------ helpers

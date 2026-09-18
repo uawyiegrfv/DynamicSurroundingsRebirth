@@ -157,6 +157,11 @@ public final class SoundFXUtils {
      */
     private static final float ZONE_BLOCKING_MATERIAL = 0.12F;
     /**
+     * Weight of the cone's rim rays against the axis rays. The axis carries the sound, so the rim
+     * counts for less; this is what keeps a lone pillar clipping one rim ray from swinging the result.
+     */
+    private static final float AXIS_WEIGHT_FLOOR = 0.5F;
+    /**
      * Hard cap on the segments a single aperture trace may walk. The aperture is an area average, so
      * a long trace crossing dozens of blocks does not need exact resolution - the cap bounds the cost
      * of one evaluation no matter how far the sound is.
@@ -281,6 +286,8 @@ public final class SoundFXUtils {
     private float lastFresnelRadius;
     /** The fan's own average from the most recent measurement, before the aperture blend. */
     private float lastFanAverage;
+    /** Excess attenuation in dB from the Fresnel-zone model on the most recent measurement. */
+    private float lastZoneLossDb;
     /**
      * Scratch space for the per-plane breakdown of the most recent aperture trace: the cumulative
      * distance-weighted occlusion at each plane crossing, and the cumulative raw material thickness.
@@ -447,13 +454,13 @@ public final class SoundFXUtils {
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
-                        + "fresnel=%.2f fan=%.3f",
+                        + "fresnel=%.2f fan=%.3f zonedb=%.1f",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 directCutoff <= 0F ? 0F : (directCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 this.lastCenterOcclusion, this.lastApertureLeak, sendOcclusionGain,
-                this.lastFresnelRadius, this.lastFanAverage));
+                this.lastFresnelRadius, this.lastFanAverage, this.lastZoneLossDb));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -703,6 +710,7 @@ public final class SoundFXUtils {
             this.lastOccluderPos = null;
             this.lastCenterOcclusion = 0F;
             this.lastApertureLeak = 0F;
+            this.lastZoneLossDb = 0F;
             return 0F;
         }
 
@@ -743,7 +751,15 @@ public final class SoundFXUtils {
         // aperture is blocked", and treating it as such would throw the fan away in exactly the case
         // the fan exists for (centre line clear, edge of the cone blocked).
         final boolean apertureRan = this.lastOccluderPos != null;
-        this.lastApertureLeak = apertureRan ? calculateApertureLeak(ctx, origin, target) : 0F;
+        if (apertureRan) {
+            this.lastApertureLeak = calculateApertureLeak(ctx, origin, target);
+        } else {
+            // Nothing on the straight line, so the Fresnel zone is not blocked at any plane: clear the
+            // zone loss, or the zone model would keep applying the PREVIOUS evaluation's wall to a line
+            // that is now open.
+            this.lastApertureLeak = 0F;
+            this.lastZoneLossDb = 0F;
+        }
         // Weight the centre ray's score by how much of the wavefront actually gets through. This is
         // the whole point of the aperture: the centre ray answers "is something on the line?", so
         // several obstacles on it used to muffle the sound exactly like a sealed room, even with the
@@ -758,37 +774,59 @@ public final class SoundFXUtils {
         final float centerWeight = centerFactor;
 
         final Vec3 dir = target.subtract(origin).normalize();
-        // Two orthogonal axes perpendicular to the bearing; the fan targets are points in
-        // that plane around the player's eye. Use the world Y axis (or X if the bearing is
-        // nearly vertical) to seed the cross product so the axes stay well-defined.
+        // Two orthogonal axes perpendicular to the bearing. Use the world Y axis (or X if the bearing
+        // is nearly vertical) to seed the cross product so the axes stay well-defined.
         final Vec3 seed = Math.abs(dir.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
         final Vec3 axis1 = dir.cross(seed).normalize();
         final Vec3 axis2 = dir.cross(axis1).normalize();
-        final int rings = occlusionFanRings();
-        for (int ring = 1; ring <= rings; ring++) {
-            // The innermost ring is the original 0.6-block offset; extra rings fill the cone between
-            // the centre ray and that edge, so the same cone is sampled more finely without widening it.
-            final float spread = 0.6F * ring / rings;
-            for (final float s : new float[]{-1F, 1F}) {
-                factor += traceOcclusion(ctx, rayOrigin, target.add(axis1.scale(spread * s)), null);
-                factor += traceOcclusion(ctx, rayOrigin, target.add(axis2.scale(spread * s)), null);
-                rays += 2;
+        // The cone is an ANGLE off the axis, not a fixed offset at the listener. A fixed offset is
+        // distance-dependent and was 0.86 degrees at 40 blocks, so the rays were parallel to within a
+        // fraction of a block - they could not sample a cone, and (measured on 1.20.1) reported
+        // occlusion 5.08 against a completely clear centre ray, because a ray 0.6 blocks off an eye
+        // 1.62 blocks up hits the ground beside the player at full weight.
+        final double halfAngle = Math.toRadians(AudioTuning.occlusionConeDegrees());
+        final float cosHalf = (float) Math.cos(halfAngle);
+        final float sinHalf = (float) Math.sin(halfAngle);
+        final int fanRays = AudioTuning.occlusionFanRays() - 1;
+        float fanWeighted = 0F;
+        float fanWeightTotal = 0F;
+        final double rayLength = target.distanceTo(rayOrigin);
+        for (int i = 0; i < fanRays; i++) {
+            // Half the rays sit on the axis (so the straight line is properly represented) and the rest
+            // are spread around the cone's rim, which is where an opening or an obstacle edge shows up.
+            final boolean onAxis = i < fanRays / 2;
+            final double azimuth = 2.0D * Math.PI * i / Math.max(1, fanRays - fanRays / 2);
+            final Vec3 rayDir;
+            if (onAxis) {
+                rayDir = dir;
+            } else {
+                final Vec3 offset = axis1.scale(Math.cos(azimuth) * sinHalf)
+                        .add(axis2.scale(Math.sin(azimuth) * sinHalf));
+                rayDir = dir.scale(cosHalf).add(offset).normalize();
             }
+            // The axis carries the sound and the rim of the cone much less, so a lone pillar clipping
+            // one rim ray cannot swing the result the way an unweighted average did.
+            final float weight = onAxis ? 1F : AXIS_WEIGHT_FLOOR;
+            fanWeighted += traceOcclusion(ctx, rayOrigin, target.add(rayDir.scale(rayLength)), null) * weight;
+            fanWeightTotal += weight;
+            rays++;
         }
 
-        final float fanAverage = factor / rays;
-        // The fan's five rays are parallel to within a fraction of a block over a long distance (a
-        // 0.6-block cone is 0.86 degrees at 40 blocks), so they re-measure the same line rather than
-        // sampling a cone, and their answer can be far harsher than the centre ray's: measured on
-        // 1.20.1, a clear centre ray (0.010) alongside a fan average of 6.950, and 0.000 alongside
-        // 6.320. Because the result is their average, that noise became the occlusion. The aperture
-        // measures the same question properly (an area, with material weighting), so let it decide how
-        // much the fan is trusted: the clearer the aperture, the more the centre ray wins.
+        final float fanAverage = fanWeightTotal > 0F ? fanWeighted / fanWeightTotal : centerFactor;
+        // The cone rays can still be harsher than the axis: a rim ray grazing a hillside a few blocks
+        // from the player is real geometry at full weight, while the axis is clear. The aperture
+        // measures the same question with an actual area and material weighting, so let it decide how
+        // much the cone is trusted: the clearer the aperture, the more the axis wins. A low leak means
+        // the line really is walled off, the cone keeps its say, and a wall still mutes.
         final float fanWeight = apertureRan
                 ? 1F - AudioTuning.apertureStrength() * this.lastApertureLeak
                 : 1F;
         this.lastFanAverage = fanAverage;
-        return centerWeight + (fanAverage - centerWeight) * fanWeight;
+        final float blended = centerWeight + (fanAverage - centerWeight) * fanWeight;
+        // The zone model replaces the material sum entirely when it has a measurement: the coefficient
+        // it produces is the one whose exp(-c * absorption) equals the physically derived attenuation.
+        final float zoneCoefficient = zoneOcclusionCoefficient(Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F);
+        return zoneCoefficient >= 0F ? zoneCoefficient : blended;
     }
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target,
@@ -978,6 +1016,7 @@ public final class SoundFXUtils {
         // product of the planes: one ray cannot pass a plane that blocks it, however open the others
         // are. This is what makes the answer fall properly as obstacles accumulate along the line.
         float worstClear = 1F;
+        float excessDb = 0F;
         for (int i = 0; i < planes; i++) {
             if (planeWeight[i] <= 0F)
                 continue;
@@ -987,9 +1026,30 @@ public final class SoundFXUtils {
             final float arrival = planeAbsorption[i] < 0F
                     ? 0F
                     : (float) MathStuff.exp(-planeAbsorption[i] * absorption);
-            worstClear = Math.min(worstClear, clear * arrival);
+            final float planeClear = MathStuff.clamp1(clear * arrival);
+            worstClear = Math.min(worstClear, planeClear);
+            // Excess attenuation of this plane, from the standard Fresnel result: an obstacle covering a
+            // small part of the zone costs almost nothing, and only a covered zone goes silent. The
+            // losses of the planes ADD (decibels add), which is why several obstacles attenuate more
+            // than one - but nothing like a material sum does.
+            final float blocked = 1F - planeClear;
+            excessDb += 0.2F + AudioTuning.occlusionLossDb() * blocked * blocked;
         }
+        this.lastZoneLossDb = excessDb;
         return MathStuff.clamp1(worstClear);
+    }
+
+    /**
+     * The occlusion coefficient the rest of the pipeline consumes, derived from the zone model's excess
+     * attenuation instead of a material sum. The pipeline turns the coefficient into
+     * exp(-coefficient * absorption), so inverting that gives the coefficient that produces exactly the
+     * measured loss - nothing downstream has to know which model ran.
+     */
+    private float zoneOcclusionCoefficient(final float absorption) {
+        if (!AudioTuning.occlusionFresnelZone() || this.lastZoneLossDb <= 0F)
+            return -1F;
+        final double transmission = Math.pow(10.0D, -this.lastZoneLossDb / 20.0D);
+        return (float) (-Math.log(Math.max(1.0E-6D, transmission)) / Math.max(1.0E-6F, absorption));
     }
 
     /**

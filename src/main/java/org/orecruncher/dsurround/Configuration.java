@@ -203,6 +203,20 @@ public class Configuration extends ConfigurationData {
         public double occlusionFocusDistance = 8.0D;
 
         @Property
+        @DoubleRange(min = 0.0D, max = 45.0D)
+        @Comment("Occlusion only: half-angle in degrees of the cone the occlusion rays sample. This is an ANGLE, so it stays meaningful at any distance: 12 degrees covers a person-sized opening 8 blocks away and still spreads the rays apart at 40 blocks. The old 0.6-block perpendicular offset was 0.86 degrees at 40 blocks, which meant the rays were parallel to within a fraction of a block and measured the ground beside the player instead of the cone - the single largest cause of 'muffled in the open'. 0 puts every ray on the axis (the previous behaviour)")
+        public double occlusionConeDegrees = 12.0D;
+
+        @Property
+        @Comment("Occlusion only: drive the occlusion from the FIRST FRESNEL ZONE clear fraction measured at each aperture plane (a wavefront goes AROUND an obstacle: a thin wall costs a few dB, only a sealed zone goes silent) instead of summing occlusion x distance over every block on the line (sound travelling THROUGH an absorbing medium, where a 1-block and a 10-block wall differ by three orders of magnitude). This is the physically correct model and the fix for 'several obstacles on the line still muffle the sound'. Turn off to get the material-sum behaviour back")
+        public boolean occlusionFresnelZone = true;
+
+        @Property
+        @DoubleRange(min = 0.0D, max = 60.0D)
+        @Comment("Occlusion only: excess attenuation in dB when an aperture plane is COMPLETELY covered (the Fresnel-zone model). It falls as the square of the clear fraction, so a plane that is 90% clear costs only about 0.25 dB while a half-covered one costs about 6 dB. 25 dB for a sealed plane keeps a real wall clearly muffled without the material-sum model's total silence")
+        public double occlusionLossDb = 25.0D;
+
+        @Property
         @IntegerRange(min = 16, max = 64)
         @RestartRequired
         @Comment("The number of rays to project around a sound location to calculate reverb effect")

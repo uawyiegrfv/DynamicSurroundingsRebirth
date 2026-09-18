@@ -51,6 +51,17 @@ public class BlockInfo {
         public static final float LOW = 0.35F;
         public static final float MEDIUM = 0.5F;
         public static final float HIGH = 0.65F;
+        // VERY_HIGH is reachable only through the dsurround:reflectance/very_high tag, and that
+        // tag ships empty, so no block gets 0.8 out of the box. That is intentional, not an
+        // oversight - do not "fix" it in either direction. Filling it would mean guessing which
+        // blocks the author wanted at this step; deleting it would remove a step of a deliberate
+        // 7-step ladder (0 / 0.15 / 0.35 / 0.5 / 0.65 / 0.8 / 1.0) consumed by the reverb ray
+        // tracing, and would delete a working extension point: dsconfigs are also read from the
+        // user config directory, so a datapack or modpack can put blocks in that tag and get 0.8
+        // reflectance. The self-check reports the empty tag as a Note rather than a Problem, which
+        // matches this reading. (Same shape as ItemEffectTags.ARMOR_SLIMEY.)
+        // NOTE: this anchor is the Reflectance ladder specifically - Occlusion has identical
+        // NONE..MAX values and is distinguished by VIBRATION/DEFAULT below.
         public static final float VERY_HIGH = 0.8F;
         public static final float MAX = 1.0F;
         public static final float VIBRATION = LOW;

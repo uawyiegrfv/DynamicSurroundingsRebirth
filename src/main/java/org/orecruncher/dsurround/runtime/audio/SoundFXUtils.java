@@ -819,11 +819,21 @@ public final class SoundFXUtils {
                 ? 1F - AudioTuning.apertureStrength() * this.lastApertureLeak
                 : 1F;
         this.lastFanAverage = fanAverage;
-        final float blended = centerWeight + (fanAverage - centerWeight) * fanWeight;
-        // The zone model replaces the material sum entirely when it has a measurement: the coefficient
-        // it produces is the one whose exp(-c * absorption) equals the physically derived attenuation.
+        // The zone model replaces both the material sum AND the fan when it has a measurement: the
+        // coefficient it produces is the one whose exp(-c * absorption) equals the physically derived
+        // attenuation.
         final float zoneCoefficient = zoneOcclusionCoefficient(Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F);
-        return zoneCoefficient >= 0F ? zoneCoefficient : blended;
+        if (zoneCoefficient >= 0F)
+            return zoneCoefficient;
+        // No zone measurement (the centre ray is clear, so there is nothing to measure around), or the
+        // zone model is off. The centre ray is then the honest answer on its own: it is the line the
+        // sound travels. The fan is NOT blended in here, because a 12-degree cone is 1.7 blocks wide at
+        // 8 blocks and therefore sweeps the wall beside or behind the listener, which drove the sound
+        // to silence on lines with nothing on them - measured on 1.20.1 as occlusion 4.450 against a
+        // completely clear centre ray (0.000). It is still computed and reported as fan=, and it still
+        // drives the occlusion when the zone model is switched off.
+        final float blended = centerWeight + (fanAverage - centerWeight) * fanWeight;
+        return AudioTuning.occlusionFresnelZone() ? centerWeight : blended;
     }
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target,

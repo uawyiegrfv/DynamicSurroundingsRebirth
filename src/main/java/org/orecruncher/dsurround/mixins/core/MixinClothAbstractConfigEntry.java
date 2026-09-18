@@ -13,9 +13,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * NOTE: This mixin will fail application if Cloth Config is not present. Not harmful, just emits noise into logs
  * and can make some folks concerned.
  *
- * 1.20.1: @Overwrite cannot be used here - the Mixin AP cannot locate an
- * obfuscation mapping for a method on a third-party (Cloth) class. The method
- * is replaced with an equivalent HEAD-inject + setReturnValue instead.
+ * Uses a HEAD @Inject + setReturnValue rather than @Overwrite; the 1.21.1 and 26.1 builds were
+ * changed to match. Two reasons:
+ * <ul>
+ *   <li>@Overwrite is exclusive. This targets a method on ANOTHER MOD's class
+ *       ({@code me.shedaniel.clothconfig2.api.AbstractConfigEntry}), so a Cloth Config rename or a
+ *       second mod touching the same method makes one of them fail to apply - and with
+ *       {@code "required": true} plus {@code defaultRequire: 1} that is a launch crash, not a
+ *       silent degradation. A HEAD inject composes with other injects instead.</li>
+ *   <li>@Overwrite needs a mapping for the method it replaces. On 1.20.1 the Mixin AP cannot locate
+ *       an obfuscation mapping for a method on a third-party (Cloth) class, which is why
+ *       {@code remap = false} is set here; the other two builds now do the same so all three
+ *       behave identically.</li>
+ * </ul>
  */
 @Mixin(AbstractConfigEntry.class)
 public class MixinClothAbstractConfigEntry {

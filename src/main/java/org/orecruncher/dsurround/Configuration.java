@@ -155,9 +155,15 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @Slider
-        @DoubleRange(min = 1.0D, max = 4.0D)
-        @Comment("Occlusion only: how much more the restored high frequencies are damped than the level when sound bends around an obstacle's edge. 1.0 = broadband restore (original behaviour, and brighter than reality). 2.0 means a source behind a wall comes back audible but still dull, which is what edge diffraction actually does - it attenuates the short wavelengths first")
-        public double diffractionHfDamping = 1.0D;
+        @DoubleRange(min = 0.05D, max = 1.0D)
+        @Comment("Occlusion only: ceiling on the high-frequency gain that diffraction may restore. 1.0 = no ceiling (original behaviour, which let a wall restore the highs almost completely and made occlusion inaudible). 0.25 caps the restored highs at about -12 dB, so a source behind a wall stays audible but clearly muffled - which is what edge diffraction does, since it attenuates the short wavelengths first")
+        public double diffractionHfCeiling = 0.25D;
+
+        @Property
+        @IntegerRange(min = 1, max = 6)
+        @RestartRequired
+        @Comment("Occlusion only: how many detour rings the diffraction probe sums over. The original code stopped at the first ring that found any waypoint, so it could not tell a 1-block wall from a 1.5-block wall. More rings discriminate better and smooth the transition, at a cost of 8 rays each (3 = 24 probes)")
+        public int diffractionRings = 3;
 
         @Property
         @IntegerRange(min = 16, max = 64)

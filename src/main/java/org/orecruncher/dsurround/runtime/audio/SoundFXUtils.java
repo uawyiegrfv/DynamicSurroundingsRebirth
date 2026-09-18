@@ -54,14 +54,6 @@ public final class SoundFXUtils {
     private static int occlusionFanRings() {
         return AudioTuning.occlusionFanRings();
     }
-    /**
-     * Exponent applied to the diffraction restore when it drives the HIGH-frequency gain, so a
-     * partial restore comes back much duller than it does loud. 1.0 reproduces the original
-     * broadband behaviour. Read live from {@link AudioTuning}.
-     */
-    private static float diffractionHfDamping() {
-        return AudioTuning.diffractionHfDamping();
-    }
 
     /**
      * Length of the source-enclosure / player-openness probe rays. Must reach the
@@ -108,6 +100,19 @@ public final class SoundFXUtils {
      * beyond that the obstacle is treated as terrain and stays muffled.
      */
     private static final float[] DETOUR_RADII = {1.5F, 3F, 5F, 8F, 12F, 16F};
+
+    /**
+     * How many of the detour rings are summed. Read live from {@link AudioTuning} so
+     * {@code /dstune} can change it without a restart.
+     */
+    private static int diffractionRings() {
+        return AudioTuning.diffractionRings();
+    }
+
+    /** Ceiling on the high-frequency gain diffraction may restore. Read live. */
+    private static float diffractionHfCeiling() {
+        return AudioTuning.diffractionHfCeiling();
+    }
     /**
      * Waypoints per detour ring. 8 samples the perpendicular directions (around the
      * sides, over the top, under) densely enough to find the shortest edge while
@@ -497,10 +502,12 @@ public final class SoundFXUtils {
         // partial restore returns most of the level but little of the brightness - which is what an
         // edge-diffracted path actually does. At DIFFRACTION_HF_DAMPING == 1 this is the original
         // expression.
-        final float hfDamping = diffractionHfDamping();
-        final float hfComp = hfDamping == 1F
-                ? smoothedComp
-                : (float) MathStuff.pow(smoothedComp, hfDamping);
+        // An edge-diffracted path is always spectrally duller than the direct one, so the restored
+        // high-frequency gain is capped rather than simply following the level. Without this a
+        // 1-block stone wall restored the highs from -26 dB to -1.4 dB and occlusion was inaudible.
+        // Self-limiting: when the direct line is only partly blocked the occlusion cutoff is higher
+        // and the max() below keeps that value, so the ceiling only bites when it should.
+        final float hfComp = Math.min(smoothedComp, diffractionHfCeiling());
         hfOut[0] = Math.max(hfComp, hfOut[0]);
         final float reverbComp = hfComp * DIFFRACTION_REVERB_SCALE;
         reverb.sendCutoff0 = Math.max(reverb.sendCutoff0, reverbComp);
@@ -746,10 +753,30 @@ public final class SoundFXUtils {
         final Vec3 u = d.cross(seed).normalize();
         final Vec3 v = d.cross(u).normalize();
 
+        // Weighted sum over every sample instead of the shortest unobstructed path. Taking the
+        // minimum made the value jump whenever the "best" edge changed sides, and - because the
+        // old code returned on the first ring that found anything - the whole result depended on a
+        // single sample of the innermost ring. Summing over rings removes that dependence and
+        // lowers the restore, because a distant ring's longer detour contributes less.
+        //
+        // This is the practical, incoherent form of the Huygens-Fresnel idea: treat the reachable
+        // waypoints as secondary sources and add up their contributions, ignoring phase. A shorter
+        // detour contributes more (1/(1 + falloff*delta)); nearer rings are weighted higher so a
+        // far ring cannot dominate just by having more clear samples.
+        //
+        // Known limitation, NOT fixed here: the rings sit in the plane perpendicular to the
+        // bearing, so their offsets slide ALONG a flat wall's face. A wall therefore reads about
+        // the same at 1 block and at 2 blocks thick; thickness sensitivity would need samples
+        // offset along the bearing as well.
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
-        for (final float radius : DETOUR_RADII) {
-            float bestDelta = Float.POSITIVE_INFINITY;
+        final int rings = Math.min(diffractionRings(), DETOUR_RADII.length);
+        float weighted = 0F;
+        float totalWeight = 0F;
+        for (int r = 0; r < rings; r++) {
+            final float radius = DETOUR_RADII[r];
+            final float ringWeight = 1F / (1F + radius);
             for (int k = 0; k < DETOUR_SAMPLES; k++) {
+                totalWeight += ringWeight;
                 final double angle = (2.0D * Math.PI * k) / DETOUR_SAMPLES;
                 final Vec3 waypoint = occluder
                         .add(u.scale(Math.cos(angle) * radius))
@@ -766,13 +793,12 @@ public final class SoundFXUtils {
                 if (!isMiss(traceContext.trace(waypoint, player)))
                     continue;
                 final float delta = (float) (source.distanceTo(waypoint) + waypoint.distanceTo(player) - directLen);
-                if (delta < bestDelta)
-                    bestDelta = delta;
+                weighted += ringWeight / (1F + DIFFRACTION_FALLOFF * delta);
             }
-            if (bestDelta < Float.POSITIVE_INFINITY)
-                return EDGE_LOSS / (1F + DIFFRACTION_FALLOFF * bestDelta);
         }
-        return 0F;
+        if (totalWeight <= 0F)
+            return 0F;
+        return EDGE_LOSS * (weighted / totalWeight);
     }
 
     private static float calculateWeatherAbsorption(final WorldContext ctx, final Vec3 pt1, final Vec3 pt2) {

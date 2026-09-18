@@ -34,6 +34,8 @@ public final class AudioTuning {
     private static volatile int occlusionFanRings =
             Math.max(1, (Math.max(1, CONFIG.occlusionFanRays) - 1) / 4);
     private static volatile boolean evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
+    private static volatile float apertureStrength = clamp((float) CONFIG.apertureStrength, 0F, 1F);
+    private static volatile float apertureRadius = clamp((float) CONFIG.apertureRadius, 0.5F, 8F);
 
     /**
      * The most recent evaluation's numbers, for {@code /dstune}. Diagnostics only: two rounds of
@@ -85,6 +87,21 @@ public final class AudioTuning {
     /** Whether a starting sound is evaluated inline on the sound thread or deferred to the worker. */
     public static boolean evaluateOnSoundThread() {
         return evaluateOnSoundThread;
+    }
+
+    /**
+     * Fraction of the LOST level the aperture may carry around an obstacle. The aperture is the disc
+     * of secondary sources on the wavefront between the two ends - the practical (incoherent) form
+     * of Huygens-Fresnel: energy that reaches the listener through a clear part of that disc has gone
+     * around the obstacle, so a lone pillar must not muffle the sound like a solid wall does.
+     */
+    public static float apertureStrength() {
+        return apertureStrength;
+    }
+
+    /** Radius of the aperture disc in blocks. */
+    public static float apertureRadius() {
+        return apertureRadius;
     }
 
     /** Total rays the occlusion fan traces, for diagnostics. */
@@ -159,10 +176,23 @@ public final class AudioTuning {
                 evaluateOnSoundThread = v;
                 return describe(key, old, v);
             }
+            case "apertureStrength": {
+                final float v = clamp(parseFloat(key, value), 0F, 1F);
+                final float old = apertureStrength;
+                apertureStrength = v;
+                return describe(key, old, v);
+            }
+            case "apertureRadius": {
+                final float v = clamp(parseFloat(key, value), 0.5F, 8F);
+                final float old = apertureRadius;
+                apertureRadius = v;
+                return describe(key, old, v);
+            }
             default:
                 throw new IllegalArgumentException("Unknown key '" + key + "'. Try: "
                         + "diffractionLevelStrength, diffractionHfStrength, diffractionRings, "
-                        + "occlusionSegments, occlusionFanRays, evaluateOnSoundThread");
+                        + "occlusionSegments, occlusionFanRays, evaluateOnSoundThread, "
+                        + "apertureStrength, apertureRadius");
         }
     }
 
@@ -174,6 +204,8 @@ public final class AudioTuning {
         occlusionSegments = Math.max(1, CONFIG.occlusionSegments);
         occlusionFanRings = Math.max(1, (Math.max(1, CONFIG.occlusionFanRays) - 1) / 4);
         evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
+        apertureStrength = clamp((float) CONFIG.apertureStrength, 0F, 1F);
+        apertureRadius = clamp((float) CONFIG.apertureRadius, 0.5F, 8F);
         return "Restored from config:\n" + describeAll();
     }
 
@@ -186,10 +218,13 @@ public final class AudioTuning {
                         + "  occlusionSegments        = %d   (config: enhancedSounds.occlusionSegments, 1-32)%n"
                         + "  occlusionFanRays         = %d   (config: enhancedSounds.occlusionFanRays; rounded to 1 + 4n)%n"
                         + "  evaluateOnSoundThread    = %b   (config: enhancedSounds.evaluateOnSoundThread)%n"
+                        + "  apertureStrength         = %.2f   (config: enhancedSounds.apertureStrength, 0-1; around-the-corner energy through the aperture disc)%n"
+                        + "  apertureRadius           = %.1f   (config: enhancedSounds.apertureRadius, 0.5-8 blocks)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
                         + "Last evaluation: %s",
                 diffractionLevelStrength, diffractionHfStrength, diffractionRings, diffractionRings * 8,
-                occlusionSegments, occlusionFanRays(), evaluateOnSoundThread, lastTrace);
+                occlusionSegments, occlusionFanRays(), evaluateOnSoundThread,
+                apertureStrength, apertureRadius, lastTrace);
     }
 
     // ------------------------------------------------------------------ helpers

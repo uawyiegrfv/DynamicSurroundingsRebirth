@@ -353,6 +353,11 @@ public final class SoundFXUtils {
         // is both correct and faithful.
         final Vec3 soundPos = offsetPositionIfSolid(ctx.world, sourcePos, ctx.playerEyePosition);
 
+        // Cost of one evaluation, reported by the probe below. The occlusion work traces two aperture
+        // planes of 8 samples plus a cone per evaluation, so this is the number that says whether that
+        // is affordable rather than assuming it: two nanoTime calls on a worker thread.
+        final long evaluationStart = System.nanoTime();
+
         // Snap flag read once at the top for all smoothing (occlusion + water factor).
         final boolean snap = this.source.isImmediateUpdate();
 
@@ -452,13 +457,14 @@ public final class SoundFXUtils {
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
-                        + "fresnel=%.2f fan=%.3f zonedb=%.1f",
+                        + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 directCutoff <= 0F ? 0F : (directCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 this.lastCenterOcclusion, this.lastApertureLeak, sendOcclusionGain,
-                this.lastFresnelRadius, this.lastFanAverage, this.lastZoneLossDb));
+                this.lastFresnelRadius, this.lastFanAverage, this.lastZoneLossDb,
+                (System.nanoTime() - evaluationStart) / 1000.0D));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }

@@ -2,6 +2,7 @@ package org.orecruncher.dsurround.runtime.audio;
 
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
+import org.orecruncher.dsurround.lib.logging.IModLog;
 
 /**
  * Live, mutable overrides for the audio tuning values that are worth A/B testing in place.
@@ -40,6 +41,12 @@ public final class AudioTuning {
      * see whether the path runs at all and what it computes.
      */
     private static volatile String lastTrace = "(no evaluation recorded yet)";
+
+    private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
+    /** Throttle state for the log copy of the probe (diagnostics only). */
+    private static volatile String lastLoggedTrace = "";
+    private static volatile long lastLoggedAt = 0L;
+    private static final long TRACE_LOG_INTERVAL_MS = 250L;
 
     private AudioTuning() {
     }
@@ -85,9 +92,20 @@ public final class AudioTuning {
         return 1 + 4 * occlusionFanRings;
     }
 
-    /** Called from the audio thread at the end of every evaluation. */
+    /**
+     * Called from the audio thread at the end of every evaluation. Stores the line for {@code
+     * /dstune} and writes it to the LOG whenever it changes, because chat text cannot be copied out.
+     * Rate limited and change-gated: 32 sources evaluating twice a second would otherwise flood the
+     * log, while a transition (walking behind a wall) still produces a readable handful of lines.
+     */
     public static void recordTrace(final String trace) {
         lastTrace = trace;
+        final long now = System.currentTimeMillis();
+        if (trace.equals(lastLoggedTrace) || now - lastLoggedAt < TRACE_LOG_INTERVAL_MS)
+            return;
+        lastLoggedTrace = trace;
+        lastLoggedAt = now;
+        LOGGER.info("[dstune] %s", trace);
     }
 
     /** The most recent evaluation's numbers. */

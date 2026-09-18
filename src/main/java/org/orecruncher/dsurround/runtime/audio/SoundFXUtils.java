@@ -183,6 +183,11 @@ public final class SoundFXUtils {
      */
     private static final float DIFFRACTION_LOSS_SCALE = 0.75F;
     /**
+     * Attenuation used when no edge path exists at all (both ends sealed in). Large enough that the
+     * blocked-aperture figure wins the minimum, so a genuinely sealed space stays muffled.
+     */
+    private static final float NO_EDGE_LOSS_DB = 60F;
+    /**
      * How much of the reverb sends survives a fully occluded path. Not 0: a sealed room still has a
      * tail (that is what reverb IS), it is simply the tail of the muffled sound. At 0.35 a fully
      * occluded source keeps about -9 dB of send against a clear one.
@@ -941,6 +946,11 @@ public final class SoundFXUtils {
         this.lastFresnelRadius = 0F;
         float worstClear = 1F;
         float excessDb = 0F;
+        // The best edge path around the occluder, per band. A wavefront takes the most effective path
+        // available, so the loss is the LESS pessimistic of "the aperture is blocked" and "the wave bends
+        // over the edge". Without this a hill - whose crest lies outside the Fresnel zone, so the zone
+        // model cannot see it - reads as a blocked aperture and comes out at the full 25 dB.
+        final float[] edgeDb = edgeLossDbPerBand(ctx, source, listener);
         for (int band = 0; band < bandCount; band++) {
             final float bandHz = bandFrequency(band);
             final double bandWavelength = SPEED_OF_SOUND / Math.max(1F, bandHz);
@@ -952,7 +962,10 @@ public final class SoundFXUtils {
             worstClear = Math.min(worstClear, bandClear);
             // Combine the bands with the low band dominant: it is the one that reaches the listener
             // around the obstacle, and the ear weights it that way too.
-            excessDb += bandWeight(band) * bandExcessDb(bandClear);
+            float bandLoss = bandExcessDb(bandClear);
+            if (edgeDb != null && edgeDb[band] < bandLoss)
+                bandLoss = edgeDb[band];
+            excessDb += bandWeight(band) * bandLoss;
         }
         this.lastZoneLossDb = excessDb;
         return MathStuff.clamp1(worstClear);
@@ -1337,24 +1350,90 @@ public final class SoundFXUtils {
                 if (!isMiss(traceContext.trace(waypoint, player)))
                     continue;
                 final float delta = (float) (source.distanceTo(waypoint) + waypoint.distanceTo(player) - directLen);
-                // Wavelength-dependent knife-edge loss. Without this every frequency diffracted the
-                // same, which is wrong in the one way that matters: a low frequency bends around an
-                // obstacle that stops a high one outright. The Fresnel number n = sqrt(2 * dL / lambda)
-                // counts the half-wavelengths the detour costs; the standard knife-edge result is 0.5
-                // at the shadow boundary (n = 0) and rises towards 1 as the detour clears.
-                float edgeLoss = 1F / (1F + DIFFRACTION_FALLOFF * delta);
-                if (AudioTuning.realismWavelength()) {
-                    final double lambda = SPEED_OF_SOUND / Math.max(1F, AudioTuning.realismFrequencyHz());
-                    final double n = Math.sqrt(Math.max(0.0D, 2.0D * delta / lambda));
-                    final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
-                    edgeLoss = 1F - DIFFRACTION_LOSS_SCALE * (1F - loss);
-                }
-                weighted += ringWeight * edgeLoss;
+                weighted += ringWeight * edgeAmplitude(delta, AudioTuning.realismFrequencyHz());
             }
         }
         if (totalWeight <= 0F)
             return 0F;
         return EDGE_LOSS * (weighted / totalWeight);
+    }
+
+    /**
+     * Knife-edge amplitude for a detour of {@code delta} blocks at {@code frequencyHz}.
+     *
+     * <p>The Fresnel number n = sqrt(2 * dL / lambda) counts the half-wavelengths the detour costs, and the
+     * standard knife-edge result is 0.5 at the shadow boundary (n = 0) rising towards 1 as the detour
+     * clears. Without the wavelength term every frequency diffracted alike, which is wrong in the one way
+     * that matters: a low frequency bends around an obstacle that stops a high one outright.
+     */
+    private static float edgeAmplitude(final float delta, final float frequencyHz) {
+        if (!AudioTuning.realismWavelength())
+            return 1F / (1F + DIFFRACTION_FALLOFF * delta);
+        final double lambda = SPEED_OF_SOUND / Math.max(1F, frequencyHz);
+        final double n = Math.sqrt(Math.max(0.0D, 2.0D * delta / lambda));
+        final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
+        return 1F - DIFFRACTION_LOSS_SCALE * (1F - loss);
+    }
+
+    /**
+     * Excess attenuation in dB of the best edge path around the occluder, per band, or a large value when
+     * no edge is reachable at all.
+     *
+     * <p>This is what makes a hill behave like a hill. The Fresnel-zone model answers "how much of the
+     * field survives inside the geometric shadow", and a hill's crest lies OUTSIDE the zone, so the zone
+     * model reads the aperture as fully blocked and reports 25 dB. Physically the wave bends over the
+     * crest, and because the knife-edge Fresnel number is strongly frequency dependent, the low band
+     * bends with almost no loss while the high band does not - which is exactly the "dull but audible"
+     * result.
+     *
+     * @return array of dB per band index, or null when there is no occluder to work from.
+     */
+    private float[] edgeLossDbPerBand(final WorldContext ctx, final Vec3 source, final Vec3 player) {
+        if (this.lastOccluderPos == null)
+            return null;
+        final Vec3 direct = player.subtract(source);
+        final double directLen = direct.length();
+        if (directLen < 0.01D)
+            return null;
+        final Vec3 d = direct.scale(1.0D / directLen);
+        final Vec3 seed = Math.abs(d.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
+        final Vec3 u = d.cross(seed).normalize();
+        final Vec3 v = d.cross(u).normalize();
+        final ReusableRaycastContext traceContext =
+                new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
+        final int rings = Math.min(diffractionRings(), DETOUR_RADII.length);
+        final int bands = bandCount();
+        final float[] best = new float[bands];
+        java.util.Arrays.fill(best, Float.MAX_VALUE);
+        for (int r = 0; r < rings; r++) {
+            final float radius = DETOUR_RADII[r];
+            for (int k = 0; k < DETOUR_SAMPLES; k++) {
+                final double angle = (2.0D * Math.PI * k) / DETOUR_SAMPLES;
+                final Vec3 waypoint = this.lastOccluderPos
+                        .add(u.scale(Math.cos(angle) * radius))
+                        .add(v.scale(Math.sin(angle) * radius));
+                if (isSolidBlock(ctx.world, waypoint))
+                    continue;
+                if (!isMiss(traceContext.trace(stepOutOfSolid(ctx.world, source, waypoint), waypoint)))
+                    continue;
+                if (!isMiss(traceContext.trace(waypoint, player)))
+                    continue;
+                final float delta = (float) (source.distanceTo(waypoint) + waypoint.distanceTo(player) - directLen);
+                for (int band = 0; band < bands; band++) {
+                    final float amplitude = edgeAmplitude(delta, bandFrequency(band));
+                    if (amplitude <= 0F)
+                        continue;
+                    final float db = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, amplitude)));
+                    if (db < best[band])
+                        best[band] = db;
+                }
+            }
+        }
+        for (int band = 0; band < bands; band++) {
+            if (best[band] == Float.MAX_VALUE)
+                best[band] = NO_EDGE_LOSS_DB;
+        }
+        return best;
     }
 
     private static float calculateWeatherAbsorption(final WorldContext ctx, final Vec3 pt1, final Vec3 pt2) {

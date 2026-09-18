@@ -43,6 +43,7 @@ public final class AudioTuning {
     private static volatile float occlusionConeDegrees = clamp((float) CONFIG.occlusionConeDegrees, 0F, 45F);
     private static volatile boolean occlusionFresnelZone = CONFIG.occlusionFresnelZone;
     private static volatile float occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
+    private static volatile boolean logAudioTrace = CONFIG.logAudioTrace;
 
     /**
      * The most recent evaluation's numbers, for {@code /dstune}. Diagnostics only: two rounds of
@@ -156,6 +157,11 @@ public final class AudioTuning {
         return occlusionLossDb;
     }
 
+    /** Whether the evaluation trace is written to the log. Off by default. */
+    public static boolean logAudioTrace() {
+        return logAudioTrace;
+    }
+
     /** Total rays the occlusion fan traces, for diagnostics. */
     public static int occlusionFanRays() {
         return 1 + 4 * occlusionFanRings;
@@ -168,7 +174,11 @@ public final class AudioTuning {
      * log, while a transition (walking behind a wall) still produces a readable handful of lines.
      */
     public static void recordTrace(final String trace) {
+        // The last trace is always kept, so '/dstune' can show it on demand without the log being
+        // written to for the whole session.
         lastTrace = trace;
+        if (!logAudioTrace)
+            return;
         final long now = System.currentTimeMillis();
         if (trace.equals(lastLoggedTrace) || now - lastLoggedAt < TRACE_LOG_INTERVAL_MS)
             return;
@@ -282,13 +292,19 @@ public final class AudioTuning {
                 occlusionLossDb = v;
                 return describe(key, old, v);
             }
+            case "probe": {
+                final boolean v = Boolean.parseBoolean(value);
+                final boolean old = logAudioTrace;
+                logAudioTrace = v;
+                return describe(key, old, v) + " (the last trace is always kept for '/dstune')";
+            }
             default:
                 throw new IllegalArgumentException("Unknown key '" + key + "'. Try: "
                         + "diffractionLevelStrength, diffractionHfStrength, diffractionRings, "
                         + "occlusionSegments, occlusionFanRays, evaluateOnSoundThread, "
                         + "apertureStrength, apertureRadius, realismWavelength, realismFrequencyHz, "
                         + "aperturePlanes, occlusionFocusDistance, occlusionConeDegrees, "
-                        + "occlusionFresnelZone, occlusionLossDb");
+                        + "occlusionFresnelZone, occlusionLossDb, probe");
         }
     }
 
@@ -309,6 +325,7 @@ public final class AudioTuning {
         occlusionConeDegrees = clamp((float) CONFIG.occlusionConeDegrees, 0F, 45F);
         occlusionFresnelZone = CONFIG.occlusionFresnelZone;
         occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
+        logAudioTrace = CONFIG.logAudioTrace;
         return "Restored from config:\n" + describeAll();
     }
 
@@ -330,13 +347,14 @@ public final class AudioTuning {
                         + "  occlusionConeDegrees     = %.1f   (config: enhancedSounds.occlusionConeDegrees, 0-45; half-angle of the sampled cone)%n"
                         + "  occlusionFresnelZone     = %b   (config: enhancedSounds.occlusionFresnelZone; zone clear fraction instead of a material sum)%n"
                         + "  occlusionLossDb          = %.1f   (config: enhancedSounds.occlusionLossDb, 0-60; excess attenuation for a fully covered plane)%n"
+                        + "  probe                    = %b   (config: enhancedSounds.logAudioTrace; write the evaluation trace to the log)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
                         + "Last evaluation: %s",
                 diffractionLevelStrength, diffractionHfStrength, diffractionRings, diffractionRings * 8,
                 occlusionSegments, occlusionFanRays(), evaluateOnSoundThread,
                 apertureStrength, apertureRadius,
                 realismWavelength, realismFrequencyHz, aperturePlanes, occlusionFocusDistance,
-                occlusionConeDegrees, occlusionFresnelZone, occlusionLossDb, lastTrace);
+                occlusionConeDegrees, occlusionFresnelZone, occlusionLossDb, logAudioTrace, lastTrace);
     }
 
     // ------------------------------------------------------------------ helpers

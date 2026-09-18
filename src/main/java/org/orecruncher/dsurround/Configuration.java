@@ -134,8 +134,8 @@ public class Configuration extends ConfigurationData {
         public boolean enableChannelReaper = false;
 
         @Property
-        @Comment("Enable/disable sound occlusion processing (sound muffling behind blocks)")
-        public boolean enableOcclusionProcessing = false;
+        @Comment("Enable/disable sound occlusion processing (sound muffling behind blocks). On by default: it is the point of the enhanced audio path, and the model behind it (first Fresnel zone clear fraction, wavelength dependent, multi-plane) is measured rather than guessed. Turning it off restores plain distance attenuation")
+        public boolean enableOcclusionProcessing = true;
 
         @Property
         @IntegerRange(min = 1, max = 32)
@@ -213,8 +213,12 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @DoubleRange(min = 0.0D, max = 60.0D)
-        @Comment("Occlusion only: excess attenuation in dB when an aperture plane is COMPLETELY covered (the Fresnel-zone model). It falls as the square of the clear fraction, so a plane that is 90% clear costs only about 0.25 dB while a half-covered one costs about 6 dB. 25 dB for a sealed plane keeps a real wall clearly muffled without the material-sum model's total silence")
+        @Comment("Occlusion only: excess attenuation in dB when an aperture plane is COMPLETELY covered (the Fresnel-zone model). It falls as the FOURTH power of the blocked fraction, so a plane that is 90% clear costs about 0.03 dB, one that is half covered about 9.6 dB, and only a genuinely sealed one approaches the full value. 25 dB for a sealed plane keeps a real wall clearly muffled without the material-sum model's total silence")
         public double occlusionLossDb = 25.0D;
+
+        @Property
+        @Comment("Diagnostics: write the audio evaluation trace to the log (about one line every 250 ms while sounds are being processed). Off by default so a normal session stays quiet; '/dstune probe true' turns it on for a session, and '/dstune' always shows the most recent trace whether or not this is on")
+        public boolean logAudioTrace = false;
 
         @Property
         @IntegerRange(min = 16, max = 64)

@@ -64,6 +64,13 @@ public final class SoundFXProcessor {
     private static volatile boolean immediateUpdateRequested;
     private static boolean lastPlayerUnderWater;
 
+    /**
+     * Whether the play-time evaluation runs inline on the sound engine thread (default) or is
+     * deferred to the background worker. See Configuration.EnhancedSounds.evaluateOnSoundThread.
+     */
+    private static final boolean EVALUATE_ON_SOUND_THREAD =
+            ContainerManager.resolve(Configuration.EnhancedSounds.class).evaluateOnSoundThread;
+
     // Use our own thread pool avoiding the common pool.  Thread allocation is better controlled, and we won't run
     // into/cause any problems with other tasks in the common pool. Daemon threads so a pool that outlives the
     // sound system teardown (the pool itself is cached in a Singleton and reused) never blocks JVM shutdown.
@@ -188,7 +195,18 @@ public final class SoundFXProcessor {
         var data = context.dsurround_getData();
         data.ifPresent(ctx -> {
             var id = ctx.getId();
-            ctx.exec();
+            if (EVALUATE_ON_SOUND_THREAD) {
+                // Default. Evaluate before the sound is processed so the very first frame already
+                // has the right occlusion/reverb. This is the only place the DSP still runs on the
+                // sound engine thread, and it is per sound start - a cave full of mobs or rapid
+                // block breaking starts many at once and serialises them here.
+                ctx.exec();
+            } else {
+                // Defer to the worker. The sound engine's per-source tick uploads whatever has been
+                // computed, so the source runs with default settings for at most one worker cycle
+                // (50 ms) and then settles. Less sound-thread work, at the cost of a short settle.
+                ctx.markImmediate();
+            }
             if (sources != null && id > 0 && id <= sources.length)
                 sources[id - 1] = ctx;
         });

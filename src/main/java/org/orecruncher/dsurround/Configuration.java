@@ -138,6 +138,22 @@ public class Configuration extends ConfigurationData {
         public boolean enableOcclusionProcessing = false;
 
         @Property
+        @IntegerRange(min = 1, max = 32)
+        @RestartRequired
+        @Comment("Occlusion only: segments a source-to-player ray is split into when measuring how much block material it passes through. Higher = finer distance-weighted occlusion at slightly more cost per ray")
+        public int occlusionSegments = 5;
+
+        @Property
+        @IntegerRange(min = 1, max = 25)
+        @RestartRequired
+        @Comment("Occlusion only: rays averaged per measurement, as one centre ray plus four per ring, so it is rounded to 1 + 4n (5 = one ring = the original behaviour, 9 = two, 13 = three). More rays make the averaged value slide instead of stepping as a blocking block crosses between rays - the 'volume jumps while walking past pillars' effect")
+        public int occlusionFanRays = 5;
+
+        @Property
+        @Comment("Evaluate the environment on the sound thread when a sound starts (default: correct occlusion/reverb on the very first frame) or defer it to the background worker (less sound-thread work when many sounds start in the same tick, at the cost of up to one worker cycle - 50 ms - of default settings at the start of each sound)")
+        public boolean evaluateOnSoundThread = true;
+
+        @Property
         @IntegerRange(min = 16, max = 64)
         @RestartRequired
         @Comment("The number of rays to project around a sound location to calculate reverb effect")

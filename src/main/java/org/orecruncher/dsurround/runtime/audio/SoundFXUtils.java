@@ -33,9 +33,23 @@ public final class SoundFXUtils {
     private static final Configuration.EnhancedSounds CONFIG = ContainerManager.resolve(Configuration.EnhancedSounds.class);
 
     /**
-     * Maximum number of segments to check when ray tracing for occlusion.
+     * Maximum number of segments to check when ray tracing for occlusion. Configurable because it
+     * trades precision against cost: each segment is a block-state lookup plus a distance-weighted
+     * contribution, and every occlusion ray pays it.
      */
-    private static final int OCCLUSION_SEGMENTS = 5;
+    private static final int OCCLUSION_SEGMENTS = Math.max(1, CONFIG.occlusionSegments);
+
+    /**
+     * Rings of rays inside the 0.6-block occlusion cone, derived from the configured ray count.
+     * The fan is one centre ray plus four rays per ring, so the count is rounded down to 1 + 4n
+     * (5 = one ring = the original behaviour, 9 = two, 13 = three).
+     * <p>
+     * This is the knob behind "the volume jumps as I walk past a row of pillars": with a single
+     * ring the averaged occlusion moves in four discrete steps as a blocking block crosses from
+     * one ray to the next, whereas finer rings make the value slide.
+     */
+    private static final int OCCLUSION_FAN_RINGS =
+            Math.max(1, (Math.max(1, CONFIG.occlusionFanRays) - 1) / 4);
     /**
      * Length of the source-enclosure / player-openness probe rays. Must reach the
      * walls of a normal room - a 4-block probe could not see the room's walls from a
@@ -555,7 +569,8 @@ public final class SoundFXUtils {
         // stands directly over/under the source. The spread is small (0.6 blocks around the
         // eye) and the results are time-smoothed, so a stray ray clipping the ground near
         // the player barely moves the averaged value. Kept to 5 rays so the added cost stays
-        // a small fraction of the reverb trace (32x4).
+        // a small fraction of the reverb trace (32x4). The ray count is configurable
+        // (occlusionFanRays) for anyone who wants a smoother transition.
         // First solid occlusion hit on the CENTRE ray only. This is where the wall sits
         // along the direct path, and it is the ring centre for the diffraction probe. The
         // off-axis fan rays below must not pollute it, or the compensation would trigger
@@ -578,10 +593,15 @@ public final class SoundFXUtils {
         final Vec3 seed = Math.abs(dir.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
         final Vec3 axis1 = dir.cross(seed).normalize();
         final Vec3 axis2 = dir.cross(axis1).normalize();
-        for (final float s : new float[]{-1F, 1F}) {
-            factor += traceOcclusion(ctx, rayOrigin, target.add(axis1.scale(0.6F * s)), null);
-            factor += traceOcclusion(ctx, rayOrigin, target.add(axis2.scale(0.6F * s)), null);
-            rays += 2;
+        for (int ring = 1; ring <= OCCLUSION_FAN_RINGS; ring++) {
+            // The innermost ring is the original 0.6-block offset; extra rings fill the cone between
+            // the centre ray and that edge, so the same cone is sampled more finely without widening it.
+            final float spread = 0.6F * ring / OCCLUSION_FAN_RINGS;
+            for (final float s : new float[]{-1F, 1F}) {
+                factor += traceOcclusion(ctx, rayOrigin, target.add(axis1.scale(spread * s)), null);
+                factor += traceOcclusion(ctx, rayOrigin, target.add(axis2.scale(spread * s)), null);
+                rays += 2;
+            }
         }
 
         return factor / rays;

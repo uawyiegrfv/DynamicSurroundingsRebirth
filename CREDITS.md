@@ -240,3 +240,52 @@ whether LPs can be monetized on the various streaming services.
 <ul>
      <li>S: <a href="https://bigsoundbank.com/feet-in-leaves-s0137.html">Feet in leaves</a> by BigSoundBank | License: Creative Commons 0</li>
 </ul>
+
+---
+
+### Textures
+
+Origin of every texture shipped by this port:
+
+* **Ported from Dynamic Surroundings 1.12.2 (MIT)** — the author's own artwork, redistributed under
+  the same MIT licence as the code:
+    * `textures/environment/dust_*.png` (8 weather dust sheets)
+    * `textures/particles/footprint.png`, `footprint.png` (`textures/particle/`),
+      `ripple.png`, `ripple1.png`, `ripple2.png`, `pixel_ripples.png`, `rainsplash.png`, `none.png`
+    * `textures/compass.png`
+* **Original work for this port** — drawn for Dynamic Surroundings Rebirth, not derived from any
+  third party:
+    * `textures/gui/sprites/controls/block_off.png`, `block_on.png`, `cull_off.png`, `cull_on.png`,
+      `play.png`, `stop.png` (quick sound volume panel buttons)
+    * `icon.png` (mod icon)
+
+### Shaders
+
+* `shaders/core/aurora.vsh`, `aurora.fsh`, `aurora_64.*`, `aurora_128.*` — **original clean-room
+  rewrite** for this port. No third-party shader code is reproduced in them; the visual language
+  (value-noise FBM curtain, vertical ray structure, spectrum colour ramp) uses standard public-domain
+  techniques.
+* For provenance only, and **not used anywhere in this port**: the aurora shader that shipped with
+  Dynamic Surroundings 1.12.2 was third-party work — *Created by Mattenii*,
+  <a href="https://www.shadertoy.com/view/MsjfRG">Shadertoy MsjfRG</a>, licensed
+  **Attribution-NonCommercial-ShareAlike 3.0 Unported (CC BY-NC-SA 3.0)**. The rewrite exists
+  precisely so that this port carries no NonCommercial obligation from it.
+
+### Licence position (recorded so it is not re-derived later)
+
+* Code: **MIT** — see `LICENSE` (Copyright (c) 2023-2025 OreCruncher; Forge 1.20.1 port
+  Copyright (c) 2026 uawyiegrfv).
+* Textures and shaders: as listed above — ported MIT artwork plus original work. No obligation
+  beyond the MIT notice already carried in `LICENSE` and this file.
+* **Sounds: the set above is NOT fully redistributable for commercial use.** Two recordings are
+  licensed NonCommercial:
+    * `dsurround:waterfall.0` — *Waterfall Winspit Dorset.wav* by genghis attenborough,
+      License: Attribution Noncommercial
+    * `dsurround:waterfall.5` — *Running-water-mountain-stream.mp3* by Alexander,
+      CC BY-NC 4.0
+  Free distribution with attribution is fine (this file ships inside the jar), but a commercial
+  redistribution — which includes enrolling the project in a monetisation / creator-rewards
+  programme — is **not** covered by those two licences. The upstream 1.12.2 mod carried the same
+  two files and the same restriction, so this is inherited, not introduced by the port. It is kept
+  deliberately (the recordings are hard to replace) and the consequence is recorded here: **do not
+  enable monetisation while these two files ship.**

@@ -135,13 +135,32 @@ public final class SoundFXUtils {
     private static final int DETOUR_SAMPLES = 8;
 
     /**
-     * Total aperture samples per evaluation. Each sample costs two short traces, so this is kept
-     * near the cost of the ring probe it complements (3 rings x 8 waypoints = 24 validated
-     * waypoints, each with two traces).
+     * Samples per aperture plane. Each sample costs one trace to the listener, so a plane with 8
+     * samples is the same order of cost as the single 16-point disc it replaces, and the plane count
+     * multiplies that (the default of 2 planes therefore costs about what the fixed disc did).
      */
-    private static final int APERTURE_SAMPLES = 16;
-    /** Concentric rings the aperture samples are spread over (equal-area: outer rings get more). */
+    private static final int APERTURE_SAMPLES = 8;
+    /** Concentric rings the samples are spread over: an inner half-radius ring plus the zone edge. */
     private static final int APERTURE_RINGS = 2;
+    /**
+     * Speed of sound in air, m/s. A Minecraft block is 1 m, so this is used directly with
+     * wavelength = c / f to get the Fresnel zone radius in blocks.
+     */
+    private static final float SPEED_OF_SOUND = 343F;
+    /** Hard cap on the aperture radius in blocks, so a very low frequency cannot trace for ever. */
+    private static final float MAX_APERTURE_RADIUS = 16F;
+    /**
+     * Hard cap on the segments a single aperture trace may walk. The aperture is an area average, so
+     * a long trace crossing dozens of blocks does not need exact resolution - the cap bounds the cost
+     * of one evaluation no matter how far the sound is.
+     */
+    private static final int APERTURE_MAX_SEGMENTS = 32;
+    /**
+     * Gain of the wavelength-dependent diffraction loss. The knife-edge loss is 0..1 (0.5 at the
+     * shadow boundary, rising as the detour clears); this scales how much of it is applied, so the
+     * model stays tunable against the game's own reverb instead of being taken on faith.
+     */
+    private static final float DIFFRACTION_LOSS_SCALE = 0.75F;
     /**
      * How much of the reverb sends survives a fully occluded path. Not 0: a sealed room still has a
      * tail (that is what reverb IS), it is simply the tail of the muffled sound. At 0.35 a fully
@@ -251,6 +270,13 @@ public final class SoundFXUtils {
      * sealed room does.
      */
     private float lastApertureLeak;
+    /** Fresnel zone radius (blocks) used by the most recent aperture measurement, for diagnostics. */
+    private float lastFresnelRadius;
+    /**
+     * Scratch space for the per-plane occlusion breakdown of the most recent aperture trace. Sized to
+     * the maximum plane count the config allows, so the trace can never write past the end.
+     */
+    private final float[] lastPlaneOcclusion = new float[4];
 
     private final SourceContext source;
 
@@ -407,12 +433,13 @@ public final class SoundFXUtils {
         // problem is the filter or the audibility of the band, not the model.
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                        + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f",
+                        + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
+                        + "fresnel=%.2f",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 directCutoff <= 0F ? 0F : (directCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
-                this.lastCenterOcclusion, this.lastApertureLeak, sendOcclusionGain));
+                this.lastCenterOcclusion, this.lastApertureLeak, sendOcclusionGain, this.lastFresnelRadius));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -787,22 +814,33 @@ public final class SoundFXUtils {
      * @return 0..1, the fraction of the aperture that carries sound through to the listener.
      */
     private float calculateApertureLeak(final WorldContext ctx, final Vec3 source, final Vec3 listener) {
-        final float radius = AudioTuning.apertureRadius();
         final Vec3 direct = listener.subtract(source);
         final double directLen = direct.length();
         if (directLen < 0.01D)
             return 1F;
 
+        // Size the aperture by the FIRST FRESNEL ZONE instead of a fixed disc:
+        // R = sqrt(wavelength * d1 * d2 / (d1 + d2)), with d1 + d2 the straight-line distance. This is
+        // what makes the model wavelength-dependent on the aperture side - a low frequency has a wide
+        // zone, so a small obstacle blocks only a small part of it and the sound stays open, while a
+        // high frequency's narrow zone is covered by the same obstacle and the sound muffles. With the
+        // wavelength model off, fall back to the fixed configured radius (the previous behaviour).
+        final float configuredRadius = AudioTuning.apertureRadius();
+        final float fresnelRadius;
+        if (AudioTuning.realismWavelength()) {
+            final double wavelength = SPEED_OF_SOUND / Math.max(1F, AudioTuning.realismFrequencyHz());
+            // d1 = d2 = half the distance maximises the zone radius for a given total distance.
+            fresnelRadius = (float) Math.min(MAX_APERTURE_RADIUS,
+                    Math.sqrt(wavelength * (directLen * 0.5D) * (directLen * 0.5D) / directLen));
+        } else {
+            fresnelRadius = configuredRadius;
+        }
+        this.lastFresnelRadius = fresnelRadius;
+
         final Vec3 d = direct.scale(1.0D / directLen);
         final Vec3 seed = Math.abs(d.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
         final Vec3 u = d.cross(seed).normalize();
         final Vec3 v = d.cross(u).normalize();
-
-        // Centre the disc on the obstacle that blocks the line when one was found; otherwise (the
-        // line is clear, so this only runs to restore a previously muffled sound) use the midpoint.
-        final Vec3 centre = this.lastOccluderPos != null
-                ? this.lastOccluderPos
-                : MathStuff.addScaled(source, direct, 0.5F);
 
         // The absorption coefficient is the same one that turns the accumulated occlusion into a
         // cutoff, so a sample is weighted in exactly the units the direct path uses.
@@ -811,42 +849,81 @@ public final class SoundFXUtils {
         final ReusableRaycastContext traceContext =
                 new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
-        final Vec3 sourceLegOrigin = stepOutOfSolid(ctx.world, source, centre);
+        final Vec3 sourceLegOrigin = stepOutOfSolid(ctx.world, source, listener);
         final int samples = APERTURE_SAMPLES;
         final int rings = APERTURE_RINGS;
+        final int planes = AudioTuning.aperturePlanes();
+        final boolean wavelength = AudioTuning.realismWavelength();
         float total = 0F;
         int taken = 0;
-        for (int r = 1; r <= rings; r++) {
-            // Equal-area rings: the outer rings get proportionally more samples, so the disc is
-            // sampled evenly instead of over-weighting the middle.
-            final float ringRadius = radius * r / rings;
-            final int inRing = Math.max(1, Math.round(samples * (2F * r - 1F) / (rings * rings)));
-            for (int k = 0; k < inRing; k++) {
-                // Offset each ring's start angle so samples do not line up along the disc's axes.
-                final double angle = 2.0D * Math.PI * (k + r * 0.5D) / inRing;
-                final Vec3 sample = centre
-                        .add(u.scale(Math.cos(angle) * ringRadius))
-                        .add(v.scale(Math.sin(angle) * ringRadius));
-                // A sample sitting inside solid matter is not a secondary source at all: there is no
-                // air there to carry the wave, and stepping it out would let it escape through a
-                // thick wall and report the wall as transparent. Count it in the denominator as
-                // fully blocked instead.
-                if (isSolidBlock(ctx.world, sample)) {
+        for (int p = 1; p <= planes; p++) {
+            // A single plane sits on the first obstacle, which is where the straight line is actually
+            // blocked (the previous behaviour). With several planes they are spread evenly instead,
+            // because a second obstacle further along is what the extra planes exist to catch.
+            final Vec3 planeCentre = planes == 1
+                    ? (this.lastOccluderPos != null ? this.lastOccluderPos
+                                                    : MathStuff.addScaled(source, direct, 0.5F))
+                    : MathStuff.addScaled(source, direct, (float) p / (planes + 1));
+            // Distances from each end to the plane that was actually chosen, so the Fresnel zone
+            // radius belongs to this plane's position rather than to an assumed fraction.
+            final double d1 = source.distanceTo(planeCentre);
+            final double d2 = planeCentre.distanceTo(listener);
+            final float planeRadius;
+            if (wavelength) {
+                final double lambda = SPEED_OF_SOUND / Math.max(1F, AudioTuning.realismFrequencyHz());
+                planeRadius = (float) Math.min(MAX_APERTURE_RADIUS,
+                        Math.sqrt(lambda * Math.max(0.01D, d1) * Math.max(0.01D, d2) / Math.max(0.02D, d1 + d2)));
+            } else {
+                planeRadius = configuredRadius;
+            }
+            if (planeRadius <= 0.05F)
+                continue;
+            for (int r = 1; r <= rings; r++) {
+                // Inner ring at half the zone radius, outer ring at the zone edge: the two radii
+                // bracket the first Fresnel zone instead of sampling a fixed disc uniformly.
+                final float ringRadius = planeRadius * r / rings;
+                final int inRing = Math.max(1, samples / rings);
+                for (int k = 0; k < inRing; k++) {
+                    // Offset each ring's start angle so samples do not line up along the disc's axes.
+                    final double angle = 2.0D * Math.PI * (k + r * 0.5D) / inRing;
+                    final Vec3 sample = planeCentre
+                            .add(u.scale(Math.cos(angle) * ringRadius))
+                            .add(v.scale(Math.sin(angle) * ringRadius));
+                    // A sample sitting inside solid matter is not a secondary source at all: there is
+                    // no air there to carry the wave, and stepping it out would let it escape through
+                    // a thick wall and report the wall as transparent. It counts as fully blocked.
+                    if (isSolidBlock(ctx.world, sample)) {
+                        taken++;
+                        continue;
+                    }
+                    // Leg 1: the material the source->sample path passes through, broken down at every
+                    // aperture plane. Multiplying the per-band transmissions equals the transmission of
+                    // the whole leg, so sampling several planes costs extra samples but no fidelity.
+                    final float[] perPlane = this.lastPlaneOcclusion;
+                    final float upToHere = traceOcclusionSum(ctx, traceContext, sourceLegOrigin, sample, perPlane);
                     taken++;
-                    continue;
+                    // upToHere is the occlusion accumulated up to this sample's own plane, so only
+                    // what the earlier planes let through counts as having reached this one.
+                    final float sourceTransmission = (float) MathStuff.exp(-upToHere * absorption);
+                    if (sourceTransmission <= 0.001F)
+                        continue;
+                    // Leg 2: does this secondary source reach the listener? This used to be a
+                    // clear/blocked test, which made a listener standing behind cover read as fully
+                    // deaf however open the aperture was. With the wavelength model on, the leg's own
+                    // material is measured, so a thin obstacle in front of the listener removes only
+                    // the part of the aperture it actually covers.
+                    final float listenerOcclusion = traceOcclusionSum(ctx, traceContext, sample, listener);
+                    float listenerTransmission = 1F;
+                    if (listenerOcclusion > 0F) {
+                        // wavelength on: the measured transmission. off: the old binary behaviour.
+                        listenerTransmission = wavelength
+                                ? (float) MathStuff.exp(-listenerOcclusion * absorption)
+                                : 0F;
+                    }
+                    if (listenerTransmission <= 0.001F)
+                        continue;
+                    total += sourceTransmission * listenerTransmission;
                 }
-                // Leg 1: how much material the source->sample path passes through. A sample buried
-                // behind solid matter scores a large occlusion and therefore contributes almost nothing.
-                final float sourceOcclusion = traceOcclusionSum(ctx, traceContext, sourceLegOrigin, sample);
-                final float sourceTransmission = (float) MathStuff.exp(-sourceOcclusion * absorption);
-                taken++;
-                if (sourceTransmission <= 0.001F)
-                    continue;
-                // Leg 2: the sample must actually see the listener. A blocked leg means the energy
-                // went into a wall and never arrived, so that part of the aperture is lost.
-                if (!isMiss(traceContext.trace(sample, listener)))
-                    continue;
-                total += sourceTransmission;
             }
         }
         if (taken <= 0)
@@ -861,25 +938,76 @@ public final class SoundFXUtils {
      */
     private static float traceOcclusionSum(final WorldContext ctx, final ReusableRaycastContext traceContext,
                                            final Vec3 origin, final Vec3 target) {
+        return traceOcclusionSum(ctx, traceContext, origin, target, null);
+    }
+
+    /**
+     * As above, but optionally recording the cumulative occlusion at every aperture plane crossing,
+     * so the caller can split the leg into per-plane bands without tracing it again.
+     *
+     * @param perPlaneOut when non-null, filled with the cumulative occlusion at plane i (i = 0..n-1);
+     *                    entries past the end of the trace hold the total.
+     */
+    private static float traceOcclusionSum(final WorldContext ctx, final ReusableRaycastContext traceContext,
+                                           final Vec3 origin, final Vec3 target, final float[] perPlaneOut) {
         float factor = 0F;
+        final double totalDistance = origin.distanceTo(target);
+        final int planes = perPlaneOut == null ? 0 : perPlaneOut.length;
+        int planeIndex = 0;
         Vec3 lastHit = origin;
         BlockState lastState = ctx.world.getBlockState(BlockPos.containing(lastHit.x(), lastHit.y(), lastHit.z()));
         traceContext.trace(origin, target);
         final var itr = new ReusableRaycastIterator(traceContext);
-        final int segments = occlusionSegments();
+        // The aperture is an area average, so exact resolution over a very long trace buys nothing;
+        // the cap bounds the cost of one evaluation regardless of distance.
+        final int segments = Math.min(APERTURE_MAX_SEGMENTS, Math.max(occlusionSegments(), 8));
         for (int i = 0; i < segments; i++) {
             if (!itr.hasNext())
                 break;
             final var result = itr.next();
             final double rayDistance = lastHit.distanceTo(result.getLocation());
-            factor += (float) (getOcclusion(lastState) * rayDistance);
+            // Distance weighting: material right next to either end matters far more than material far
+            // away along the line. Without this a wall beside the source silences a sound forty blocks
+            // away - measured on 1.20.1: the centre ray read 0.000 (a clear line) while the fan
+            // averaged 2.346, i.e. exp(-1.76) = 17% of the sound left. Real acoustic occlusion is a
+            // local effect around each end; the middle of a long line is largely irrelevant.
+            final double along = lastHit.distanceTo(origin) + rayDistance * 0.5D;
+            factor += (float) (getOcclusion(lastState) * rayDistance
+                    * occlusionDistanceWeight(along, totalDistance));
             lastHit = result.getLocation();
             lastState = ctx.world.getBlockState(result.getBlockPos());
+            if (planes > 0) {
+                // Record the cumulative value as soon as the ray passes each plane's position.
+                while (planeIndex < planes
+                        && lastHit.distanceTo(origin) >= totalDistance * (planeIndex + 1.0D) / (planes + 1.0D)) {
+                    perPlaneOut[planeIndex++] = factor;
+                }
+            }
+        }
+        if (planes > 0) {
+            while (planeIndex < planes)
+                perPlaneOut[planeIndex++] = factor;
         }
         return factor;
     }
 
-     /**
+    /**
+     * How much block material at a given distance along the line still counts. 1 up to the focus
+     * distance, then 1 / (1 + (d - focus)/focus). With the focus at 0 every block counts fully (the
+     * previous behaviour).
+     */
+    private static double occlusionDistanceWeight(final double along, final double totalDistance) {
+        final float focus = AudioTuning.occlusionFocusDistance();
+        if (focus <= 0F)
+            return 1.0D;
+        // Measure from whichever end is nearer: the effect is local to the source AND to the listener.
+        final double fromNearestEnd = Math.min(along, Math.max(0.0D, totalDistance - along));
+        if (fromNearestEnd <= focus)
+            return 1.0D;
+        return 1.0D / (1.0D + (fromNearestEnd - focus) / focus);
+    }
+
+    /**
      * Measures how sealed the sound source is: a short ray up each world axis from
      * the source counts the directions blocked by solid geometry. A source buried in
      * a 6x6x6 cube scores ~1.0 no matter which way the player stands, which removes
@@ -991,7 +1119,19 @@ public final class SoundFXUtils {
                 if (!isMiss(traceContext.trace(waypoint, player)))
                     continue;
                 final float delta = (float) (source.distanceTo(waypoint) + waypoint.distanceTo(player) - directLen);
-                weighted += ringWeight / (1F + DIFFRACTION_FALLOFF * delta);
+                // Wavelength-dependent knife-edge loss. Without this every frequency diffracted the
+                // same, which is wrong in the one way that matters: a low frequency bends around an
+                // obstacle that stops a high one outright. The Fresnel number n = sqrt(2 * dL / lambda)
+                // counts the half-wavelengths the detour costs; the standard knife-edge result is 0.5
+                // at the shadow boundary (n = 0) and rises towards 1 as the detour clears.
+                float edgeLoss = 1F / (1F + DIFFRACTION_FALLOFF * delta);
+                if (AudioTuning.realismWavelength()) {
+                    final double lambda = SPEED_OF_SOUND / Math.max(1F, AudioTuning.realismFrequencyHz());
+                    final double n = Math.sqrt(Math.max(0.0D, 2.0D * delta / lambda));
+                    final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
+                    edgeLoss = 1F - DIFFRACTION_LOSS_SCALE * (1F - loss);
+                }
+                weighted += ringWeight * edgeLoss;
             }
         }
         if (totalWeight <= 0F)

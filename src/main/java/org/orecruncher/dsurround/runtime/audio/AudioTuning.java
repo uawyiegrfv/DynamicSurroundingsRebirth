@@ -36,6 +36,10 @@ public final class AudioTuning {
     private static volatile boolean evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
     private static volatile float apertureStrength = clamp((float) CONFIG.apertureStrength, 0F, 1F);
     private static volatile float apertureRadius = clamp((float) CONFIG.apertureRadius, 0.5F, 8F);
+    private static volatile boolean realismWavelength = CONFIG.realismWavelength;
+    private static volatile float realismFrequencyHz = clamp((float) CONFIG.realismFrequencyHz, 100F, 4000F);
+    private static volatile int aperturePlanes = clamp(CONFIG.aperturePlanes, 1, 4);
+    private static volatile float occlusionFocusDistance = clamp((float) CONFIG.occlusionFocusDistance, 0F, 64F);
 
     /**
      * The most recent evaluation's numbers, for {@code /dstune}. Diagnostics only: two rounds of
@@ -102,6 +106,33 @@ public final class AudioTuning {
     /** Radius of the aperture disc in blocks. */
     public static float apertureRadius() {
         return apertureRadius;
+    }
+
+    /**
+     * Whether the real wavelength of sound is used. With this off every frequency attenuates alike,
+     * which is the one error in the model that is qualitative rather than a matter of precision: in
+     * reality a low frequency bends around an obstacle that stops a high one outright.
+     */
+    public static boolean realismWavelength() {
+        return realismWavelength;
+    }
+
+    /** Representative frequency in Hz (the engine gives one filter per source, so one band). */
+    public static float realismFrequencyHz() {
+        return realismFrequencyHz;
+    }
+
+    /** Number of aperture planes sampled along the source-to-listener line. */
+    public static int aperturePlanes() {
+        return aperturePlanes;
+    }
+
+    /**
+     * Distance over which block material counts fully for occlusion. Beyond it the contribution is
+     * divided by (1 + d/focus). 0 = every block counts fully.
+     */
+    public static float occlusionFocusDistance() {
+        return occlusionFocusDistance;
     }
 
     /** Total rays the occlusion fan traces, for diagnostics. */
@@ -188,11 +219,36 @@ public final class AudioTuning {
                 apertureRadius = v;
                 return describe(key, old, v);
             }
+            case "realismWavelength": {
+                final boolean v = Boolean.parseBoolean(value);
+                final boolean old = realismWavelength;
+                realismWavelength = v;
+                return describe(key, old, v);
+            }
+            case "realismFrequencyHz": {
+                final float v = clamp(parseFloat(key, value), 100F, 4000F);
+                final float old = realismFrequencyHz;
+                realismFrequencyHz = v;
+                return describe(key, old, v);
+            }
+            case "aperturePlanes": {
+                final int v = clamp(parseInt(key, value), 1, 4);
+                final int old = aperturePlanes;
+                aperturePlanes = v;
+                return describe(key, old, v);
+            }
+            case "occlusionFocusDistance": {
+                final float v = clamp(parseFloat(key, value), 0F, 64F);
+                final float old = occlusionFocusDistance;
+                occlusionFocusDistance = v;
+                return describe(key, old, v);
+            }
             default:
                 throw new IllegalArgumentException("Unknown key '" + key + "'. Try: "
                         + "diffractionLevelStrength, diffractionHfStrength, diffractionRings, "
                         + "occlusionSegments, occlusionFanRays, evaluateOnSoundThread, "
-                        + "apertureStrength, apertureRadius");
+                        + "apertureStrength, apertureRadius, realismWavelength, realismFrequencyHz, "
+                        + "aperturePlanes, occlusionFocusDistance");
         }
     }
 
@@ -206,6 +262,10 @@ public final class AudioTuning {
         evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
         apertureStrength = clamp((float) CONFIG.apertureStrength, 0F, 1F);
         apertureRadius = clamp((float) CONFIG.apertureRadius, 0.5F, 8F);
+        realismWavelength = CONFIG.realismWavelength;
+        realismFrequencyHz = clamp((float) CONFIG.realismFrequencyHz, 100F, 4000F);
+        aperturePlanes = clamp(CONFIG.aperturePlanes, 1, 4);
+        occlusionFocusDistance = clamp((float) CONFIG.occlusionFocusDistance, 0F, 64F);
         return "Restored from config:\n" + describeAll();
     }
 
@@ -220,11 +280,16 @@ public final class AudioTuning {
                         + "  evaluateOnSoundThread    = %b   (config: enhancedSounds.evaluateOnSoundThread)%n"
                         + "  apertureStrength         = %.2f   (config: enhancedSounds.apertureStrength, 0-1; around-the-corner energy through the aperture disc)%n"
                         + "  apertureRadius           = %.1f   (config: enhancedSounds.apertureRadius, 0.5-8 blocks)%n"
+                        + "  realismWavelength        = %b   (config: enhancedSounds.realismWavelength; wavelength-dependent diffraction + Fresnel-sized aperture)%n"
+                        + "  realismFrequencyHz       = %.0f   (config: enhancedSounds.realismFrequencyHz, 100-4000)%n"
+                        + "  aperturePlanes           = %d   (config: enhancedSounds.aperturePlanes, 1-4)%n"
+                        + "  occlusionFocusDistance   = %.1f   (config: enhancedSounds.occlusionFocusDistance, 0-64 blocks; 0 = every block counts fully)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
                         + "Last evaluation: %s",
                 diffractionLevelStrength, diffractionHfStrength, diffractionRings, diffractionRings * 8,
                 occlusionSegments, occlusionFanRays(), evaluateOnSoundThread,
-                apertureStrength, apertureRadius, lastTrace);
+                apertureStrength, apertureRadius,
+                realismWavelength, realismFrequencyHz, aperturePlanes, occlusionFocusDistance, lastTrace);
     }
 
     // ------------------------------------------------------------------ helpers

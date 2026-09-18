@@ -183,6 +183,26 @@ public class Configuration extends ConfigurationData {
         public double apertureRadius = 3.0D;
 
         @Property
+        @Comment("Occlusion only: use the real wavelength of sound instead of treating every frequency alike. Diffraction loss then follows the Fresnel number (low frequencies bend around obstacles, high frequencies do not), and the aperture is sized by the first Fresnel zone radius sqrt(wavelength * d1 * d2 / (d1 + d2)) instead of a fixed disc. This is the physically correct direction, and the reason a low rumble carries around a corner while a high clink does not. Turn off to get the previous frequency-blind behaviour back")
+        public boolean realismWavelength = true;
+
+        @Property
+        @DoubleRange(min = 100.0D, max = 4000.0D)
+        @Comment("Occlusion only: the representative frequency in Hz used for the wavelength above. The engine applies ONE low-pass filter per source, so the model has to pick a single band; 500 Hz is a low-mid voice/thud band, where a game's audible occlusion is dominated, and it makes the model generous (low frequencies bend around obstacles) rather than harsh")
+        public double realismFrequencyHz = 500.0D;
+
+        @Property
+        @IntegerRange(min = 1, max = 4)
+        @RestartRequired
+        @Comment("Occlusion only: how many aperture planes to sample between source and listener. 1 = a single plane at the first obstacle (the previous behaviour). More planes catch a second obstacle further along the line, which a single plane cannot see, at a proportional cost in traces. 2 costs about what the previous fixed-disc implementation did")
+        public int aperturePlanes = 2;
+
+        @Property
+        @DoubleRange(min = 0.0D, max = 64.0D)
+        @Comment("Occlusion only: how far along the source-to-listener line block material still counts fully. Beyond that distance the contribution is divided by (1 + d/this), so a wall a few blocks from the source can no longer silence a sound 40 blocks away, while rock genuinely between the two ends still muffles. 0 disables the weighting (every block counts fully, the previous behaviour)")
+        public double occlusionFocusDistance = 8.0D;
+
+        @Property
         @IntegerRange(min = 16, max = 64)
         @RestartRequired
         @Comment("The number of rays to project around a sound location to calculate reverb effect")

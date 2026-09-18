@@ -150,6 +150,18 @@ public final class SoundFXUtils {
     /** Hard cap on the aperture radius in blocks, so a very low frequency cannot trace for ever. */
     private static final float MAX_APERTURE_RADIUS = 16F;
     /**
+     * Octave bands the zone is measured in, lowest first. A real sound is broadband and the Fresnel zone
+     * scales as 1/sqrt(frequency), so one hill covers the high band's zone while leaving the low band's
+     * zone partly clear - which is why a source on a hill heard from the valley is dull but present, not
+     * silent. Measuring a single frequency (the previous behaviour) made the hill block everything.
+     */
+    private static final float[] BAND_FREQUENCIES = {125F, 500F, 2000F};
+    /**
+     * Weight of each band in the combined attenuation. Low frequencies dominate, because they are the
+     * ones that reach the listener around the obstacle; the weights sum to 1.
+     */
+    private static final float[] BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
+    /**
      * Material thickness a plane's band must add before it counts as blocking that part of the
      * wavefront. The band spans a fraction of the line, so a one-block wall contributes roughly half a
      * block of material here, not a whole one - the floor has to sit well below that or a thin wall
@@ -904,164 +916,181 @@ public final class SoundFXUtils {
         if (directLen < 0.01D)
             return 1F;
 
-        // Size the aperture by the FIRST FRESNEL ZONE instead of a fixed disc:
-        // R = sqrt(wavelength * d1 * d2 / (d1 + d2)), with d1 + d2 the straight-line distance. This is
-        // what makes the model wavelength-dependent on the aperture side - a low frequency has a wide
-        // zone, so a small obstacle blocks only a small part of it and the sound stays open, while a
-        // high frequency's narrow zone is covered by the same obstacle and the sound muffles. With the
-        // wavelength model off, fall back to the fixed configured radius (the previous behaviour).
+        // The aperture is the FIRST FRESNEL ZONE, R = sqrt(wavelength * d1 * d2 / (d1 + d2)), measured in
+        // octave bands. The zone scales as 1/sqrt(frequency), so one hill covers a high frequency's
+        // narrow zone completely while leaving a low frequency's wide zone partly clear - which is why a
+        // source on a hill heard from the valley is dull but present with the valley's reverberation
+        // behind it, not silenced. A single-frequency measurement could not express that.
         final float configuredRadius = AudioTuning.apertureRadius();
-        final float fresnelRadius;
-        if (AudioTuning.realismWavelength()) {
-            final double wavelength = SPEED_OF_SOUND / Math.max(1F, AudioTuning.realismFrequencyHz());
-            // d1 = d2 = half the distance maximises the zone radius for a given total distance.
-            fresnelRadius = (float) Math.min(MAX_APERTURE_RADIUS,
-                    Math.sqrt(wavelength * (directLen * 0.5D) * (directLen * 0.5D) / directLen));
-        } else {
-            fresnelRadius = configuredRadius;
-        }
-        this.lastFresnelRadius = fresnelRadius;
+        final boolean wavelength = AudioTuning.realismWavelength();
+        final int bandCount = wavelength ? BAND_FREQUENCIES.length : 1;
+        final int planes = AudioTuning.aperturePlanes();
+        final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
 
+        // Orthonormal frame perpendicular to the bearing, shared by every band and plane.
         final Vec3 d = direct.scale(1.0D / directLen);
         final Vec3 seed = Math.abs(d.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
         final Vec3 u = d.cross(seed).normalize();
         final Vec3 v = d.cross(u).normalize();
 
-        // The absorption coefficient is the same one that turns the accumulated occlusion into a
-        // cutoff, so a sample is weighted in exactly the units the direct path uses.
-        final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
-
         final ReusableRaycastContext traceContext =
                 new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
-
         final Vec3 sourceLegOrigin = stepOutOfSolid(ctx.world, source, listener);
-        final int samples = APERTURE_SAMPLES;
-        final int rings = APERTURE_RINGS;
-        final int planes = AudioTuning.aperturePlanes();
-        final boolean wavelength = AudioTuning.realismWavelength();
-        // Per plane: the total zone weight sampled, the weight that is clear, and the material
-        // absorption of the source leg up to that plane. The leak is the MINIMUM clear fraction over
-        // the planes, because a ray that cannot pass one plane cannot pass the wavefront.
+
+        this.lastFresnelRadius = 0F;
+        float worstClear = 1F;
+        float excessDb = 0F;
+        for (int band = 0; band < bandCount; band++) {
+            final float bandHz = bandFrequency(band);
+            final double bandWavelength = SPEED_OF_SOUND / Math.max(1F, bandHz);
+            final float bandClear = measureBandClear(ctx, source, listener, direct, directLen, d, u, v,
+                    traceContext, sourceLegOrigin, configuredRadius, wavelength, planes, absorption,
+                    bandWavelength);
+            if (bandClear < 0F)
+                continue;                       // no plane could be sampled for this band
+            worstClear = Math.min(worstClear, bandClear);
+            // Combine the bands with the low band dominant: it is the one that reaches the listener
+            // around the obstacle, and the ear weights it that way too.
+            excessDb += bandWeight(band) * bandExcessDb(bandClear);
+        }
+        this.lastZoneLossDb = excessDb;
+        return MathStuff.clamp1(worstClear);
+    }
+
+    /**
+     * One octave band: samples every aperture plane at this band's zone radius and returns the worst
+     * plane's clear fraction, or -1 when no plane could be sampled.
+     */
+    private float measureBandClear(final WorldContext ctx, final Vec3 source, final Vec3 listener,
+                                   final Vec3 direct, final double directLen, final Vec3 d, final Vec3 u,
+                                   final Vec3 v, final ReusableRaycastContext traceContext,
+                                   final Vec3 sourceLegOrigin, final float configuredRadius,
+                                   final boolean wavelength, final int planes, final float absorption,
+                                   final double bandWavelength) {
+        // Per plane: the zone weight sampled, the weight that is clear, and the occlusion the source leg
+        // accumulated reaching that plane.
         final float[] planeWeight = new float[planes];
         final float[] planeClearWeight = new float[planes];
         final float[] planeAbsorption = new float[planes];
         java.util.Arrays.fill(planeAbsorption, -1F);
         float taken = 0F;
+
         for (int p = 1; p <= planes; p++) {
             // A single plane sits on the first obstacle, which is where the straight line is actually
-            // blocked (the previous behaviour). With several planes they are spread evenly instead,
-            // because a second obstacle further along is what the extra planes exist to catch.
+            // blocked. With several planes they are spread evenly, because a second obstacle further
+            // along is what the extra planes exist to catch.
             final Vec3 planeCentre = planes == 1
                     ? (this.lastOccluderPos != null ? this.lastOccluderPos
                                                     : MathStuff.addScaled(source, direct, 0.5F))
                     : MathStuff.addScaled(source, direct, (float) p / (planes + 1));
-            // Distances from each end to the plane that was actually chosen, so the Fresnel zone
-            // radius belongs to this plane's position rather than to an assumed fraction.
+            // Distances from each end to the plane that was chosen, so the zone radius belongs to this
+            // plane's position rather than to an assumed fraction.
             final double d1 = source.distanceTo(planeCentre);
             final double d2 = planeCentre.distanceTo(listener);
             final float planeRadius;
             if (wavelength) {
-                final double lambda = SPEED_OF_SOUND / Math.max(1F, AudioTuning.realismFrequencyHz());
                 planeRadius = (float) Math.min(MAX_APERTURE_RADIUS,
-                        Math.sqrt(lambda * Math.max(0.01D, d1) * Math.max(0.01D, d2) / Math.max(0.02D, d1 + d2)));
+                        Math.sqrt(bandWavelength * Math.max(0.01D, d1) * Math.max(0.01D, d2)
+                                / Math.max(0.02D, d1 + d2)));
             } else {
                 planeRadius = configuredRadius;
             }
             if (planeRadius <= 0.05F)
                 continue;
-            for (int r = 1; r <= rings; r++) {
-                // Inner ring at half the zone radius, outer ring at the zone edge: the two radii
-                // bracket the first Fresnel zone instead of sampling a fixed disc uniformly.
-                final float ringRadius = planeRadius * r / rings;
-                final int inRing = Math.max(1, samples / rings);
+            // The widest zone measured (the lowest band) is the one reported: it is the one that decides
+            // whether an obstacle is a wall or a nuisance.
+            if (planeRadius > this.lastFresnelRadius)
+                this.lastFresnelRadius = planeRadius;
+
+            for (int r = 1; r <= APERTURE_RINGS; r++) {
+                // Inner ring at half the zone radius, outer ring at the zone edge: the two radii bracket
+                // the first Fresnel zone instead of sampling a fixed disc uniformly.
+                final float ringRadius = planeRadius * r / APERTURE_RINGS;
+                final int inRing = Math.max(1, APERTURE_SAMPLES / APERTURE_RINGS);
                 for (int k = 0; k < inRing; k++) {
                     // Offset each ring's start angle so samples do not line up along the disc's axes.
                     final double angle = 2.0D * Math.PI * (k + r * 0.5D) / inRing;
                     final Vec3 sample = planeCentre
                             .add(u.scale(Math.cos(angle) * ringRadius))
                             .add(v.scale(Math.sin(angle) * ringRadius));
-                    // Zone weight: the first Fresnel zone matters most along its centre and not at all
-                    // at its edge, so a sample's importance falls off with its distance from the direct
-                    // line. This is what makes a small obstacle in the middle of the zone nearly
-                    // harmless while an obstacle covering the whole zone blocks the sound - the
-                    // standard Fresnel result, which a uniform area average cannot express.
+                    // Zone weight: the first Fresnel zone matters most along its centre and not at all at
+                    // its edge, so a sample's importance falls off with its distance from the direct
+                    // line. This is what makes a small obstacle in the middle of the zone nearly harmless
+                    // while an obstacle covering the whole zone blocks the sound.
                     final float zoneWeight = (float) MathStuff.exp(-2.0D * (ringRadius * ringRadius)
                             / Math.max(1.0E-4D, planeRadius * planeRadius));
                     planeWeight[p - 1] += zoneWeight;
                     taken += zoneWeight;
-                    // A sample sitting inside solid matter is not a secondary source at all: there is
-                    // no air there to carry the wave, and stepping it out would let it escape through
-                    // a thick wall and report the wall as transparent. It blocks its share of the zone.
+                    // A sample inside solid matter is not a secondary source at all: there is no air there
+                    // to carry the wave, and stepping it out would let it escape through a thick wall and
+                    // report the wall as transparent. It blocks its share of the zone.
                     if (isSolidBlock(ctx.world, sample))
                         continue;
                     // Leg 1: the material the source->sample path passes through, broken down at every
                     // aperture plane. Multiplying the per-band transmissions equals the transmission of
-                    // the whole leg, so sampling several planes costs extra samples but no fidelity.
+                    // the whole leg, so extra planes cost samples but no fidelity.
                     final float[] perPlane = this.lastPlaneOcclusion;
                     final float[] perMaterial = this.lastPlaneMaterial;
                     traceOcclusionSum(ctx, traceContext, sourceLegOrigin, sample, perPlane, perMaterial);
-                    // The material this sample's own plane band adds decides whether the zone is clear
-                    // at that plane. Anything thinner than a full block is not an obstacle to the
-                    // wavefront - a fence post, a torch, a leaf - so it does not block the zone.
-                    final float bandMaterial = perMaterial[Math.min(p - 1, perMaterial.length - 1)]
-                            - (p > 1 ? perMaterial[Math.min(p - 2, perMaterial.length - 1)] : 0F);
+                    // The material this sample's own plane band adds decides whether the zone is clear at
+                    // that plane. A fence post, a torch, a leaf or a pane of glass is not an obstacle to a
+                    // wavefront, so anything thinner than the floor does not block the zone.
+                    final int here = Math.min(p - 1, perMaterial.length - 1);
+                    final int before = Math.min(p - 2, perMaterial.length - 1);
+                    final float bandMaterial = perMaterial[here] - (p > 1 ? perMaterial[before] : 0F);
                     if (bandMaterial < ZONE_BLOCKING_MATERIAL)
                         planeClearWeight[p - 1] += zoneWeight;
                     // Everything up to this sample's own plane still had to get through the earlier
                     // planes, so only the occlusion accumulated up to here counts as having reached it.
-                    final float upToHere = perPlane[Math.min(p - 1, perPlane.length - 1)];
-                    final float sourceTransmission = (float) MathStuff.exp(-upToHere * absorption);
-                    if (sourceTransmission <= 0.001F)
+                    final float upToHere = perPlane[here];
+                    if ((float) MathStuff.exp(-upToHere * absorption) <= 0.001F)
                         continue;
                     if (planeAbsorption[p - 1] < 0F)
                         planeAbsorption[p - 1] = upToHere;
-                    // Leg 2: does this secondary source reach the listener? This used to be a
-                    // clear/blocked test, which made a listener standing behind cover read as fully
-                    // deaf however open the aperture was. With the wavelength model on, the leg's own
-                    // material is measured, so a thin obstacle in front of the listener removes only
-                    // the part of the aperture it actually covers.
-                    final float listenerOcclusion = traceOcclusionSum(ctx, traceContext, sample, listener);
-                    if (listenerOcclusion > 0F && !wavelength)
+                    // Leg 2: does this secondary source reach the listener? A clear/blocked test here made
+                    // a listener behind cover read as fully deaf however open the aperture was; with the
+                    // wavelength model on the leg's own material is measured instead.
+                    if (wavelength) {
+                        traceOcclusionSum(ctx, traceContext, sample, listener);
+                    } else if (!isMiss(traceContext.trace(sample, listener))) {
                         continue;
+                    }
                 }
             }
         }
         if (taken <= 0F)
-            return 1F;
+            return -1F;
         // The wavefront's clear fraction is decided by the WORST plane it has to cross, not by the
-        // product of the planes: one ray cannot pass a plane that blocks it, however open the others
-        // are. This is what makes the answer fall properly as obstacles accumulate along the line.
-        float worstClear = 1F;
-        float excessDb = 0F;
+        // product: one ray cannot pass a plane that blocks it, however open the others are.
+        float bandClear = 1F;
         for (int i = 0; i < planes; i++) {
             if (planeWeight[i] <= 0F)
                 continue;
             final float clear = planeClearWeight[i] / planeWeight[i];
-            // A plane the source leg barely reaches (buried behind an earlier obstacle) cannot carry
-            // the wavefront either, so its clear fraction is discounted by what actually arrives.
+            // A plane the source leg barely reaches (buried behind an earlier obstacle) cannot carry the
+            // wavefront either, so its clear fraction is discounted by what actually arrives.
             final float arrival = planeAbsorption[i] < 0F
                     ? 0F
                     : (float) MathStuff.exp(-planeAbsorption[i] * absorption);
-            final float planeClear = MathStuff.clamp1(clear * arrival);
-            worstClear = Math.min(worstClear, planeClear);
-            // Excess attenuation of this plane, from the standard Fresnel result: an obstacle covering a
-            // small part of the zone costs almost nothing, and only a covered zone goes silent. The
-            // losses of the planes ADD (decibels add), which is why several obstacles attenuate more
-            // than one - but nothing like a material sum does.
-            //
-            // The falloff is the FOURTH power of the blocked fraction, not the square. With a square, a
-            // plane that is 10% clear still costs 20.5 dB, so almost any partial obstruction saturated:
-            // measured on 1.20.1, 36% of 1814 evaluations pinned at exactly the two-plane maximum of
-            // 50.4 dB. The physical behaviour is steeper than that - the field is largely intact while a
-            // meaningful part of the zone is clear, and only collapses as the zone approaches fully
-            // blocked. At the fourth power: 0.03 dB when 90% clear, 2.6 dB at 80%, 9.6 dB at 50%,
-            // 16.4 dB at 10%.
-            final float blocked = 1F - planeClear;
-            final float blockedSq = blocked * blocked;
-            excessDb += 0.2F + AudioTuning.occlusionLossDb() * blockedSq * blockedSq;
+            bandClear = Math.min(bandClear, MathStuff.clamp1(clear * arrival));
         }
-        this.lastZoneLossDb = excessDb;
-        return MathStuff.clamp1(worstClear);
+        return bandClear;
+    }
+
+    /**
+     * Excess attenuation in dB for one band's clear fraction.
+     *
+     * <p>From the standard Fresnel result: an obstacle covering a small part of the zone costs almost
+     * nothing, and only a covered zone goes silent. The falloff is the FOURTH power of the blocked
+     * fraction, not the square - with a square a plane that is 10% clear still costs 20.5 dB, so almost
+     * any partial obstruction saturated (measured: 36% of 1814 evaluations pinned at the two-plane
+     * maximum of 50.4 dB). At the fourth power: 0.03 dB when 90% clear, 2.6 dB at 80%, 9.6 dB at 50%,
+     * 16.4 dB at 10%.
+     */
+    private static float bandExcessDb(final float clear) {
+        final float blocked = 1F - clear;
+        final float blockedSq = blocked * blocked;
+        return 0.2F + AudioTuning.occlusionLossDb() * blockedSq * blockedSq;
     }
 
     /**
@@ -1154,6 +1183,24 @@ public final class SoundFXUtils {
      * distance, then 1 / (1 + (d - focus)/focus). With the focus at 0 every block counts fully (the
      * previous behaviour).
      */
+    /**
+     * Frequency for band {@code index}, or the single configured frequency when the wavelength model is
+     * off (in which case every band collapses to the same value and the combination is a no-op).
+     */
+    private static float bandFrequency(final int index) {
+        if (!AudioTuning.realismWavelength())
+            return AudioTuning.realismFrequencyHz();
+        final int i = Math.max(0, Math.min(BAND_FREQUENCIES.length - 1, index));
+        return BAND_FREQUENCIES[i];
+    }
+
+    /** Weight of band {@code index}, renormalised if the band arrays ever get out of step. */
+    private static float bandWeight(final int index) {
+        if (index < 0 || index >= BAND_WEIGHTS.length)
+            return 1F / BAND_FREQUENCIES.length;
+        return BAND_WEIGHTS[index];
+    }
+
     private static double occlusionDistanceWeight(final double along, final double totalDistance) {
         final float focus = AudioTuning.occlusionFocusDistance();
         if (focus <= 0F)

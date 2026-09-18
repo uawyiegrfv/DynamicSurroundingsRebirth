@@ -693,14 +693,22 @@ public final class SoundFXUtils {
         // wrong place (killing the compensation for solid-block sources).
         final Vec3 rayOrigin = stepOutOfSolid(ctx.world, origin, target);
         final Vec3[] centerOccluder = new Vec3[]{null};
-        float factor = traceOcclusion(ctx, rayOrigin, target, centerOccluder);
-        this.lastCenterOcclusion = factor;
+        float centerFactor = traceOcclusion(ctx, rayOrigin, target, centerOccluder);
         this.lastOccluderPos = centerOccluder[0];
         // The aperture is only interesting when something is actually on the straight line: with a
         // clear line there is nothing to go around, and the compensation is gated off anyway.
         this.lastApertureLeak = this.lastOccluderPos != null
                 ? calculateApertureLeak(ctx, origin, target)
                 : 0F;
+        // Weight the centre ray's score by how much of the wavefront actually gets through. This is
+        // the whole point of the aperture: the centre ray answers "is something on the line?", so
+        // several obstacles on it used to muffle the sound exactly like a sealed room, even with the
+        // whole world open around it - which is what "in the open the occlusion is still very strong"
+        // was. A leak of 1 (nothing but air around the obstacle, or no obstacle at all) leaves the
+        // score untouched; a wall that spans the disc takes it to ~0, so the wall still mutes.
+        centerFactor *= 1F - AudioTuning.apertureStrength() * (1F - this.lastApertureLeak);
+        this.lastCenterOcclusion = centerFactor;
+        float factor = centerFactor;
         int rays = 1;
 
         final Vec3 dir = target.subtract(origin).normalize();

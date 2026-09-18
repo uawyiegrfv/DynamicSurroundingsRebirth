@@ -34,6 +34,13 @@ public final class AudioTuning {
             Math.max(1, (Math.max(1, CONFIG.occlusionFanRays) - 1) / 4);
     private static volatile boolean evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
 
+    /**
+     * The most recent evaluation's numbers, for {@code /dstune}. Diagnostics only: two rounds of
+     * acoustic changes produced no audible difference, so before changing anything else we need to
+     * see whether the path runs at all and what it computes.
+     */
+    private static volatile String lastTrace = "(no evaluation recorded yet)";
+
     private AudioTuning() {
     }
 
@@ -76,6 +83,16 @@ public final class AudioTuning {
     /** Total rays the occlusion fan traces, for diagnostics. */
     public static int occlusionFanRays() {
         return 1 + 4 * occlusionFanRings;
+    }
+
+    /** Called from the audio thread at the end of every evaluation. */
+    public static void recordTrace(final String trace) {
+        lastTrace = trace;
+    }
+
+    /** The most recent evaluation's numbers. */
+    public static String lastTrace() {
+        return lastTrace;
     }
 
     // ------------------------------------------------------------------ mutation
@@ -151,9 +168,10 @@ public final class AudioTuning {
                         + "  occlusionSegments        = %d   (config: enhancedSounds.occlusionSegments, 1-32)%n"
                         + "  occlusionFanRays         = %d   (config: enhancedSounds.occlusionFanRays; rounded to 1 + 4n)%n"
                         + "  evaluateOnSoundThread    = %b   (config: enhancedSounds.evaluateOnSoundThread)%n"
-                        + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.",
+                        + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
+                        + "Last evaluation: %s",
                 diffractionLevelStrength, diffractionHfStrength, diffractionRings, diffractionRings * 8,
-                occlusionSegments, occlusionFanRays(), evaluateOnSoundThread);
+                occlusionSegments, occlusionFanRays(), evaluateOnSoundThread, lastTrace);
     }
 
     // ------------------------------------------------------------------ helpers

@@ -312,8 +312,17 @@ public final class SourceContext implements Callable<Void> {
     }
 
     private void captureState() {
-        if (this.sound != null) {
-            this.pos = new Vec3(this.sound.getX(), this.sound.getY(), this.sound.getZ());
+        // Runs on a pool thread, so this is a cross-thread read of a vanilla SoundInstance the
+        // sound engine owns. It is deliberately defensive: a throw here would escape as an
+        // ExecutionException that SoundFXProcessor swallows at task.get(), leaving the source on a
+        // stale position with nothing in the log. Keep the previous position instead.
+        try {
+            final SoundInstance instance = this.sound;
+            if (instance != null) {
+                this.pos = new Vec3(instance.getX(), instance.getY(), instance.getZ());
+            }
+        } catch (final Throwable ignored) {
+            // keep the last known position
         }
     }
 

@@ -202,8 +202,11 @@ public final class Effects {
         if (++applyCounter % 140 == 0) {
             var sound = source.getSound();
             var soundId = sound == null ? "?" : sound.getLocation().toString();
-            LOGGER.info("REVERB_STEADY src=%d sound=%s pos=%.1f,%.1f,%.1f sends=%d process=[%s,%s,%s,%s] gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f/%s] filters=[%d,%d,%d,%d]/%d",
-                    sourceId, soundId, source.getPosition().x, source.getPosition().y, source.getPosition().z, activeSends,
+            // TEMPORARY DIAGNOSTIC (remove): the SoundSource category, so the reverb profile of
+            // block sounds can be compared against the player's own sounds (steps / voice).
+            var rvbCategory = sound == null ? "?" : sound.getSource().getName();
+            LOGGER.info("REVERB_STEADY src=%d cat=%s sound=%s pos=%.1f,%.1f,%.1f sends=%d process=[%s,%s,%s,%s] gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f/%s] filters=[%d,%d,%d,%d]/%d",
+                    sourceId, rvbCategory, soundId, source.getPosition().x, source.getPosition().y, source.getPosition().z, activeSends,
                     source.getLowPass(0).doProcess(), source.getLowPass(1).doProcess(),
                     source.getLowPass(2).doProcess(), source.getLowPass(3).doProcess(),
                     source.getLowPass(0).gain, source.getLowPass(1).gain, source.getLowPass(2).gain, source.getLowPass(3).gain,

@@ -155,14 +155,20 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @Slider
-        @DoubleRange(min = 0.05D, max = 1.0D)
-        @Comment("Occlusion only: ceiling on the high-frequency gain that diffraction may restore. 1.0 = no ceiling (original behaviour, which let a wall restore the highs almost completely and made occlusion inaudible). 0.25 caps the restored highs at about -12 dB, so a source behind a wall stays audible but clearly muffled - which is what edge diffraction does, since it attenuates the short wavelengths first")
-        public double diffractionHfCeiling = 0.25D;
+        @DoubleRange(min = 0.0D, max = 1.0D)
+        @Comment("Occlusion only: fraction of the LOST level that an edge detour may bring back. The original code took max(detour, occlusion), which erased the wall as soon as any edge existed nearby; restoring a fraction keeps the wall audible. 0.35 gives about -1 dB behind a 1-block stone wall")
+        public double diffractionLevelStrength = 0.35D;
+
+        @Property
+        @Slider
+        @DoubleRange(min = 0.0D, max = 1.0D)
+        @Comment("Occlusion only: fraction of the LOST high frequencies that an edge detour may bring back. Much lower than the level strength, because edge diffraction attenuates short wavelengths first. 0.10 puts the highs near -21 dB behind a 1-block stone wall and -34 dB behind a 2-block one")
+        public double diffractionHfStrength = 0.10D;
 
         @Property
         @IntegerRange(min = 1, max = 6)
         @RestartRequired
-        @Comment("Occlusion only: how many detour rings the diffraction probe sums over. The original code stopped at the first ring that found any waypoint, so it could not tell a 1-block wall from a 1.5-block wall. More rings discriminate better and smooth the transition, at a cost of 8 rays each (3 = 24 probes)")
+        @Comment("Occlusion only: how many detour rings the diffraction probe sums over. The original code stopped at the first ring that found any waypoint, so the whole result depended on a single sample. More rings smooth the value and lower the restore, at a cost of 8 rays each (3 = 24 probes)")
         public int diffractionRings = 3;
 
         @Property

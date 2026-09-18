@@ -24,8 +24,10 @@ public final class AudioTuning {
     private static final Configuration.EnhancedSounds CONFIG =
             ContainerManager.resolve(Configuration.EnhancedSounds.class);
 
-    private static volatile float diffractionHfCeiling =
-            clamp((float) CONFIG.diffractionHfCeiling, 0.05F, 1F);
+    private static volatile float diffractionLevelStrength =
+            clamp((float) CONFIG.diffractionLevelStrength, 0F, 1F);
+    private static volatile float diffractionHfStrength =
+            clamp((float) CONFIG.diffractionHfStrength, 0F, 1F);
     private static volatile int diffractionRings = clamp(CONFIG.diffractionRings, 1, 6);
     private static volatile int occlusionSegments = Math.max(1, CONFIG.occlusionSegments);
     private static volatile int occlusionFanRings =
@@ -36,12 +38,19 @@ public final class AudioTuning {
     }
 
     /**
-     * Ceiling on the high-frequency gain that diffraction may restore. 1.0 = no ceiling (the
-     * original behaviour, which let a wall bring the highs back almost completely); 0.25 caps the
-     * restored highs near -12 dB, so a source behind a wall stays audible but clearly muffled.
+     * Fraction of the LOST level an edge detour may bring back. The original code took
+     * {@code max(detour, occlusion)}, which erased the wall as soon as any edge existed nearby.
      */
-    public static float diffractionHfCeiling() {
-        return diffractionHfCeiling;
+    public static float diffractionLevelStrength() {
+        return diffractionLevelStrength;
+    }
+
+    /**
+     * Fraction of the LOST high frequencies an edge detour may bring back. Much lower than the level
+     * strength, because edge diffraction attenuates short wavelengths first.
+     */
+    public static float diffractionHfStrength() {
+        return diffractionHfStrength;
     }
 
     /** Number of detour rings the diffraction probe sums over (8 rays each). */
@@ -77,10 +86,16 @@ public final class AudioTuning {
      */
     public static String set(final String key, final String value) {
         switch (key) {
-            case "diffractionHfCeiling": {
-                final float v = clamp(parseFloat(key, value), 0.05F, 1F);
-                final float old = diffractionHfCeiling;
-                diffractionHfCeiling = v;
+            case "diffractionLevelStrength": {
+                final float v = clamp(parseFloat(key, value), 0F, 1F);
+                final float old = diffractionLevelStrength;
+                diffractionLevelStrength = v;
+                return describe(key, old, v);
+            }
+            case "diffractionHfStrength": {
+                final float v = clamp(parseFloat(key, value), 0F, 1F);
+                final float old = diffractionHfStrength;
+                diffractionHfStrength = v;
                 return describe(key, old, v);
             }
             case "diffractionRings": {
@@ -111,14 +126,15 @@ public final class AudioTuning {
             }
             default:
                 throw new IllegalArgumentException("Unknown key '" + key + "'. Try: "
-                        + "diffractionHfCeiling, diffractionRings, occlusionSegments, "
-                        + "occlusionFanRays, evaluateOnSoundThread");
+                        + "diffractionLevelStrength, diffractionHfStrength, diffractionRings, "
+                        + "occlusionSegments, occlusionFanRays, evaluateOnSoundThread");
         }
     }
 
     /** Restores every value from the config file. */
     public static String reset() {
-        diffractionHfCeiling = clamp((float) CONFIG.diffractionHfCeiling, 0.05F, 1F);
+        diffractionLevelStrength = clamp((float) CONFIG.diffractionLevelStrength, 0F, 1F);
+        diffractionHfStrength = clamp((float) CONFIG.diffractionHfStrength, 0F, 1F);
         diffractionRings = clamp(CONFIG.diffractionRings, 1, 6);
         occlusionSegments = Math.max(1, CONFIG.occlusionSegments);
         occlusionFanRings = Math.max(1, (Math.max(1, CONFIG.occlusionFanRays) - 1) / 4);
@@ -129,13 +145,14 @@ public final class AudioTuning {
     /** One line per tunable, with the config key that makes a change permanent. */
     public static String describeAll() {
         return String.format(
-                "  diffractionHfCeiling   = %.2f   (config: enhancedSounds.diffractionHfCeiling, 0.05-1.0; 1.0 = no ceiling = original)%n"
-                        + "  diffractionRings       = %d   (config: enhancedSounds.diffractionRings, 1-6; %d probes per measurement)%n"
-                        + "  occlusionSegments      = %d   (config: enhancedSounds.occlusionSegments, 1-32)%n"
-                        + "  occlusionFanRays       = %d   (config: enhancedSounds.occlusionFanRays; rounded to 1 + 4n)%n"
-                        + "  evaluateOnSoundThread  = %b   (config: enhancedSounds.evaluateOnSoundThread)%n"
+                "  diffractionLevelStrength = %.2f   (config: enhancedSounds.diffractionLevelStrength, 0-1; fraction of the LOST level a detour may restore)%n"
+                        + "  diffractionHfStrength    = %.2f   (config: enhancedSounds.diffractionHfStrength, 0-1; same for the LOST highs - keep this well below the level)%n"
+                        + "  diffractionRings         = %d   (config: enhancedSounds.diffractionRings, 1-6; %d probes per measurement)%n"
+                        + "  occlusionSegments        = %d   (config: enhancedSounds.occlusionSegments, 1-32)%n"
+                        + "  occlusionFanRays         = %d   (config: enhancedSounds.occlusionFanRays; rounded to 1 + 4n)%n"
+                        + "  evaluateOnSoundThread    = %b   (config: enhancedSounds.evaluateOnSoundThread)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.",
-                diffractionHfCeiling, diffractionRings, diffractionRings * 8,
+                diffractionLevelStrength, diffractionHfStrength, diffractionRings, diffractionRings * 8,
                 occlusionSegments, occlusionFanRays(), evaluateOnSoundThread);
     }
 

@@ -40,7 +40,13 @@ public abstract class BlockStateMatcher implements IMatcher<BlockState> {
             // therefore silently disable every other rule in that file, vanilla mappings
             // included, with nothing but a warn line to show for it.
             // Keep the entry, make it match nothing, and say so loudly.
-            LOGGER.warn("Unable to resolve block specification '%s' on this version; the entry will never match: %s",
+            // Deliberately NOT a warn. The port carries data written for several game versions,
+            // so a large part of every rule set legitimately names blocks this version does not
+            // have. One warn per occurrence ran to thousands of lines and buried the ids that
+            // were actually WRONG among the ones that are merely absent here. DataDiagnostics
+            // reports this in aggregate when the client joins a world, and the itemised list
+            // follows in the self-check (or on demand via /dsdump validate).
+            LOGGER.debug("Unable to resolve block specification '%s' on this version; the entry will never match: %s",
                     blockId, t.getMessage());
             DataDiagnostics.fail("unresolvable block in a rule", blockId);
             return DataResult.success(new MatchOnNothing(blockId));

@@ -4,6 +4,7 @@
   "package": "org.orecruncher.dsurround.mixins",
   "compatibilityLevel": "JAVA_17",
   "refmap": "dsurround.refmap.json",
+  "plugin": "org.orecruncher.dsurround.mixins.DSurroundMixinPlugin",
   "mixins": [
     "core.MixinBiome",
     "core.MixinBlockState",
@@ -18,6 +19,7 @@
     "core.MixinSoundOptionsScreen",
     "audio.MixinSoundEngine",
     "audio.MixinSoundLibrary",
+    "audio.MixinSoundLibraryContext",
     "audio.MixinSoundEngineAccessor",
     "audio.MixinSoundManagerAccessor",
     "audio.MixinChannelAccess",

@@ -44,6 +44,10 @@ public final class AudioTuning {
     private static volatile boolean occlusionFresnelZone = CONFIG.occlusionFresnelZone;
     private static volatile float occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
     private static volatile boolean logAudioTrace = CONFIG.logAudioTrace;
+    private static final float[] DEFAULT_BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
+    private static final float[] DEFAULT_BAND_FREQUENCIES = {125F, 500F, 2000F};
+    private static volatile float[] bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
+    private static volatile float[] bandFrequencies = parseFloats(CONFIG.bandFrequencies, DEFAULT_BAND_FREQUENCIES);
 
     /**
      * The most recent evaluation's numbers, for {@code /dstune}. Diagnostics only: two rounds of
@@ -160,6 +164,16 @@ public final class AudioTuning {
     /** Whether the evaluation trace is written to the log. Off by default. */
     public static boolean logAudioTrace() {
         return logAudioTrace;
+    }
+
+    /** Relative weight of each octave band, lowest first. */
+    public static float[] bandWeights() {
+        return bandWeights;
+    }
+
+    /** Octave bands in Hz, lowest first. */
+    public static float[] bandFrequencies() {
+        return bandFrequencies;
     }
 
     /** Total rays the occlusion fan traces, for diagnostics. */
@@ -298,13 +312,29 @@ public final class AudioTuning {
                 logAudioTrace = v;
                 return describe(key, old, v) + " (the last trace is always kept for '/dstune')";
             }
+            case "bandWeights": {
+                final float[] v = parseFloats(value, null);
+                if (v == null || v.length == 0)
+                    throw new IllegalArgumentException("bandWeights expects comma separated numbers, e.g. 0.50,0.35,0.15");
+                final String old = describeArray(bandWeights);
+                bandWeights = v;
+                return describe(key, old, describeArray(v));
+            }
+            case "bandFrequencies": {
+                final float[] v = parseFloats(value, null);
+                if (v == null || v.length == 0)
+                    throw new IllegalArgumentException("bandFrequencies expects comma separated Hz, e.g. 125,500,2000");
+                final String old = describeArray(bandFrequencies);
+                bandFrequencies = v;
+                return describe(key, old, describeArray(v));
+            }
             default:
                 throw new IllegalArgumentException("Unknown key '" + key + "'. Try: "
                         + "diffractionLevelStrength, diffractionHfStrength, diffractionRings, "
                         + "occlusionSegments, occlusionFanRays, evaluateOnSoundThread, "
                         + "apertureStrength, apertureRadius, realismWavelength, realismFrequencyHz, "
                         + "aperturePlanes, occlusionFocusDistance, occlusionConeDegrees, "
-                        + "occlusionFresnelZone, occlusionLossDb, probe");
+                        + "occlusionFresnelZone, occlusionLossDb, probe, bandWeights, bandFrequencies");
         }
     }
 
@@ -326,6 +356,8 @@ public final class AudioTuning {
         occlusionFresnelZone = CONFIG.occlusionFresnelZone;
         occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
         logAudioTrace = CONFIG.logAudioTrace;
+        bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
+        bandFrequencies = parseFloats(CONFIG.bandFrequencies, DEFAULT_BAND_FREQUENCIES);
         return "Restored from config:\n" + describeAll();
     }
 
@@ -348,16 +380,55 @@ public final class AudioTuning {
                         + "  occlusionFresnelZone     = %b   (config: enhancedSounds.occlusionFresnelZone; zone clear fraction instead of a material sum)%n"
                         + "  occlusionLossDb          = %.1f   (config: enhancedSounds.occlusionLossDb, 0-60; excess attenuation for a fully covered plane)%n"
                         + "  probe                    = %b   (config: enhancedSounds.logAudioTrace; write the evaluation trace to the log)%n"
+                        + "  bandWeights              = %s   (config: enhancedSounds.bandWeights; relative weight per octave band, lowest first)%n"
+                        + "  bandFrequencies          = %s   (config: enhancedSounds.bandFrequencies; octave bands in Hz, lowest first)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
                         + "Last evaluation: %s",
                 diffractionLevelStrength, diffractionHfStrength, diffractionRings, diffractionRings * 8,
                 occlusionSegments, occlusionFanRays(), evaluateOnSoundThread,
                 apertureStrength, apertureRadius,
                 realismWavelength, realismFrequencyHz, aperturePlanes, occlusionFocusDistance,
-                occlusionConeDegrees, occlusionFresnelZone, occlusionLossDb, logAudioTrace, lastTrace);
+                occlusionConeDegrees, occlusionFresnelZone, occlusionLossDb, logAudioTrace,
+                describeArray(bandWeights), describeArray(bandFrequencies), lastTrace);
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /** Parses a comma separated list of numbers, or returns {@code fallback} when the text is unusable. */
+    private static float[] parseFloats(final String text, final float[] fallback) {
+        if (text == null)
+            return fallback;
+        final String[] parts = text.split(",");
+        final float[] out = new float[parts.length];
+        int n = 0;
+        for (final String part : parts) {
+            try {
+                out[n++] = Float.parseFloat(part.trim());
+            } catch (NumberFormatException ignored) {
+                // drop the unusable entry
+            }
+        }
+        if (n == 0)
+            return fallback;
+        final float[] trimmed = new float[n];
+        System.arraycopy(out, 0, trimmed, 0, n);
+        return trimmed;
+    }
+
+    /** Renders an array for the chat output. */
+    private static String describeArray(final float[] values) {
+        if (values == null || values.length == 0)
+            return "(none)";
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0)
+                sb.append(',');
+            sb.append(values[i] == Math.rint(values[i])
+                    ? String.valueOf((long) values[i])
+                    : String.format(java.util.Locale.ROOT, "%.2f", values[i]));
+        }
+        return sb.toString();
+    }
 
     private static float parseFloat(final String key, final String value) {
         try {

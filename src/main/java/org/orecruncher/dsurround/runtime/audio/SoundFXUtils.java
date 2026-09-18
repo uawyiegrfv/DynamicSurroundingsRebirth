@@ -150,6 +150,13 @@ public final class SoundFXUtils {
     /** Hard cap on the aperture radius in blocks, so a very low frequency cannot trace for ever. */
     private static final float MAX_APERTURE_RADIUS = 16F;
     /**
+     * Material thickness a plane's band must add before it counts as blocking that part of the
+     * wavefront. The band spans a fraction of the line, so a one-block wall contributes roughly half a
+     * block of material here, not a whole one - the floor has to sit well below that or a thin wall
+     * reads as "not an obstacle". 0.12 still ignores a fence post, a torch, a pane of glass or a leaf.
+     */
+    private static final float ZONE_BLOCKING_MATERIAL = 0.12F;
+    /**
      * Hard cap on the segments a single aperture trace may walk. The aperture is an area average, so
      * a long trace crossing dozens of blocks does not need exact resolution - the cap bounds the cost
      * of one evaluation no matter how far the sound is.
@@ -272,11 +279,15 @@ public final class SoundFXUtils {
     private float lastApertureLeak;
     /** Fresnel zone radius (blocks) used by the most recent aperture measurement, for diagnostics. */
     private float lastFresnelRadius;
+    /** The fan's own average from the most recent measurement, before the aperture blend. */
+    private float lastFanAverage;
     /**
-     * Scratch space for the per-plane occlusion breakdown of the most recent aperture trace. Sized to
-     * the maximum plane count the config allows, so the trace can never write past the end.
+     * Scratch space for the per-plane breakdown of the most recent aperture trace: the cumulative
+     * distance-weighted occlusion at each plane crossing, and the cumulative raw material thickness.
+     * Sized to the maximum plane count the config allows, so the trace can never write past the end.
      */
     private final float[] lastPlaneOcclusion = new float[4];
+    private final float[] lastPlaneMaterial = new float[4];
 
     private final SourceContext source;
 
@@ -434,12 +445,13 @@ public final class SoundFXUtils {
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
-                        + "fresnel=%.2f",
+                        + "fresnel=%.2f fan=%.3f",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 directCutoff <= 0F ? 0F : (directCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
-                this.lastCenterOcclusion, this.lastApertureLeak, sendOcclusionGain, this.lastFresnelRadius));
+                this.lastCenterOcclusion, this.lastApertureLeak, sendOcclusionGain,
+                this.lastFresnelRadius, this.lastFanAverage));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -723,10 +735,12 @@ public final class SoundFXUtils {
         float centerFactor = traceOcclusion(ctx, rayOrigin, target, centerOccluder);
         this.lastOccluderPos = centerOccluder[0];
         // The aperture is only interesting when something is actually on the straight line: with a
-        // clear line there is nothing to go around, and the compensation is gated off anyway.
-        this.lastApertureLeak = this.lastOccluderPos != null
-                ? calculateApertureLeak(ctx, origin, target)
-                : 0F;
+        // clear line there is nothing to go around, and the compensation is gated off anyway. The flag
+        // matters below: with no occluder the leak is 0, which is NOT the same statement as "the
+        // aperture is blocked", and treating it as such would throw the fan away in exactly the case
+        // the fan exists for (centre line clear, edge of the cone blocked).
+        final boolean apertureRan = this.lastOccluderPos != null;
+        this.lastApertureLeak = apertureRan ? calculateApertureLeak(ctx, origin, target) : 0F;
         // Weight the centre ray's score by how much of the wavefront actually gets through. This is
         // the whole point of the aperture: the centre ray answers "is something on the line?", so
         // several obstacles on it used to muffle the sound exactly like a sealed room, even with the
@@ -737,6 +751,8 @@ public final class SoundFXUtils {
         this.lastCenterOcclusion = centerFactor;
         float factor = centerFactor;
         int rays = 1;
+        // Where the centre ray's share of the average is left, and what it is blended with below.
+        final float centerWeight = centerFactor;
 
         final Vec3 dir = target.subtract(origin).normalize();
         // Two orthogonal axes perpendicular to the bearing; the fan targets are points in
@@ -757,7 +773,19 @@ public final class SoundFXUtils {
             }
         }
 
-        return factor / rays;
+        final float fanAverage = factor / rays;
+        // The fan's five rays are parallel to within a fraction of a block over a long distance (a
+        // 0.6-block cone is 0.86 degrees at 40 blocks), so they re-measure the same line rather than
+        // sampling a cone, and their answer can be far harsher than the centre ray's: measured on
+        // 1.20.1, a clear centre ray (0.010) alongside a fan average of 6.950, and 0.000 alongside
+        // 6.320. Because the result is their average, that noise became the occlusion. The aperture
+        // measures the same question properly (an area, with material weighting), so let it decide how
+        // much the fan is trusted: the clearer the aperture, the more the centre ray wins.
+        final float fanWeight = apertureRan
+                ? 1F - AudioTuning.apertureStrength() * this.lastApertureLeak
+                : 1F;
+        this.lastFanAverage = fanAverage;
+        return centerWeight + (fanAverage - centerWeight) * fanWeight;
     }
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target,
@@ -854,8 +882,14 @@ public final class SoundFXUtils {
         final int rings = APERTURE_RINGS;
         final int planes = AudioTuning.aperturePlanes();
         final boolean wavelength = AudioTuning.realismWavelength();
-        float total = 0F;
-        int taken = 0;
+        // Per plane: the total zone weight sampled, the weight that is clear, and the material
+        // absorption of the source leg up to that plane. The leak is the MINIMUM clear fraction over
+        // the planes, because a ray that cannot pass one plane cannot pass the wavefront.
+        final float[] planeWeight = new float[planes];
+        final float[] planeClearWeight = new float[planes];
+        final float[] planeAbsorption = new float[planes];
+        java.util.Arrays.fill(planeAbsorption, -1F);
+        float taken = 0F;
         for (int p = 1; p <= planes; p++) {
             // A single plane sits on the first obstacle, which is where the straight line is actually
             // blocked (the previous behaviour). With several planes they are spread evenly instead,
@@ -889,46 +923,70 @@ public final class SoundFXUtils {
                     final Vec3 sample = planeCentre
                             .add(u.scale(Math.cos(angle) * ringRadius))
                             .add(v.scale(Math.sin(angle) * ringRadius));
+                    // Zone weight: the first Fresnel zone matters most along its centre and not at all
+                    // at its edge, so a sample's importance falls off with its distance from the direct
+                    // line. This is what makes a small obstacle in the middle of the zone nearly
+                    // harmless while an obstacle covering the whole zone blocks the sound - the
+                    // standard Fresnel result, which a uniform area average cannot express.
+                    final float zoneWeight = (float) MathStuff.exp(-2.0D * (ringRadius * ringRadius)
+                            / Math.max(1.0E-4D, planeRadius * planeRadius));
+                    planeWeight[p - 1] += zoneWeight;
+                    taken += zoneWeight;
                     // A sample sitting inside solid matter is not a secondary source at all: there is
                     // no air there to carry the wave, and stepping it out would let it escape through
-                    // a thick wall and report the wall as transparent. It counts as fully blocked.
-                    if (isSolidBlock(ctx.world, sample)) {
-                        taken++;
+                    // a thick wall and report the wall as transparent. It blocks its share of the zone.
+                    if (isSolidBlock(ctx.world, sample))
                         continue;
-                    }
                     // Leg 1: the material the source->sample path passes through, broken down at every
                     // aperture plane. Multiplying the per-band transmissions equals the transmission of
                     // the whole leg, so sampling several planes costs extra samples but no fidelity.
                     final float[] perPlane = this.lastPlaneOcclusion;
-                    final float upToHere = traceOcclusionSum(ctx, traceContext, sourceLegOrigin, sample, perPlane);
-                    taken++;
-                    // upToHere is the occlusion accumulated up to this sample's own plane, so only
-                    // what the earlier planes let through counts as having reached this one.
+                    final float[] perMaterial = this.lastPlaneMaterial;
+                    traceOcclusionSum(ctx, traceContext, sourceLegOrigin, sample, perPlane, perMaterial);
+                    // The material this sample's own plane band adds decides whether the zone is clear
+                    // at that plane. Anything thinner than a full block is not an obstacle to the
+                    // wavefront - a fence post, a torch, a leaf - so it does not block the zone.
+                    final float bandMaterial = perMaterial[Math.min(p - 1, perMaterial.length - 1)]
+                            - (p > 1 ? perMaterial[Math.min(p - 2, perMaterial.length - 1)] : 0F);
+                    if (bandMaterial < ZONE_BLOCKING_MATERIAL)
+                        planeClearWeight[p - 1] += zoneWeight;
+                    // Everything up to this sample's own plane still had to get through the earlier
+                    // planes, so only the occlusion accumulated up to here counts as having reached it.
+                    final float upToHere = perPlane[Math.min(p - 1, perPlane.length - 1)];
                     final float sourceTransmission = (float) MathStuff.exp(-upToHere * absorption);
                     if (sourceTransmission <= 0.001F)
                         continue;
+                    if (planeAbsorption[p - 1] < 0F)
+                        planeAbsorption[p - 1] = upToHere;
                     // Leg 2: does this secondary source reach the listener? This used to be a
                     // clear/blocked test, which made a listener standing behind cover read as fully
                     // deaf however open the aperture was. With the wavelength model on, the leg's own
                     // material is measured, so a thin obstacle in front of the listener removes only
                     // the part of the aperture it actually covers.
                     final float listenerOcclusion = traceOcclusionSum(ctx, traceContext, sample, listener);
-                    float listenerTransmission = 1F;
-                    if (listenerOcclusion > 0F) {
-                        // wavelength on: the measured transmission. off: the old binary behaviour.
-                        listenerTransmission = wavelength
-                                ? (float) MathStuff.exp(-listenerOcclusion * absorption)
-                                : 0F;
-                    }
-                    if (listenerTransmission <= 0.001F)
+                    if (listenerOcclusion > 0F && !wavelength)
                         continue;
-                    total += sourceTransmission * listenerTransmission;
                 }
             }
         }
-        if (taken <= 0)
+        if (taken <= 0F)
             return 1F;
-        return MathStuff.clamp1(total / taken);
+        // The wavefront's clear fraction is decided by the WORST plane it has to cross, not by the
+        // product of the planes: one ray cannot pass a plane that blocks it, however open the others
+        // are. This is what makes the answer fall properly as obstacles accumulate along the line.
+        float worstClear = 1F;
+        for (int i = 0; i < planes; i++) {
+            if (planeWeight[i] <= 0F)
+                continue;
+            final float clear = planeClearWeight[i] / planeWeight[i];
+            // A plane the source leg barely reaches (buried behind an earlier obstacle) cannot carry
+            // the wavefront either, so its clear fraction is discounted by what actually arrives.
+            final float arrival = planeAbsorption[i] < 0F
+                    ? 0F
+                    : (float) MathStuff.exp(-planeAbsorption[i] * absorption);
+            worstClear = Math.min(worstClear, clear * arrival);
+        }
+        return MathStuff.clamp1(worstClear);
     }
 
     /**
@@ -938,7 +996,7 @@ public final class SoundFXUtils {
      */
     private static float traceOcclusionSum(final WorldContext ctx, final ReusableRaycastContext traceContext,
                                            final Vec3 origin, final Vec3 target) {
-        return traceOcclusionSum(ctx, traceContext, origin, target, null);
+        return traceOcclusionSum(ctx, traceContext, origin, target, null, null);
     }
 
     /**
@@ -949,8 +1007,10 @@ public final class SoundFXUtils {
      *                    entries past the end of the trace hold the total.
      */
     private static float traceOcclusionSum(final WorldContext ctx, final ReusableRaycastContext traceContext,
-                                           final Vec3 origin, final Vec3 target, final float[] perPlaneOut) {
+                                           final Vec3 origin, final Vec3 target, final float[] perPlaneOut,
+                                           final float[] perMaterialOut) {
         float factor = 0F;
+        float material = 0F;
         final double totalDistance = origin.distanceTo(target);
         final int planes = perPlaneOut == null ? 0 : perPlaneOut.length;
         int planeIndex = 0;
@@ -972,21 +1032,31 @@ public final class SoundFXUtils {
             // averaged 2.346, i.e. exp(-1.76) = 17% of the sound left. Real acoustic occlusion is a
             // local effect around each end; the middle of a long line is largely irrelevant.
             final double along = lastHit.distanceTo(origin) + rayDistance * 0.5D;
-            factor += (float) (getOcclusion(lastState) * rayDistance
-                    * occlusionDistanceWeight(along, totalDistance));
+            final float occlusion = getOcclusion(lastState);
+            factor += (float) (occlusion * rayDistance * occlusionDistanceWeight(along, totalDistance));
+            // Raw thickness, unweighted: this is what decides whether a plane blocks the wavefront,
+            // and a fence post or a torch is not an obstacle to a wavefront.
+            material += (float) (occlusion * rayDistance);
             lastHit = result.getLocation();
             lastState = ctx.world.getBlockState(result.getBlockPos());
             if (planes > 0) {
                 // Record the cumulative value as soon as the ray passes each plane's position.
                 while (planeIndex < planes
                         && lastHit.distanceTo(origin) >= totalDistance * (planeIndex + 1.0D) / (planes + 1.0D)) {
-                    perPlaneOut[planeIndex++] = factor;
+                    perPlaneOut[planeIndex] = factor;
+                    if (perMaterialOut != null)
+                        perMaterialOut[planeIndex] = material;
+                    planeIndex++;
                 }
             }
         }
         if (planes > 0) {
-            while (planeIndex < planes)
-                perPlaneOut[planeIndex++] = factor;
+            while (planeIndex < planes) {
+                perPlaneOut[planeIndex] = factor;
+                if (perMaterialOut != null)
+                    perMaterialOut[planeIndex] = material;
+                planeIndex++;
+            }
         }
         return factor;
     }

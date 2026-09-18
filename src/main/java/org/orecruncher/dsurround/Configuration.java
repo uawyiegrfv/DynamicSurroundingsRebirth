@@ -172,6 +172,17 @@ public class Configuration extends ConfigurationData {
         public int diffractionRings = 3;
 
         @Property
+        @DoubleRange(min = 0.0D, max = 1.0D)
+        @Slider
+        @Comment("Occlusion only: how much of the LOST level the aperture (the wavefront area between source and listener) may carry around an obstacle. This is the around-the-corner energy: a lone pillar, a tree trunk or a fence leaves most of the aperture clear, so the sound stays open, while a full wall leaves nothing clear and the sound stays muffled. 0 = off (only the straight-line occlusion counts)")
+        public double apertureStrength = 1.0D;
+
+        @Property
+        @DoubleRange(min = 0.5D, max = 8.0D)
+        @Comment("Occlusion only: radius in blocks of the aperture disc sampled around the straight source-to-listener line. The disc is centred on the first obstacle on that line. A small radius only sees obstacles near the line; a large one also catches wide walls' far edges at the cost of more traces (the sample count is fixed, so a larger disc samples it more coarsely)")
+        public double apertureRadius = 3.0D;
+
+        @Property
         @IntegerRange(min = 16, max = 64)
         @RestartRequired
         @Comment("The number of rays to project around a sound location to calculate reverb effect")

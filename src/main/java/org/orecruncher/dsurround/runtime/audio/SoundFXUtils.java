@@ -133,6 +133,21 @@ public final class SoundFXUtils {
      * keeping the probe cost small.
      */
     private static final int DETOUR_SAMPLES = 8;
+
+    /**
+     * Total aperture samples per evaluation. Each sample costs two short traces, so this is kept
+     * near the cost of the ring probe it complements (3 rings x 8 waypoints = 24 validated
+     * waypoints, each with two traces).
+     */
+    private static final int APERTURE_SAMPLES = 16;
+    /** Concentric rings the aperture samples are spread over (equal-area: outer rings get more). */
+    private static final int APERTURE_RINGS = 2;
+    /**
+     * How much of the reverb sends survives a fully occluded path. Not 0: a sealed room still has a
+     * tail (that is what reverb IS), it is simply the tail of the muffled sound. At 0.35 a fully
+     * occluded source keeps about -9 dB of send against a clear one.
+     */
+    private static final float SEND_OCCLUSION_FLOOR = 0.35F;
     /**
      * Number of rays to project when doing reverb calculations.
      */
@@ -228,6 +243,14 @@ public final class SoundFXUtils {
      * compensation for genuinely thick path obstacles such as the ground over a cave.
      */
     private float lastCenterOcclusion;
+    /**
+     * Fraction of the aperture disc that carries sound from the source to the listener on the most
+     * recent calculation. This is the around-the-corner energy: it is ~1 in the open (including past
+     * a lone pillar, where the disc is nearly all clear) and ~0 behind a wall that spans the whole
+     * disc. It is what keeps a single obstacle on the straight line from muffling the sound like a
+     * sealed room does.
+     */
+    private float lastApertureLeak;
 
     private final SourceContext source;
 
@@ -338,6 +361,18 @@ public final class SoundFXUtils {
 
         finalizeSendGains(reverb);
 
+        // The occlusion has to reach the reverb tail, not just the direct filter. Behind a wall the
+        // energy that would have fed the room is blocked too, so the tail must get quieter as well
+        // as darker. Only the DARKENING was reaching it before (the send cutoffs were lifted, never
+        // lowered, and sendGain never saw the occlusion at all), which left a heavily muffled direct
+        // sound sitting under a bright, undiminished reverb - heard as "occlusion does not work".
+        final float sendOcclusionGain = SEND_OCCLUSION_FLOOR
+                + (1F - SEND_OCCLUSION_FLOOR) * MathStuff.clamp1(directHfCutoff);
+        reverb.sendGain0 *= sendOcclusionGain;
+        reverb.sendGain1 *= sendOcclusionGain;
+        reverb.sendGain2 *= sendOcclusionGain;
+        reverb.sendGain3 *= sendOcclusionGain;
+
         if (ctx.player.isUnderWater()) {
             reverb.sendCutoff0 *= 0.4F;
             reverb.sendCutoff1 *= 0.4F;
@@ -372,12 +407,12 @@ public final class SoundFXUtils {
         // problem is the filter or the audibility of the band, not the model.
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                        + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f",
+                        + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 directCutoff <= 0F ? 0F : (directCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
-                this.lastCenterOcclusion));
+                this.lastCenterOcclusion, this.lastApertureLeak, sendOcclusionGain));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -502,12 +537,21 @@ public final class SoundFXUtils {
     private float applyDiffraction(final WorldContext ctx, final Vec3 soundPos, final Vec3 listener,
             float directCutoff, final boolean snap, final ReverbTrace reverb, final float[] hfOut) {
         final float geometricDiffraction = calculateDiffraction(ctx, soundPos, listener, this.lastOccluderPos);
+        // Aperture contribution (the genuinely Huygens form of the same idea). The ring probe above
+        // can only see edges it happens to sample; the aperture disc measures how much of the
+        // wavefront area between the two ends is actually clear, which is what decides whether a
+        // lone pillar muffs the sound or not. Take the larger of the two: a thin wall is best
+        // described by its edge (rings), a scattered obstacle by the clear area around it
+        // (aperture). Both are still fractions of what the direct path lost.
+        final float apertureTerm = this.lastApertureLeak * AudioTuning.apertureStrength();
         // Auxiliary factor: a wide obstacle still has a reachable edge, but the
         // long detour makes the geometric falloff inaudible. Floor it (only when an
         // edge was actually found) so a large-but-open obstacle stays faintly
         // audible; a buried source / sealed player is still muted by the gates
         // below. With no edge (diffraction 0) the floor must NOT lift it.
-        final float diffraction = geometricDiffraction > 0F ? Math.max(geometricDiffraction, DIFFRACTION_FLOOR) : 0F;
+        final float diffraction = Math.max(
+                Math.max(geometricDiffraction, apertureTerm),
+                Math.max(geometricDiffraction, apertureTerm) > 0F ? DIFFRACTION_FLOOR : 0F);
         final float enclosure = calculateSourceEnclosure(ctx, soundPos);
         final float openness = calculatePlayerOpenness(ctx, listener);
         // Gate the restore on true sealing only. A linear (1-enclosure) or raw
@@ -616,6 +660,7 @@ public final class SoundFXUtils {
         if (skipOcclusion(this.source.getCategory())) {
             this.lastOccluderPos = null;
             this.lastCenterOcclusion = 0F;
+            this.lastApertureLeak = 0F;
             return 0F;
         }
 
@@ -651,6 +696,11 @@ public final class SoundFXUtils {
         float factor = traceOcclusion(ctx, rayOrigin, target, centerOccluder);
         this.lastCenterOcclusion = factor;
         this.lastOccluderPos = centerOccluder[0];
+        // The aperture is only interesting when something is actually on the straight line: with a
+        // clear line there is nothing to go around, and the compensation is gated off anyway.
+        this.lastApertureLeak = this.lastOccluderPos != null
+                ? calculateApertureLeak(ctx, origin, target)
+                : 0F;
         int rays = 1;
 
         final Vec3 dir = target.subtract(origin).normalize();
@@ -709,6 +759,119 @@ public final class SoundFXUtils {
     }
 
     /**
+     * Aperture sampling: the practical, incoherent form of the Huygens-Fresnel principle.
+     *
+     * <p>A straight-line occlusion probe answers "is anything on the line?", which is the wrong
+     * question. Sound reaches the listener through the whole wavefront between the two ends, and
+     * only the part of that wavefront actually blocked by solid matter is lost. Sampling a disc of
+     * secondary sources on the plane through the first obstacle and adding up the energy that
+     * survives the trip to the source and on to the listener gives the fraction of the direct sound
+     * that still arrives - so a lone pillar (most of the disc clear) barely muffles, while a wall
+     * that spans the disc muffles completely.
+     *
+     * <p>Each sample casts two short rays (source->sample and sample->listener) instead of the ring
+     * probe's waypoint validation, so this costs about the same as the probe it complements.
+     *
+     * <p>The material matters on both legs: a sample is weighted by what the source leg leaves
+     * after travelling through block material, and a sample whose listener leg is blocked
+     * contributes nothing at all.
+     *
+     * @return 0..1, the fraction of the aperture that carries sound through to the listener.
+     */
+    private float calculateApertureLeak(final WorldContext ctx, final Vec3 source, final Vec3 listener) {
+        final float radius = AudioTuning.apertureRadius();
+        final Vec3 direct = listener.subtract(source);
+        final double directLen = direct.length();
+        if (directLen < 0.01D)
+            return 1F;
+
+        final Vec3 d = direct.scale(1.0D / directLen);
+        final Vec3 seed = Math.abs(d.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
+        final Vec3 u = d.cross(seed).normalize();
+        final Vec3 v = d.cross(u).normalize();
+
+        // Centre the disc on the obstacle that blocks the line when one was found; otherwise (the
+        // line is clear, so this only runs to restore a previously muffled sound) use the midpoint.
+        final Vec3 centre = this.lastOccluderPos != null
+                ? this.lastOccluderPos
+                : MathStuff.addScaled(source, direct, 0.5F);
+
+        // The absorption coefficient is the same one that turns the accumulated occlusion into a
+        // cutoff, so a sample is weighted in exactly the units the direct path uses.
+        final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
+
+        final ReusableRaycastContext traceContext =
+                new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
+
+        final Vec3 sourceLegOrigin = stepOutOfSolid(ctx.world, source, centre);
+        final int samples = APERTURE_SAMPLES;
+        final int rings = APERTURE_RINGS;
+        float total = 0F;
+        int taken = 0;
+        for (int r = 1; r <= rings; r++) {
+            // Equal-area rings: the outer rings get proportionally more samples, so the disc is
+            // sampled evenly instead of over-weighting the middle.
+            final float ringRadius = radius * r / rings;
+            final int inRing = Math.max(1, Math.round(samples * (2F * r - 1F) / (rings * rings)));
+            for (int k = 0; k < inRing; k++) {
+                // Offset each ring's start angle so samples do not line up along the disc's axes.
+                final double angle = 2.0D * Math.PI * (k + r * 0.5D) / inRing;
+                final Vec3 sample = centre
+                        .add(u.scale(Math.cos(angle) * ringRadius))
+                        .add(v.scale(Math.sin(angle) * ringRadius));
+                // A sample sitting inside solid matter is not a secondary source at all: there is no
+                // air there to carry the wave, and stepping it out would let it escape through a
+                // thick wall and report the wall as transparent. Count it in the denominator as
+                // fully blocked instead.
+                if (isSolidBlock(ctx.world, sample)) {
+                    taken++;
+                    continue;
+                }
+                // Leg 1: how much material the source->sample path passes through. A sample buried
+                // behind solid matter scores a large occlusion and therefore contributes almost nothing.
+                final float sourceOcclusion = traceOcclusionSum(ctx, traceContext, sourceLegOrigin, sample);
+                final float sourceTransmission = (float) MathStuff.exp(-sourceOcclusion * absorption);
+                taken++;
+                if (sourceTransmission <= 0.001F)
+                    continue;
+                // Leg 2: the sample must actually see the listener. A blocked leg means the energy
+                // went into a wall and never arrived, so that part of the aperture is lost.
+                if (!isMiss(traceContext.trace(sample, listener)))
+                    continue;
+                total += sourceTransmission;
+            }
+        }
+        if (taken <= 0)
+            return 1F;
+        return MathStuff.clamp1(total / taken);
+    }
+
+    /**
+     * Distance-weighted occlusion accumulation along one segment, using a caller-supplied reusable
+     * raycast context. Same measure as {@link #traceOcclusion} but with no first-occluder bookkeeping
+     * and no per-call context allocation, because the aperture samples it many times per evaluation.
+     */
+    private static float traceOcclusionSum(final WorldContext ctx, final ReusableRaycastContext traceContext,
+                                           final Vec3 origin, final Vec3 target) {
+        float factor = 0F;
+        Vec3 lastHit = origin;
+        BlockState lastState = ctx.world.getBlockState(BlockPos.containing(lastHit.x(), lastHit.y(), lastHit.z()));
+        traceContext.trace(origin, target);
+        final var itr = new ReusableRaycastIterator(traceContext);
+        final int segments = occlusionSegments();
+        for (int i = 0; i < segments; i++) {
+            if (!itr.hasNext())
+                break;
+            final var result = itr.next();
+            final double rayDistance = lastHit.distanceTo(result.getLocation());
+            factor += (float) (getOcclusion(lastState) * rayDistance);
+            lastHit = result.getLocation();
+            lastState = ctx.world.getBlockState(result.getBlockPos());
+        }
+        return factor;
+    }
+
+     /**
      * Measures how sealed the sound source is: a short ray up each world axis from
      * the source counts the directions blocked by solid geometry. A source buried in
      * a 6x6x6 cube scores ~1.0 no matter which way the player stands, which removes

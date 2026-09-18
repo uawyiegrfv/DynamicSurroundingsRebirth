@@ -15,5 +15,6 @@ public final class Commands {
         new ReloadCommand().register(dispatcher, registryAccess);
         new ScriptCommand().register(dispatcher, registryAccess);
         new MusicManagerCommand().register(dispatcher, registryAccess);
+        new TuneCommand().register(dispatcher, registryAccess);
     }
 }

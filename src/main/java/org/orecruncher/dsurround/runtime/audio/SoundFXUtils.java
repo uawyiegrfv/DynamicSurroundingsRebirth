@@ -33,30 +33,35 @@ public final class SoundFXUtils {
     private static final Configuration.EnhancedSounds CONFIG = ContainerManager.resolve(Configuration.EnhancedSounds.class);
 
     /**
-     * Maximum number of segments to check when ray tracing for occlusion. Configurable because it
-     * trades precision against cost: each segment is a block-state lookup plus a distance-weighted
-     * contribution, and every occlusion ray pays it.
+     * Segments a single occlusion ray is split into. Trades precision against cost: each segment is
+     * a block-state lookup plus a distance-weighted contribution, and every occlusion ray pays it.
+     * <p>
+     * Read live from {@link AudioTuning} rather than cached, so {@code /dstune} can change it
+     * without a restart. The read happens once per trace, not per ray.
      */
-    private static final int OCCLUSION_SEGMENTS = Math.max(1, CONFIG.occlusionSegments);
+    private static int occlusionSegments() {
+        return AudioTuning.occlusionSegments();
+    }
 
     /**
-     * Rings of rays inside the 0.6-block occlusion cone, derived from the configured ray count.
-     * The fan is one centre ray plus four rays per ring, so the count is rounded down to 1 + 4n
-     * (5 = one ring = the original behaviour, 9 = two, 13 = three).
+     * Rings of rays inside the 0.6-block occlusion cone. The fan is one centre ray plus four rays
+     * per ring (5 rays = one ring = the original behaviour, 9 = two, 13 = three).
      * <p>
      * This is the knob behind "the volume jumps as I walk past a row of pillars": with a single
-     * ring the averaged occlusion moves in four discrete steps as a blocking block crosses from
-     * one ray to the next, whereas finer rings make the value slide.
+     * ring the averaged occlusion moves in four discrete steps as a blocking block crosses from one
+     * ray to the next, whereas finer rings make the value slide.
      */
-    private static final int OCCLUSION_FAN_RINGS =
-            Math.max(1, (Math.max(1, CONFIG.occlusionFanRays) - 1) / 4);
+    private static int occlusionFanRings() {
+        return AudioTuning.occlusionFanRings();
+    }
     /**
      * Exponent applied to the diffraction restore when it drives the HIGH-frequency gain, so a
      * partial restore comes back much duller than it does loud. 1.0 reproduces the original
-     * broadband behaviour; see Configuration.EnhancedSounds.diffractionHfDamping.
+     * broadband behaviour. Read live from {@link AudioTuning}.
      */
-    private static final float DIFFRACTION_HF_DAMPING =
-            Math.max(1F, (float) CONFIG.diffractionHfDamping);
+    private static float diffractionHfDamping() {
+        return AudioTuning.diffractionHfDamping();
+    }
 
     /**
      * Length of the source-enclosure / player-openness probe rays. Must reach the
@@ -492,9 +497,10 @@ public final class SoundFXUtils {
         // partial restore returns most of the level but little of the brightness - which is what an
         // edge-diffracted path actually does. At DIFFRACTION_HF_DAMPING == 1 this is the original
         // expression.
-        final float hfComp = DIFFRACTION_HF_DAMPING == 1F
+        final float hfDamping = diffractionHfDamping();
+        final float hfComp = hfDamping == 1F
                 ? smoothedComp
-                : (float) MathStuff.pow(smoothedComp, DIFFRACTION_HF_DAMPING);
+                : (float) MathStuff.pow(smoothedComp, hfDamping);
         hfOut[0] = Math.max(hfComp, hfOut[0]);
         final float reverbComp = hfComp * DIFFRACTION_REVERB_SCALE;
         reverb.sendCutoff0 = Math.max(reverb.sendCutoff0, reverbComp);
@@ -620,10 +626,11 @@ public final class SoundFXUtils {
         final Vec3 seed = Math.abs(dir.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
         final Vec3 axis1 = dir.cross(seed).normalize();
         final Vec3 axis2 = dir.cross(axis1).normalize();
-        for (int ring = 1; ring <= OCCLUSION_FAN_RINGS; ring++) {
+        final int rings = occlusionFanRings();
+        for (int ring = 1; ring <= rings; ring++) {
             // The innermost ring is the original 0.6-block offset; extra rings fill the cone between
             // the centre ray and that edge, so the same cone is sampled more finely without widening it.
-            final float spread = 0.6F * ring / OCCLUSION_FAN_RINGS;
+            final float spread = 0.6F * ring / rings;
             for (final float s : new float[]{-1F, 1F}) {
                 factor += traceOcclusion(ctx, rayOrigin, target.add(axis1.scale(spread * s)), null);
                 factor += traceOcclusion(ctx, rayOrigin, target.add(axis2.scale(spread * s)), null);
@@ -642,7 +649,8 @@ public final class SoundFXUtils {
         BlockState lastState = ctx.world.getBlockState(BlockPos.containing(lastHit.x(), lastHit.y(), lastHit.z()));
         var traceContext = new ReusableRaycastContext(ctx.world, origin, target, ClipContext.Block.VISUAL, ClipContext.Fluid.ANY);
         var itr = new ReusableRaycastIterator(traceContext);
-        for (int i = 0; i < OCCLUSION_SEGMENTS; i++) {
+        final int segments = occlusionSegments();
+        for (int i = 0; i < segments; i++) {
             if (itr.hasNext()) {
                 var result = itr.next();
                 final float occlusion = getOcclusion(lastState);

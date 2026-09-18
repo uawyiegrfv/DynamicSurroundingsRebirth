@@ -102,6 +102,15 @@ public final class SoundFXUtils {
     private static final float[] DETOUR_RADII = {1.5F, 3F, 5F, 8F, 12F, 16F};
 
     /**
+     * How strongly the obstacle's thickness suppresses the restored high frequencies. The detour
+     * probe cannot see thickness (its rings sit in the plane perpendicular to the bearing, so their
+     * offsets slide along a flat wall's face), but the direct-path occlusion DOES measure it - so the
+     * restore is scaled by the direct path's transmission raised to this exponent. 0 = ignore
+     * thickness, 1 = proportional to it; 0.25 keeps a useful spread without over-muffling.
+     */
+    private static final double DIFFRACTION_THICKNESS_EXPONENT = 0.25D;
+
+    /**
      * How many of the detour rings are summed. Read live from {@link AudioTuning} so
      * {@code /dstune} can change it without a restart.
      */
@@ -109,9 +118,14 @@ public final class SoundFXUtils {
         return AudioTuning.diffractionRings();
     }
 
-    /** Ceiling on the high-frequency gain diffraction may restore. Read live. */
-    private static float diffractionHfCeiling() {
-        return AudioTuning.diffractionHfCeiling();
+    /** Fraction of the lost level an edge detour may bring back. Read live. */
+    private static float diffractionLevelStrength() {
+        return AudioTuning.diffractionLevelStrength();
+    }
+
+    /** Fraction of the lost highs an edge detour may bring back. Read live. */
+    private static float diffractionHfStrength() {
+        return AudioTuning.diffractionHfStrength();
     }
     /**
      * Waypoints per detour ring. 8 samples the perpendicular directions (around the
@@ -495,19 +509,22 @@ public final class SoundFXUtils {
         // Time-smooth the restore so crossing a room boundary (openness and
         // enclosure both step at once) fades the muffling instead of snapping it.
         final float smoothedComp = this.source.smoothDiffraction(compensation, snap);
-        directCutoff = Math.max(smoothedComp, directCutoff);
-        // The restore drives the high-frequency gain through this power rather than linearly, so a
-        // partial restore returns most of the level but little of the brightness - which is what an
-        // edge-diffracted path actually does. At DIFFRACTION_HF_DAMPING == 1 this is the original
-        // expression.
-        // An edge-diffracted path is always spectrally duller than the direct one, so the restored
-        // high-frequency gain is capped rather than simply following the level. Without this a
-        // 1-block stone wall restored the highs from -26 dB to -1.4 dB and occlusion was inaudible.
-        // Self-limiting: when the direct line is only partly blocked the occlusion cutoff is higher
-        // and the max() below keeps that value, so the ceiling only bites when it should.
-        final float hfComp = Math.min(smoothedComp, diffractionHfCeiling());
-        hfOut[0] = Math.max(hfComp, hfOut[0]);
-        final float reverbComp = hfComp * DIFFRACTION_REVERB_SCALE;
+        // What the direct path's material left, as measured along the line: the parameter arrived
+        // as exp(sendCoeff), i.e. the pre-diffraction cutoff.
+        final float occlusionCutoff = directCutoff;
+
+        // A detour brings back a FRACTION of what the direct path lost - never a fixed value and
+        // never all of it. The original max(smoothedComp, occlusionCutoff) let a 1-block stone wall
+        // restore the highs from -26 dB to -1.4 dB (the wall effectively vanished) and threw away
+        // the only quantity that measures thickness.
+        final float levelRestore = MathStuff.clamp1(smoothedComp * diffractionLevelStrength());
+        final float thicknessFactor = (float) MathStuff.pow(occlusionCutoff, DIFFRACTION_THICKNESS_EXPONENT);
+        final float hfRestore = MathStuff.clamp1(smoothedComp * diffractionHfStrength() * thicknessFactor);
+
+        directCutoff = occlusionCutoff + (1F - occlusionCutoff) * levelRestore;
+        final float directHf = occlusionCutoff + (1F - occlusionCutoff) * hfRestore;
+        hfOut[0] = Math.max(directHf, hfOut[0]);
+        final float reverbComp = directHf * DIFFRACTION_REVERB_SCALE;
         reverb.sendCutoff0 = Math.max(reverb.sendCutoff0, reverbComp);
         reverb.sendCutoff1 = Math.max(reverb.sendCutoff1, reverbComp);
         reverb.sendCutoff2 = Math.max(reverb.sendCutoff2, reverbComp);

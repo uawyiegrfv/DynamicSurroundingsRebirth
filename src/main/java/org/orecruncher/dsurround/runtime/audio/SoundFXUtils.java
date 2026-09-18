@@ -217,17 +217,28 @@ public final class SoundFXUtils {
         }
 
         final Vec3 sourcePos = this.source.getPosition();
-        // A source inside a solid block keeps its own position as the reverb ray starting
-        // point. Offsetting it toward the player moves the rays off the source's centre, so
-        // the shared-airspace part of the reverb becomes direction-dependent as the player
-        // circles the source (reverbDC above still varied 0.4-3.3 even after the occlusion
-        // rays were averaged). Keeping the starting point at the symmetric centre keeps both
-        // the occlusion fan and the reverb rays symmetric.
-        final Vec3 soundPos;
-        if (isSolidBlock(ctx.world, sourcePos))
-            soundPos = sourcePos;
-        else
-            soundPos = offsetPositionIfSolid(ctx.world, sourcePos, ctx.playerEyePosition);
+        // Offset the ray starting point out of solid matter, ALWAYS - exactly as the reference
+        // implementation does.
+        //
+        // A block source (block.break, block.place and the rest) reports the block's own centre,
+        // which is inside a solid block by definition. Skipping the offset for those means every
+        // block sound traces its reverb rays from INSIDE the block: the fan hits the block's own
+        // inner faces within a fraction of a block, so the mid and long reverb zones (1.68 s and
+        // 4.14 s) receive almost nothing. Measured on 1.20.1 before this fix, at the same world
+        // position: block.stone.place reached a zone-2 gain of 0.12-0.18 and block.deepslate.break
+        // 0.32, while the player's own footsteps - whose origin sits in air and therefore did take
+        // the offset - reached 0.45-0.57. It is heard as "a short drag with no room tail behind it",
+        // on block sounds only, which is exactly the report.
+        //
+        // Moving the origin 0.876 blocks toward the player lands it just outside the surface, where
+        // the rays can reach the room again.
+        //
+        // An earlier revision skipped the offset when the source was solid, to stop a source's
+        // reverb from varying as the player walked around it. That variation is genuine room
+        // acoustics (different reflection paths from different angles), the value is recomputed on
+        // every update, and the reference implementation lives with it - so the unconditional call
+        // is both correct and faithful.
+        final Vec3 soundPos = offsetPositionIfSolid(ctx.world, sourcePos, ctx.playerEyePosition);
 
         // Snap flag read once at the top for all smoothing (occlusion + water factor).
         final boolean snap = this.source.isImmediateUpdate();

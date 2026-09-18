@@ -368,6 +368,19 @@ public final class SoundFXUtils {
         final float waterGainFactor = Math.max(0.15F, (float) Math.sqrt(gainFactor));
 
 
+        // Probe for /dstune. Two rounds of changes were inaudible, so record what was actually
+        // computed: if these numbers do not move when standing behind a wall, the path is not
+        // running for the sound being listened to; if they do move and nothing is heard, the
+        // problem is the filter or the audibility of the band, not the model.
+        AudioTuning.recordTrace(String.format(
+                "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
+                        + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f",
+                this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
+                MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
+                directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
+                directCutoff <= 0F ? 0F : (directCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
+                this.lastCenterOcclusion));
+
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
 

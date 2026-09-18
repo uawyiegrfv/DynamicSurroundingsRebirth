@@ -29,7 +29,6 @@
     "audio.MixinSoundEvent",
     "core.MixinClientWorld",
     "core.MixinClientChunkMap",
-    "core.MixinClientWorldProperties",
     "core.MixinParticleManager",
     "core.MixinWorld",
     "core.MixinRainSplashParticle",

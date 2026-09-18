@@ -160,7 +160,7 @@
   },
   {
     "blocks": [
-      "minecraft:waterlily"
+      "minecraft:lily_pad"
     ],
     "soundChance": "0.04",
     "acoustics": [
@@ -178,7 +178,7 @@
   },
   {
     "blocks": [
-      "minecraft:deadbush"
+      "minecraft:dead_bush"
     ],
     "soundChance": "0.005",
     "acoustics": [

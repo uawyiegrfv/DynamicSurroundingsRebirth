@@ -49,10 +49,11 @@ public final class SoundFXUtils {
      * tunable against the game's own reverb rather than being taken on faith.
      */
     private static final float EDGE_DIFFRACTION_LOSS = 0.75F;
-    /** Base attenuation of one diffraction edge, before the detour-length falloff. */
-    private static final float EDGE_LOSS = 0.9F;
-    /** Falloff of diffraction with the detour length - the extra distance the wave travels. */
-    private static final float DIFFRACTION_FALLOFF = 0.12F;
+    /**
+     * Smallest path-length detour (blocks) the knife-edge formula is evaluated at. Zero detour means the wave
+     * grazes the edge exactly, which is the 0.5 amplitude case, not an infinite one.
+     */
+    private static final double MIN_EDGE_DETOUR = 1.0E-4D;
 
     private static final IBlockLibrary BLOCK_LIBRARY = ContainerManager.resolve(IBlockLibrary.class);
     private static final ISeasonalInformation SEASONAL_INFORMATION = ContainerManager.resolve(ISeasonalInformation.class);
@@ -68,72 +69,7 @@ public final class SoundFXUtils {
     private static int occlusionSegments() {
         return AudioTuning.occlusionSegments();
     }
-    /**
-     * Base attenuation of a single diffraction edge: the fraction of the direct
-     * signal left after the wave bends around one wall edge, before the detour-length
-     * falloff below. A single knife-edge is roughly -3 to -6 dB, so ~0.5-0.9 fits.
-     */
-    /**
-     * Falloff of diffraction with the detour length ΔL - the extra distance the wave
-     * travels bending around the edge over the straight line. Larger = steeper; a
-     * little.
-     */
-    /**
-     * Fraction of the diffraction compensation applied to the reverb sends vs the
-     * direct signal. Diffracted energy arrives late and low-frequency, and the reverb
-     * bus already carries reflected energy, so it is lifted less than the direct.
-     */
-    private static final float DIFFRACTION_REVERB_SCALE = 0.5F;
-    /**
-     * Auxiliary floor for the diffraction restore. A wide/thick obstacle has a
-     * reachable edge but a long detour, so the geometric ΔL falloff drives the
-     * diffraction toward 0 and the sound behind it to near-silence. As long as an
-     * edge IS reachable (diffraction > 0) and neither end is sealed (the openness/
-     * enclosure gates below), this floor keeps a faint-but-audible low-frequency
-     * restore instead of letting a large-but-finite obstacle mute the sound entirely.
-     * Thin walls (small ΔL) already exceed this value, so their behaviour is unchanged.
-     */
-    /**
-     * Radii (blocks) of the detour rings probed around the occluder, smallest first.
-     * A thin wall clears at the smallest radius; a wide wall needs a larger ring to
-     * reach past its edge. The probe stops at the first radius that finds a path.
-     * Extended to 16 so a wall roughly 30 blocks wide still has a reachable edge;
-     * beyond that the obstacle is treated as terrain and stays muffled.
-     */
 
-    /**
-     * How strongly the obstacle's thickness suppresses the restored high frequencies. The detour
-     * probe cannot see thickness (its rings sit in the plane perpendicular to the bearing, so their
-     * offsets slide along a flat wall's face), but the direct-path occlusion DOES measure it - so the
-     * restore is scaled by the direct path's transmission raised to this exponent. 0 = ignore
-     * thickness, 1 = proportional to it; 0.25 keeps a useful spread without over-muffling.
-     */
-    private static final double DIFFRACTION_THICKNESS_EXPONENT = 0.25D;
-
-    /** Fraction of the lost level an edge detour may bring back. Read live. */
-    private static float diffractionLevelStrength() {
-        return AudioTuning.diffractionLevelStrength();
-    }
-
-    /** Fraction of the lost highs an edge detour may bring back. Read live. */
-    private static float diffractionHfStrength() {
-        return AudioTuning.diffractionHfStrength();
-    }
-    /**
-     * Waypoints per detour ring. 8 samples the perpendicular directions (around the
-     * sides, over the top, under) densely enough to find the shortest edge while
-     * keeping the probe cost small.
-     */
-
-    /**
-     * Samples per aperture plane. Each sample costs one trace to the listener, so a plane with 8
-     * samples is the same order of cost as the single 16-point disc it replaces, and the plane count
-     * multiplies that (the default of 2 planes therefore costs about what the fixed disc did).
-     */
-    /**
-     * Speed of sound in air, m/s. A Minecraft block is 1 m, so this is used directly with
-     * wavelength = c / f to get the Fresnel zone radius in blocks.
-     */
     /**
      * Fallback octave bands, used only if the configuration supplies nothing usable. A real sound is
      * broadband and the Fresnel zone scales as 1/sqrt(frequency), so one hill covers the high band's zone
@@ -143,28 +79,6 @@ public final class SoundFXUtils {
     private static final float[] DEFAULT_BAND_FREQUENCIES = {125F, 500F, 2000F};
     /** Fallback band weights: low frequencies dominate because they are the ones that get around. */
     private static final float[] DEFAULT_BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
-    /**
-     * Weight of the cone's rim rays against the axis rays. The axis carries the sound, so the rim
-     * counts for less; this is what keeps a lone pillar clipping one rim ray from swinging the result.
-     */
-    /**
-     * Hard cap on the segments a single aperture trace may walk. The aperture is an area average, so a long
-     * trace crossing dozens of blocks does not need exact resolution - the cap bounds the cost of one
-     * evaluation no matter how far the sound is. Measured at 32 (12:40 session): 432 raycasts per evaluation
-     * against the pre-change budget of 193, because every segment advance is another raycast. 12 keeps the
-     * area average while removing most of that excess.
-     */
-    /**
-     * Gain of the wavelength-dependent diffraction loss. The knife-edge loss is 0..1 (0.5 at the
-     * shadow boundary, rising as the detour clears); this scales how much of it is applied, so the
-     * model stays tunable against the game's own reverb instead of being taken on faith.
-     */
-    /** Directions the silhouette walk tries around the line. Four covers the four quadrants of the plane. */
-    private static final int SILHOUETTE_DIRECTIONS = 4;
-    /** Steps the silhouette walk takes outward before giving up and calling the obstacle impassable. */
-    private static final int SILHOUETTE_STEPS = 8;
-    /** Step size in blocks. Small enough to land near the silhouette, large enough to stay cheap. */
-    private static final float SILHOUETTE_STEP = 0.75F;
     /**
      * How much of the reverb sends survives a fully occluded path. Not 0: a sealed room still has a
      * tail (that is what reverb IS), it is simply the tail of the muffled sound. At 0.35 a fully
@@ -266,33 +180,20 @@ public final class SoundFXUtils {
      * compensation for genuinely thick path obstacles such as the ground over a cave.
      */
     private float lastCenterOcclusion;
-    /**
-     * Fraction of the aperture disc that carries sound from the source to the listener on the most
-     * recent calculation. This is the around-the-corner energy: it is ~1 in the open (including past
-     * a lone pillar, where the disc is nearly all clear) and ~0 behind a wall that spans the whole
-     * disc. It is what keeps a single obstacle on the straight line from muffling the sound like a
-     * sealed room does.
-     */
     /** Excess attenuation in dB from the Fresnel-zone model on the most recent measurement. */
     private float lastZoneLossDb;
-    /** Waypoints the edge search accepted on the most recent measurement, for diagnostics. */
     /** Whether an edge path was found at all on the most recent measurement. */
     private boolean lastEdgeFound;
     /** The clearance height (blocks) the edge loss was computed from, for diagnostics. */
     private float lastEdgeDelta;
-    /**
-     * Fraction of solid angle around the listener from which a ray travels far enough to count as open.
-     * Outdoors this is 1; inside a room it is the share taken by the opening. It is what makes a room muffle
-     * naturally instead of by a fixed floor: sound arriving from outside is heard through the opening, so the
-     * open share of the ear's surroundings IS the direct-sound attenuation.
-     */
-    /** The raw zone coefficient and the raw material sum from the most recent measurement. */
+    /** The raw material amplitude and the reach of the material walk from the most recent measurement. */
     private float lastMaterialSum;
-    /** Aperture sample outcomes from the most recent measurement: solid, source-leg blocked, listener-leg
-     * blocked, accepted. Diagnostics for why the clear fraction never rises. */
+    /** Segments the material walk actually consumed, and the line length it was walking. Diagnostics for
+     * whether a zero material reading means "the ray stopped short" or "the line is genuinely clear". */
+    private int lastWalkSegments;
+    private double lastWalkDistance;
     /** Per-band edge loss in dB from the most recent measurement, for diagnostics. */
     private final float[] lastEdgeDb = new float[8];
-    /** The smallest detour the edge search found, for diagnostics. */
 
     private final SourceContext source;
 
@@ -440,11 +341,12 @@ public final class SoundFXUtils {
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f send=%.3f material=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
-                        + "clear=%.2f rays=%d cost=%.0fus",
+                        + "clear=%.2f walk=%d/%.1fm rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 sendOcclusionGain, this.lastMaterialSum, this.lastZoneLossDb, this.lastEdgeFound,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
+                this.lastWalkSegments, this.lastWalkDistance,
                 ReusableRaycastContext.raycastCount(),
                 (System.nanoTime() - evaluationStart) / 1000.0D));
 
@@ -625,13 +527,19 @@ public final class SoundFXUtils {
      *   <li><b>material</b> - what the block material along the line transmits. This is the direct path, and it
      *       is what makes a wall's THICKNESS matter: one block of stone (occlusion 0.5) transmits about 0.83,
      *       a four-block wall about 0.22.</li>
-     *   <li><b>edge</b> - the diffracted path, from the clearing angle, per octave band.</li>
+     *   <li><b>edge</b> - the diffracted path, from the opening the wave escapes through beside the first
+     *       obstacle, per octave band. It is <b>zero when there is no opening within reach</b>, because a
+     *       barrier wider than the search reaches has no edge to bend around.</li>
      * </ul>
      *
      * <p>They arrive independently and add incoherently. A thin wall transmits well through the material and
      * diffracts well around its edge, so it is audible; a thick wall does neither, so it is not. A room needs
      * no separate treatment: its wall's material transmission is low, and the room's own contribution is the
      * reverb, which the reverb trace already measures.
+     *
+     * <p>Both terms are returned in dB and then divided by the absorption coefficient, because the caller
+     * applies {@code exp(-occlusion * absorption)} to get the amplitude back. The two conversions therefore
+     * cancel; they are kept because the probe reports dB, which is the readable form.
      */
     private float calculateOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target) {
 
@@ -639,6 +547,10 @@ public final class SoundFXUtils {
             this.lastOccluderPos = null;
             this.lastCenterOcclusion = 0F;
             this.lastZoneLossDb = 0F;
+            this.lastEdgeFound = false;
+            this.lastEdgeDelta = 0F;
+            this.lastWalkSegments = 0;
+            this.lastWalkDistance = 0D;
             return 0F;
         }
 
@@ -685,7 +597,6 @@ public final class SoundFXUtils {
         float factor = 0F;
 
         Vec3 lastHit = origin;
-        BlockState lastState = ctx.world.getBlockState(BlockPos.containing(lastHit.x(), lastHit.y(), lastHit.z()));
         var traceContext = new ReusableRaycastContext(ctx.world, origin, target, ClipContext.Block.VISUAL, ClipContext.Fluid.ANY);
         var itr = new ReusableRaycastIterator(traceContext);
         // The walk has to cover the whole line. The iterator advances half a block per step, so a fixed segment
@@ -695,26 +606,42 @@ public final class SoundFXUtils {
         // floor so a short line is still sampled and a cap so a very long one stays affordable.
         final int segments = Math.max(occlusionSegments(),
                 Math.min(OCCLUSION_MAX_SEGMENTS, (int) Math.ceil(origin.distanceTo(target) / 0.5D) + 1));
+        int walked = 0;
         for (int i = 0; i < segments; i++) {
-            if (itr.hasNext()) {
-                var result = itr.next();
-                final float occlusion = getOcclusion(lastState);
-                final double rayDistance = lastHit.distanceTo(result.getLocation());
-                // Occlusion is scaled by the distance traveled through the block.
-                factor += (float) (occlusion * rayDistance);
-                if (occlusion > 0F && firstOccluder != null && firstOccluder[0] == null) {
-                    // Record the MIDPOINT of the first occluded segment: the middle of the obstacle's body
-                    // along the line. The clearing-angle search runs from here, so starting on the near
-                    // surface would put the ray's own start inside the obstacle it has to clear, while
-                    // starting at the entry point left it unable to reach past the silhouette.
-                    firstOccluder[0] = MathStuff.addScaled(lastHit, result.getLocation().subtract(lastHit), 0.5F);
-                }
-                lastHit = result.getLocation();
-                lastState = ctx.world.getBlockState(result.getBlockPos());
-            } else {
+            if (!itr.hasNext())
                 break;
+            var result = itr.next();
+            final Vec3 hit = result.getLocation();
+            final double rayDistance = lastHit.distanceTo(hit);
+            if (rayDistance <= 0D) {
+                lastHit = hit;
+                continue;
             }
+            // Attribute the segment to the block it passes THROUGH, sampled at its midpoint. Reading the block
+            // at the segment's start instead charged every segment to the block the ray had just left: the
+            // obstacle's own block was only counted once the ray was already out the far side, so the segment
+            // inside it was charged to the air in front and the LAST hit was never counted at all.
+            final Vec3 mid = MathStuff.addScaled(lastHit, hit, 0.5F);
+            final BlockPos midBlock = BlockPos.containing(mid.x(), mid.y(), mid.z());
+            final float occlusion = getOcclusion(ctx.world.getBlockState(midBlock));
+            // Occlusion is scaled by the distance traveled through the block.
+            factor += (float) (occlusion * rayDistance);
+            if (occlusion > 0F && firstOccluder != null && firstOccluder[0] == null) {
+                // Record the MIDPOINT of the first occluded segment: the middle of the obstacle's body
+                // along the line. The edge search runs from here, so starting on the near surface would
+                // put the ray's own start inside the obstacle it has to clear, while starting at the
+                // entry point left it unable to reach past the silhouette.
+                firstOccluder[0] = mid;
+            }
+            lastHit = hit;
+            walked++;
         }
+
+        // Reach, not just result: a zero factor is only meaningful next to how much of the line was covered.
+        // Without this a clear line and a walk that stopped early are the same reading, which is exactly how
+        // the "material is always zero" question stayed open.
+        this.lastWalkSegments = walked;
+        this.lastWalkDistance = origin.distanceTo(lastHit);
 
         return factor;
     }
@@ -766,7 +693,7 @@ public final class SoundFXUtils {
     }
 
     /**
-     * Knife-edge amplitude for a detour of {@code delta} blocks at {@code frequencyHz}.
+     * Knife-edge amplitude for a path-length detour of {@code delta} blocks at {@code frequencyHz}.
      *
      * <p>The Fresnel number n = sqrt(2 * dL / lambda) counts the half-wavelengths the detour costs, and the
      * standard knife-edge result is 0.5 at the shadow boundary (n = 0) rising towards 1 as the detour
@@ -774,35 +701,43 @@ public final class SoundFXUtils {
      * that matters: a low frequency bends around an obstacle that stops a high one outright.
      */
     private static float edgeAmplitude(final float delta, final float frequencyHz) {
-        // The knife-edge amplitude: 0.5 at the shadow boundary (Fresnel number 0), rising towards 1 as the
-        // detour clears. Below the transition the geometric falloff takes over, which is what keeps a long
-        // detour from diffracting as strongly as a short one.
         final double lambda = SPEED_OF_SOUND / Math.max(1F, frequencyHz);
         final double n = Math.sqrt(Math.max(0.0D, 2.0D * delta / lambda));
         final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
         return 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
     }
+
     /**
-     * Excess attenuation in dB of the diffracted path, per octave band, from the CLEARANCE HEIGHT.
+     * Fraction of the diffracted wave that arrives, per octave band, from the CLEARANCE HEIGHT.
      *
-     * <p>The clearance is how far the obstacle's edge stands from the direct line. It is found by walking out
-     * perpendicular to the line from the anchor and taking the nearest offset whose ray to the SOURCE is clear -
-     * no search from a point inside the obstacle, which is what broke the previous two attempts.
+     * <p>The clearance h is how far the nearest opening around the first obstacle stands from the direct line.
+     * It is found by walking out perpendicular to the line from the anchor and taking the nearest offset that is
+     * not solid and that can see BOTH the source and the listener - no ray is ever cast from inside the
+     * obstacle, which is what broke the previous two attempts.
      *
-     * <p>The Fresnel-Kirchhoff attenuation follows from the clearance and the geometry:
+     * <p>The Fresnel-Kirchhoff attenuation follows from the detour the wave actually travels to get through
+     * that opening, not from the clearance height itself:
      * <pre>
-     *   n    = h * sqrt(2 * (d1 + d2) / (lambda * d1 * d2))   the Fresnel parameter
-     *   loss = 0.5 + 0.5 * tanh(n)                            0.5 at grazing, 1 once clear
+     *   dL   = sqrt(d1^2 + h^2) + sqrt(d2^2 + h^2) - (d1 + d2)   the extra distance the bent path covers
+     *   n    = sqrt(2 * dL / lambda)                             the Fresnel parameter
+     *   loss = 0.5 + 0.5 * tanh(n)                               0.5 at grazing, 1 once clear
+     *   A    = 1 - 0.75 * (1 - loss)                             0.625 at grazing, 1 when clear
      * </pre>
-     * with d1 and d2 the distances from the source and the listener to the obstacle. A trunk two blocks off the
-     * line gives a small n and is nearly transparent; a wall the listener stands behind gives a large one. The
-     * wavelength makes a low band pass where a high band does not, which is the whole point of the broadband
-     * treatment.
+     * with d1 and d2 the distances from the source and the listener to the obstacle.
+     *
+     * <p>Using the detour rather than h is what makes the term vanish for a barrier the wave cannot get around.
+     * The previous form fed h straight into n, so a wide wall - where no opening is found at all and h was
+     * clamped to the search limit - produced a LARGE n and therefore loss 1 and amplitude 1: a wide wall read as
+     * fully transparent, and since the amplitudes add, the material term was masked by it. Measured over one
+     * session that made the edge contribute exactly 0.0 dB in 207 of 207 rows, 197 of them the clamped case.
+     * A wall wider than the search reaches now yields no edge contribution at all, which is the honest reading:
+     * what gets through it gets through by transmission, and the material term already measures that.
      *
      * @return array of amplitudes per band, or null when the anchor is missing.
      */
     private float[] edgeAmplitudePerBand(final WorldContext ctx, final Vec3 source, final Vec3 listener) {
         this.lastEdgeFound = false;
+        this.lastEdgeDelta = 0F;
         java.util.Arrays.fill(this.lastEdgeDb, 0F);
         if (this.lastOccluderPos == null)
             return null;
@@ -820,7 +755,9 @@ public final class SoundFXUtils {
         // The source end of the leg, stepped out of its own block so a block source is not its own obstacle.
         final Vec3 sourceLeg = stepOutOfSolid(ctx.world, source, listener);
 
-        // The nearest perpendicular offset whose ray to the source is clear is the clearance height.
+        // The nearest perpendicular offset that is open AND sees both ends is the opening the wave escapes
+        // through. This is an approximation of the obstacle's silhouette: a real edge search would walk the
+        // outline of the blocker, which costs far more rays for a difference the ear cannot resolve.
         float clearance = -1F;
         for (int step = 1; step <= CLEARANCE_STEPS; step++) {
             final float offset = CLEARANCE_STEP * step;
@@ -845,23 +782,25 @@ public final class SoundFXUtils {
             if (clearance > 0F)
                 break;
         }
-        // No clear offset within the search: the obstacle is wider than the search reaches. Treat it as a wall
-        // rather than as transparent - that is the honest reading of "nothing around it is open".
+        // No opening within the search: the barrier is wider than the search reaches. There is no edge path to
+        // add, so the direct transmission through the material is all there is. Treating the search limit as a
+        // real clearance instead would read the widest walls as the most transparent ones.
         if (clearance < 0F)
-            clearance = CLEARANCE_STEP * CLEARANCE_STEPS;
+            return null;
 
+        // The detour the bent path costs over the straight line. The anchor lies on the line, so
+        // d1 + d2 = directLen and the detour is the two hypotenuses minus that.
         final double d1 = Math.max(0.5D, source.distanceTo(this.lastOccluderPos));
         final double d2 = Math.max(0.5D, listener.distanceTo(this.lastOccluderPos));
+        final double detour = Math.sqrt(d1 * d1 + (double) clearance * clearance)
+                + Math.sqrt(d2 * d2 + (double) clearance * clearance) - (d1 + d2);
         this.lastEdgeDelta = clearance;
         this.lastEdgeFound = true;
 
         final int bands = bandCount();
         final float[] amplitudes = new float[bands];
         for (int band = 0; band < bands; band++) {
-            final double lambda = SPEED_OF_SOUND / Math.max(1F, bandFrequency(band));
-            final double n = clearance * Math.sqrt(2.0D * (d1 + d2) / (lambda * d1 * d2));
-            final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
-            amplitudes[band] = 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
+            amplitudes[band] = edgeAmplitude((float) Math.max(MIN_EDGE_DETOUR, detour), bandFrequency(band));
             if (band < this.lastEdgeDb.length)
                 this.lastEdgeDb[band] = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, amplitudes[band])));
         }
@@ -924,17 +863,11 @@ public final class SoundFXUtils {
         return world.getFluidState(pos).is(FluidTags.WATER);
     }
 
-    // DIAG(1.20.1-reverb): one line per distinct block id - verifies the reflectance
-    // tag chain at runtime. The stone family must resolve to MAX=1.0; a value of
-    // 0.35 (LOW) means the dsconfigs tag lookup silently fell back to DEFAULT,
-    // which shifts every reflection delay into zone0 and starves zone1-3.
-
     private static float getReflectivity(BlockState state) {
         // Use the weak form because the BlockInfo may not be filled out when
         // the FX system needs to evaluate. The info object should only
         // be filled out by the render thread.
-        final float refl = BLOCK_LIBRARY.getBlockInfoWeak(state).getSoundReflectivity();
-        return refl;
+        return BLOCK_LIBRARY.getBlockInfoWeak(state).getSoundReflectivity();
     }
 
     private static float getOcclusion(BlockState state) {

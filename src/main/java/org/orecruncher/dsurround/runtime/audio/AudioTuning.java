@@ -25,19 +25,12 @@ public final class AudioTuning {
     private static final Configuration.EnhancedSounds CONFIG =
             ContainerManager.resolve(Configuration.EnhancedSounds.class);
 
-    private static volatile float diffractionLevelStrength =
-            clamp((float) CONFIG.diffractionLevelStrength, 0F, 1F);
-    private static volatile float diffractionHfStrength =
-            clamp((float) CONFIG.diffractionHfStrength, 0F, 1F);
     private static volatile int occlusionSegments = Math.max(1, CONFIG.occlusionSegments);
     private static volatile boolean evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
     private static volatile boolean realismWavelength = CONFIG.realismWavelength;
     private static volatile float realismFrequencyHz = clamp((float) CONFIG.realismFrequencyHz, 100F, 4000F);
     private static volatile float occlusionFocusDistance = clamp((float) CONFIG.occlusionFocusDistance, 0F, 64F);
-    private static volatile boolean occlusionFresnelZone = CONFIG.occlusionFresnelZone;
-    private static volatile float occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
     private static volatile boolean logAudioTrace = CONFIG.logAudioTrace;
-    private static volatile int arrivalRays = clamp(CONFIG.arrivalRays, 8, 128);
     private static final float[] DEFAULT_BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
     private static final float[] DEFAULT_BAND_FREQUENCIES = {125F, 500F, 2000F};
     private static volatile float[] bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
@@ -58,23 +51,6 @@ public final class AudioTuning {
 
     private AudioTuning() {
     }
-
-    /**
-     * Fraction of the LOST level an edge detour may bring back. The original code took
-     * {@code max(detour, occlusion)}, which erased the wall as soon as any edge existed nearby.
-     */
-    public static float diffractionLevelStrength() {
-        return diffractionLevelStrength;
-    }
-
-    /**
-     * Fraction of the LOST high frequencies an edge detour may bring back. Much lower than the level
-     * strength, because edge diffraction attenuates short wavelengths first.
-     */
-    public static float diffractionHfStrength() {
-        return diffractionHfStrength;
-    }
-
 
     /** Segments a single occlusion ray is split into. */
     public static int occlusionSegments() {
@@ -110,25 +86,9 @@ public final class AudioTuning {
         return occlusionFocusDistance;
     }
 
-    /** Whether the occlusion comes from the Fresnel-zone clear fraction rather than a material sum. */
-    public static boolean occlusionFresnelZone() {
-        return occlusionFresnelZone;
-    }
-
-    /** Excess attenuation in dB when an aperture plane is completely covered. */
-    public static float occlusionLossDb() {
-        return occlusionLossDb;
-    }
-
     /** Whether the evaluation trace is written to the log. Off by default. */
     public static boolean logAudioTrace() {
         return logAudioTrace;
-    }
-
-
-    /** Rays used to measure how much of the wavefront arrives at the listener. */
-    public static int arrivalRays() {
-        return arrivalRays;
     }
 
     /** Relative weight of each octave band, lowest first. */
@@ -175,18 +135,6 @@ public final class AudioTuning {
      */
     public static String set(final String key, final String value) {
         switch (key) {
-            case "diffractionLevelStrength": {
-                final float v = clamp(parseFloat(key, value), 0F, 1F);
-                final float old = diffractionLevelStrength;
-                diffractionLevelStrength = v;
-                return describe(key, old, v);
-            }
-            case "diffractionHfStrength": {
-                final float v = clamp(parseFloat(key, value), 0F, 1F);
-                final float old = diffractionHfStrength;
-                diffractionHfStrength = v;
-                return describe(key, old, v);
-            }
             case "occlusionSegments": {
                 final int v = clamp(parseInt(key, value), 1, 32);
                 final int old = occlusionSegments;
@@ -217,29 +165,11 @@ public final class AudioTuning {
                 occlusionFocusDistance = v;
                 return describe(key, old, v);
             }
-            case "occlusionFresnelZone": {
-                final boolean v = Boolean.parseBoolean(value);
-                final boolean old = occlusionFresnelZone;
-                occlusionFresnelZone = v;
-                return describe(key, old, v);
-            }
-            case "occlusionLossDb": {
-                final float v = clamp(parseFloat(key, value), 0F, 60F);
-                final float old = occlusionLossDb;
-                occlusionLossDb = v;
-                return describe(key, old, v);
-            }
             case "probe": {
                 final boolean v = Boolean.parseBoolean(value);
                 final boolean old = logAudioTrace;
                 logAudioTrace = v;
                 return describe(key, old, v) + " (the last trace is always kept for '/dstune')";
-            }
-            case "arrivalRays": {
-                final int v = clamp(parseInt(key, value), 8, 128);
-                final int old = arrivalRays;
-                arrivalRays = v;
-                return describe(key, old, v);
             }
             case "bandWeights": {
                 final float[] v = parseFloats(value, null);
@@ -259,27 +189,20 @@ public final class AudioTuning {
             }
             default:
                 throw new IllegalArgumentException("Unknown key '" + key + "'. Try: "
-                        + "diffractionLevelStrength, diffractionHfStrength, "
                         + "occlusionSegments, evaluateOnSoundThread, "
                         + "realismWavelength, realismFrequencyHz, occlusionFocusDistance, "
-                        + "occlusionFresnelZone, occlusionLossDb, probe, bandWeights, bandFrequencies, "
-                        + "arrivalRays");
+                        + "probe, bandWeights, bandFrequencies");
         }
     }
 
     /** Restores every value from the config file. */
     public static String reset() {
-        diffractionLevelStrength = clamp((float) CONFIG.diffractionLevelStrength, 0F, 1F);
-        diffractionHfStrength = clamp((float) CONFIG.diffractionHfStrength, 0F, 1F);
         occlusionSegments = Math.max(1, CONFIG.occlusionSegments);
         evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
         realismWavelength = CONFIG.realismWavelength;
         realismFrequencyHz = clamp((float) CONFIG.realismFrequencyHz, 100F, 4000F);
         occlusionFocusDistance = clamp((float) CONFIG.occlusionFocusDistance, 0F, 64F);
-        occlusionFresnelZone = CONFIG.occlusionFresnelZone;
-        occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
         logAudioTrace = CONFIG.logAudioTrace;
-        arrivalRays = clamp(CONFIG.arrivalRays, 8, 128);
         bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
         bandFrequencies = parseFloats(CONFIG.bandFrequencies, DEFAULT_BAND_FREQUENCIES);
         return "Restored from config:\n" + describeAll();
@@ -288,25 +211,19 @@ public final class AudioTuning {
     /** One line per tunable, with the config key that makes a change permanent. */
     public static String describeAll() {
         return String.format(
-                "  diffractionLevelStrength = %.2f   (config: enhancedSounds.diffractionLevelStrength, 0-1; fraction of the LOST level a detour may restore)%n"
-                        + "  diffractionHfStrength    = %.2f   (config: enhancedSounds.diffractionHfStrength, 0-1; same for the LOST highs - keep this well below the level)%n"
-                        + "  occlusionSegments        = %d   (config: enhancedSounds.occlusionSegments, 1-32)%n"
+                "  occlusionSegments        = %d   (config: enhancedSounds.occlusionSegments, 1-32)%n"
                         + "  evaluateOnSoundThread    = %b   (config: enhancedSounds.evaluateOnSoundThread)%n"
-                        + "  realismWavelength        = %b   (config: enhancedSounds.realismWavelength; wavelength-dependent diffraction + Fresnel-sized aperture)%n"
+                        + "  realismWavelength        = %b   (config: enhancedSounds.realismWavelength; wavelength-dependent diffraction)%n"
                         + "  realismFrequencyHz       = %.0f   (config: enhancedSounds.realismFrequencyHz, 100-4000)%n"
                         + "  occlusionFocusDistance   = %.1f   (config: enhancedSounds.occlusionFocusDistance, 0-64 blocks; 0 = every block counts fully)%n"
-                        + "  occlusionFresnelZone     = %b   (config: enhancedSounds.occlusionFresnelZone; zone clear fraction instead of a material sum)%n"
-                        + "  occlusionLossDb          = %.1f   (config: enhancedSounds.occlusionLossDb, 0-60; excess attenuation for a fully covered plane)%n"
                         + "  probe                    = %b   (config: enhancedSounds.logAudioTrace; write the evaluation trace to the log)%n"
-                        + "  arrivalRays              = %d   (config: enhancedSounds.arrivalRays, 8-128)%n"
                         + "  bandWeights              = %s   (config: enhancedSounds.bandWeights; relative weight per octave band, lowest first)%n"
                         + "  bandFrequencies          = %s   (config: enhancedSounds.bandFrequencies; octave bands in Hz, lowest first)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
                         + "Last evaluation: %s",
-                diffractionLevelStrength, diffractionHfStrength * 8,
                 occlusionSegments, evaluateOnSoundThread,
-                realismWavelength, realismFrequencyHz, occlusionFocusDistance, occlusionFresnelZone, occlusionLossDb, logAudioTrace,
-                describeArray(bandWeights), describeArray(bandFrequencies), arrivalRays, lastTrace);
+                realismWavelength, realismFrequencyHz, occlusionFocusDistance, logAudioTrace,
+                describeArray(bandWeights), describeArray(bandFrequencies), lastTrace);
     }
 
     // ------------------------------------------------------------------ helpers

@@ -691,13 +691,11 @@ public final class SoundFXUtils {
                 // Occlusion is scaled by the distance traveled through the block.
                 factor += (float) (occlusion * rayDistance);
                 if (occlusion > 0F && firstOccluder != null && firstOccluder[0] == null) {
-                    // Record where the line ENTERS the first obstacle - its near surface - rather than the
-                    // segment's midpoint. The wave bends around the silhouette, which is on that face; the
-                    // midpoint of a hill's first solid segment is deep inside the hill, and anchoring there
-                    // put both the detour search and the aperture plane inside rock (measured: no detour
-                    // waypoint accepted at all, and leak = 0.000 on every band while the listener stood in
-                    // open air).
-                    firstOccluder[0] = lastHit;
+                    // Record the MIDPOINT of the first occluded segment: the middle of the obstacle's body
+                    // along the line. The clearing-angle search runs from here, so starting on the near
+                    // surface would put the ray's own start inside the obstacle it has to clear, while
+                    // starting at the entry point left it unable to reach past the silhouette.
+                    firstOccluder[0] = MathStuff.addScaled(lastHit, result.getLocation().subtract(lastHit), 0.5F);
                 }
                 lastHit = result.getLocation();
                 lastState = ctx.world.getBlockState(result.getBlockPos());
@@ -775,38 +773,41 @@ public final class SoundFXUtils {
     /**
      * Excess attenuation in dB of the diffracted path, per octave band, from the CLEARING ANGLE.
      *
-     * <p>The angle is found by rotating a ray from the listener towards the source, in a cone around the
-     * direct line, until it clears the obstacle. That angle IS the diffraction geometry: the wave has to bend
-     * by it to arrive. The Fresnel number follows from it - n = sqrt(2 * L * (1 - cos(theta)) / lambda), the
-     * half-wavelengths the bend costs - and the standard knife-edge result gives 0.5 at the shadow boundary
-     * rising towards 1 as the bend clears, so a low frequency passes almost unattenuated around a hill while a
-     * high one does not.
+     * <p>The angle is found by rotating a ray from the OBSTACLE, in a cone around the line to the listener,
+     * until it clears. That angle is the diffraction geometry: the wave has to bend by it to get past the
+     * obstacle. The Fresnel number follows - n = sqrt(2 * L * (1 - cos(theta)) / lambda), the half-wavelengths
+     * the bend costs - and the knife-edge result gives 0.5 at the shadow boundary rising towards 1 as the bend
+     * clears, so a low band passes almost unattenuated around a hill while a high band does not.
      *
-     * <p>Earlier revisions looked for a waypoint that could see BOTH ends and returned nothing when none
-     * existed. That fails exactly where diffraction matters most - around a hill, where every candidate lands
-     * inside rock - and the contribution silently vanished (measured: edge = 0 in every heavily muffled row).
-     * A clearing angle always exists once an obstacle does, so this cannot collapse to zero.
+     * <p>The search is anchored ON the obstacle, which is where the edge is. An earlier revision rotated rays
+     * from the listener's ear instead: inside a room every rotated ray then hits an interior wall, so the search
+     * measured "is the room closed" rather than "where is the edge" - which is why entering a room flipped
+     * straight to muffled, why standing at a window was transparent, and why the three bands came out identical
+     * (the same blocked path, no frequency dependence at all).
      *
-     * @return array of amplitudes per band, or null when the line is clear (nothing to bend around).
+     * @return array of amplitudes per band, or null when no rotation within the cone clears.
      */
     private float[] edgeAmplitudePerBand(final WorldContext ctx, final Vec3 source, final Vec3 listener) {
+        this.lastEdgeFound = false;
+        java.util.Arrays.fill(this.lastEdgeDb, 0F);
         if (this.lastOccluderPos == null)
             return null;
-        final Vec3 direct = listener.subtract(source);
-        final double directLen = direct.length();
-        if (directLen < 0.01D)
+        final Vec3 toListener = listener.subtract(this.lastOccluderPos);
+        final double listenerDistance = toListener.length();
+        if (listenerDistance < 0.01D)
             return null;
-        final Vec3 d = direct.scale(1.0D / directLen);
+        final Vec3 d = toListener.scale(1.0D / listenerDistance);
         final Vec3 seed = Math.abs(d.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
         final Vec3 u = d.cross(seed).normalize();
         final Vec3 v = d.cross(u).normalize();
         final ReusableRaycastContext traceContext =
                 new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
-        // Start just outside the listener's own block, so the ear's own block is not the obstacle.
-        final Vec3 origin = stepOutOfSolid(ctx.world, listener, source);
+        // Start on the obstacle's surface so its own body is not the obstruction the ray has to clear.
+        final Vec3 origin = stepOutOfSolid(ctx.world, this.lastOccluderPos, listener);
+        // The bend has to be measured against the whole source-to-listener span, since that is the distance the
+        // wave travels and the Fresnel number is built from it.
+        final double span = source.distanceTo(listener);
 
-        // The smallest rotation that clears: sampled over a cone of angles and azimuths. Coarse on purpose -
-        // the knife-edge curve is smooth in the angle, so a few samples give a stable figure.
         double bestCos = -1.0D;
         for (int a = 0; a < EDGE_ANGLE_SAMPLES; a++) {
             final double theta = EDGE_ANGLE_MAX_RAD * (a + 1) / EDGE_ANGLE_SAMPLES;
@@ -818,8 +819,7 @@ public final class SoundFXUtils {
                         .add(u.scale(Math.cos(phi) * sin))
                         .add(v.scale(Math.sin(phi) * sin))
                         .normalize();
-                final Vec3 probe = origin.add(dir.scale(directLen));
-                if (isMiss(traceContext.trace(origin, probe))) {
+                if (isMiss(traceContext.trace(origin, origin.add(dir.scale(listenerDistance))))) {
                     bestCos = cos;
                     break;
                 }
@@ -828,14 +828,14 @@ public final class SoundFXUtils {
                 break;                              // the smallest clearing angle has been found
         }
         if (bestCos < 0.0D)
-            return null;                            // no rotation within the cone clears: fully enclosed
+            return null;
 
         this.lastEdgeFound = true;
         final int bands = bandCount();
         final float[] amplitudes = new float[bands];
         for (int band = 0; band < bands; band++) {
             final double lambda = SPEED_OF_SOUND / Math.max(1F, bandFrequency(band));
-            final double n = Math.sqrt(Math.max(0.0D, 2.0D * directLen * (1.0D - bestCos) / lambda));
+            final double n = Math.sqrt(Math.max(0.0D, 2.0D * span * (1.0D - bestCos) / lambda));
             final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
             amplitudes[band] = 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
             if (band < this.lastEdgeDb.length)

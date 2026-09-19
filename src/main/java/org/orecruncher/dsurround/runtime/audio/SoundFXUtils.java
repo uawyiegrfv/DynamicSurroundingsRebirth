@@ -6,6 +6,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -100,11 +101,8 @@ public final class SoundFXUtils {
      * sound quiet without deleting it.
      */
     private static final float MATERIAL_LEVEL_RESTORE = 0.2F;
-    /** Directions sampled around the listener for {@link #listenerOpenness}. Cost is one raycast each. */
-    private static final int OPENNESS_RAYS = 32;
-    /** How far each openness ray is walked while looking for a point that can see the sky. */
-    private static final float OPENNESS_PROBE_DISTANCE = 24F;
-    private static final int OPENNESS_PROBE_STEPS = 4;
+    /** Skylight at a position that can see the sky in full. */
+    private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */
     private static final double OPENNESS_CACHE_TOLERANCE_SQR = 0.25D;
 
@@ -709,25 +707,29 @@ public final class SoundFXUtils {
     }
 
     /**
-     * Fraction of the directions around the listener's ear that lead out into open air.
+     * How much sky the listener's position can see, as a fraction: 1 outdoors, 0 deep inside rock.
      *
      * <p>This is the term that answers "how open is the space the listener is standing in", and it is what
      * carries a distant opening. A knife-edge cannot: an opening far from the straight line has a large
      * detour and therefore negligible diffraction, yet sound plainly does reach through it - not by bending
-     * around an edge, but because the air is CONNECTED. Measuring the connected share of the surroundings is
-     * the honest way to express that, and unlike "is there an opening on the line" it is a continuous
-     * quantity, so walking out of a cave mouth fades instead of snapping.
+     * around an edge, but because the air is CONNECTED. How much sky the position sees is the honest way to
+     * express that, and unlike "is there an opening on the line" it is a continuous quantity, so walking out
+     * of a cave mouth fades instead of snapping.
      *
-     * <p>A direction counts as open when some point along it can see the sky. That test is deliberately not
-     * "did the ray hit a block within N blocks": in a valley, a forest or on a slope the ground itself is hit
-     * within a few blocks, so a listener in the open would measure as fully enclosed. Sky visibility is
-     * immune to terrain relief - open ground of any shape reads as open, while a room, a tunnel and a cave
-     * read as enclosed. (This measurement existed before, at commit 6f240b4, and was removed at 5d97b70 only
-     * because its sole consumer, applyDiffraction, was deleted - not because it was wrong.)
+     * <p>It is read from the SKY LIGHT at the ear, and that is not a shortcut - sky light IS a measurement of
+     * sky visibility. Minecraft's light engine propagates it downward and sideways, so a position at a cave
+     * mouth reads high (light spills in through the opening) and one deep inside reads 0, with a smooth
+     * gradient between them. That gradient is exactly the transition that was missing. It also costs one
+     * block lookup instead of a raycast.
      *
-     * <p>Cost is fixed and geometry-independent: OPENNESS_RAYS raycasts per evaluation. It depends only on
-     * the listener, so it is cached for the duration of one processing pass - the listener does not move
-     * within a pass, and the same value is reused by all {@code MAX_SOURCES_PER_PASS} sources.
+     * <p>An earlier revision cast rays and tested canSeeSky, which cannot work here: the test is VERTICAL
+     * (does this column see the sky), so from inside a mine the rays have to travel all the way up through
+     * the rock to find anything, and 24 blocks was nowhere near enough - measured, open= read 0.000 in the
+     * cave, so the term did nothing at all. Reading the light level gets the same information without the
+     * walk, and it accounts for openings that are horizontal rather than overhead, which is what a mine has.
+     *
+     * <p>LightLayer.SKY is the raw skylight, unaffected by the day/night curve, so the term does not drift
+     * between noon and midnight.
      */
     private static float listenerOpenness(final WorldContext ctx, final Vec3 eye) {
         final long pass = currentPass;
@@ -736,29 +738,8 @@ public final class SoundFXUtils {
                 return cachedOpenness;
         }
 
-        final ReusableRaycastContext traceContext =
-                new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
-        final float step = 1F / OPENNESS_RAYS;
-        int open = 0;
-        for (int i = 0; i < OPENNESS_RAYS; i++) {
-            // Fibonacci sphere: even spacing with no clustering at the poles.
-            final double y = 1.0D - 2.0D * (i + 0.5D) * step;
-            final double r = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
-            final double phi = Math.PI * (1.0D + Math.sqrt(5.0D)) * i;
-            final Vec3 dir = new Vec3(Math.cos(phi) * r, y, Math.sin(phi) * r).normalize();
-            Vec3 point = eye;
-            for (int stepIndex = 0; stepIndex < OPENNESS_PROBE_STEPS; stepIndex++) {
-                point = point.add(dir.scale(OPENNESS_PROBE_DISTANCE / OPENNESS_PROBE_STEPS));
-                if (isMiss(traceContext.trace(point.subtract(dir.scale(0.5D)), point)))
-                    continue;                       // this stretch is inside rock; keep walking
-                if (ctx.world.canSeeSky(BlockPos.containing(point))) {
-                    open++;
-                    break;
-                }
-            }
-        }
-
-        cachedOpenness = open / (float) OPENNESS_RAYS;
+        final int sky = ctx.world.getBrightness(LightLayer.SKY, BlockPos.containing(eye.x(), eye.y(), eye.z()));
+        cachedOpenness = Math.max(0F, Math.min(1F, sky / (float) MAX_SKY_LIGHT));
         cachedOpennessEye = eye;
         cachedOpennessPass = pass;
         return cachedOpenness;

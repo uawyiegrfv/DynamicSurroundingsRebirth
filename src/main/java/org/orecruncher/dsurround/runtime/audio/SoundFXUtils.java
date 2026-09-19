@@ -99,7 +99,7 @@ public final class SoundFXUtils {
      * Extended to 16 so a wall roughly 30 blocks wide still has a reachable edge;
      * beyond that the obstacle is treated as terrain and stays muffled.
      */
-    private static final float[] DETOUR_RADII = {1.5F, 3F, 5F, 8F, 12F, 16F};
+    private static final float[] DETOUR_RADII = {1.5F, 3F, 5F, 8F, 12F, 16F, 24F, 32F};
 
     /**
      * How strongly the obstacle's thickness suppresses the restored high frequencies. The detour
@@ -306,6 +306,8 @@ public final class SoundFXUtils {
     private double lastDiffractionCostUs;
     /** Waypoints the edge search accepted on the most recent measurement, for diagnostics. */
     private int lastEdgeWaypoints;
+    /** Whether an edge path was found at all on the most recent measurement. */
+    private boolean lastEdgeFound;
     /** Per-band edge loss in dB from the most recent measurement, for diagnostics. */
     private final float[] lastEdgeDb = new float[8];
     /** The smallest detour the edge search found, for diagnostics. */
@@ -480,7 +482,7 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
                         + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus ring=%.0fus "
-                        + "wp=%d delta=%.2f edgedb=%.1f/%.1f/%.1f",
+                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
@@ -488,7 +490,7 @@ public final class SoundFXUtils {
                 this.lastCenterOcclusion, this.lastApertureLeak, sendOcclusionGain,
                 this.lastFresnelRadius, this.lastFanAverage, this.lastZoneLossDb,
                 (System.nanoTime() - evaluationStart) / 1000.0D, this.lastDiffractionCostUs,
-                this.lastEdgeWaypoints, this.lastEdgeDelta,
+                this.lastEdgeWaypoints, this.lastEdgeFound, this.lastEdgeDelta,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2]));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
@@ -889,11 +891,13 @@ public final class SoundFXUtils {
                 // Occlusion is scaled by the distance traveled through the block.
                 factor += (float) (occlusion * rayDistance);
                 if (occlusion > 0F && firstOccluder != null && firstOccluder[0] == null) {
-                    // Record the centre of the first solid segment: this is where the
-                    // wall sits along the path, driving the diffraction compensation.
-                    // addScaled is base + addened*scale, so the midpoint is
-                    // lastHit + 0.5*(hit - lastHit), NOT addScaled(lastHit, hit, 0.5).
-                    firstOccluder[0] = MathStuff.addScaled(lastHit, result.getLocation().subtract(lastHit), 0.5F);
+                    // Record where the line ENTERS the first obstacle - its near surface - rather than the
+                    // segment's midpoint. The wave bends around the silhouette, which is on that face; the
+                    // midpoint of a hill's first solid segment is deep inside the hill, and anchoring there
+                    // put both the detour search and the aperture plane inside rock (measured: no detour
+                    // waypoint accepted at all, and leak = 0.000 on every band while the listener stood in
+                    // open air).
+                    firstOccluder[0] = lastHit;
                 }
                 lastHit = result.getLocation();
                 lastState = ctx.world.getBlockState(result.getBlockPos());
@@ -1444,6 +1448,7 @@ public final class SoundFXUtils {
             }
         }
         this.lastEdgeWaypoints = accepted;
+        this.lastEdgeFound = accepted > 0;
         this.lastEdgeDelta = smallestDelta;
         for (int band = 0; band < bands; band++) {
             if (best[band] == Float.MAX_VALUE)

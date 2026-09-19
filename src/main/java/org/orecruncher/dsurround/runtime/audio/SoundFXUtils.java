@@ -182,6 +182,11 @@ public final class SoundFXUtils {
      * blocked-aperture figure wins the minimum, so a genuinely sealed space stays muffled.
      */
     private static final float NO_EDGE_LOSS_DB = 60F;
+    /**
+     * Distance the listener-openness rays travel. Long enough to leave a normal room (a 5-block ray would
+     * report every room as sealed), short enough that open terrain reads as open.
+     */
+    private static final float OPENNESS_PROBE_DISTANCE = 16F;
     /** Directions the silhouette walk tries around the line. Four covers the four quadrants of the plane. */
     private static final int SILHOUETTE_DIRECTIONS = 4;
     /** Steps the silhouette walk takes outward before giving up and calling the obstacle impassable. */
@@ -316,6 +321,15 @@ public final class SoundFXUtils {
      * the outdoors at the corner-diffraction figure.
      */
     private float lastEdgeGate = 1F;
+    /**
+     * Fraction of solid angle around the listener from which a ray travels far enough to count as open.
+     * Outdoors this is 1; inside a room it is the share taken by the opening. It is what makes a room muffle
+     * naturally instead of by a fixed floor: sound arriving from outside is heard through the opening, so the
+     * open share of the ear's surroundings IS the direct-sound attenuation.
+     */
+    private float lastListenerOpenness = 1F;
+    /** Attenuation in dB the listener's own openness implies on the most recent measurement. */
+    private float lastOpennessLossDb;
     /** Per-band edge loss in dB from the most recent measurement, for diagnostics. */
     private final float[] lastEdgeDb = new float[8];
     /** The smallest detour the edge search found, for diagnostics. */
@@ -484,7 +498,7 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
                         + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus ring=%.0fus "
-                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d gate=%.2f",
+                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d gate=%.2f open=%.2f openloss=%.1f",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
@@ -494,7 +508,8 @@ public final class SoundFXUtils {
                 (System.nanoTime() - evaluationStart) / 1000.0D, this.lastDiffractionCostUs,
                 this.lastEdgeWaypoints, this.lastEdgeFound, this.lastEdgeDelta,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2],
-                ReusableRaycastContext.raycastCount(), this.lastEdgeGate));
+                ReusableRaycastContext.raycastCount(), this.lastEdgeGate,
+                this.lastListenerOpenness, this.lastOpennessLossDb));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -747,6 +762,8 @@ public final class SoundFXUtils {
             this.lastApertureLeak = 0F;
             this.lastZoneLossDb = 0F;
             this.lastEdgeGate = 1F;
+            this.lastListenerOpenness = 1F;
+            this.lastOpennessLossDb = 0F;
             return 0F;
         }
 
@@ -796,6 +813,10 @@ public final class SoundFXUtils {
             final float openness = calculatePlayerOpenness(ctx, target);
             this.lastEdgeGate = MathStuff.clamp1(
                     (1F - (float) Math.pow(enclosure, 3.0)) * (1F - (float) Math.pow(1.0 - openness, 3.0)));
+            // The open solid angle around the ear, measured directly rather than inferred from a fixed
+            // number: this is what a room contributes to the direct sound's attenuation.
+            this.lastListenerOpenness = measureListenerOpenness(ctx, target);
+            this.lastOpennessLossDb = AudioTuning.opennessLossDb() * (1F - this.lastListenerOpenness);
             this.lastApertureLeak = calculateApertureLeak(ctx, origin, target);
         } else {
             // Nothing on the straight line, so the Fresnel zone is not blocked at any plane: clear the
@@ -804,6 +825,8 @@ public final class SoundFXUtils {
             this.lastApertureLeak = 0F;
             this.lastZoneLossDb = 0F;
             this.lastEdgeGate = 1F;
+            this.lastListenerOpenness = 1F;
+            this.lastOpennessLossDb = 0F;
         }
         // Weight the centre ray's score by how much of the wavefront actually gets through. This is
         // the whole point of the aperture: the centre ray answers "is something on the line?", so
@@ -885,18 +908,41 @@ public final class SoundFXUtils {
             final float blended = centerWeight + (fanAverage - centerWeight) * fanWeight;
             occlusion = AudioTuning.occlusionFresnelZone() ? centerWeight : blended;
         }
-        // A sealed listener keeps a floor even when the line is clear: a doorway or window leaves the line
-        // open, so the line's own measurement alone would leave a closed room almost unmuffled (measured at
-        // 0.2 dB with the listener fully enclosed). This is a LOWER BOUND on the result rather than an
-        // addition, so it applies whichever model produced the figure above - an addition on the
-        // material-sum branch only is skipped whenever the zone model has a measurement, which is what the
-        // first attempt did (gate=0.00 with zonedb=0.2). The gate scales it away for an open listener, so
-        // open terrain is unaffected.
-        final float floor = AudioTuning.enclosureFloorDb() * (1F - this.lastEdgeGate);
-        if (floor <= 0F)
+        // The listener's own surroundings contribute their own attenuation, and it comes from a
+        // measurement rather than a constant: sound reaching an ear inside a room arrives only through the
+        // opening, so the open share of the solid angle around that ear is the direct-sound loss. Outdoors
+        // the share is 1 and this is exactly 0, so open terrain is untouched; a sealed room has almost no
+        // open share and is muffled by construction; a large opening lands in between on its own.
+        if (this.lastOpennessLossDb <= 0F)
             return occlusion;
         final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
-        return Math.max(occlusion, floor / Math.max(1.0E-6F, absorption));
+        return Math.max(occlusion, this.lastOpennessLossDb / Math.max(1.0E-6F, absorption));
+    }
+
+    /**
+     * Fraction of the solid angle around the listener from which a ray travels far enough to be considered
+     * open. Directions are spread over a Fibonacci sphere so the samples are even and there is no axis bias.
+     *
+     * <p>This is the measurement a room contributes: a listener in the open has every direction open and the
+     * fraction is 1; a listener in a sealed room has only the opening, and the fraction is that share. Each
+     * direction costs one raycast, so the cost is fixed and independent of geometry.
+     */
+    private float measureListenerOpenness(final WorldContext ctx, final Vec3 eye) {
+        final int rays = AudioTuning.opennessRays();
+        final ReusableRaycastContext traceContext =
+                new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
+        final float step = 1F / rays;
+        int open = 0;
+        for (int i = 0; i < rays; i++) {
+            // Fibonacci sphere: even spacing with no clustering at the poles.
+            final double y = 1.0D - 2.0D * (i + 0.5D) * step;
+            final double r = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
+            final double phi = Math.PI * (1.0D + Math.sqrt(5.0D)) * i;
+            final Vec3 dir = new Vec3(Math.cos(phi) * r, y, Math.sin(phi) * r).normalize();
+            if (isMiss(traceContext.trace(eye, eye.add(dir.scale(OPENNESS_PROBE_DISTANCE)))))
+                open++;
+        }
+        return open / (float) rays;
     }
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target,

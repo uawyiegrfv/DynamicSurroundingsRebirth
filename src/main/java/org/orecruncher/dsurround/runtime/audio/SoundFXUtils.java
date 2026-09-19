@@ -33,9 +33,20 @@ public final class SoundFXUtils {
      * cost of a very distant sound; it is 4x the distance in blocks.
      */
     private static final int OCCLUSION_MAX_SEGMENTS = 192;
-    /** Steps the clearance search walks outward, and the size of each. */
-    private static final int CLEARANCE_STEPS = 12;
+    /**
+     * How far the clearance search reaches, and the size of each successive step.
+     *
+     * <p>The offsets grow GEOMETRICALLY: fine near the line, where an opening is close enough for its position to
+     * matter, and coarse far out, where it only has to be found at all. A fixed 0.75-block step reached only 9
+     * blocks, which missed the case that matters most - a cave with a large surface opening: with the player 15
+     * blocks down and the shaft a dozen blocks to the side, the perpendicular offset to the shaft is over 10
+     * blocks, so the search never found it and the cave read as sealed rock.
+     *
+     * <p>Max offset = START * GROWTH^(STEPS-1) = 0.75 * 1.32^15, about 47 blocks.
+     */
+    private static final int CLEARANCE_STEPS = 16;
     private static final float CLEARANCE_STEP = 0.75F;
+    private static final float CLEARANCE_STEP_GROWTH = 1.32F;
     /** Azimuths tested at each step, so the clearance is not biased to one plane. */
     private static final int CLEARANCE_AZIMUTHS = 6;
     /**
@@ -207,6 +218,15 @@ public final class SoundFXUtils {
     @Nullable
     private Vec3 lastOccluderPos;
     /**
+     * The point the wave escapes through beside the first obstacle, or null when the search found no opening.
+     * The material term measures the path through HERE rather than the straight line, because inside an
+     * enclosed space the straight line is rock while the real path is air.
+     */
+    @Nullable
+    private Vec3 lastEdgePoint;
+    /** Material accumulated along the STRAIGHT line, kept only to report how much the opening path saved. */
+    private float lastLineMaterial;
+    /**
      * Occlusion accumulation along the centre fan ray only (the direct
      * source-to-player line). Unlike the full-fan average, which clips incidental
      * terrain off to the side and climbs to 5-10 in the open world, this tracks how
@@ -214,6 +234,8 @@ public final class SoundFXUtils {
      * blocks of rock between the surface and a cave ~3+). Used to close the
      * compensation for genuinely thick path obstacles such as the ground over a cave.
      */
+    /** Material accumulated along the opening path on the most recent measurement; the probe reports it as
+     * {@code material=} and the straight-line value beside it as {@code line=}, so the saving is visible. */
     private float lastCenterOcclusion;
     /** Excess attenuation in dB from the Fresnel-zone model on the most recent measurement. */
     private float lastZoneLossDb;
@@ -375,11 +397,12 @@ public final class SoundFXUtils {
         // problem is the filter or the audibility of the band, not the model.
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                        + "level=%.4f send=%.3f material=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
+                        + "level=%.4f send=%.3f material=%.3f line=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
                         + "clear=%.2f walk=%d/%.1fm rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
-                sendOcclusionGain, this.lastMaterialSum, this.lastZoneLossDb, this.lastEdgeFound,
+                sendOcclusionGain, this.lastMaterialSum, this.lastLineMaterial, this.lastZoneLossDb,
+                this.lastEdgeFound,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
                 this.lastWalkSegments, this.lastWalkDistance,
                 ReusableRaycastContext.raycastCount(),
@@ -559,18 +582,24 @@ public final class SoundFXUtils {
      *
      * <p>Each term is a measurement:
      * <ul>
-     *   <li><b>material</b> - what the block material along the line transmits. This is the direct path, and it
-     *       is what makes a wall's THICKNESS matter: one block of stone (occlusion 0.5) transmits about 0.83,
-     *       a four-block wall about 0.22.</li>
-     *   <li><b>edge</b> - the diffracted path, from the opening the wave escapes through beside the first
-     *       obstacle, per octave band. It is <b>zero when there is no opening within reach</b>, because a
-     *       barrier wider than the search reaches has no edge to bend around.</li>
+     *   <li><b>material</b> - what the block material along the path transmits. When the search has found an
+     *       opening, the path measured is the BENT one through it (source -> opening -> listener); otherwise it
+     *       is the straight line. This is the direct path, and it is what makes a wall's THICKNESS matter: one
+     *       block of stone (occlusion 0.5) transmits about 0.83, a four-block wall about 0.22.</li>
+     *   <li><b>edge</b> - the diffracted path around the same opening, per octave band. It is <b>zero when
+     *       there is no opening within reach</b>, because a barrier wider than the search reaches has no edge
+     *       to bend around.</li>
      * </ul>
      *
      * <p>They arrive independently and add incoherently. A thin wall transmits well through the material and
      * diffracts well around its edge, so it is audible; a thick wall does neither, so it is not. A room needs
      * no separate treatment: its wall's material transmission is low, and the room's own contribution is the
      * reverb, which the reverb trace already measures.
+     *
+     * <p>Measuring the bent path rather than the straight line is what lets an enclosed space with an opening
+     * sound open. It is also what removes the snap at the mouth of a cave: the straight line's rock content
+     * goes from "all of it" to "none of it" within a block or two, while the bent path measures air the whole
+     * way and changes gradually as the opening moves across the line.
      *
      * <p>Both terms are returned in dB and then divided by the absorption coefficient, because the caller
      * applies {@code exp(-occlusion * absorption)} to get the amplitude back. The two conversions therefore
@@ -580,7 +609,9 @@ public final class SoundFXUtils {
 
         if (skipOcclusion(this.source.getCategory())) {
             this.lastOccluderPos = null;
+            this.lastEdgePoint = null;
             this.lastCenterOcclusion = 0F;
+            this.lastLineMaterial = 0F;
             this.lastZoneLossDb = 0F;
             this.lastEdgeFound = false;
             this.lastEdgeDelta = 0F;
@@ -595,20 +626,39 @@ public final class SoundFXUtils {
         // The material along the line, and where it enters the first obstacle (the anchor for the edge search).
         final Vec3 rayOrigin = stepOutOfSolid(ctx.world, origin, target);
         final Vec3[] centerOccluder = new Vec3[]{null};
-        final float centerMaterial = traceOcclusion(ctx, rayOrigin, target, centerOccluder);
+        final float lineMaterial = traceOcclusion(ctx, rayOrigin, target, centerOccluder);
         this.lastOccluderPos = centerOccluder[0];
+
+        // The opening the wave escapes through, if there is one within reach.
+        final float[] edgeAmplitude = this.lastOccluderPos != null
+                ? edgeAmplitudePerBand(ctx, origin, target)
+                : null;
+        this.lastEdgeFound = edgeAmplitude != null;
+
+        // WHICH path the material term measures is the whole question for an enclosed space.
+        //
+        // The straight line through a cave's ceiling is rock everywhere, so measuring it reports a sealed
+        // space even when the player is standing under a large opening with air the whole way out - which is
+        // what "a mine with big surface openings still sounds muffled" was. Once the search has found an
+        // opening, the wave that matters travels source -> opening -> listener, so THAT is what the material
+        // term measures. Both legs are air, so a genuinely open path now reads as open.
+        //
+        // It also removes the snap. The straight-line measurement switches from "all rock" to "no rock" within
+        // a block or two as the player walks out, which is the abrupt jump from muffled to bright; the bent
+        // path's material falls off gradually, because it is measuring air the whole way.
+        final float centerMaterial = this.lastEdgePoint != null
+                ? traceOcclusion(ctx, stepOutOfSolid(ctx.world, origin, this.lastEdgePoint),
+                        this.lastEdgePoint, null)
+                        + traceOcclusion(ctx, this.lastEdgePoint, target, null)
+                : lineMaterial;
         this.lastCenterOcclusion = centerMaterial;
+        this.lastLineMaterial = lineMaterial;
 
         final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
         final float materialLossDb = MATERIAL_LOSS_DB_PER_UNIT * centerMaterial;
         // The probe keeps reporting a TRANSMISSION FACTOR, so the column stays comparable with every earlier
         // session. It is taken at the reference frequency, where the per-band scaling is 1.
         this.lastMaterialSum = amplitudeFromDb(materialLossDb);
-
-        final float[] edgeAmplitude = this.lastOccluderPos != null
-                ? edgeAmplitudePerBand(ctx, origin, target)
-                : null;
-        this.lastEdgeFound = edgeAmplitude != null;
 
         final int bands = bandCount();
         float weightedDb = 0F;
@@ -843,8 +893,12 @@ public final class SoundFXUtils {
         // through. This is an approximation of the obstacle's silhouette: a real edge search would walk the
         // outline of the blocker, which costs far more rays for a difference the ear cannot resolve.
         float clearance = -1F;
+        Vec3 opening = null;
+        float offset = 0F;
         for (int step = 1; step <= CLEARANCE_STEPS; step++) {
-            final float offset = CLEARANCE_STEP * step;
+            // Geometric growth, so the search covers tens of blocks without paying for 0.75-block resolution
+            // out where it no longer matters.
+            offset = step == 1 ? CLEARANCE_STEP : offset * CLEARANCE_STEP_GROWTH;
             for (int k = 0; k < CLEARANCE_AZIMUTHS; k++) {
                 final double phi = 2.0D * Math.PI * k / CLEARANCE_AZIMUTHS;
                 final Vec3 point = this.lastOccluderPos
@@ -861,6 +915,7 @@ public final class SoundFXUtils {
                 if (!isMiss(traceContext.trace(point, listener)))
                     continue;
                 clearance = offset;
+                opening = point;
                 break;
             }
             if (clearance > 0F)
@@ -869,8 +924,11 @@ public final class SoundFXUtils {
         // No opening within the search: the barrier is wider than the search reaches. There is no edge path to
         // add, so the direct transmission through the material is all there is. Treating the search limit as a
         // real clearance instead would read the widest walls as the most transparent ones.
-        if (clearance < 0F)
+        if (clearance < 0F) {
+            this.lastEdgePoint = null;
             return null;
+        }
+        this.lastEdgePoint = opening;
 
         // The detour the bent path costs over the straight line. The anchor lies on the line, so
         // d1 + d2 = directLen and the detour is the two hypotenuses minus that.

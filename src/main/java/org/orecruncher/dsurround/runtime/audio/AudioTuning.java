@@ -29,23 +29,15 @@ public final class AudioTuning {
             clamp((float) CONFIG.diffractionLevelStrength, 0F, 1F);
     private static volatile float diffractionHfStrength =
             clamp((float) CONFIG.diffractionHfStrength, 0F, 1F);
-    private static volatile int diffractionRings = clamp(CONFIG.diffractionRings, 1, 6);
     private static volatile int occlusionSegments = Math.max(1, CONFIG.occlusionSegments);
-    private static volatile int occlusionFanRings =
-            Math.max(1, (Math.max(1, CONFIG.occlusionFanRays) - 1) / 4);
     private static volatile boolean evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
-    private static volatile float apertureStrength = clamp((float) CONFIG.apertureStrength, 0F, 1F);
-    private static volatile float apertureRadius = clamp((float) CONFIG.apertureRadius, 0.5F, 8F);
     private static volatile boolean realismWavelength = CONFIG.realismWavelength;
     private static volatile float realismFrequencyHz = clamp((float) CONFIG.realismFrequencyHz, 100F, 4000F);
-    private static volatile int aperturePlanes = clamp(CONFIG.aperturePlanes, 1, 4);
     private static volatile float occlusionFocusDistance = clamp((float) CONFIG.occlusionFocusDistance, 0F, 64F);
-    private static volatile float occlusionConeDegrees = clamp((float) CONFIG.occlusionConeDegrees, 0F, 45F);
     private static volatile boolean occlusionFresnelZone = CONFIG.occlusionFresnelZone;
     private static volatile float occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
     private static volatile boolean logAudioTrace = CONFIG.logAudioTrace;
-    private static volatile float opennessLossDb = clamp((float) CONFIG.opennessLossDb, 0F, 40F);
-    private static volatile int opennessRays = clamp(CONFIG.opennessRays, 4, 32);
+    private static volatile int arrivalRays = clamp(CONFIG.arrivalRays, 8, 128);
     private static final float[] DEFAULT_BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
     private static final float[] DEFAULT_BAND_FREQUENCIES = {125F, 500F, 2000F};
     private static volatile float[] bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
@@ -83,19 +75,10 @@ public final class AudioTuning {
         return diffractionHfStrength;
     }
 
-    /** Number of detour rings the diffraction probe sums over (8 rays each). */
-    public static int diffractionRings() {
-        return diffractionRings;
-    }
 
     /** Segments a single occlusion ray is split into. */
     public static int occlusionSegments() {
         return occlusionSegments;
-    }
-
-    /** Rings of rays inside the occlusion cone (the fan is one centre ray plus four per ring). */
-    public static int occlusionFanRings() {
-        return occlusionFanRings;
     }
 
     /** Whether a starting sound is evaluated inline on the sound thread or deferred to the worker. */
@@ -103,20 +86,6 @@ public final class AudioTuning {
         return evaluateOnSoundThread;
     }
 
-    /**
-     * Fraction of the LOST level the aperture may carry around an obstacle. The aperture is the disc
-     * of secondary sources on the wavefront between the two ends - the practical (incoherent) form
-     * of Huygens-Fresnel: energy that reaches the listener through a clear part of that disc has gone
-     * around the obstacle, so a lone pillar must not muffle the sound like a solid wall does.
-     */
-    public static float apertureStrength() {
-        return apertureStrength;
-    }
-
-    /** Radius of the aperture disc in blocks. */
-    public static float apertureRadius() {
-        return apertureRadius;
-    }
 
     /**
      * Whether the real wavelength of sound is used. With this off every frequency attenuates alike,
@@ -132,10 +101,6 @@ public final class AudioTuning {
         return realismFrequencyHz;
     }
 
-    /** Number of aperture planes sampled along the source-to-listener line. */
-    public static int aperturePlanes() {
-        return aperturePlanes;
-    }
 
     /**
      * Distance over which block material counts fully for occlusion. Beyond it the contribution is
@@ -143,14 +108,6 @@ public final class AudioTuning {
      */
     public static float occlusionFocusDistance() {
         return occlusionFocusDistance;
-    }
-
-    /**
-     * Half-angle in degrees of the cone the occlusion rays sample. An angle, so it behaves the same at
-     * any distance; 0 puts every ray on the axis.
-     */
-    public static float occlusionConeDegrees() {
-        return occlusionConeDegrees;
     }
 
     /** Whether the occlusion comes from the Fresnel-zone clear fraction rather than a material sum. */
@@ -168,14 +125,10 @@ public final class AudioTuning {
         return logAudioTrace;
     }
 
-    /** Attenuation in dB when no direction around the listener is open. */
-    public static float opennessLossDb() {
-        return opennessLossDb;
-    }
 
-    /** Rays used to measure the open solid angle around the listener. */
-    public static int opennessRays() {
-        return opennessRays;
+    /** Rays used to measure how much of the wavefront arrives at the listener. */
+    public static int arrivalRays() {
+        return arrivalRays;
     }
 
     /** Relative weight of each octave band, lowest first. */
@@ -188,10 +141,6 @@ public final class AudioTuning {
         return bandFrequencies;
     }
 
-    /** Total rays the occlusion fan traces, for diagnostics. */
-    public static int occlusionFanRays() {
-        return 1 + 4 * occlusionFanRings;
-    }
 
     /**
      * Called from the audio thread at the end of every evaluation. Stores the line for {@code
@@ -238,42 +187,16 @@ public final class AudioTuning {
                 diffractionHfStrength = v;
                 return describe(key, old, v);
             }
-            case "diffractionRings": {
-                final int v = clamp(parseInt(key, value), 1, 6);
-                final int old = diffractionRings;
-                diffractionRings = v;
-                return describe(key, old, v) + " (" + (v * 8) + " detour probes per measurement)";
-            }
             case "occlusionSegments": {
                 final int v = clamp(parseInt(key, value), 1, 32);
                 final int old = occlusionSegments;
                 occlusionSegments = v;
                 return describe(key, old, v);
             }
-            case "occlusionFanRays": {
-                final int requested = clamp(parseInt(key, value), 1, 25);
-                final int rings = Math.max(1, (requested - 1) / 4);
-                final int old = occlusionFanRays();
-                occlusionFanRings = rings;
-                return describe(key, old, occlusionFanRays())
-                        + " (rounded to 1 + 4n; use 5, 9, 13, 17, 21 or 25)";
-            }
             case "evaluateOnSoundThread": {
                 final boolean v = Boolean.parseBoolean(value);
                 final boolean old = evaluateOnSoundThread;
                 evaluateOnSoundThread = v;
-                return describe(key, old, v);
-            }
-            case "apertureStrength": {
-                final float v = clamp(parseFloat(key, value), 0F, 1F);
-                final float old = apertureStrength;
-                apertureStrength = v;
-                return describe(key, old, v);
-            }
-            case "apertureRadius": {
-                final float v = clamp(parseFloat(key, value), 0.5F, 8F);
-                final float old = apertureRadius;
-                apertureRadius = v;
                 return describe(key, old, v);
             }
             case "realismWavelength": {
@@ -288,22 +211,10 @@ public final class AudioTuning {
                 realismFrequencyHz = v;
                 return describe(key, old, v);
             }
-            case "aperturePlanes": {
-                final int v = clamp(parseInt(key, value), 1, 4);
-                final int old = aperturePlanes;
-                aperturePlanes = v;
-                return describe(key, old, v);
-            }
             case "occlusionFocusDistance": {
                 final float v = clamp(parseFloat(key, value), 0F, 64F);
                 final float old = occlusionFocusDistance;
                 occlusionFocusDistance = v;
-                return describe(key, old, v);
-            }
-            case "occlusionConeDegrees": {
-                final float v = clamp(parseFloat(key, value), 0F, 45F);
-                final float old = occlusionConeDegrees;
-                occlusionConeDegrees = v;
                 return describe(key, old, v);
             }
             case "occlusionFresnelZone": {
@@ -324,16 +235,10 @@ public final class AudioTuning {
                 logAudioTrace = v;
                 return describe(key, old, v) + " (the last trace is always kept for '/dstune')";
             }
-            case "opennessLossDb": {
-                final float v = clamp(parseFloat(key, value), 0F, 40F);
-                final float old = opennessLossDb;
-                opennessLossDb = v;
-                return describe(key, old, v);
-            }
-            case "opennessRays": {
-                final int v = clamp(parseInt(key, value), 4, 32);
-                final int old = opennessRays;
-                opennessRays = v;
+            case "arrivalRays": {
+                final int v = clamp(parseInt(key, value), 8, 128);
+                final int old = arrivalRays;
+                arrivalRays = v;
                 return describe(key, old, v);
             }
             case "bandWeights": {
@@ -354,12 +259,11 @@ public final class AudioTuning {
             }
             default:
                 throw new IllegalArgumentException("Unknown key '" + key + "'. Try: "
-                        + "diffractionLevelStrength, diffractionHfStrength, diffractionRings, "
-                        + "occlusionSegments, occlusionFanRays, evaluateOnSoundThread, "
-                        + "apertureStrength, apertureRadius, realismWavelength, realismFrequencyHz, "
-                        + "aperturePlanes, occlusionFocusDistance, occlusionConeDegrees, "
+                        + "diffractionLevelStrength, diffractionHfStrength, "
+                        + "occlusionSegments, evaluateOnSoundThread, "
+                        + "realismWavelength, realismFrequencyHz, occlusionFocusDistance, "
                         + "occlusionFresnelZone, occlusionLossDb, probe, bandWeights, bandFrequencies, "
-                        + "opennessLossDb, opennessRays");
+                        + "arrivalRays");
         }
     }
 
@@ -367,22 +271,15 @@ public final class AudioTuning {
     public static String reset() {
         diffractionLevelStrength = clamp((float) CONFIG.diffractionLevelStrength, 0F, 1F);
         diffractionHfStrength = clamp((float) CONFIG.diffractionHfStrength, 0F, 1F);
-        diffractionRings = clamp(CONFIG.diffractionRings, 1, 6);
         occlusionSegments = Math.max(1, CONFIG.occlusionSegments);
-        occlusionFanRings = Math.max(1, (Math.max(1, CONFIG.occlusionFanRays) - 1) / 4);
         evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
-        apertureStrength = clamp((float) CONFIG.apertureStrength, 0F, 1F);
-        apertureRadius = clamp((float) CONFIG.apertureRadius, 0.5F, 8F);
         realismWavelength = CONFIG.realismWavelength;
         realismFrequencyHz = clamp((float) CONFIG.realismFrequencyHz, 100F, 4000F);
-        aperturePlanes = clamp(CONFIG.aperturePlanes, 1, 4);
         occlusionFocusDistance = clamp((float) CONFIG.occlusionFocusDistance, 0F, 64F);
-        occlusionConeDegrees = clamp((float) CONFIG.occlusionConeDegrees, 0F, 45F);
         occlusionFresnelZone = CONFIG.occlusionFresnelZone;
         occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
         logAudioTrace = CONFIG.logAudioTrace;
-        opennessLossDb = clamp((float) CONFIG.opennessLossDb, 0F, 40F);
-        opennessRays = clamp(CONFIG.opennessRays, 4, 32);
+        arrivalRays = clamp(CONFIG.arrivalRays, 8, 128);
         bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
         bandFrequencies = parseFloats(CONFIG.bandFrequencies, DEFAULT_BAND_FREQUENCIES);
         return "Restored from config:\n" + describeAll();
@@ -393,33 +290,23 @@ public final class AudioTuning {
         return String.format(
                 "  diffractionLevelStrength = %.2f   (config: enhancedSounds.diffractionLevelStrength, 0-1; fraction of the LOST level a detour may restore)%n"
                         + "  diffractionHfStrength    = %.2f   (config: enhancedSounds.diffractionHfStrength, 0-1; same for the LOST highs - keep this well below the level)%n"
-                        + "  diffractionRings         = %d   (config: enhancedSounds.diffractionRings, 1-6; %d probes per measurement)%n"
                         + "  occlusionSegments        = %d   (config: enhancedSounds.occlusionSegments, 1-32)%n"
-                        + "  occlusionFanRays         = %d   (config: enhancedSounds.occlusionFanRays; rounded to 1 + 4n)%n"
                         + "  evaluateOnSoundThread    = %b   (config: enhancedSounds.evaluateOnSoundThread)%n"
-                        + "  apertureStrength         = %.2f   (config: enhancedSounds.apertureStrength, 0-1; around-the-corner energy through the aperture disc)%n"
-                        + "  apertureRadius           = %.1f   (config: enhancedSounds.apertureRadius, 0.5-8 blocks)%n"
                         + "  realismWavelength        = %b   (config: enhancedSounds.realismWavelength; wavelength-dependent diffraction + Fresnel-sized aperture)%n"
                         + "  realismFrequencyHz       = %.0f   (config: enhancedSounds.realismFrequencyHz, 100-4000)%n"
-                        + "  aperturePlanes           = %d   (config: enhancedSounds.aperturePlanes, 1-4)%n"
                         + "  occlusionFocusDistance   = %.1f   (config: enhancedSounds.occlusionFocusDistance, 0-64 blocks; 0 = every block counts fully)%n"
-                        + "  occlusionConeDegrees     = %.1f   (config: enhancedSounds.occlusionConeDegrees, 0-45; half-angle of the sampled cone)%n"
                         + "  occlusionFresnelZone     = %b   (config: enhancedSounds.occlusionFresnelZone; zone clear fraction instead of a material sum)%n"
                         + "  occlusionLossDb          = %.1f   (config: enhancedSounds.occlusionLossDb, 0-60; excess attenuation for a fully covered plane)%n"
                         + "  probe                    = %b   (config: enhancedSounds.logAudioTrace; write the evaluation trace to the log)%n"
-                        + "  opennessLossDb           = %.1f   (config: enhancedSounds.opennessLossDb, 0-40; attenuation when no direction around the listener is open)%n"
-                        + "  opennessRays             = %d   (config: enhancedSounds.opennessRays, 4-32)%n"
+                        + "  arrivalRays              = %d   (config: enhancedSounds.arrivalRays, 8-128)%n"
                         + "  bandWeights              = %s   (config: enhancedSounds.bandWeights; relative weight per octave band, lowest first)%n"
                         + "  bandFrequencies          = %s   (config: enhancedSounds.bandFrequencies; octave bands in Hz, lowest first)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
                         + "Last evaluation: %s",
-                diffractionLevelStrength, diffractionHfStrength, diffractionRings, diffractionRings * 8,
-                occlusionSegments, occlusionFanRays(), evaluateOnSoundThread,
-                apertureStrength, apertureRadius,
-                realismWavelength, realismFrequencyHz, aperturePlanes, occlusionFocusDistance,
-                occlusionConeDegrees, occlusionFresnelZone, occlusionLossDb, logAudioTrace,
-                describeArray(bandWeights), describeArray(bandFrequencies),
-                opennessLossDb, opennessRays, lastTrace);
+                diffractionLevelStrength, diffractionHfStrength * 8,
+                occlusionSegments, evaluateOnSoundThread,
+                realismWavelength, realismFrequencyHz, occlusionFocusDistance, occlusionFresnelZone, occlusionLossDb, logAudioTrace,
+                describeArray(bandWeights), describeArray(bandFrequencies), arrivalRays, lastTrace);
     }
 
     // ------------------------------------------------------------------ helpers

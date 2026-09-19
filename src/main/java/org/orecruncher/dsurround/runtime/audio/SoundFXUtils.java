@@ -28,6 +28,11 @@ import org.orecruncher.dsurround.sound.SoundInstanceHandler;
 
 public final class SoundFXUtils {
 
+    /**
+     * Hard cap on the segments one material walk may take. The walk covers the whole line, so this bounds the
+     * cost of a very distant sound; it is 4x the distance in blocks.
+     */
+    private static final int OCCLUSION_MAX_SEGMENTS = 192;
     /** Steps the clearance search walks outward, and the size of each. */
     private static final int CLEARANCE_STEPS = 12;
     private static final float CLEARANCE_STEP = 0.75F;
@@ -680,7 +685,13 @@ public final class SoundFXUtils {
         BlockState lastState = ctx.world.getBlockState(BlockPos.containing(lastHit.x(), lastHit.y(), lastHit.z()));
         var traceContext = new ReusableRaycastContext(ctx.world, origin, target, ClipContext.Block.VISUAL, ClipContext.Fluid.ANY);
         var itr = new ReusableRaycastIterator(traceContext);
-        final int segments = occlusionSegments();
+        // The walk has to cover the whole line. The iterator advances half a block per step, so a fixed segment
+        // count measures only the first few blocks - with 5 it stopped after 2.5 blocks and a rock layer fifteen
+        // blocks away contributed nothing (measured: material 0.0000 with solid rock in between, which made a
+        // surface source fully audible from a mine). The count is derived from the distance instead, with a
+        // floor so a short line is still sampled and a cap so a very long one stays affordable.
+        final int segments = Math.max(occlusionSegments(),
+                Math.min(OCCLUSION_MAX_SEGMENTS, (int) Math.ceil(origin.distanceTo(target) / 0.5D) + 1));
         for (int i = 0; i < segments; i++) {
             if (itr.hasNext()) {
                 var result = itr.next();
@@ -815,13 +826,18 @@ public final class SoundFXUtils {
                 final Vec3 point = this.lastOccluderPos
                         .add(u.scale(Math.cos(phi) * offset))
                         .add(v.scale(Math.sin(phi) * offset));
-                // A point inside rock is not on the edge; a point that cannot see the source is still shadowed.
+                // A point inside rock is not on the edge, and an offset only counts as the clearance when the
+                // wave can actually get there AND on to the listener: validating the source leg alone accepted
+                // offsets that see the source while still being walled off from the listener, which understated
+                // the clearance and left a source fifteen blocks above a mine fully audible.
                 if (isSolidBlock(ctx.world, point))
                     continue;
-                if (isMiss(traceContext.trace(sourceLeg, point))) {
-                    clearance = offset;
-                    break;
-                }
+                if (!isMiss(traceContext.trace(sourceLeg, point)))
+                    continue;
+                if (!isMiss(traceContext.trace(point, listener)))
+                    continue;
+                clearance = offset;
+                break;
             }
             if (clearance > 0F)
                 break;

@@ -310,13 +310,6 @@ public final class SoundFXUtils {
     /** Whether an edge path was found at all on the most recent measurement. */
     private boolean lastEdgeFound;
     /**
-     * How much of an edge path is actually available, from the source-enclosure and player-openness
-     * probes (1 = both ends open, 0 = an end is sealed in). The edge cap is scaled by this: an edge path
-     * only exists if neither end is walled in, which is what keeps a listener inside a house from hearing
-     * the outdoors at the corner-diffraction figure.
-     */
-    private float lastEdgeGate = 1F;
-    /**
      * Fraction of solid angle around the listener from which a ray travels far enough to count as open.
      * Outdoors this is 1; inside a room it is the share taken by the opening. It is what makes a room muffle
      * naturally instead of by a fixed floor: sound arriving from outside is heard through the opening, so the
@@ -495,7 +488,7 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
                         + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus ring=%.0fus "
-                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d gate=%.2f open=%.2f openloss=%.1f",
+                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d open=%.2f openloss=%.1f",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
@@ -505,7 +498,7 @@ public final class SoundFXUtils {
                 (System.nanoTime() - evaluationStart) / 1000.0D, this.lastDiffractionCostUs,
                 this.lastEdgeWaypoints, this.lastEdgeFound, this.lastEdgeDelta,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2],
-                ReusableRaycastContext.raycastCount(), this.lastEdgeGate,
+                ReusableRaycastContext.raycastCount(),
                 this.lastListenerOpenness, this.lastOpennessLossDb));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
@@ -651,14 +644,17 @@ public final class SoundFXUtils {
         final float diffraction = Math.max(
                 Math.max(geometricDiffraction, apertureTerm),
                 Math.max(geometricDiffraction, apertureTerm) > 0F ? DIFFRACTION_FLOOR : 0F);
-        // The gates are computed in calculateOcclusion (the edge cap needs them first) and cached, so
-        // this reuses the same values rather than probing twice.
-        //
-        // Gate the restore on true sealing only. A linear (1-enclosure) or raw openness over-penalises
-        // normal partial occlusion - a source sitting next to a wall (enclosure ~0.5) or a player hugging
-        // one (openness ~0.67) still has free edges to diffract around. Cubing keeps those mid-values
-        // nearly un-penalised and only shuts the gate off as one end becomes genuinely sealed.
-        final float compensation = MathStuff.clamp1(diffraction * this.lastEdgeGate);
+        // Gate the ring probe's restore on true sealing only. A linear (1-enclosure) or raw openness
+        // over-penalises normal partial occlusion - a source sitting next to a wall (enclosure ~0.5) or a
+        // player hugging one (openness ~0.67) still has free edges to diffract around. Cubing keeps those
+        // mid-values nearly un-penalised and only shuts the gate off as one end becomes genuinely sealed.
+        // This applies to the RING probe only; the edge term is not gated, because the silhouette walk
+        // already proves its paths are reachable.
+        final float enclosure = calculateSourceEnclosure(ctx, soundPos);
+        final float openness = calculatePlayerOpenness(ctx, listener);
+        final float gate = MathStuff.clamp1(
+                (1F - (float) Math.pow(enclosure, 3.0)) * (1F - (float) Math.pow(1.0 - openness, 3.0)));
+        final float compensation = MathStuff.clamp1(diffraction * gate);
         // Time-smooth the restore so crossing a room boundary (openness and
         // enclosure both step at once) fades the muffling instead of snapping it.
         final float smoothedComp = this.source.smoothDiffraction(compensation, snap);
@@ -759,7 +755,6 @@ public final class SoundFXUtils {
             this.lastCenterOcclusion = 0F;
             this.lastApertureLeak = 0F;
             this.lastZoneLossDb = 0F;
-            this.lastEdgeGate = 1F;
             this.lastListenerOpenness = 1F;
             this.lastOpennessLossDb = 0F;
             return 0F;
@@ -803,16 +798,12 @@ public final class SoundFXUtils {
         // the fan exists for (centre line clear, edge of the cone blocked).
         final boolean apertureRan = this.lastOccluderPos != null;
         if (apertureRan) {
-            // The sealing gates are needed by the edge cap inside calculateApertureLeak, so compute them
-            // here rather than in applyDiffraction (which reads the cached values). A listener inside a
-            // house still has a wall corner nearby for the silhouette walk to find, so without these the
-            // edge path would always win and the outdoors would barely change indoors.
-            final float enclosure = calculateSourceEnclosure(ctx, origin);
-            final float openness = calculatePlayerOpenness(ctx, target);
-            this.lastEdgeGate = MathStuff.clamp1(
-                    (1F - (float) Math.pow(enclosure, 3.0)) * (1F - (float) Math.pow(1.0 - openness, 3.0)));
             // The open solid angle around the ear, measured directly rather than inferred from a fixed
-            // number: this is what a room contributes to the direct sound's attenuation.
+            // number: this is what a room contributes to the direct sound's attenuation. (The
+            // enclosure/openness gate that used to be computed here is gone from this path - the silhouette
+            // walk validates its own waypoints, so the gate was a redundant second penalty. The probes
+            // themselves still serve the ring probe's compensation in applyDiffraction, which only matters
+            // when the occlusionFresnelZone model is switched off.)
             this.lastListenerOpenness = measureListenerOpenness(ctx, target);
             this.lastOpennessLossDb = AudioTuning.opennessLossDb() * (1F - this.lastListenerOpenness);
             this.lastApertureLeak = calculateApertureLeak(ctx, origin, target);
@@ -822,7 +813,6 @@ public final class SoundFXUtils {
             // that is now open.
             this.lastApertureLeak = 0F;
             this.lastZoneLossDb = 0F;
-            this.lastEdgeGate = 1F;
             this.lastListenerOpenness = 1F;
             this.lastOpennessLossDb = 0F;
         }
@@ -1052,10 +1042,13 @@ public final class SoundFXUtils {
             // corner.
             float bandAmplitude = bandAmplitude(bandClear);
             if (edgeDb != null) {
-                // The gate measures whether an edge path exists at all: sealed in, it drives the edge
-                // amplitude to zero and only the material path remains, so a room is muffled by its own
-                // wall without any special case. Open, both paths contribute.
-                bandAmplitude = Math.min(1F, bandAmplitude + edgeDb[band] * this.lastEdgeGate);
+                // No gate here: the silhouette walk only accepts a waypoint that sees BOTH the source and
+                // the listener, so a found edge is a real path and no edge contributes nothing. Scaling by
+                // the enclosure/openness gate on top of that was a second, heuristic penalty - and it
+                // suppressed the contribution where the geometry merely looks enclosed while a path exists
+                // (a listener under a roof overhang, a source in a cave mouth). The gate was needed when the
+                // search was fixed-radius rings that accepted unreachable waypoints; that search is gone.
+                bandAmplitude = Math.min(1F, bandAmplitude + edgeDb[band]);
             }
             // Back to dB once, after the combination.
             excessDb += bandWeight(band)

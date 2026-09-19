@@ -171,11 +171,13 @@ public final class SoundFXUtils {
      */
     private static final float AXIS_WEIGHT_FLOOR = 0.5F;
     /**
-     * Hard cap on the segments a single aperture trace may walk. The aperture is an area average, so
-     * a long trace crossing dozens of blocks does not need exact resolution - the cap bounds the cost
-     * of one evaluation no matter how far the sound is.
+     * Hard cap on the segments a single aperture trace may walk. The aperture is an area average, so a long
+     * trace crossing dozens of blocks does not need exact resolution - the cap bounds the cost of one
+     * evaluation no matter how far the sound is. Measured at 32 (12:40 session): 432 raycasts per evaluation
+     * against the pre-change budget of 193, because every segment advance is another raycast. 12 keeps the
+     * area average while removing most of that excess.
      */
-    private static final int APERTURE_MAX_SEGMENTS = 32;
+    private static final int APERTURE_MAX_SEGMENTS = 12;
     /**
      * Gain of the wavelength-dependent diffraction loss. The knife-edge loss is 0..1 (0.5 at the
      * shadow boundary, rising as the detour clears); this scales how much of it is applied, so the
@@ -496,7 +498,7 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
                         + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus ring=%.0fus "
-                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d",
+                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d gate=%.2f",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
@@ -506,7 +508,7 @@ public final class SoundFXUtils {
                 (System.nanoTime() - evaluationStart) / 1000.0D, this.lastDiffractionCostUs,
                 this.lastEdgeWaypoints, this.lastEdgeFound, this.lastEdgeDelta,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2],
-                ReusableRaycastContext.raycastCount()));
+                ReusableRaycastContext.raycastCount(), this.lastEdgeGate));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }

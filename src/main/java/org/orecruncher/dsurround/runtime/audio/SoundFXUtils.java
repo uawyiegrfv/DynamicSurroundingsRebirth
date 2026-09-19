@@ -318,6 +318,11 @@ public final class SoundFXUtils {
     private float lastListenerOpenness = 1F;
     /** Attenuation in dB the listener's own openness implies on the most recent measurement. */
     private float lastOpennessLossDb;
+    /** Which term produced the most recent occlusion: 0 = zone model, 1 = material sum, 2 = openness. */
+    private int lastOcclusionSource;
+    /** The raw zone coefficient and the raw material sum from the most recent measurement. */
+    private float lastZoneCoefficient = -1F;
+    private float lastMaterialSum;
     /** Per-band edge loss in dB from the most recent measurement, for diagnostics. */
     private final float[] lastEdgeDb = new float[8];
     /** The smallest detour the edge search found, for diagnostics. */
@@ -488,7 +493,7 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
                         + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus ring=%.0fus "
-                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d open=%.2f openloss=%.1f",
+                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d open=%.2f openloss=%.1f src=%d zonec=%.3f matsum=%.3f",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
@@ -499,7 +504,8 @@ public final class SoundFXUtils {
                 this.lastEdgeWaypoints, this.lastEdgeFound, this.lastEdgeDelta,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2],
                 ReusableRaycastContext.raycastCount(),
-                this.lastListenerOpenness, this.lastOpennessLossDb));
+                this.lastListenerOpenness, this.lastOpennessLossDb,
+                this.lastOcclusionSource, this.lastZoneCoefficient, this.lastMaterialSum));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -882,9 +888,11 @@ public final class SoundFXUtils {
         // coefficient it produces is the one whose exp(-c * absorption) equals the physically derived
         // attenuation.
         final float zoneCoefficient = zoneOcclusionCoefficient(Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F);
+        this.lastZoneCoefficient = zoneCoefficient;
         final float occlusion;
         if (zoneCoefficient >= 0F) {
             occlusion = zoneCoefficient;
+            this.lastOcclusionSource = 0;
         } else {
             // No zone measurement (the centre ray is clear, so there is nothing to measure around), or the
             // zone model is off. The centre ray is then the honest answer on its own: it is the line the
@@ -895,7 +903,9 @@ public final class SoundFXUtils {
             // drives the occlusion when the zone model is switched off.
             final float blended = centerWeight + (fanAverage - centerWeight) * fanWeight;
             occlusion = AudioTuning.occlusionFresnelZone() ? centerWeight : blended;
+            this.lastOcclusionSource = 1;
         }
+        this.lastMaterialSum = occlusion;
         // The listener's own surroundings contribute their own attenuation, and it comes from a
         // measurement rather than a constant: sound reaching an ear inside a room arrives only through the
         // opening, so the open share of the solid angle around that ear is the direct-sound loss. Outdoors
@@ -904,7 +914,12 @@ public final class SoundFXUtils {
         if (this.lastOpennessLossDb <= 0F)
             return occlusion;
         final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
-        return Math.max(occlusion, this.lastOpennessLossDb / Math.max(1.0E-6F, absorption));
+        final float openTerm = this.lastOpennessLossDb / Math.max(1.0E-6F, absorption);
+        if (openTerm > occlusion) {
+            this.lastOcclusionSource = 2;
+            return openTerm;
+        }
+        return occlusion;
     }
 
     /**

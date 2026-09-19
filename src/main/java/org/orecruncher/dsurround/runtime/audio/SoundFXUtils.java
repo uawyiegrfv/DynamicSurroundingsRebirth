@@ -822,17 +822,17 @@ public final class SoundFXUtils {
             this.lastListenerOpenness = 1F;
             this.lastOpennessLossDb = 0F;
         }
-        // Weight the centre ray's score by how much of the wavefront actually gets through. This is
-        // the whole point of the aperture: the centre ray answers "is something on the line?", so
-        // several obstacles on it used to muffle the sound exactly like a sealed room, even with the
-        // whole world open around it - which is what "in the open the occlusion is still very strong"
-        // was. A leak of 1 (nothing but air around the obstacle, or no obstacle at all) leaves the
-        // score untouched; a wall that spans the disc takes it to ~0, so the wall still mutes.
-        centerFactor *= 1F - AudioTuning.apertureStrength() * (1F - this.lastApertureLeak);
+        // The centre ray's score is left ALONE. It measures the energy that travels THROUGH the material
+        // on the line, which is the honest answer for the direct path; the aperture's clear fraction
+        // measures the energy that goes AROUND the obstacle and belongs to the diffraction term. This used
+        // to be weighted by the leak, which meant "there is a clear way around, so cancel the wall's
+        // attenuation" - two independent paths folded into one number, and the cause of "one block on the
+        // line is extremely muffling": with leak = 0 the centre ray was zeroed and the fallback had to use
+        // the fan, whose 12-degree cone sweeps the wall beside or behind the listener rather than the line
+        // to the source.
         this.lastCenterOcclusion = centerFactor;
         float factor = centerFactor;
         int rays = 1;
-        // Where the centre ray's share of the average is left, and what it is blended with below.
         final float centerWeight = centerFactor;
 
         final Vec3 dir = target.subtract(origin).normalize();
@@ -901,8 +901,10 @@ public final class SoundFXUtils {
             // silence on lines with nothing on them - measured on 1.20.1 as occlusion 4.450 against a
             // completely clear centre ray (0.000). It is still computed and reported as fan=, and it still
             // drives the occlusion when the zone model is switched off.
-            final float blended = centerWeight + (fanAverage - centerWeight) * fanWeight;
-            occlusion = AudioTuning.occlusionFresnelZone() ? centerWeight : blended;
+            // The centre ray on its own, in both modes. The fan is not blended in: its cone is wide enough
+            // to sweep the wall beside or behind the listener, and letting it decide was what made a clear
+            // line with one block on it read as heavily muffled.
+            occlusion = centerWeight;
             this.lastOcclusionSource = 1;
         }
         this.lastMaterialSum = occlusion;

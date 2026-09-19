@@ -47,8 +47,17 @@ public class MathStuff {
 
     /**
      * Simple method to add a scaled addened to a base.  Eliminates unecessary allocations.
+     * <p>
+     * <b>The second argument is a VECTOR TO SCALE, not a destination point.</b> The result is
+     * {@code base + addened * scale}, so a midpoint needs the DELTA:
+     * {@code addScaled(a, b.subtract(a), 0.5D)}, or {@code a.lerp(b, 0.5D)}. Passing an absolute
+     * position as {@code addened} produces {@code a + 0.5 * b} - a point near half the world
+     * coordinate, i.e. a different chunk. That mistake made the occlusion material walk sample
+     * unloaded air for every segment but the first, which read as a constant material value in
+     * every probe row regardless of distance.
+     *
      * @param base Base to add another scaled vector to
-     * @param addened Vector to scale and add to the base
+     * @param addened Vector to scale and add to the base (a delta, not a destination)
      * @param scale Scale to apply to the addened vector before adding to the base
      * @return Vector that is a sum of the base and the addened that has been scaled
      */

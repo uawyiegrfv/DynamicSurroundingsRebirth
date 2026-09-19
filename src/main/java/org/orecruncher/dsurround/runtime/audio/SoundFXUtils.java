@@ -36,17 +36,17 @@ public final class SoundFXUtils {
     /**
      * How far the clearance search reaches, and the size of each successive step.
      *
-     * <p>The offsets grow GEOMETRICALLY: fine near the line, where an opening is close enough for its position to
-     * matter, and coarse far out, where it only has to be found at all. A fixed 0.75-block step reached only 9
-     * blocks, which missed the case that matters most - a cave with a large surface opening: with the player 15
-     * blocks down and the shaft a dozen blocks to the side, the perpendicular offset to the shaft is over 10
-     * blocks, so the search never found it and the cave read as sealed rock.
+     * <p>The offsets grow GEOMETRICALLY: fine near the line, where an opening is close enough for its position
+     * to matter, and coarse far out. This drives the EDGE term only - a distant opening is carried by
+     * {@link #listenerOpenness} instead, because a knife edge cannot carry it (a large detour means negligible
+     * diffraction). An earlier revision stretched this to 47 blocks on the theory that finding a distant
+     * opening would help; measured, it did not - it pulled in unrelated airspace and cost rays for nothing.
      *
-     * <p>Max offset = START * GROWTH^(STEPS-1) = 0.75 * 1.32^15, about 47 blocks.
+     * <p>Max offset = START * GROWTH^(STEPS-1) = 0.75 * 1.3^11, about 13 blocks.
      */
-    private static final int CLEARANCE_STEPS = 16;
+    private static final int CLEARANCE_STEPS = 12;
     private static final float CLEARANCE_STEP = 0.75F;
-    private static final float CLEARANCE_STEP_GROWTH = 1.32F;
+    private static final float CLEARANCE_STEP_GROWTH = 1.3F;
     /** Azimuths tested at each step, so the clearance is not biased to one plane. */
     private static final int CLEARANCE_AZIMUTHS = 6;
     /**
@@ -100,6 +100,19 @@ public final class SoundFXUtils {
      * sound quiet without deleting it.
      */
     private static final float MATERIAL_LEVEL_RESTORE = 0.2F;
+    /** Directions sampled around the listener for {@link #listenerOpenness}. Cost is one raycast each. */
+    private static final int OPENNESS_RAYS = 32;
+    /** How far each openness ray is walked while looking for a point that can see the sky. */
+    private static final float OPENNESS_PROBE_DISTANCE = 24F;
+    private static final int OPENNESS_PROBE_STEPS = 4;
+    /** How far the listener may drift before the cached openness is recomputed within one pass. */
+    private static final double OPENNESS_CACHE_TOLERANCE_SQR = 0.25D;
+
+    /** Listener openness, cached per processing pass: it depends only on the listener's position. */
+    private static volatile long currentPass;
+    private static long cachedOpennessPass = Long.MIN_VALUE;
+    private static Vec3 cachedOpennessEye = Vec3.ZERO;
+    private static float cachedOpenness = 1F;
 
     private static final IBlockLibrary BLOCK_LIBRARY = ContainerManager.resolve(IBlockLibrary.class);
     private static final ISeasonalInformation SEASONAL_INFORMATION = ContainerManager.resolve(ISeasonalInformation.class);
@@ -219,13 +232,13 @@ public final class SoundFXUtils {
     private Vec3 lastOccluderPos;
     /**
      * The point the wave escapes through beside the first obstacle, or null when the search found no opening.
-     * The material term measures the path through HERE rather than the straight line, because inside an
-     * enclosed space the straight line is rock while the real path is air.
+     * Used for diagnostics only now - the material term measures the straight line and the openness term
+     * carries the opening.
      */
     @Nullable
     private Vec3 lastEdgePoint;
-    /** Material accumulated along the STRAIGHT line, kept only to report how much the opening path saved. */
-    private float lastLineMaterial;
+    /** Listener openness from the most recent measurement, reported by the probe. */
+    private float lastOpenness = 1F;
     /**
      * Occlusion accumulation along the centre fan ray only (the direct
      * source-to-player line). Unlike the full-fan average, which clips incidental
@@ -397,11 +410,11 @@ public final class SoundFXUtils {
         // problem is the filter or the audibility of the band, not the model.
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                        + "level=%.4f send=%.3f material=%.3f line=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
+                        + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
                         + "clear=%.2f walk=%d/%.1fm rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
-                sendOcclusionGain, this.lastMaterialSum, this.lastLineMaterial, this.lastZoneLossDb,
+                sendOcclusionGain, this.lastMaterialSum, this.lastOpenness, this.lastZoneLossDb,
                 this.lastEdgeFound,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
                 this.lastWalkSegments, this.lastWalkDistance,
@@ -611,7 +624,7 @@ public final class SoundFXUtils {
             this.lastOccluderPos = null;
             this.lastEdgePoint = null;
             this.lastCenterOcclusion = 0F;
-            this.lastLineMaterial = 0F;
+            this.lastOpenness = 1F;
             this.lastZoneLossDb = 0F;
             this.lastEdgeFound = false;
             this.lastEdgeDelta = 0F;
@@ -626,36 +639,35 @@ public final class SoundFXUtils {
         // The material along the line, and where it enters the first obstacle (the anchor for the edge search).
         final Vec3 rayOrigin = stepOutOfSolid(ctx.world, origin, target);
         final Vec3[] centerOccluder = new Vec3[]{null};
-        final float lineMaterial = traceOcclusion(ctx, rayOrigin, target, centerOccluder);
+        final float centerMaterial = traceOcclusion(ctx, rayOrigin, target, centerOccluder);
         this.lastOccluderPos = centerOccluder[0];
+        this.lastCenterOcclusion = centerMaterial;
 
-        // The opening the wave escapes through, if there is one within reach.
+        // The opening the wave escapes through, if there is one within reach. This drives the EDGE term only.
         final float[] edgeAmplitude = this.lastOccluderPos != null
                 ? edgeAmplitudePerBand(ctx, origin, target)
                 : null;
         this.lastEdgeFound = edgeAmplitude != null;
 
-        // WHICH path the material term measures is the whole question for an enclosed space.
-        //
-        // The straight line through a cave's ceiling is rock everywhere, so measuring it reports a sealed
-        // space even when the player is standing under a large opening with air the whole way out - which is
-        // what "a mine with big surface openings still sounds muffled" was. Once the search has found an
-        // opening, the wave that matters travels source -> opening -> listener, so THAT is what the material
-        // term measures. Both legs are air, so a genuinely open path now reads as open.
-        //
-        // It also removes the snap. The straight-line measurement switches from "all rock" to "no rock" within
-        // a block or two as the player walks out, which is the abrupt jump from muffled to bright; the bent
-        // path's material falls off gradually, because it is measuring air the whole way.
-        final float centerMaterial = this.lastEdgePoint != null
-                ? traceOcclusion(ctx, stepOutOfSolid(ctx.world, origin, this.lastEdgePoint),
-                        this.lastEdgePoint, null)
-                        + traceOcclusion(ctx, this.lastEdgePoint, target, null)
-                : lineMaterial;
-        this.lastCenterOcclusion = centerMaterial;
-        this.lastLineMaterial = lineMaterial;
+        // How much of the listener's surroundings is open air. See listenerOpenness: this is the term that
+        // carries a distant opening, and the one that makes the transition at a cave mouth continuous.
+        final float openness = listenerOpenness(ctx, target);
+        this.lastOpenness = openness;
 
         final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
-        final float materialLossDb = MATERIAL_LOSS_DB_PER_UNIT * centerMaterial;
+        // The material loss is scaled by the SHARE OF DIRECTIONS THAT ARE NOT OPEN.
+        //
+        // Only the energy arriving along a blocked direction has to cross the rock; everything arriving through
+        // the open share does not. So a listener in a cave with an opening above has most of its directions
+        // blocked and keeps the loss, while a listener at the mouth has most directions open and the loss
+        // falls away - continuously, because the open share changes continuously as the opening moves across
+        // the sky.
+        //
+        // Scaling the loss (rather than the occlusion value, or interpolating the cutoff) is what makes this
+        // work. Checked numerically in tools/design_openness2.py: scaling the occlusion runs BACKWARDS, and
+        // interpolating the cutoff concentrates the whole change at the very end because the sealed cutoff is
+        // five orders of magnitude below 1. Scaling the loss is monotonic and spread out for every material.
+        final float materialLossDb = MATERIAL_LOSS_DB_PER_UNIT * centerMaterial * (1F - openness);
         // The probe keeps reporting a TRANSMISSION FACTOR, so the column stays comparable with every earlier
         // session. It is taken at the reference frequency, where the per-band scaling is 1.
         this.lastMaterialSum = amplitudeFromDb(materialLossDb);
@@ -696,6 +708,70 @@ public final class SoundFXUtils {
      */
     private static float amplitudeFromDb(final float lossDb) {
         return (float) Math.pow(10.0D, -Math.min(MATERIAL_MAX_LOSS_DB, Math.max(0F, lossDb)) / 20.0D);
+    }
+
+    /**
+     * Fraction of the directions around the listener's ear that lead out into open air.
+     *
+     * <p>This is the term that answers "how open is the space the listener is standing in", and it is what
+     * carries a distant opening. A knife-edge cannot: an opening far from the straight line has a large
+     * detour and therefore negligible diffraction, yet sound plainly does reach through it - not by bending
+     * around an edge, but because the air is CONNECTED. Measuring the connected share of the surroundings is
+     * the honest way to express that, and unlike "is there an opening on the line" it is a continuous
+     * quantity, so walking out of a cave mouth fades instead of snapping.
+     *
+     * <p>A direction counts as open when some point along it can see the sky. That test is deliberately not
+     * "did the ray hit a block within N blocks": in a valley, a forest or on a slope the ground itself is hit
+     * within a few blocks, so a listener in the open would measure as fully enclosed. Sky visibility is
+     * immune to terrain relief - open ground of any shape reads as open, while a room, a tunnel and a cave
+     * read as enclosed. (This measurement existed before, at commit 6f240b4, and was removed at 5d97b70 only
+     * because its sole consumer, applyDiffraction, was deleted - not because it was wrong.)
+     *
+     * <p>Cost is fixed and geometry-independent: OPENNESS_RAYS raycasts per evaluation. It depends only on
+     * the listener, so it is cached for the duration of one processing pass - the listener does not move
+     * within a pass, and the same value is reused by all {@code MAX_SOURCES_PER_PASS} sources.
+     */
+    private static float listenerOpenness(final WorldContext ctx, final Vec3 eye) {
+        final long pass = currentPass;
+        if (pass == cachedOpennessPass) {
+            if (cachedOpennessEye.distanceToSqr(eye) < OPENNESS_CACHE_TOLERANCE_SQR)
+                return cachedOpenness;
+        }
+
+        final ReusableRaycastContext traceContext =
+                new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
+        final float step = 1F / OPENNESS_RAYS;
+        int open = 0;
+        for (int i = 0; i < OPENNESS_RAYS; i++) {
+            // Fibonacci sphere: even spacing with no clustering at the poles.
+            final double y = 1.0D - 2.0D * (i + 0.5D) * step;
+            final double r = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
+            final double phi = Math.PI * (1.0D + Math.sqrt(5.0D)) * i;
+            final Vec3 dir = new Vec3(Math.cos(phi) * r, y, Math.sin(phi) * r).normalize();
+            Vec3 point = eye;
+            for (int stepIndex = 0; stepIndex < OPENNESS_PROBE_STEPS; stepIndex++) {
+                point = point.add(dir.scale(OPENNESS_PROBE_DISTANCE / OPENNESS_PROBE_STEPS));
+                if (isMiss(traceContext.trace(point.subtract(dir.scale(0.5D)), point)))
+                    continue;                       // this stretch is inside rock; keep walking
+                if (ctx.world.canSeeSky(BlockPos.containing(point))) {
+                    open++;
+                    break;
+                }
+            }
+        }
+
+        cachedOpenness = open / (float) OPENNESS_RAYS;
+        cachedOpennessEye = eye;
+        cachedOpennessPass = pass;
+        return cachedOpenness;
+    }
+
+    /**
+     * Marks the start of a new processing pass, so the cached listener openness is recomputed once per pass
+     * rather than once per sound. Called by the sound processor before it evaluates its batch.
+     */
+    public static void beginPass() {
+        currentPass++;
     }
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target,

@@ -304,6 +304,12 @@ public final class SoundFXUtils {
     private float lastZoneLossDb;
     /** Cost of the ring-based diffraction probe on the most recent measurement, microseconds. */
     private double lastDiffractionCostUs;
+    /** Waypoints the edge search accepted on the most recent measurement, for diagnostics. */
+    private int lastEdgeWaypoints;
+    /** Per-band edge loss in dB from the most recent measurement, for diagnostics. */
+    private final float[] lastEdgeDb = new float[8];
+    /** The smallest detour the edge search found, for diagnostics. */
+    private float lastEdgeDelta = -1F;
     /**
      * Scratch space for the per-plane breakdown of the most recent aperture trace: the cumulative
      * distance-weighted occlusion at each plane crossing, and the cumulative raw material thickness.
@@ -475,14 +481,17 @@ public final class SoundFXUtils {
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
-                        + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus ring=%.0fus",
+                        + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus ring=%.0fus "
+                        + "wp=%d delta=%.2f edgedb=%.1f/%.1f/%.1f",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 directCutoff <= 0F ? 0F : (directCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
                 this.lastCenterOcclusion, this.lastApertureLeak, sendOcclusionGain,
                 this.lastFresnelRadius, this.lastFanAverage, this.lastZoneLossDb,
-                (System.nanoTime() - evaluationStart) / 1000.0D, this.lastDiffractionCostUs));
+                (System.nanoTime() - evaluationStart) / 1000.0D, this.lastDiffractionCostUs,
+                this.lastEdgeWaypoints, this.lastEdgeDelta,
+                this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2]));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -1408,6 +1417,8 @@ public final class SoundFXUtils {
         final int bands = bandCount();
         final float[] best = new float[bands];
         java.util.Arrays.fill(best, Float.MAX_VALUE);
+        int accepted = 0;
+        float smallestDelta = -1F;
         for (int r = 0; r < rings; r++) {
             final float radius = DETOUR_RADII[r];
             for (int k = 0; k < DETOUR_SAMPLES; k++) {
@@ -1421,7 +1432,10 @@ public final class SoundFXUtils {
                     continue;
                 if (!isMiss(traceContext.trace(waypoint, player)))
                     continue;
+                accepted++;
                 final float delta = (float) (source.distanceTo(waypoint) + waypoint.distanceTo(player) - directLen);
+                if (smallestDelta < 0F || delta < smallestDelta)
+                    smallestDelta = delta;
                 for (int band = 0; band < bands; band++) {
                     final float amplitude = edgeAmplitude(delta, bandFrequency(band));
                     if (amplitude <= 0F)
@@ -1432,9 +1446,13 @@ public final class SoundFXUtils {
                 }
             }
         }
+        this.lastEdgeWaypoints = accepted;
+        this.lastEdgeDelta = smallestDelta;
         for (int band = 0; band < bands; band++) {
             if (best[band] == Float.MAX_VALUE)
                 best[band] = NO_EDGE_LOSS_DB;
+            if (band < this.lastEdgeDb.length)
+                this.lastEdgeDb[band] = best[band];
         }
         return best;
     }

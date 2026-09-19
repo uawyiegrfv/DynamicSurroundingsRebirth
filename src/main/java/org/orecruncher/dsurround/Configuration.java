@@ -148,19 +148,7 @@ public class Configuration extends ConfigurationData {
         public boolean evaluateOnSoundThread = true;
 
         @Property
-        @Slider
-        @DoubleRange(min = 0.0D, max = 1.0D)
-        @Comment("Occlusion only: fraction of the LOST level that an edge detour may bring back. The original code took max(detour, occlusion), which erased the wall as soon as any edge existed nearby; restoring a fraction keeps the wall audible. 0.35 gives about -1 dB behind a 1-block stone wall")
-        public double diffractionLevelStrength = 0.35D;
-
-        @Property
-        @Slider
-        @DoubleRange(min = 0.0D, max = 1.0D)
-        @Comment("Occlusion only: fraction of the LOST high frequencies that an edge detour may bring back. Much lower than the level strength, because edge diffraction attenuates short wavelengths first. 0.10 puts the highs near -21 dB behind a 1-block stone wall and -34 dB behind a 2-block one")
-        public double diffractionHfStrength = 0.10D;
-
-        @Property
-        @Comment("Occlusion only: use the real wavelength of sound instead of treating every frequency alike. Diffraction loss then follows the Fresnel number (low frequencies bend around obstacles, high frequencies do not), and the aperture is sized by the first Fresnel zone radius sqrt(wavelength * d1 * d2 / (d1 + d2)) instead of a fixed disc. This is the physically correct direction, and the reason a low rumble carries around a corner while a high clink does not. Turn off to get the previous frequency-blind behaviour back")
+        @Comment("Occlusion only: use the real wavelength of sound instead of treating every frequency alike. Diffraction loss then follows the Fresnel number of the detour around the obstacle's edge (low frequencies bend around obstacles, high frequencies do not). This is the physically correct direction, and the reason a low rumble carries around a corner while a high clink does not. Turn off to get the previous frequency-blind behaviour back")
         public boolean realismWavelength = true;
 
         @Property
@@ -174,22 +162,8 @@ public class Configuration extends ConfigurationData {
         public double occlusionFocusDistance = 8.0D;
 
         @Property
-        @Comment("Occlusion only: drive the occlusion from the FIRST FRESNEL ZONE clear fraction measured at each aperture plane (a wavefront goes AROUND an obstacle: a thin wall costs a few dB, only a sealed zone goes silent) instead of summing occlusion x distance over every block on the line (sound travelling THROUGH an absorbing medium, where a 1-block and a 10-block wall differ by three orders of magnitude). This is the physically correct model and the fix for 'several obstacles on the line still muffle the sound'. Turn off to get the material-sum behaviour back")
-        public boolean occlusionFresnelZone = true;
-
-        @Property
-        @DoubleRange(min = 0.0D, max = 60.0D)
-        @Comment("Occlusion only: excess attenuation in dB when an aperture plane is COMPLETELY covered (the Fresnel-zone model). It falls as the FOURTH power of the blocked fraction, so a plane that is 90% clear costs about 0.03 dB, one that is half covered about 9.6 dB, and only a genuinely sealed one approaches the full value. 25 dB for a sealed plane keeps a real wall clearly muffled without the material-sum model's total silence")
-        public double occlusionLossDb = 25.0D;
-
-        @Property
         @Comment("Diagnostics: write the audio evaluation trace to the log (about one line every 250 ms while sounds are being processed). Off by default so a normal session stays quiet; '/dstune probe true' turns it on for a session, and '/dstune' always shows the most recent trace whether or not this is on")
         public boolean logAudioTrace = false;
-
-        @Property
-        @IntegerRange(min = 8, max = 128)
-        @Comment("Occlusion only: rays cast from the source over the hemisphere facing the listener, to measure how much of the wavefront actually arrives. This is the direct sound's amplitude: an open field arrives almost entirely, one block covers a tiny solid angle, a room with a door lets through the door's solid angle and a sealed room lets through nothing. It replaces the older aperture-plane and listener-openness measurements, which needed heuristics because a plane cuts into the obstacle it is centred on. Each ray is one raycast per evaluation")
-        public int arrivalRays = 32;
 
         @Property
         @Comment("Occlusion only: relative weight of each octave band (lowest first) when the per-band attenuations are combined. The defaults (0.50 low, 0.35 mid, 0.15 high) follow the principle that low frequencies are the ones that reach the listener around an obstacle; they are a judgement call rather than a measured spectrum, so they are exposed for testing. '/dstune bandWeights 0.7,0.25,0.05' makes a hill even more transparent")

@@ -29,6 +29,12 @@ import org.orecruncher.dsurround.sound.SoundInstanceHandler;
 public final class SoundFXUtils {
 
     /**
+     * How far each listener-side arrival ray is cast. It has to be long enough to leave a room or a tunnel -
+     * a short probe would report every room as sealed - and its length sets how large a solid angle a distant
+     * obstacle appears to cover, so it is deliberately generous.
+     */
+    private static final float ARRIVAL_PROBE_DISTANCE = 24F;
+    /**
      * Speed of sound in air, m/s. A Minecraft block is 1 m, so this is used directly with
      * wavelength = c / f to get the Fresnel number of a detour.
      */
@@ -120,12 +126,10 @@ public final class SoundFXUtils {
      * samples is the same order of cost as the single 16-point disc it replaces, and the plane count
      * multiplies that (the default of 2 planes therefore costs about what the fixed disc did).
      */
-    /** Concentric rings the samples are spread over: an inner half-radius ring plus the zone edge. */
     /**
      * Speed of sound in air, m/s. A Minecraft block is 1 m, so this is used directly with
      * wavelength = c / f to get the Fresnel zone radius in blocks.
      */
-    /** Hard cap on the aperture radius in blocks, so a very low frequency cannot trace for ever. */
     /**
      * Fallback octave bands, used only if the configuration supplies nothing usable. A real sound is
      * broadband and the Fresnel zone scales as 1/sqrt(frequency), so one hill covers the high band's zone
@@ -266,11 +270,8 @@ public final class SoundFXUtils {
      * sealed room does.
      */
     private float lastApertureLeak;
-    /** Fresnel zone radius (blocks) used by the most recent aperture measurement, for diagnostics. */
-    /** The fan's own average from the most recent measurement, before the aperture blend. */
     /** Excess attenuation in dB from the Fresnel-zone model on the most recent measurement. */
     private float lastZoneLossDb;
-    /** Cost of the ring-based diffraction probe on the most recent measurement, microseconds. */
     /** Waypoints the edge search accepted on the most recent measurement, for diagnostics. */
     private int lastEdgeWaypoints;
     /** Whether an edge path was found at all on the most recent measurement. */
@@ -281,14 +282,14 @@ public final class SoundFXUtils {
      * naturally instead of by a fixed floor: sound arriving from outside is heard through the opening, so the
      * open share of the ear's surroundings IS the direct-sound attenuation.
      */
-    /** Attenuation in dB the listener's own openness implies on the most recent measurement. */
-    /** Which term produced the most recent occlusion: 0 = zone model, 1 = material sum, 2 = openness. */
     /** The raw zone coefficient and the raw material sum from the most recent measurement. */
     private float lastMaterialSum;
     /** Aperture sample outcomes from the most recent measurement: solid, source-leg blocked, listener-leg
      * blocked, accepted. Diagnostics for why the clear fraction never rises. */
+    private int lastApertureSolid;
+    private int lastApertureSourceBlocked;
+    private int lastApertureListenerBlocked;
     private int lastApertureAccepted;
-    /** Rays the arrival measurement traced on the most recent evaluation. */
     /** Per-band edge loss in dB from the most recent measurement, for diagnostics. */
     private final float[] lastEdgeDb = new float[8];
     /** The smallest detour the edge search found, for diagnostics. */
@@ -438,14 +439,16 @@ public final class SoundFXUtils {
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f send=%.3f arrival=%.3f material=%.3f lossdb=%.1f "
-                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d cost=%.0fus",
+                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d cost=%.0fus "
+                        + "reached=%d",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 sendOcclusionGain, this.lastApertureLeak, this.lastMaterialSum, this.lastZoneLossDb,
                 this.lastEdgeWaypoints, this.lastEdgeFound, this.lastEdgeDelta,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2],
                 ReusableRaycastContext.raycastCount(),
-                (System.nanoTime() - evaluationStart) / 1000.0D));
+                (System.nanoTime() - evaluationStart) / 1000.0D,
+                this.lastApertureAccepted));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -723,57 +726,45 @@ public final class SoundFXUtils {
         return factor;
     }
     /**
-     * How much of the wavefront actually arrives at the listener: rays are cast from the source over the
-     * hemisphere facing the listener, and the fraction that reach the ear unobstructed is the direct sound's
-     * amplitude.
+     * The solid angle through which the source is audible: rays are cast from the listener's ear in all
+     * directions and the fraction that reach the source unobstructed is the direct sound's amplitude.
      *
-     * <p>This is the physical quantity the aperture plane was approximating, and it needs no heuristics. An
-     * open field arrives almost entirely; one block covers a tiny solid angle; a room with a door lets through
-     * the door's solid angle; a sealed room lets through nothing. The plane could not express the door case -
-     * it read clear whenever the line was clear, which is why a room needed a separate enclosure heuristic on
-     * top - and its sampling rings cut into the very obstacle they were centred on (measured: 46 of 48 samples
-     * inside the hill, 53% of the rest rejected by a blocked path to the source, only 2.4% accepted).
+     * <p>This is the measurement the whole occlusion rests on, and it needs no heuristics. An open field with
+     * a clear line leaves most of the hemisphere reaching the source; a single block covers a tiny solid angle;
+     * a wall covers its own angular size, which is why the muffling is directional and why turning towards an
+     * opening restores the sound; a room with a door is audible through the door's solid angle alone; a sealed
+     * room is audible through none of it.
      *
-     * @return 0..1, the fraction of directions that reach the listener.
+     * <p>An earlier attempt sampled the mirror of this - rays from the SOURCE towards the listener - which
+     * cannot work: the listener is a point, so only the one ray aimed exactly at it can ever arrive and the
+     * measurement collapses to "is the straight line clear", which is what the aperture plane already was.
+     *
+     * @return 0..1, the fraction of directions from the ear that reach the source.
      */
     private float measureArrival(final WorldContext ctx, final Vec3 source, final Vec3 listener) {
-        final Vec3 direct = listener.subtract(source);
-        final double directLen = direct.length();
-        if (directLen < 0.01D)
-            return 1F;
-        final Vec3 d = direct.scale(1.0D / directLen);
-        // Orthonormal frame: the pole is the direction to the listener, so the sampled hemisphere is exactly
-        // the set of directions that can possibly reach it.
-        final Vec3 seed = Math.abs(d.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
-        final Vec3 u = d.cross(seed).normalize();
-        final Vec3 v = d.cross(u).normalize();
-
         final int rays = AudioTuning.arrivalRays();
         final ReusableRaycastContext traceContext =
                 new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
-        // Start just outside the source's own solid block so a block source does not block every ray itself.
-        final Vec3 origin = stepOutOfSolid(ctx.world, source, listener);
-
+        // Start just outside whatever solid block the ear is in, so the listener's own block is not counted.
+        final Vec3 origin = stepOutOfSolid(ctx.world, listener, source);
+        final float step = 1F / rays;
         int arrived = 0;
-        int traced = 0;
         for (int i = 0; i < rays; i++) {
-            // Even hemisphere sampling: z = cos(theta) uniform, azimuth via the golden angle.
-            final double z = (i + 0.5D) / rays;
-            final double r = Math.sqrt(Math.max(0.0D, 1.0D - z * z));
+            // Fibonacci sphere: even coverage with no clustering at the poles.
+            final double y = 1.0D - 2.0D * (i + 0.5D) * step;
+            final double r = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
             final double phi = Math.PI * (1.0D + Math.sqrt(5.0D)) * i;
-            final Vec3 dir = d.scale(z)
-                    .add(u.scale(Math.cos(phi) * r))
-                    .add(v.scale(Math.sin(phi) * r))
-                    .normalize();
-            // A ray aimed straight at the listener must arrive at the listener; a ray aimed elsewhere only
-            // reaches it if nothing stands in the way for the full distance.
-            final Vec3 target = i == 0 ? listener : origin.add(dir.scale(directLen));
-            traced++;
-            if (isMiss(traceContext.trace(origin, target)))
+            final Vec3 dir = new Vec3(Math.cos(phi) * r, y, Math.sin(phi) * r).normalize();
+            // A direction counts as arriving when nothing stands between the ear and the source along it.
+            final Vec3 probe = origin.add(dir.scale(ARRIVAL_PROBE_DISTANCE));
+            if (isMiss(traceContext.trace(origin, probe)))
                 arrived++;
         }
+        this.lastApertureSolid = 0;
+        this.lastApertureSourceBlocked = 0;
+        this.lastApertureListenerBlocked = rays - arrived;
         this.lastApertureAccepted = arrived;
-        return traced > 0 ? arrived / (float) traced : 1F;
+        return arrived / (float) rays;
     }
 
     /**

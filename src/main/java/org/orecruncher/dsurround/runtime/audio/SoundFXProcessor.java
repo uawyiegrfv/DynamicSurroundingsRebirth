@@ -63,6 +63,15 @@ public final class SoundFXProcessor {
     // damping, so entering/exiting water reacts with no audible lag.
     private static volatile boolean immediateUpdateRequested;
     private static boolean lastPlayerUnderWater;
+    // The listener's skylight drives the openness term, which decides how muffled everything is. Sources are
+    // only re-evaluated every UPDATE_FREQUENCY_TICKS (0.5 s), which made walking out of a cave mouth step
+    // rather than fade: the openness moved in 0.5 s jumps. Skylight changes exactly when the transition is
+    // happening, so a change forces the same immediate re-evaluation that entering water does. Standing still
+    // changes nothing, so this costs nothing in normal play.
+    private static int lastListenerSkyLight = -1;
+    private static long lastSkyLightUpdateAt;
+    /** Shortest gap between skylight-triggered re-evaluations, so a boundary cannot thrash. */
+    private static final long SKY_LIGHT_UPDATE_INTERVAL_MS = 100L;
 
     // Use our own thread pool avoiding the common pool.  Thread allocation is better controlled, and we won't run
     // into/cause any problems with other tasks in the common pool. Daemon threads so a pool that outlives the
@@ -259,6 +268,17 @@ public final class SoundFXProcessor {
             if (underWater != lastPlayerUnderWater) {
                 lastPlayerUnderWater = underWater;
                 immediateUpdateRequested = true;
+            }
+            // The openness term reads the listener's skylight, so a change there means the muffling is mid
+            // transition and the next scheduled evaluation is up to half a second away. Force it now.
+            final int skyLight = SoundFXUtils.listenerSkyLight(worldContext);
+            if (skyLight != lastListenerSkyLight) {
+                final long now = System.currentTimeMillis();
+                if (now - lastSkyLightUpdateAt >= SKY_LIGHT_UPDATE_INTERVAL_MS) {
+                    lastSkyLightUpdateAt = now;
+                    immediateUpdateRequested = true;
+                }
+                lastListenerSkyLight = skyLight;
             }
             if (++diagCounter % 1200 == 0)
                 logPoolDiag();

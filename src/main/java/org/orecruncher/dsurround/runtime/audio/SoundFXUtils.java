@@ -1003,13 +1003,30 @@ public final class SoundFXUtils {
         float taken = 0F;
 
         for (int p = 1; p <= planes; p++) {
-            // A single plane sits on the first obstacle, which is where the straight line is actually
-            // blocked. With several planes they are spread evenly, because a second obstacle further
-            // along is what the extra planes exist to catch.
-            final Vec3 planeCentre = planes == 1
-                    ? (this.lastOccluderPos != null ? this.lastOccluderPos
-                                                    : MathStuff.addScaled(source, direct, 0.5F))
-                    : MathStuff.addScaled(source, direct, (float) p / (planes + 1));
+            // The plane has to sit where the wavefront is actually blocked - the obstacle's near
+            // surface - not at a fixed fraction of the line. With the line running through a hill, evenly
+            // spaced planes land INSIDE the hill, every sample is rock, the zone reads clear = 0 and the
+            // loss goes to its maximum; that is what made the result bimodal (0.1 dB when a detour path
+            // existed, 25.2 dB when it did not, nothing in between). One plane always sits on the
+            // occluder; the rest are spread between it and the two ends, so a second obstacle along the
+            // way is still caught.
+            final Vec3 planeCentre;
+            if (this.lastOccluderPos == null) {
+                planeCentre = MathStuff.addScaled(source, direct, (float) p / (planes + 1));
+            } else if (p == 1) {
+                planeCentre = this.lastOccluderPos;
+            } else {
+                // Spread the remaining planes between the occluder and whichever end they belong to.
+                final double occluderFraction = MathStuff.clamp1(
+                        (float) (source.distanceTo(this.lastOccluderPos) / Math.max(0.01D, directLen)));
+                final int side = (p - 2) % 2;                    // 0 = source side, 1 = listener side
+                final int step = (p - 2) / 2 + 1;
+                final int stepsOnSide = Math.max(1, (planes - 1) / 2);
+                final double along = side == 0
+                        ? occluderFraction * (1.0D - (double) step / (stepsOnSide + 1))
+                        : occluderFraction + (1.0D - occluderFraction) * ((double) step / (stepsOnSide + 1));
+                planeCentre = MathStuff.addScaled(source, direct, (float) MathStuff.clamp1((float) along));
+            }
             // Distances from each end to the plane that was chosen, so the zone radius belongs to this
             // plane's position rather than to an assumed fraction.
             final double d1 = source.distanceTo(planeCentre);

@@ -60,6 +60,35 @@ public final class SoundFXUtils {
      * transmission against this reference, so keeping it fixed means the existing constants stay valid.
      */
     private static final double MATERIAL_REFERENCE_HZ = 500.0D;
+    /**
+     * Transmission loss in dB per unit of accumulated block occlusion-distance, at the reference frequency.
+     *
+     * <p>Calibration: one block of stone has occlusion 0.5, so one block costs 2 dB and a four-block wall
+     * about 8 dB. That is the range a real partition occupies, and it is the range the ear reads as "there is
+     * something in the way" rather than as silence.
+     *
+     * <p>This replaced an exponential transmission model, {@code exp(-centerMaterial * 3)}, which applied the
+     * loss as an AMPLITUDE rather than in dB: 15 blocks of rock gave {@code exp(-22.5)} = 1e-10, i.e. -200 dB.
+     * Real transmission loss grows linearly in dB with thickness (the mass law), so the exponential form
+     * over-attenuated thick barriers by roughly 90 dB and pinned them at the 1e-6 amplitude clamp - measured
+     * as {@code lossdb=120} (the ceiling) in 26 rows of one session, which is silence, not muffling.
+     */
+    private static final float MATERIAL_LOSS_DB_PER_UNIT = 4.0F;
+    /**
+     * Hard ceiling on the material transmission loss. Keeps the term meaningful instead of collapsing into
+     * the 1e-6 amplitude clamp, where it stops carrying information and simply zeroes the result.
+     */
+    private static final float MATERIAL_MAX_LOSS_DB = 60.0F;
+    /**
+     * Share of the material loss handed to the direct LEVEL, as opposed to the direct low-pass.
+     *
+     * <p>The engine derives both from one occlusion value: the filter is {@code exp(-occlusion * 3)} and the
+     * level is {@code pow(that, 0.1)}. Passing the full loss meant it was applied twice, and the filter term
+     * dominates - behind rock the cutoff reached ~1e-26, which is not "muffled", it is gone. The filter gets
+     * the full loss because that IS what muffling is; the level gets this fraction, which keeps an occluded
+     * sound quiet without deleting it.
+     */
+    private static final float MATERIAL_LEVEL_RESTORE = 0.2F;
 
     private static final IBlockLibrary BLOCK_LIBRARY = ContainerManager.resolve(IBlockLibrary.class);
     private static final ISeasonalInformation SEASONAL_INFORMATION = ContainerManager.resolve(ISeasonalInformation.class);
@@ -571,10 +600,10 @@ public final class SoundFXUtils {
         this.lastCenterOcclusion = centerMaterial;
 
         final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
-        // The probe reports the transmission at the reference frequency, not a per-band value: that is the
-        // number the tuned absorption coefficient is defined against, so it stays comparable with every
-        // earlier session's readings.
-        this.lastMaterialSum = (float) MathStuff.exp(-centerMaterial * absorption);
+        final float materialLossDb = MATERIAL_LOSS_DB_PER_UNIT * centerMaterial;
+        // The probe keeps reporting a TRANSMISSION FACTOR, so the column stays comparable with every earlier
+        // session. It is taken at the reference frequency, where the per-band scaling is 1.
+        this.lastMaterialSum = amplitudeFromDb(materialLossDb);
 
         final float[] edgeAmplitude = this.lastOccluderPos != null
                 ? edgeAmplitudePerBand(ctx, origin, target)
@@ -587,9 +616,9 @@ public final class SoundFXUtils {
         for (int band = 0; band < bands; band++) {
             // The material term is per band: a wall is far less transparent to a high frequency than to a
             // low one (the mass law), so sharing one coefficient across the bands understated how dull a
-            // wall sounds. See materialAbsorptionForBand.
-            final float bandAbsorption = absorption * materialAbsorptionScale(bandFrequency(band));
-            float amplitude = (float) MathStuff.exp(-centerMaterial * bandAbsorption);
+            // wall sounds. See materialAbsorptionScale.
+            final float bandLossDb = materialLossDb * materialAbsorptionScale(bandFrequency(band));
+            float amplitude = amplitudeFromDb(bandLossDb);
             if (edgeAmplitude != null && band < edgeAmplitude.length)
                 amplitude += edgeAmplitude[band];
             amplitude = MathStuff.clamp1(amplitude);
@@ -600,8 +629,23 @@ public final class SoundFXUtils {
         }
         final float lossDb = weightTotal > 0F ? weightedDb / weightTotal : 0F;
 
+        // The occlusion value drives the direct low-pass as exp(-occlusion * absorption), and the engine also
+        // derives the direct LEVEL from it as pow(that, 0.1). Feeding it the full transmission loss applied
+        // that loss TWICE - once as a filter, once as level - and drove directCutoff to ~1e-26 behind rock,
+        // which is silence, not muffling. The filter gets the full loss (that is what muffling is); the level
+        // gets a heavily damped share of it, which is what MATERIAL_LEVEL_RESTORE is for.
+        final float levelLossDb = lossDb * MATERIAL_LEVEL_RESTORE;
+
         this.lastZoneLossDb = lossDb;
-        return lossDb / Math.max(1.0E-6F, absorption);
+        return levelLossDb / Math.max(1.0E-6F, absorption);
+    }
+
+    /**
+     * Amplitude for a transmission loss in dB, floored so it can never reach the -120 dB the 1e-6 clamp
+     * imposes: an inaudible-by-clamping term is not a model, it is a hole where the physics should be.
+     */
+    private static float amplitudeFromDb(final float lossDb) {
+        return (float) Math.pow(10.0D, -Math.min(MATERIAL_MAX_LOSS_DB, Math.max(0F, lossDb)) / 20.0D);
     }
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target,

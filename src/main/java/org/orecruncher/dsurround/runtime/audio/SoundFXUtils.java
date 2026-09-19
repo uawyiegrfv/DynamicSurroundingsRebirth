@@ -187,6 +187,12 @@ public final class SoundFXUtils {
      * blocked-aperture figure wins the minimum, so a genuinely sealed space stays muffled.
      */
     private static final float NO_EDGE_LOSS_DB = 60F;
+    /** Directions the silhouette walk tries around the line. Four covers the four quadrants of the plane. */
+    private static final int SILHOUETTE_DIRECTIONS = 4;
+    /** Steps the silhouette walk takes outward before giving up and calling the obstacle impassable. */
+    private static final int SILHOUETTE_STEPS = 8;
+    /** Step size in blocks. Small enough to land near the silhouette, large enough to stay cheap. */
+    private static final float SILHOUETTE_STEP = 0.75F;
     /**
      * How much of the reverb sends survives a fully occluded path. Not 0: a sealed room still has a
      * tail (that is what reverb IS), it is simply the tail of the muffled sound. At 0.35 a fully
@@ -1411,10 +1417,20 @@ public final class SoundFXUtils {
      *
      * <p>This is what makes a hill behave like a hill. The Fresnel-zone model answers "how much of the
      * field survives inside the geometric shadow", and a hill's crest lies OUTSIDE the zone, so the zone
-     * model reads the aperture as fully blocked and reports 25 dB. Physically the wave bends over the
-     * crest, and because the knife-edge Fresnel number is strongly frequency dependent, the low band
-     * bends with almost no loss while the high band does not - which is exactly the "dull but audible"
-     * result.
+     * model reads the aperture as fully blocked and reports its maximum. Physically the wave bends over
+     * the crest, and because the knife-edge Fresnel number is strongly frequency dependent the low band
+     * bends with almost no loss while the high band does not - the "dull but audible" result.
+     *
+     * <p>Finding the crest is a silhouette walk, not a ring sample. Fixed-radius rings around the occluder
+     * answered a two-state question (a point cleared, or none did) and produced a two-state result: 0.1 dB
+     * or the blocked-aperture maximum, nothing between. Marching outward from where the line enters the
+     * obstacle and stopping at the first offset that sees BOTH ends lands on the silhouette - where the
+     * line grazes the obstacle - and measures the detour directly instead of assuming a radius. The detour
+     * length then varies continuously as the obstacle moves relative to the line, which is what gives a
+     * continuum of losses rather than a switch.
+     *
+     * <p>Every direction that clears contributes its own figure and the smallest wins, so a route around
+     * the side is found even when the one over the top is blocked.
      *
      * @return array of dB per band index, or null when there is no occluder to work from.
      */
@@ -1431,27 +1447,29 @@ public final class SoundFXUtils {
         final Vec3 v = d.cross(u).normalize();
         final ReusableRaycastContext traceContext =
                 new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
-        final int rings = Math.min(diffractionRings(), DETOUR_RADII.length);
         final int bands = bandCount();
         final float[] best = new float[bands];
-        java.util.Arrays.fill(best, Float.MAX_VALUE);
+        java.util.Arrays.fill(best, NO_EDGE_LOSS_DB);
+        final Vec3 anchor = this.lastOccluderPos;
+        final Vec3 sourceLegOrigin = stepOutOfSolid(ctx.world, source, anchor);
         int accepted = 0;
         float smallestDelta = -1F;
-        for (int r = 0; r < rings; r++) {
-            final float radius = DETOUR_RADII[r];
-            for (int k = 0; k < DETOUR_SAMPLES; k++) {
-                final double angle = (2.0D * Math.PI * k) / DETOUR_SAMPLES;
-                final Vec3 waypoint = this.lastOccluderPos
-                        .add(u.scale(Math.cos(angle) * radius))
-                        .add(v.scale(Math.sin(angle) * radius));
-                if (isSolidBlock(ctx.world, waypoint))
+
+        for (int dir = 0; dir < SILHOUETTE_DIRECTIONS; dir++) {
+            final double angle = 2.0D * Math.PI * dir / SILHOUETTE_DIRECTIONS;
+            final Vec3 axis = u.scale(Math.cos(angle)).add(v.scale(Math.sin(angle))).normalize();
+            for (int step = 1; step <= SILHOUETTE_STEPS; step++) {
+                final Vec3 point = anchor.add(axis.scale(SILHOUETTE_STEP * step));
+                // A point inside solid matter cannot be a path; keep walking outward.
+                if (isSolidBlock(ctx.world, point))
                     continue;
-                if (!isMiss(traceContext.trace(stepOutOfSolid(ctx.world, source, waypoint), waypoint)))
+                // The wave needs to see both ends from here. The first offset that does is the silhouette.
+                if (!isMiss(traceContext.trace(sourceLegOrigin, point)))
                     continue;
-                if (!isMiss(traceContext.trace(waypoint, player)))
+                if (!isMiss(traceContext.trace(point, player)))
                     continue;
                 accepted++;
-                final float delta = (float) (source.distanceTo(waypoint) + waypoint.distanceTo(player) - directLen);
+                final float delta = (float) (source.distanceTo(point) + point.distanceTo(player) - directLen);
                 if (smallestDelta < 0F || delta < smallestDelta)
                     smallestDelta = delta;
                 for (int band = 0; band < bands; band++) {
@@ -1462,14 +1480,15 @@ public final class SoundFXUtils {
                     if (db < best[band])
                         best[band] = db;
                 }
+                // This direction found its silhouette; a further step would only cost more detour.
+                break;
             }
         }
+
         this.lastEdgeWaypoints = accepted;
         this.lastEdgeFound = accepted > 0;
         this.lastEdgeDelta = smallestDelta;
         for (int band = 0; band < bands; band++) {
-            if (best[band] == Float.MAX_VALUE)
-                best[band] = NO_EDGE_LOSS_DB;
             if (band < this.lastEdgeDb.length)
                 this.lastEdgeDb[band] = best[band];
         }

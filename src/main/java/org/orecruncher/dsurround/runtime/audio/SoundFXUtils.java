@@ -28,12 +28,11 @@ import org.orecruncher.dsurround.sound.SoundInstanceHandler;
 
 public final class SoundFXUtils {
 
-    /** Angles the clearing search tries, from just off the direct line to well past a right angle. */
-    private static final int EDGE_ANGLE_SAMPLES = 10;
-    /** Azimuths sampled at each angle, so the search is not biased to one plane. */
-    private static final int EDGE_AZIMUTH_SAMPLES = 8;
-    /** Widest rotation the clearing search tries, in radians (110 degrees). */
-    private static final double EDGE_ANGLE_MAX_RAD = 1.92D;
+    /** Steps the clearance search walks outward, and the size of each. */
+    private static final int CLEARANCE_STEPS = 12;
+    private static final float CLEARANCE_STEP = 0.75F;
+    /** Azimuths tested at each step, so the clearance is not biased to one plane. */
+    private static final int CLEARANCE_AZIMUTHS = 6;
     /**
      * Speed of sound in air, m/s. A Minecraft block is 1 m, so this is used directly with
      * wavelength = c / f to get the Fresnel number of a detour.
@@ -274,6 +273,8 @@ public final class SoundFXUtils {
     /** Waypoints the edge search accepted on the most recent measurement, for diagnostics. */
     /** Whether an edge path was found at all on the most recent measurement. */
     private boolean lastEdgeFound;
+    /** The clearance height (blocks) the edge loss was computed from, for diagnostics. */
+    private float lastEdgeDelta;
     /**
      * Fraction of solid angle around the listener from which a ray travels far enough to count as open.
      * Outdoors this is 1; inside a room it is the share taken by the opening. It is what makes a room muffle
@@ -434,11 +435,11 @@ public final class SoundFXUtils {
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f send=%.3f material=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
-                        + "rays=%d cost=%.0fus",
+                        + "clear=%.2f rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 sendOcclusionGain, this.lastMaterialSum, this.lastZoneLossDb, this.lastEdgeFound,
-                this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2],
+                this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
                 ReusableRaycastContext.raycastCount(),
                 (System.nanoTime() - evaluationStart) / 1000.0D));
 
@@ -771,71 +772,78 @@ public final class SoundFXUtils {
         return 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
     }
     /**
-     * Excess attenuation in dB of the diffracted path, per octave band, from the CLEARING ANGLE.
+     * Excess attenuation in dB of the diffracted path, per octave band, from the CLEARANCE HEIGHT.
      *
-     * <p>The angle is found by rotating a ray from the OBSTACLE, in a cone around the line to the listener,
-     * until it clears. That angle is the diffraction geometry: the wave has to bend by it to get past the
-     * obstacle. The Fresnel number follows - n = sqrt(2 * L * (1 - cos(theta)) / lambda), the half-wavelengths
-     * the bend costs - and the knife-edge result gives 0.5 at the shadow boundary rising towards 1 as the bend
-     * clears, so a low band passes almost unattenuated around a hill while a high band does not.
+     * <p>The clearance is how far the obstacle's edge stands from the direct line. It is found by walking out
+     * perpendicular to the line from the anchor and taking the nearest offset whose ray to the SOURCE is clear -
+     * no search from a point inside the obstacle, which is what broke the previous two attempts.
      *
-     * <p>The search is anchored ON the obstacle, which is where the edge is. An earlier revision rotated rays
-     * from the listener's ear instead: inside a room every rotated ray then hits an interior wall, so the search
-     * measured "is the room closed" rather than "where is the edge" - which is why entering a room flipped
-     * straight to muffled, why standing at a window was transparent, and why the three bands came out identical
-     * (the same blocked path, no frequency dependence at all).
+     * <p>The Fresnel-Kirchhoff attenuation follows from the clearance and the geometry:
+     * <pre>
+     *   n    = h * sqrt(2 * (d1 + d2) / (lambda * d1 * d2))   the Fresnel parameter
+     *   loss = 0.5 + 0.5 * tanh(n)                            0.5 at grazing, 1 once clear
+     * </pre>
+     * with d1 and d2 the distances from the source and the listener to the obstacle. A trunk two blocks off the
+     * line gives a small n and is nearly transparent; a wall the listener stands behind gives a large one. The
+     * wavelength makes a low band pass where a high band does not, which is the whole point of the broadband
+     * treatment.
      *
-     * @return array of amplitudes per band, or null when no rotation within the cone clears.
+     * @return array of amplitudes per band, or null when the anchor is missing.
      */
     private float[] edgeAmplitudePerBand(final WorldContext ctx, final Vec3 source, final Vec3 listener) {
         this.lastEdgeFound = false;
         java.util.Arrays.fill(this.lastEdgeDb, 0F);
         if (this.lastOccluderPos == null)
             return null;
-        final Vec3 toListener = listener.subtract(this.lastOccluderPos);
-        final double listenerDistance = toListener.length();
-        if (listenerDistance < 0.01D)
+
+        final Vec3 direct = listener.subtract(source);
+        final double directLen = direct.length();
+        if (directLen < 0.01D)
             return null;
-        final Vec3 d = toListener.scale(1.0D / listenerDistance);
+        final Vec3 d = direct.scale(1.0D / directLen);
         final Vec3 seed = Math.abs(d.y()) < 0.9D ? new Vec3(0D, 1D, 0D) : new Vec3(1D, 0D, 0D);
         final Vec3 u = d.cross(seed).normalize();
         final Vec3 v = d.cross(u).normalize();
         final ReusableRaycastContext traceContext =
                 new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
-        // Start on the obstacle's surface so its own body is not the obstruction the ray has to clear.
-        final Vec3 origin = stepOutOfSolid(ctx.world, this.lastOccluderPos, listener);
-        // The bend has to be measured against the whole source-to-listener span, since that is the distance the
-        // wave travels and the Fresnel number is built from it.
-        final double span = source.distanceTo(listener);
+        // The source end of the leg, stepped out of its own block so a block source is not its own obstacle.
+        final Vec3 sourceLeg = stepOutOfSolid(ctx.world, source, listener);
 
-        double bestCos = -1.0D;
-        for (int a = 0; a < EDGE_ANGLE_SAMPLES; a++) {
-            final double theta = EDGE_ANGLE_MAX_RAD * (a + 1) / EDGE_ANGLE_SAMPLES;
-            final double cos = Math.cos(theta);
-            final double sin = Math.sin(theta);
-            for (int k = 0; k < EDGE_AZIMUTH_SAMPLES; k++) {
-                final double phi = 2.0D * Math.PI * k / EDGE_AZIMUTH_SAMPLES;
-                final Vec3 dir = d.scale(cos)
-                        .add(u.scale(Math.cos(phi) * sin))
-                        .add(v.scale(Math.sin(phi) * sin))
-                        .normalize();
-                if (isMiss(traceContext.trace(origin, origin.add(dir.scale(listenerDistance))))) {
-                    bestCos = cos;
+        // The nearest perpendicular offset whose ray to the source is clear is the clearance height.
+        float clearance = -1F;
+        for (int step = 1; step <= CLEARANCE_STEPS; step++) {
+            final float offset = CLEARANCE_STEP * step;
+            for (int k = 0; k < CLEARANCE_AZIMUTHS; k++) {
+                final double phi = 2.0D * Math.PI * k / CLEARANCE_AZIMUTHS;
+                final Vec3 point = this.lastOccluderPos
+                        .add(u.scale(Math.cos(phi) * offset))
+                        .add(v.scale(Math.sin(phi) * offset));
+                // A point inside rock is not on the edge; a point that cannot see the source is still shadowed.
+                if (isSolidBlock(ctx.world, point))
+                    continue;
+                if (isMiss(traceContext.trace(sourceLeg, point))) {
+                    clearance = offset;
                     break;
                 }
             }
-            if (bestCos >= cos)
-                break;                              // the smallest clearing angle has been found
+            if (clearance > 0F)
+                break;
         }
-        if (bestCos < 0.0D)
-            return null;
+        // No clear offset within the search: the obstacle is wider than the search reaches. Treat it as a wall
+        // rather than as transparent - that is the honest reading of "nothing around it is open".
+        if (clearance < 0F)
+            clearance = CLEARANCE_STEP * CLEARANCE_STEPS;
 
+        final double d1 = Math.max(0.5D, source.distanceTo(this.lastOccluderPos));
+        final double d2 = Math.max(0.5D, listener.distanceTo(this.lastOccluderPos));
+        this.lastEdgeDelta = clearance;
         this.lastEdgeFound = true;
+
         final int bands = bandCount();
         final float[] amplitudes = new float[bands];
         for (int band = 0; band < bands; band++) {
             final double lambda = SPEED_OF_SOUND / Math.max(1F, bandFrequency(band));
-            final double n = Math.sqrt(Math.max(0.0D, 2.0D * span * (1.0D - bestCos) / lambda));
+            final double n = clearance * Math.sqrt(2.0D * (d1 + d2) / (lambda * d1 * d2));
             final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
             amplitudes[band] = 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
             if (band < this.lastEdgeDb.length)

@@ -388,6 +388,10 @@ public final class SoundFXProcessor {
                 }
             }
 
+            // New pass: the listener openness cache is invalidated here, so the 32 openness rays are cast
+            // once for the whole batch instead of once per source.
+            SoundFXUtils.beginPass();
+
             // In a dense sound scene (e.g. a cave full of mobs) many sources come due at
             // once; saturating the pool queues work behind distant sources whose reverb is
             // barely audible anyway. Keep the closest sources first so near-field occlusion

@@ -54,6 +54,12 @@ public final class SoundFXUtils {
      * grazes the edge exactly, which is the 0.5 amplitude case, not an infinite one.
      */
     private static final double MIN_EDGE_DETOUR = 1.0E-4D;
+    /**
+     * Frequency (Hz) at which the material absorption coefficient is defined, so that
+     * {@link #materialAbsorptionScale} is exactly 1 there. Every earlier tuning session measured its
+     * transmission against this reference, so keeping it fixed means the existing constants stay valid.
+     */
+    private static final double MATERIAL_REFERENCE_HZ = 500.0D;
 
     private static final IBlockLibrary BLOCK_LIBRARY = ContainerManager.resolve(IBlockLibrary.class);
     private static final ISeasonalInformation SEASONAL_INFORMATION = ContainerManager.resolve(ISeasonalInformation.class);
@@ -565,8 +571,10 @@ public final class SoundFXUtils {
         this.lastCenterOcclusion = centerMaterial;
 
         final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
-        final float materialAmplitude = (float) MathStuff.exp(-centerMaterial * absorption);
-        this.lastMaterialSum = materialAmplitude;
+        // The probe reports the transmission at the reference frequency, not a per-band value: that is the
+        // number the tuned absorption coefficient is defined against, so it stays comparable with every
+        // earlier session's readings.
+        this.lastMaterialSum = (float) MathStuff.exp(-centerMaterial * absorption);
 
         final float[] edgeAmplitude = this.lastOccluderPos != null
                 ? edgeAmplitudePerBand(ctx, origin, target)
@@ -577,7 +585,11 @@ public final class SoundFXUtils {
         float weightedDb = 0F;
         float weightTotal = 0F;
         for (int band = 0; band < bands; band++) {
-            float amplitude = materialAmplitude;
+            // The material term is per band: a wall is far less transparent to a high frequency than to a
+            // low one (the mass law), so sharing one coefficient across the bands understated how dull a
+            // wall sounds. See materialAbsorptionForBand.
+            final float bandAbsorption = absorption * materialAbsorptionScale(bandFrequency(band));
+            float amplitude = (float) MathStuff.exp(-centerMaterial * bandAbsorption);
             if (edgeAmplitude != null && band < edgeAmplitude.length)
                 amplitude += edgeAmplitude[band];
             amplitude = MathStuff.clamp1(amplitude);
@@ -621,7 +633,13 @@ public final class SoundFXUtils {
             // at the segment's start instead charged every segment to the block the ray had just left: the
             // obstacle's own block was only counted once the ray was already out the far side, so the segment
             // inside it was charged to the air in front and the LAST hit was never counted at all.
-            final Vec3 mid = MathStuff.addScaled(lastHit, hit, 0.5F);
+            //
+            // The midpoint must be built from the DELTA, not from the absolute hit position. MathStuff.addScaled
+            // scales its second argument, so passing the absolute hit gave lastHit + 0.5*hit - a point near half
+            // the world coordinate, i.e. a different chunk entirely. Measured effect: material was 0.9710 in
+            // 433 of 433 probe rows regardless of distance, because every sample but the first landed on
+            // unloaded air and contributed nothing.
+            final Vec3 mid = lastHit.lerp(hit, 0.5D);
             final BlockPos midBlock = BlockPos.containing(mid.x(), mid.y(), mid.z());
             final float occlusion = getOcclusion(ctx.world.getBlockState(midBlock));
             // Occlusion is scaled by the distance traveled through the block.
@@ -646,11 +664,6 @@ public final class SoundFXUtils {
         return factor;
     }
 
-    /**
-     * How much block material at a given distance along the line still counts. 1 up to the focus
-     * distance, then 1 / (1 + (d - focus)/focus). With the focus at 0 every block counts fully (the
-     * previous behaviour).
-     */
     /**
      * Frequency for band {@code index}, or the single configured frequency when the wavelength model is
      * off (in which case every band collapses to the same value and the combination is a no-op).
@@ -681,6 +694,33 @@ public final class SoundFXUtils {
         return use[index];
     }
 
+    /**
+     * How much of the material absorption applies at {@code frequencyHz}, relative to
+     * {@link #MATERIAL_REFERENCE_HZ}.
+     *
+     * <p>A wall's transmission falls with frequency - the mass law, where a partition's transmission loss
+     * grows about 6 dB per octave above its coincidence frequency, so the amplitude exponent goes as
+     * sqrt(f). Before this the material term used ONE coefficient for every band, which is the one place the
+     * model was still frequency-blind: it made a wall equally transparent to a 2 kHz clink and a 125 Hz
+     * rumble, when the rumble is precisely the part that gets through.
+     *
+     * <p>This is a power-law approximation, not a per-material absorption spectrum: the block library stores
+     * one occlusion value per block, not one per octave band, and adding that would mean a data change across
+     * 132 dsconfig files for a difference the ear reads as "duller behind a wall", not as a spectral shape.
+     *
+     * <p>With {@code realismWavelength} off there is a single band at {@link AudioTuning#realismFrequencyHz()},
+     * and this returns exactly 1 for the default 500 Hz - so the frequency-blind behaviour is preserved.
+     */
+    private static float materialAbsorptionScale(final float frequencyHz) {
+        final double ratio = Math.max(100.0D, frequencyHz) / MATERIAL_REFERENCE_HZ;
+        return (float) Math.sqrt(ratio);
+    }
+
+    /**
+     * How much block material at a given distance along the line still counts. 1 up to the focus
+     * distance, then 1 / (1 + (d - focus)/focus). With the focus at 0 every block counts fully (the
+     * previous behaviour).
+     */
     private static double occlusionDistanceWeight(final double along, final double totalDistance) {
         final float focus = AudioTuning.occlusionFocusDistance();
         if (focus <= 0F)
@@ -814,7 +854,10 @@ public final class SoundFXUtils {
             return 1F;
 
         final BlockPos low = BlockPos.containing(pt1);
-        final BlockPos mid = BlockPos.containing(MathStuff.addScaled(pt1, pt2, 0.5F));
+        // The midpoint of the path, not pt1 + 0.5*pt2: see MathStuff.addScaled - its second argument is a
+        // delta. As written this sampled a point far from the source/listener pair, so the "is it raining
+        // along the path" test was really testing somewhere else.
+        final BlockPos mid = BlockPos.containing(pt1.lerp(pt2, 0.5D));
         final BlockPos high = BlockPos.containing(pt2);
 
         // Determine the precipitation type at each point

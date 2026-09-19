@@ -373,8 +373,11 @@ public class FootstepGenerator extends AbstractClientHandler {
                         : this.fallDistance > landHardDistanceMin();
                 if (this.config.entityEffects.enablePlayerLandSound && heavyLand && !sneaking) {
                     this.playLand(player);
-                } else if (this.fallDistance > 0 && !sneaking) {
+                } else if (this.fallDistance > 0 && !sneaking && !inWater) {
                     // Small fall / step down a block: play the material's normal walk sound.
+                    // Not while in water: entering water IS a small fall as far as fallDistance is
+                    // concerned, so without this test the act of hitting the surface played a
+                    // footstep - the same field report as the stride branch above.
                     this.playStep(player, this.wasRunning);
                 }
                 this.didJump = false;
@@ -389,10 +392,17 @@ public class FootstepGenerator extends AbstractClientHandler {
         // Walking / running: accumulate horizontal distance (scaled like the original's
         // distanceWalkedOnStepModified *= 0.6) and step at stride intervals. Stepping DOWN
         // one block is detected explicitly below (reliable) rather than via distance.
-        // Water is deliberately excluded: swimming/suspending a block off the riverbed
-        // (onGround == false) must not generate footsteps, only actually walking on the
-        // ground (onGround) or climbing does.
-        if (onGround || onLadder) {
+        // Water is excluded, which is what the comment here always claimed but the code did not
+        // do: the guard was `onGround || onLadder` alone, and a player swimming against a block
+        // (or standing on the bottom) IS onGround, so footsteps played underwater. Reported from
+        // the field: "footstep sounds play when i swim while touching a block - footsteps
+        // shouldn't really play at all if you're underwater". The stop/wander branch below
+        // already had this test; only this branch was missing it.
+        //
+        // Note `inWater` is `isInWater()`, which is true whenever the player's body is in water -
+        // including floating at the surface - so this also covers the "swim touching a block"
+        // case where the feet are still above the block.
+        if ((onGround || onLadder) && !inWater) {
             double step = 0D;
             if (this.lastPos != null) {
                 final double dx = pos.x - this.lastPos.x;

@@ -709,6 +709,17 @@ public final class SoundFXUtils {
     }
 
     /**
+     * The listener's raw skylight level (0-15). Exposed so the sound processor can detect that the openness
+     * term is mid transition and re-evaluate immediately instead of waiting for the next scheduled update.
+     */
+    public static int listenerSkyLight(final WorldContext ctx) {
+        if (ctx == null || ctx.world == null || ctx.playerEyePosition == null)
+            return -1;
+        final Vec3 eye = ctx.playerEyePosition;
+        return ctx.world.getBrightness(LightLayer.SKY, BlockPos.containing(eye.x(), eye.y(), eye.z()));
+    }
+
+    /**
      * How much sky the listener's position can see, as a fraction: 1 outdoors, 0 deep inside rock.
      *
      * <p>This is the term that answers "how open is the space the listener is standing in", and it is what

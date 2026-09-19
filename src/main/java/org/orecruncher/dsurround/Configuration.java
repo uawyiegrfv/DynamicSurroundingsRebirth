@@ -144,12 +144,6 @@ public class Configuration extends ConfigurationData {
         public int occlusionSegments = 5;
 
         @Property
-        @IntegerRange(min = 1, max = 25)
-        @RestartRequired
-        @Comment("Occlusion only: rays averaged per measurement, as one centre ray plus four per ring, so it is rounded to 1 + 4n (5 = one ring = the original behaviour, 9 = two, 13 = three). More rays make the averaged value slide instead of stepping as a blocking block crosses between rays - the 'volume jumps while walking past pillars' effect")
-        public int occlusionFanRays = 5;
-
-        @Property
         @Comment("Evaluate the environment on the sound thread when a sound starts (default: correct occlusion/reverb on the very first frame) or defer it to the background worker (less sound-thread work when many sounds start in the same tick, at the cost of up to one worker cycle - 50 ms - of default settings at the start of each sound)")
         public boolean evaluateOnSoundThread = true;
 
@@ -166,23 +160,6 @@ public class Configuration extends ConfigurationData {
         public double diffractionHfStrength = 0.10D;
 
         @Property
-        @IntegerRange(min = 1, max = 6)
-        @RestartRequired
-        @Comment("Occlusion only: how many detour rings the diffraction probe sums over. The original code stopped at the first ring that found any waypoint, so the whole result depended on a single sample. More rings smooth the value and lower the restore, at a cost of 8 rays each (3 = 24 probes)")
-        public int diffractionRings = 3;
-
-        @Property
-        @DoubleRange(min = 0.0D, max = 1.0D)
-        @Slider
-        @Comment("Occlusion only: how much of the LOST level the aperture (the wavefront area between source and listener) may carry around an obstacle. This is the around-the-corner energy: a lone pillar, a tree trunk or a fence leaves most of the aperture clear, so the sound stays open, while a full wall leaves nothing clear and the sound stays muffled. 0 = off (only the straight-line occlusion counts)")
-        public double apertureStrength = 1.0D;
-
-        @Property
-        @DoubleRange(min = 0.5D, max = 8.0D)
-        @Comment("Occlusion only: radius in blocks of the aperture disc sampled around the straight source-to-listener line. The disc is centred on the first obstacle on that line. A small radius only sees obstacles near the line; a large one also catches wide walls' far edges at the cost of more traces (the sample count is fixed, so a larger disc samples it more coarsely)")
-        public double apertureRadius = 3.0D;
-
-        @Property
         @Comment("Occlusion only: use the real wavelength of sound instead of treating every frequency alike. Diffraction loss then follows the Fresnel number (low frequencies bend around obstacles, high frequencies do not), and the aperture is sized by the first Fresnel zone radius sqrt(wavelength * d1 * d2 / (d1 + d2)) instead of a fixed disc. This is the physically correct direction, and the reason a low rumble carries around a corner while a high clink does not. Turn off to get the previous frequency-blind behaviour back")
         public boolean realismWavelength = true;
 
@@ -192,20 +169,9 @@ public class Configuration extends ConfigurationData {
         public double realismFrequencyHz = 500.0D;
 
         @Property
-        @IntegerRange(min = 1, max = 4)
-        @RestartRequired
-        @Comment("Occlusion only: how many aperture planes to sample between source and listener. 1 = a single plane at the first obstacle (the previous behaviour). More planes catch a second obstacle further along the line, which a single plane cannot see, at a proportional cost in traces. 2 costs about what the previous fixed-disc implementation did")
-        public int aperturePlanes = 2;
-
-        @Property
         @DoubleRange(min = 0.0D, max = 64.0D)
         @Comment("Occlusion only: how far along the source-to-listener line block material still counts fully. Beyond that distance the contribution is divided by (1 + d/this), so a wall a few blocks from the source can no longer silence a sound 40 blocks away, while rock genuinely between the two ends still muffles. 0 disables the weighting (every block counts fully, the previous behaviour)")
         public double occlusionFocusDistance = 8.0D;
-
-        @Property
-        @DoubleRange(min = 0.0D, max = 45.0D)
-        @Comment("Occlusion only: half-angle in degrees of the cone the occlusion rays sample. This is an ANGLE, so it stays meaningful at any distance: 12 degrees covers a person-sized opening 8 blocks away and still spreads the rays apart at 40 blocks. The old 0.6-block perpendicular offset was 0.86 degrees at 40 blocks, which meant the rays were parallel to within a fraction of a block and measured the ground beside the player instead of the cone - the single largest cause of 'muffled in the open'. 0 puts every ray on the axis (the previous behaviour)")
-        public double occlusionConeDegrees = 12.0D;
 
         @Property
         @Comment("Occlusion only: drive the occlusion from the FIRST FRESNEL ZONE clear fraction measured at each aperture plane (a wavefront goes AROUND an obstacle: a thin wall costs a few dB, only a sealed zone goes silent) instead of summing occlusion x distance over every block on the line (sound travelling THROUGH an absorbing medium, where a 1-block and a 10-block wall differ by three orders of magnitude). This is the physically correct model and the fix for 'several obstacles on the line still muffle the sound'. Turn off to get the material-sum behaviour back")
@@ -221,14 +187,9 @@ public class Configuration extends ConfigurationData {
         public boolean logAudioTrace = false;
 
         @Property
-        @DoubleRange(min = 0.0D, max = 40.0D)
-        @Comment("Occlusion only: attenuation in dB when the space around the LISTENER has no open solid angle at all. Sound reaching a listener inside a room arrives only through the opening, so the fraction of open directions around the ear decides how loud the outside is - outdoors that fraction is 1 and this term is exactly 0, so nothing changes there. 0 disables the term")
-        public double opennessLossDb = 12.0D;
-
-        @Property
-        @IntegerRange(min = 4, max = 32)
-        @Comment("Occlusion only: rays cast in all directions around the listener's ear to measure the open solid angle. A direction counts as open when the ray reaches a point that can see the sky, which is what separates a room or a tunnel from open terrain - counting a nearby block instead made a player standing in a valley or a forest read as fully enclosed. More rays resolve a partly open room more finely; each is one raycast per evaluation")
-        public int opennessRays = 12;
+        @IntegerRange(min = 8, max = 128)
+        @Comment("Occlusion only: rays cast from the source over the hemisphere facing the listener, to measure how much of the wavefront actually arrives. This is the direct sound's amplitude: an open field arrives almost entirely, one block covers a tiny solid angle, a room with a door lets through the door's solid angle and a sealed room lets through nothing. It replaces the older aperture-plane and listener-openness measurements, which needed heuristics because a plane cuts into the obstacle it is centred on. Each ray is one raycast per evaluation")
+        public int arrivalRays = 32;
 
         @Property
         @Comment("Occlusion only: relative weight of each octave band (lowest first) when the per-band attenuations are combined. The defaults (0.50 low, 0.35 mid, 0.15 high) follow the principle that low frequencies are the ones that reach the listener around an obstacle; they are a judgement call rather than a measured spectrum, so they are exposed for testing. '/dstune bandWeights 0.7,0.25,0.05' makes a hill even more transparent")

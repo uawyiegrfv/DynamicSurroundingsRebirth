@@ -44,7 +44,8 @@ public final class AudioTuning {
     private static volatile boolean occlusionFresnelZone = CONFIG.occlusionFresnelZone;
     private static volatile float occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
     private static volatile boolean logAudioTrace = CONFIG.logAudioTrace;
-    private static volatile float enclosureFloorDb = clamp((float) CONFIG.enclosureFloorDb, 0F, 40F);
+    private static volatile float opennessLossDb = clamp((float) CONFIG.opennessLossDb, 0F, 40F);
+    private static volatile int opennessRays = clamp(CONFIG.opennessRays, 4, 32);
     private static final float[] DEFAULT_BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
     private static final float[] DEFAULT_BAND_FREQUENCIES = {125F, 500F, 2000F};
     private static volatile float[] bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
@@ -167,9 +168,14 @@ public final class AudioTuning {
         return logAudioTrace;
     }
 
-    /** Attenuation in dB for a fully sealed listener, even when the straight line is clear. */
-    public static float enclosureFloorDb() {
-        return enclosureFloorDb;
+    /** Attenuation in dB when no direction around the listener is open. */
+    public static float opennessLossDb() {
+        return opennessLossDb;
+    }
+
+    /** Rays used to measure the open solid angle around the listener. */
+    public static int opennessRays() {
+        return opennessRays;
     }
 
     /** Relative weight of each octave band, lowest first. */
@@ -318,10 +324,16 @@ public final class AudioTuning {
                 logAudioTrace = v;
                 return describe(key, old, v) + " (the last trace is always kept for '/dstune')";
             }
-            case "enclosureFloorDb": {
+            case "opennessLossDb": {
                 final float v = clamp(parseFloat(key, value), 0F, 40F);
-                final float old = enclosureFloorDb;
-                enclosureFloorDb = v;
+                final float old = opennessLossDb;
+                opennessLossDb = v;
+                return describe(key, old, v);
+            }
+            case "opennessRays": {
+                final int v = clamp(parseInt(key, value), 4, 32);
+                final int old = opennessRays;
+                opennessRays = v;
                 return describe(key, old, v);
             }
             case "bandWeights": {
@@ -347,7 +359,7 @@ public final class AudioTuning {
                         + "apertureStrength, apertureRadius, realismWavelength, realismFrequencyHz, "
                         + "aperturePlanes, occlusionFocusDistance, occlusionConeDegrees, "
                         + "occlusionFresnelZone, occlusionLossDb, probe, bandWeights, bandFrequencies, "
-                        + "enclosureFloorDb");
+                        + "opennessLossDb, opennessRays");
         }
     }
 
@@ -369,7 +381,8 @@ public final class AudioTuning {
         occlusionFresnelZone = CONFIG.occlusionFresnelZone;
         occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
         logAudioTrace = CONFIG.logAudioTrace;
-        enclosureFloorDb = clamp((float) CONFIG.enclosureFloorDb, 0F, 40F);
+        opennessLossDb = clamp((float) CONFIG.opennessLossDb, 0F, 40F);
+        opennessRays = clamp(CONFIG.opennessRays, 4, 32);
         bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
         bandFrequencies = parseFloats(CONFIG.bandFrequencies, DEFAULT_BAND_FREQUENCIES);
         return "Restored from config:\n" + describeAll();
@@ -394,7 +407,8 @@ public final class AudioTuning {
                         + "  occlusionFresnelZone     = %b   (config: enhancedSounds.occlusionFresnelZone; zone clear fraction instead of a material sum)%n"
                         + "  occlusionLossDb          = %.1f   (config: enhancedSounds.occlusionLossDb, 0-60; excess attenuation for a fully covered plane)%n"
                         + "  probe                    = %b   (config: enhancedSounds.logAudioTrace; write the evaluation trace to the log)%n"
-                        + "  enclosureFloorDb         = %.1f   (config: enhancedSounds.enclosureFloorDb, 0-40; attenuation for a fully sealed listener)%n"
+                        + "  opennessLossDb           = %.1f   (config: enhancedSounds.opennessLossDb, 0-40; attenuation when no direction around the listener is open)%n"
+                        + "  opennessRays             = %d   (config: enhancedSounds.opennessRays, 4-32)%n"
                         + "  bandWeights              = %s   (config: enhancedSounds.bandWeights; relative weight per octave band, lowest first)%n"
                         + "  bandFrequencies          = %s   (config: enhancedSounds.bandFrequencies; octave bands in Hz, lowest first)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
@@ -404,7 +418,8 @@ public final class AudioTuning {
                 apertureStrength, apertureRadius,
                 realismWavelength, realismFrequencyHz, aperturePlanes, occlusionFocusDistance,
                 occlusionConeDegrees, occlusionFresnelZone, occlusionLossDb, logAudioTrace,
-                describeArray(bandWeights), describeArray(bandFrequencies), enclosureFloorDb, lastTrace);
+                describeArray(bandWeights), describeArray(bandFrequencies),
+                opennessLossDb, opennessRays, lastTrace);
     }
 
     // ------------------------------------------------------------------ helpers

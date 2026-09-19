@@ -314,6 +314,13 @@ public final class SoundFXUtils {
     private int lastEdgeWaypoints;
     /** Whether an edge path was found at all on the most recent measurement. */
     private boolean lastEdgeFound;
+    /**
+     * How much of an edge path is actually available, from the source-enclosure and player-openness
+     * probes (1 = both ends open, 0 = an end is sealed in). The edge cap is scaled by this: an edge path
+     * only exists if neither end is walled in, which is what keeps a listener inside a house from hearing
+     * the outdoors at the corner-diffraction figure.
+     */
+    private float lastEdgeGate = 1F;
     /** Per-band edge loss in dB from the most recent measurement, for diagnostics. */
     private final float[] lastEdgeDb = new float[8];
     /** The smallest detour the edge search found, for diagnostics. */
@@ -388,6 +395,7 @@ public final class SoundFXUtils {
         // planes of 8 samples plus a cone per evaluation, so this is the number that says whether that
         // is affordable rather than assuming it: two nanoTime calls on a worker thread.
         final long evaluationStart = System.nanoTime();
+        ReusableRaycastContext.resetRaycasts();
 
         // Snap flag read once at the top for all smoothing (occlusion + water factor).
         final boolean snap = this.source.isImmediateUpdate();
@@ -490,7 +498,7 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
                         + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus ring=%.0fus "
-                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f",
+                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
@@ -499,7 +507,8 @@ public final class SoundFXUtils {
                 this.lastFresnelRadius, this.lastFanAverage, this.lastZoneLossDb,
                 (System.nanoTime() - evaluationStart) / 1000.0D, this.lastDiffractionCostUs,
                 this.lastEdgeWaypoints, this.lastEdgeFound, this.lastEdgeDelta,
-                this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2]));
+                this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2],
+                ReusableRaycastContext.raycastCount()));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -644,17 +653,14 @@ public final class SoundFXUtils {
         final float diffraction = Math.max(
                 Math.max(geometricDiffraction, apertureTerm),
                 Math.max(geometricDiffraction, apertureTerm) > 0F ? DIFFRACTION_FLOOR : 0F);
-        final float enclosure = calculateSourceEnclosure(ctx, soundPos);
-        final float openness = calculatePlayerOpenness(ctx, listener);
-        // Gate the restore on true sealing only. A linear (1-enclosure) or raw
-        // openness over-penalises normal partial occlusion - a source sitting next
-        // to a wall (enclosure ~0.5) or a player hugging one (openness ~0.67) still
-        // has free edges to diffract around. Cubing keeps those mid-values nearly
-        // un-penalised and only shuts the gate off as one end becomes genuinely
-        // sealed (enclosure -> 1 / openness -> 0), which the ring probe also sees.
-        final float enclGate = 1F - (float) Math.pow(enclosure, 3.0);
-        final float openGate = 1F - (float) Math.pow(1.0 - openness, 3.0);
-        final float compensation = MathStuff.clamp1(diffraction * openGate * enclGate);
+        // The gates are computed in calculateOcclusion (the edge cap needs them first) and cached, so
+        // this reuses the same values rather than probing twice.
+        //
+        // Gate the restore on true sealing only. A linear (1-enclosure) or raw openness over-penalises
+        // normal partial occlusion - a source sitting next to a wall (enclosure ~0.5) or a player hugging
+        // one (openness ~0.67) still has free edges to diffract around. Cubing keeps those mid-values
+        // nearly un-penalised and only shuts the gate off as one end becomes genuinely sealed.
+        final float compensation = MathStuff.clamp1(diffraction * this.lastEdgeGate);
         // Time-smooth the restore so crossing a room boundary (openness and
         // enclosure both step at once) fades the muffling instead of snapping it.
         final float smoothedComp = this.source.smoothDiffraction(compensation, snap);
@@ -755,6 +761,7 @@ public final class SoundFXUtils {
             this.lastCenterOcclusion = 0F;
             this.lastApertureLeak = 0F;
             this.lastZoneLossDb = 0F;
+            this.lastEdgeGate = 1F;
             return 0F;
         }
 
@@ -796,6 +803,14 @@ public final class SoundFXUtils {
         // the fan exists for (centre line clear, edge of the cone blocked).
         final boolean apertureRan = this.lastOccluderPos != null;
         if (apertureRan) {
+            // The sealing gates are needed by the edge cap inside calculateApertureLeak, so compute them
+            // here rather than in applyDiffraction (which reads the cached values). A listener inside a
+            // house still has a wall corner nearby for the silhouette walk to find, so without these the
+            // edge path would always win and the outdoors would barely change indoors.
+            final float enclosure = calculateSourceEnclosure(ctx, origin);
+            final float openness = calculatePlayerOpenness(ctx, target);
+            this.lastEdgeGate = MathStuff.clamp1(
+                    (1F - (float) Math.pow(enclosure, 3.0)) * (1F - (float) Math.pow(1.0 - openness, 3.0)));
             this.lastApertureLeak = calculateApertureLeak(ctx, origin, target);
         } else {
             // Nothing on the straight line, so the Fresnel zone is not blocked at any plane: clear the
@@ -803,6 +818,7 @@ public final class SoundFXUtils {
             // that is now open.
             this.lastApertureLeak = 0F;
             this.lastZoneLossDb = 0F;
+            this.lastEdgeGate = 1F;
         }
         // Weight the centre ray's score by how much of the wavefront actually gets through. This is
         // the whole point of the aperture: the centre ray answers "is something on the line?", so
@@ -985,8 +1001,14 @@ public final class SoundFXUtils {
             // Combine the bands with the low band dominant: it is the one that reaches the listener
             // around the obstacle, and the ear weights it that way too.
             float bandLoss = bandExcessDb(bandClear);
-            if (edgeDb != null && edgeDb[band] < bandLoss)
-                bandLoss = edgeDb[band];
+            if (edgeDb != null) {
+                // Scale the edge figure by the gate: as the gate falls (an end becoming sealed in) the
+                // edge path stops being available and the blocked-aperture figure takes over, so a sealed
+                // room goes back to being muffled instead of transparent.
+                final float gated = edgeDb[band] / Math.max(0.05F, this.lastEdgeGate);
+                if (gated < bandLoss)
+                    bandLoss = gated;
+            }
             excessDb += bandWeight(band) * bandLoss;
         }
         this.lastZoneLossDb = excessDb;

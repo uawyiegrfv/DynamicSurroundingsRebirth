@@ -44,6 +44,7 @@ public final class AudioTuning {
     private static volatile boolean occlusionFresnelZone = CONFIG.occlusionFresnelZone;
     private static volatile float occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
     private static volatile boolean logAudioTrace = CONFIG.logAudioTrace;
+    private static volatile float enclosureFloorDb = clamp((float) CONFIG.enclosureFloorDb, 0F, 40F);
     private static final float[] DEFAULT_BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
     private static final float[] DEFAULT_BAND_FREQUENCIES = {125F, 500F, 2000F};
     private static volatile float[] bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
@@ -164,6 +165,11 @@ public final class AudioTuning {
     /** Whether the evaluation trace is written to the log. Off by default. */
     public static boolean logAudioTrace() {
         return logAudioTrace;
+    }
+
+    /** Attenuation in dB for a fully sealed listener, even when the straight line is clear. */
+    public static float enclosureFloorDb() {
+        return enclosureFloorDb;
     }
 
     /** Relative weight of each octave band, lowest first. */
@@ -312,6 +318,12 @@ public final class AudioTuning {
                 logAudioTrace = v;
                 return describe(key, old, v) + " (the last trace is always kept for '/dstune')";
             }
+            case "enclosureFloorDb": {
+                final float v = clamp(parseFloat(key, value), 0F, 40F);
+                final float old = enclosureFloorDb;
+                enclosureFloorDb = v;
+                return describe(key, old, v);
+            }
             case "bandWeights": {
                 final float[] v = parseFloats(value, null);
                 if (v == null || v.length == 0)
@@ -334,7 +346,8 @@ public final class AudioTuning {
                         + "occlusionSegments, occlusionFanRays, evaluateOnSoundThread, "
                         + "apertureStrength, apertureRadius, realismWavelength, realismFrequencyHz, "
                         + "aperturePlanes, occlusionFocusDistance, occlusionConeDegrees, "
-                        + "occlusionFresnelZone, occlusionLossDb, probe, bandWeights, bandFrequencies");
+                        + "occlusionFresnelZone, occlusionLossDb, probe, bandWeights, bandFrequencies, "
+                        + "enclosureFloorDb");
         }
     }
 
@@ -356,6 +369,7 @@ public final class AudioTuning {
         occlusionFresnelZone = CONFIG.occlusionFresnelZone;
         occlusionLossDb = clamp((float) CONFIG.occlusionLossDb, 0F, 60F);
         logAudioTrace = CONFIG.logAudioTrace;
+        enclosureFloorDb = clamp((float) CONFIG.enclosureFloorDb, 0F, 40F);
         bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
         bandFrequencies = parseFloats(CONFIG.bandFrequencies, DEFAULT_BAND_FREQUENCIES);
         return "Restored from config:\n" + describeAll();
@@ -380,6 +394,7 @@ public final class AudioTuning {
                         + "  occlusionFresnelZone     = %b   (config: enhancedSounds.occlusionFresnelZone; zone clear fraction instead of a material sum)%n"
                         + "  occlusionLossDb          = %.1f   (config: enhancedSounds.occlusionLossDb, 0-60; excess attenuation for a fully covered plane)%n"
                         + "  probe                    = %b   (config: enhancedSounds.logAudioTrace; write the evaluation trace to the log)%n"
+                        + "  enclosureFloorDb         = %.1f   (config: enhancedSounds.enclosureFloorDb, 0-40; attenuation for a fully sealed listener)%n"
                         + "  bandWeights              = %s   (config: enhancedSounds.bandWeights; relative weight per octave band, lowest first)%n"
                         + "  bandFrequencies          = %s   (config: enhancedSounds.bandFrequencies; octave bands in Hz, lowest first)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
@@ -389,7 +404,7 @@ public final class AudioTuning {
                 apertureStrength, apertureRadius,
                 realismWavelength, realismFrequencyHz, aperturePlanes, occlusionFocusDistance,
                 occlusionConeDegrees, occlusionFresnelZone, occlusionLossDb, logAudioTrace,
-                describeArray(bandWeights), describeArray(bandFrequencies), lastTrace);
+                describeArray(bandWeights), describeArray(bandFrequencies), enclosureFloorDb, lastTrace);
     }
 
     // ------------------------------------------------------------------ helpers

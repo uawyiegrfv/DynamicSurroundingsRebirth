@@ -895,7 +895,16 @@ public final class SoundFXUtils {
         // completely clear centre ray (0.000). It is still computed and reported as fan=, and it still
         // drives the occlusion when the zone model is switched off.
         final float blended = centerWeight + (fanAverage - centerWeight) * fanWeight;
-        return AudioTuning.occlusionFresnelZone() ? centerWeight : blended;
+        final float occlusion = AudioTuning.occlusionFresnelZone() ? centerWeight : blended;
+        // A sealed listener keeps a floor even when the line is clear: a doorway or window leaves the line
+        // open, so the line's own measurement alone would leave a closed room almost unmuffled (measured at
+        // 0.2 dB with the listener fully enclosed). The gate scales it away for an open listener, and this
+        // is an addition to the line's measurement rather than a replacement for it.
+        final float floor = AudioTuning.enclosureFloorDb() * (1F - this.lastEdgeGate);
+        if (floor <= 0F)
+            return occlusion;
+        final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
+        return occlusion + floor / Math.max(1.0E-6F, absorption);
     }
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target,

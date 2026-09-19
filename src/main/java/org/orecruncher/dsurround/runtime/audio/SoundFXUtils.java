@@ -28,12 +28,12 @@ import org.orecruncher.dsurround.sound.SoundInstanceHandler;
 
 public final class SoundFXUtils {
 
-    /**
-     * How far each listener-side arrival ray is cast. It has to be long enough to leave a room or a tunnel -
-     * a short probe would report every room as sealed - and its length sets how large a solid angle a distant
-     * obstacle appears to cover, so it is deliberately generous.
-     */
-    private static final float ARRIVAL_PROBE_DISTANCE = 24F;
+    /** Angles the clearing search tries, from just off the direct line to well past a right angle. */
+    private static final int EDGE_ANGLE_SAMPLES = 10;
+    /** Azimuths sampled at each angle, so the search is not biased to one plane. */
+    private static final int EDGE_AZIMUTH_SAMPLES = 8;
+    /** Widest rotation the clearing search tries, in radians (110 degrees). */
+    private static final double EDGE_ANGLE_MAX_RAD = 1.92D;
     /**
      * Speed of sound in air, m/s. A Minecraft block is 1 m, so this is used directly with
      * wavelength = c / f to get the Fresnel number of a detour.
@@ -269,11 +269,9 @@ public final class SoundFXUtils {
      * disc. It is what keeps a single obstacle on the straight line from muffling the sound like a
      * sealed room does.
      */
-    private float lastApertureLeak;
     /** Excess attenuation in dB from the Fresnel-zone model on the most recent measurement. */
     private float lastZoneLossDb;
     /** Waypoints the edge search accepted on the most recent measurement, for diagnostics. */
-    private int lastEdgeWaypoints;
     /** Whether an edge path was found at all on the most recent measurement. */
     private boolean lastEdgeFound;
     /**
@@ -286,14 +284,9 @@ public final class SoundFXUtils {
     private float lastMaterialSum;
     /** Aperture sample outcomes from the most recent measurement: solid, source-leg blocked, listener-leg
      * blocked, accepted. Diagnostics for why the clear fraction never rises. */
-    private int lastApertureSolid;
-    private int lastApertureSourceBlocked;
-    private int lastApertureListenerBlocked;
-    private int lastApertureAccepted;
     /** Per-band edge loss in dB from the most recent measurement, for diagnostics. */
     private final float[] lastEdgeDb = new float[8];
     /** The smallest detour the edge search found, for diagnostics. */
-    private float lastEdgeDelta = -1F;
 
     private final SourceContext source;
 
@@ -438,17 +431,14 @@ public final class SoundFXUtils {
         // problem is the filter or the audibility of the band, not the model.
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                        + "level=%.4f send=%.3f arrival=%.3f material=%.3f lossdb=%.1f "
-                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d cost=%.0fus "
-                        + "reached=%d",
+                        + "level=%.4f send=%.3f material=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
+                        + "rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
-                sendOcclusionGain, this.lastApertureLeak, this.lastMaterialSum, this.lastZoneLossDb,
-                this.lastEdgeWaypoints, this.lastEdgeFound, this.lastEdgeDelta,
+                sendOcclusionGain, this.lastMaterialSum, this.lastZoneLossDb, this.lastEdgeFound,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2],
                 ReusableRaycastContext.raycastCount(),
-                (System.nanoTime() - evaluationStart) / 1000.0D,
-                this.lastApertureAccepted));
+                (System.nanoTime() - evaluationStart) / 1000.0D));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -619,31 +609,26 @@ public final class SoundFXUtils {
         }
     }
     /**
-     * The occlusion, from the three routes the sound can take to the listener, combined as amplitudes.
+     * The occlusion, from the two routes the sound can take to the listener, combined as amplitudes.
      *
-     * <p>Each term is a measurement, not a heuristic:
+     * <p>Each term is a measurement:
      * <ul>
-     *   <li><b>arrival</b> - rays cast from the source over the hemisphere facing the listener; the fraction
-     *       that reach the ear is how much of the wavefront gets there. This is the direct sound's amplitude
-     *       and it needs no enclosure gate: a room with a door arrives through the door's solid angle.</li>
-     *   <li><b>material</b> - what the block material along the line transmits. This is what makes a wall's
-     *       THICKNESS matter, which the arrival fraction alone cannot express (a thin and a thick wall have
-     *       similar arrival fractions).</li>
-     *   <li><b>edge</b> - the silhouette walk's knife-edge diffraction around the obstacle, per octave band,
-     *       frequency dependent through the Fresnel number.</li>
+     *   <li><b>material</b> - what the block material along the line transmits. This is the direct path, and it
+     *       is what makes a wall's THICKNESS matter: one block of stone (occlusion 0.5) transmits about 0.83,
+     *       a four-block wall about 0.22.</li>
+     *   <li><b>edge</b> - the diffracted path, from the clearing angle, per octave band.</li>
      * </ul>
      *
-     * <p>The three arrive independently and add incoherently, so the amplitudes are summed per band and the
-     * result converted to dB once, then combined across bands with the low band dominant. Earlier revisions
-     * combined the material and edge terms with min(), which let any reachable edge cancel the wall's own
-     * coefficient, and applied the edge term a second time in applyDiffraction.
+     * <p>They arrive independently and add incoherently. A thin wall transmits well through the material and
+     * diffracts well around its edge, so it is audible; a thick wall does neither, so it is not. A room needs
+     * no separate treatment: its wall's material transmission is low, and the room's own contribution is the
+     * reverb, which the reverb trace already measures.
      */
     private float calculateOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target) {
 
         if (skipOcclusion(this.source.getCategory())) {
             this.lastOccluderPos = null;
             this.lastCenterOcclusion = 0F;
-            this.lastApertureLeak = 1F;
             this.lastZoneLossDb = 0F;
             return 0F;
         }
@@ -651,29 +636,27 @@ public final class SoundFXUtils {
         assert ctx.world != null;
         assert ctx.player != null;
 
-        // The centre ray: where the line enters the first obstacle (the anchor for the silhouette walk) and
-        // the material the line passes through.
+        // The material along the line, and where it enters the first obstacle (the anchor for the edge search).
         final Vec3 rayOrigin = stepOutOfSolid(ctx.world, origin, target);
         final Vec3[] centerOccluder = new Vec3[]{null};
         final float centerMaterial = traceOcclusion(ctx, rayOrigin, target, centerOccluder);
         this.lastOccluderPos = centerOccluder[0];
         this.lastCenterOcclusion = centerMaterial;
 
-        // How much of the wavefront arrives, and the material path, as amplitudes.
-        this.lastApertureLeak = measureArrival(ctx, origin, target);
         final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
         final float materialAmplitude = (float) MathStuff.exp(-centerMaterial * absorption);
+        this.lastMaterialSum = materialAmplitude;
 
-        // The edge path around the obstacle, per octave band.
         final float[] edgeAmplitude = this.lastOccluderPos != null
                 ? edgeAmplitudePerBand(ctx, origin, target)
                 : null;
+        this.lastEdgeFound = edgeAmplitude != null;
 
         final int bands = bandCount();
         float weightedDb = 0F;
         float weightTotal = 0F;
         for (int band = 0; band < bands; band++) {
-            float amplitude = this.lastApertureLeak + materialAmplitude;
+            float amplitude = materialAmplitude;
             if (edgeAmplitude != null && band < edgeAmplitude.length)
                 amplitude += edgeAmplitude[band];
             amplitude = MathStuff.clamp1(amplitude);
@@ -685,9 +668,6 @@ public final class SoundFXUtils {
         final float lossDb = weightTotal > 0F ? weightedDb / weightTotal : 0F;
 
         this.lastZoneLossDb = lossDb;
-        this.lastMaterialSum = materialAmplitude;
-        // The pipeline turns the coefficient into exp(-coefficient * absorption), so the coefficient is the
-        // measured loss divided by the same absorption it will be multiplied by.
         return lossDb / Math.max(1.0E-6F, absorption);
     }
 
@@ -724,47 +704,6 @@ public final class SoundFXUtils {
         }
 
         return factor;
-    }
-    /**
-     * The solid angle through which the source is audible: rays are cast from the listener's ear in all
-     * directions and the fraction that reach the source unobstructed is the direct sound's amplitude.
-     *
-     * <p>This is the measurement the whole occlusion rests on, and it needs no heuristics. An open field with
-     * a clear line leaves most of the hemisphere reaching the source; a single block covers a tiny solid angle;
-     * a wall covers its own angular size, which is why the muffling is directional and why turning towards an
-     * opening restores the sound; a room with a door is audible through the door's solid angle alone; a sealed
-     * room is audible through none of it.
-     *
-     * <p>An earlier attempt sampled the mirror of this - rays from the SOURCE towards the listener - which
-     * cannot work: the listener is a point, so only the one ray aimed exactly at it can ever arrive and the
-     * measurement collapses to "is the straight line clear", which is what the aperture plane already was.
-     *
-     * @return 0..1, the fraction of directions from the ear that reach the source.
-     */
-    private float measureArrival(final WorldContext ctx, final Vec3 source, final Vec3 listener) {
-        final int rays = AudioTuning.arrivalRays();
-        final ReusableRaycastContext traceContext =
-                new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
-        // Start just outside whatever solid block the ear is in, so the listener's own block is not counted.
-        final Vec3 origin = stepOutOfSolid(ctx.world, listener, source);
-        final float step = 1F / rays;
-        int arrived = 0;
-        for (int i = 0; i < rays; i++) {
-            // Fibonacci sphere: even coverage with no clustering at the poles.
-            final double y = 1.0D - 2.0D * (i + 0.5D) * step;
-            final double r = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
-            final double phi = Math.PI * (1.0D + Math.sqrt(5.0D)) * i;
-            final Vec3 dir = new Vec3(Math.cos(phi) * r, y, Math.sin(phi) * r).normalize();
-            // A direction counts as arriving when nothing stands between the ear and the source along it.
-            final Vec3 probe = origin.add(dir.scale(ARRIVAL_PROBE_DISTANCE));
-            if (isMiss(traceContext.trace(origin, probe)))
-                arrived++;
-        }
-        this.lastApertureSolid = 0;
-        this.lastApertureSourceBlocked = 0;
-        this.lastApertureListenerBlocked = rays - arrived;
-        this.lastApertureAccepted = arrived;
-        return arrived / (float) rays;
     }
 
     /**
@@ -830,34 +769,27 @@ public final class SoundFXUtils {
         final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
         return 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
     }
-
     /**
-     * Excess attenuation in dB of the best edge path around the occluder, per band, or a large value when
-     * no edge is reachable at all.
+     * Excess attenuation in dB of the diffracted path, per octave band, from the CLEARING ANGLE.
      *
-     * <p>This is what makes a hill behave like a hill. The Fresnel-zone model answers "how much of the
-     * field survives inside the geometric shadow", and a hill's crest lies OUTSIDE the zone, so the zone
-     * model reads the aperture as fully blocked and reports its maximum. Physically the wave bends over
-     * the crest, and because the knife-edge Fresnel number is strongly frequency dependent the low band
-     * bends with almost no loss while the high band does not - the "dull but audible" result.
+     * <p>The angle is found by rotating a ray from the listener towards the source, in a cone around the
+     * direct line, until it clears the obstacle. That angle IS the diffraction geometry: the wave has to bend
+     * by it to arrive. The Fresnel number follows from it - n = sqrt(2 * L * (1 - cos(theta)) / lambda), the
+     * half-wavelengths the bend costs - and the standard knife-edge result gives 0.5 at the shadow boundary
+     * rising towards 1 as the bend clears, so a low frequency passes almost unattenuated around a hill while a
+     * high one does not.
      *
-     * <p>Finding the crest is a silhouette walk, not a ring sample. Fixed-radius rings around the occluder
-     * answered a two-state question (a point cleared, or none did) and produced a two-state result: 0.1 dB
-     * or the blocked-aperture maximum, nothing between. Marching outward from where the line enters the
-     * obstacle and stopping at the first offset that sees BOTH ends lands on the silhouette - where the
-     * line grazes the obstacle - and measures the detour directly instead of assuming a radius. The detour
-     * length then varies continuously as the obstacle moves relative to the line, which is what gives a
-     * continuum of losses rather than a switch.
+     * <p>Earlier revisions looked for a waypoint that could see BOTH ends and returned nothing when none
+     * existed. That fails exactly where diffraction matters most - around a hill, where every candidate lands
+     * inside rock - and the contribution silently vanished (measured: edge = 0 in every heavily muffled row).
+     * A clearing angle always exists once an obstacle does, so this cannot collapse to zero.
      *
-     * <p>Every direction that clears contributes its own figure and the smallest wins, so a route around
-     * the side is found even when the one over the top is blocked.
-     *
-     * @return array of dB per band index, or null when there is no occluder to work from.
+     * @return array of amplitudes per band, or null when the line is clear (nothing to bend around).
      */
-    private float[] edgeAmplitudePerBand(final WorldContext ctx, final Vec3 source, final Vec3 player) {
+    private float[] edgeAmplitudePerBand(final WorldContext ctx, final Vec3 source, final Vec3 listener) {
         if (this.lastOccluderPos == null)
             return null;
-        final Vec3 direct = player.subtract(source);
+        final Vec3 direct = listener.subtract(source);
         final double directLen = direct.length();
         if (directLen < 0.01D)
             return null;
@@ -867,50 +799,46 @@ public final class SoundFXUtils {
         final Vec3 v = d.cross(u).normalize();
         final ReusableRaycastContext traceContext =
                 new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
-        final int bands = bandCount();
-        // Amplitudes, so the floor is zero rather than a large dB value: no edge means no contribution.
-        final float[] best = new float[bands];
-        final Vec3 anchor = this.lastOccluderPos;
-        final Vec3 sourceLegOrigin = stepOutOfSolid(ctx.world, source, anchor);
-        int accepted = 0;
-        float smallestDelta = -1F;
+        // Start just outside the listener's own block, so the ear's own block is not the obstacle.
+        final Vec3 origin = stepOutOfSolid(ctx.world, listener, source);
 
-        for (int dir = 0; dir < SILHOUETTE_DIRECTIONS; dir++) {
-            final double angle = 2.0D * Math.PI * dir / SILHOUETTE_DIRECTIONS;
-            final Vec3 axis = u.scale(Math.cos(angle)).add(v.scale(Math.sin(angle))).normalize();
-            for (int step = 1; step <= SILHOUETTE_STEPS; step++) {
-                final Vec3 point = anchor.add(axis.scale(SILHOUETTE_STEP * step));
-                // A point inside solid matter cannot be a path; keep walking outward.
-                if (isSolidBlock(ctx.world, point))
-                    continue;
-                // The wave needs to see both ends from here. The first offset that does is the silhouette.
-                if (!isMiss(traceContext.trace(sourceLegOrigin, point)))
-                    continue;
-                if (!isMiss(traceContext.trace(point, player)))
-                    continue;
-                accepted++;
-                final float delta = (float) (source.distanceTo(point) + point.distanceTo(player) - directLen);
-                if (smallestDelta < 0F || delta < smallestDelta)
-                    smallestDelta = delta;
-                for (int band = 0; band < bands; band++) {
-                    // Amplitude, because the combination with the material path is a sum of amplitudes.
-                    final float amplitude = edgeAmplitude(delta, bandFrequency(band));
-                    if (amplitude > best[band])
-                        best[band] = amplitude;
+        // The smallest rotation that clears: sampled over a cone of angles and azimuths. Coarse on purpose -
+        // the knife-edge curve is smooth in the angle, so a few samples give a stable figure.
+        double bestCos = -1.0D;
+        for (int a = 0; a < EDGE_ANGLE_SAMPLES; a++) {
+            final double theta = EDGE_ANGLE_MAX_RAD * (a + 1) / EDGE_ANGLE_SAMPLES;
+            final double cos = Math.cos(theta);
+            final double sin = Math.sin(theta);
+            for (int k = 0; k < EDGE_AZIMUTH_SAMPLES; k++) {
+                final double phi = 2.0D * Math.PI * k / EDGE_AZIMUTH_SAMPLES;
+                final Vec3 dir = d.scale(cos)
+                        .add(u.scale(Math.cos(phi) * sin))
+                        .add(v.scale(Math.sin(phi) * sin))
+                        .normalize();
+                final Vec3 probe = origin.add(dir.scale(directLen));
+                if (isMiss(traceContext.trace(origin, probe))) {
+                    bestCos = cos;
+                    break;
                 }
-                // This direction found its silhouette; a further step would only cost more detour.
-                break;
             }
+            if (bestCos >= cos)
+                break;                              // the smallest clearing angle has been found
         }
+        if (bestCos < 0.0D)
+            return null;                            // no rotation within the cone clears: fully enclosed
 
-        this.lastEdgeWaypoints = accepted;
-        this.lastEdgeFound = accepted > 0;
-        this.lastEdgeDelta = smallestDelta;
+        this.lastEdgeFound = true;
+        final int bands = bandCount();
+        final float[] amplitudes = new float[bands];
         for (int band = 0; band < bands; band++) {
+            final double lambda = SPEED_OF_SOUND / Math.max(1F, bandFrequency(band));
+            final double n = Math.sqrt(Math.max(0.0D, 2.0D * directLen * (1.0D - bestCos) / lambda));
+            final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
+            amplitudes[band] = 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
             if (band < this.lastEdgeDb.length)
-                this.lastEdgeDb[band] = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, best[band])));
+                this.lastEdgeDb[band] = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, amplitudes[band])));
         }
-        return best;
+        return amplitudes;
     }
 
     private static float calculateWeatherAbsorption(final WorldContext ctx, final Vec3 pt1, final Vec3 pt2) {

@@ -178,11 +178,6 @@ public final class SoundFXUtils {
      */
     private static final float DIFFRACTION_LOSS_SCALE = 0.75F;
     /**
-     * Attenuation used when no edge path exists at all (both ends sealed in). Large enough that the
-     * blocked-aperture figure wins the minimum, so a genuinely sealed space stays muffled.
-     */
-    private static final float NO_EDGE_LOSS_DB = 60F;
-    /**
      * Distance the listener-openness rays travel. Long enough to leave a normal room (a 5-block ray would
      * report every room as sealed), short enough that open terrain reads as open.
      */
@@ -1037,7 +1032,7 @@ public final class SoundFXUtils {
         // available, so the loss is the LESS pessimistic of "the aperture is blocked" and "the wave bends
         // over the edge". Without this a hill - whose crest lies outside the Fresnel zone, so the zone
         // model cannot see it - reads as a blocked aperture and comes out at the full 25 dB.
-        final float[] edgeDb = edgeLossDbPerBand(ctx, source, listener);
+        final float[] edgeDb = edgeAmplitudePerBand(ctx, source, listener);
         for (int band = 0; band < bandCount; band++) {
             final float bandHz = bandFrequency(band);
             final double bandWavelength = SPEED_OF_SOUND / Math.max(1F, bandHz);
@@ -1049,16 +1044,22 @@ public final class SoundFXUtils {
             worstClear = Math.min(worstClear, bandClear);
             // Combine the bands with the low band dominant: it is the one that reaches the listener
             // around the obstacle, and the ear weights it that way too.
-            float bandLoss = bandExcessDb(bandClear);
+            // Two paths, added as amplitudes. The material path is what the wall's own occlusion
+            // coefficient produces; the edge path is what bends around the obstacle's silhouette. They
+            // arrive independently and add incoherently, so the result is louder than either alone - and
+            // combining them with min() instead (as this did) let any reachable edge cancel the material
+            // coefficient, which is why a wall stopped muffling as soon as the silhouette walk found its
+            // corner.
+            float bandAmplitude = bandAmplitude(bandClear);
             if (edgeDb != null) {
-                // Scale the edge figure by the gate: as the gate falls (an end becoming sealed in) the
-                // edge path stops being available and the blocked-aperture figure takes over, so a sealed
-                // room goes back to being muffled instead of transparent.
-                final float gated = edgeDb[band] / Math.max(0.05F, this.lastEdgeGate);
-                if (gated < bandLoss)
-                    bandLoss = gated;
+                // The gate measures whether an edge path exists at all: sealed in, it drives the edge
+                // amplitude to zero and only the material path remains, so a room is muffled by its own
+                // wall without any special case. Open, both paths contribute.
+                bandAmplitude = Math.min(1F, bandAmplitude + edgeDb[band] * this.lastEdgeGate);
             }
-            excessDb += bandWeight(band) * bandLoss;
+            // Back to dB once, after the combination.
+            excessDb += bandWeight(band)
+                    * (float) (-20.0D * Math.log10(Math.max(1.0E-6F, bandAmplitude)));
         }
         this.lastZoneLossDb = excessDb;
         return MathStuff.clamp1(worstClear);
@@ -1183,10 +1184,11 @@ public final class SoundFXUtils {
      * maximum of 50.4 dB). At the fourth power: 0.03 dB when 90% clear, 2.6 dB at 80%, 9.6 dB at 50%,
      * 16.4 dB at 10%.
      */
-    private static float bandExcessDb(final float clear) {
+    private static float bandAmplitude(final float clear) {
         final float blocked = 1F - clear;
         final float blockedSq = blocked * blocked;
-        return 0.2F + AudioTuning.occlusionLossDb() * blockedSq * blockedSq;
+        final float db = 0.2F + AudioTuning.occlusionLossDb() * blockedSq * blockedSq;
+        return (float) Math.pow(10.0D, -db / 20.0D);
     }
 
     /**
@@ -1408,7 +1410,7 @@ public final class SoundFXUtils {
      *
      * @return array of dB per band index, or null when there is no occluder to work from.
      */
-    private float[] edgeLossDbPerBand(final WorldContext ctx, final Vec3 source, final Vec3 player) {
+    private float[] edgeAmplitudePerBand(final WorldContext ctx, final Vec3 source, final Vec3 player) {
         if (this.lastOccluderPos == null)
             return null;
         final Vec3 direct = player.subtract(source);
@@ -1422,8 +1424,8 @@ public final class SoundFXUtils {
         final ReusableRaycastContext traceContext =
                 new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
         final int bands = bandCount();
+        // Amplitudes, so the floor is zero rather than a large dB value: no edge means no contribution.
         final float[] best = new float[bands];
-        java.util.Arrays.fill(best, NO_EDGE_LOSS_DB);
         final Vec3 anchor = this.lastOccluderPos;
         final Vec3 sourceLegOrigin = stepOutOfSolid(ctx.world, source, anchor);
         int accepted = 0;
@@ -1447,12 +1449,10 @@ public final class SoundFXUtils {
                 if (smallestDelta < 0F || delta < smallestDelta)
                     smallestDelta = delta;
                 for (int band = 0; band < bands; band++) {
+                    // Amplitude, because the combination with the material path is a sum of amplitudes.
                     final float amplitude = edgeAmplitude(delta, bandFrequency(band));
-                    if (amplitude <= 0F)
-                        continue;
-                    final float db = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, amplitude)));
-                    if (db < best[band])
-                        best[band] = db;
+                    if (amplitude > best[band])
+                        best[band] = amplitude;
                 }
                 // This direction found its silhouette; a further step would only cost more detour.
                 break;
@@ -1464,7 +1464,7 @@ public final class SoundFXUtils {
         this.lastEdgeDelta = smallestDelta;
         for (int band = 0; band < bands; band++) {
             if (band < this.lastEdgeDb.length)
-                this.lastEdgeDb[band] = best[band];
+                this.lastEdgeDb[band] = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, best[band])));
         }
         return best;
     }

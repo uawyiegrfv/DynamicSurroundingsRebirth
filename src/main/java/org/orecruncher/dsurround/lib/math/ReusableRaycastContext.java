@@ -32,7 +32,25 @@ public class ReusableRaycastContext extends ClipContext {
         this.accessor = ((MixinRaycastContextAccessor)this);
     }
 
+    /**
+     * Raycasts performed since the last {@link #resetRaycasts()}. Diagnostics only: the enhanced audio path
+     * is dominated by raycast work, so a per-evaluation count is how its cost is compared against earlier
+     * revisions without having to deploy one.
+     */
+    private static int raycastCount;
+
+    /** Clears the raycast counter, called at the start of each audio evaluation. */
+    public static void resetRaycasts() {
+        raycastCount = 0;
+    }
+
+    /** Raycasts performed since the last reset. */
+    public static int raycastCount() {
+        return raycastCount;
+    }
+
     public BlockHitResult trace(Vec3 start, Vec3 end) {
+        raycastCount++;
         this.setStart(start);
         this.setEnd(end);
         return this.world.clip(this);
@@ -42,6 +60,7 @@ public class ReusableRaycastContext extends ClipContext {
      * Perform trace based on current values of start and end.
      */
     BlockHitResult trace() {
+        raycastCount++;
         return this.world.clip(this);
     }
 

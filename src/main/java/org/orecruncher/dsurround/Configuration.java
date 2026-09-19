@@ -222,8 +222,13 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @DoubleRange(min = 0.0D, max = 40.0D)
-        @Comment("Occlusion only: attenuation in dB that applies when the LISTENER is fully sealed in, even if the straight line to the source is clear. A doorway or window leaves the line open, so without this a closed room gets almost no muffling - measured at 0.2 dB with the listener fully enclosed. The sealing gate scales it, so an open listener gets none of it. 0 disables the floor")
-        public double enclosureFloorDb = 8.0D;
+        @Comment("Occlusion only: attenuation in dB when the space around the LISTENER has no open solid angle at all. Sound reaching a listener inside a room arrives only through the opening, so the fraction of open directions around the ear decides how loud the outside is - outdoors that fraction is 1 and this term is exactly 0, so nothing changes there. 0 disables the term")
+        public double opennessLossDb = 12.0D;
+
+        @Property
+        @IntegerRange(min = 4, max = 32)
+        @Comment("Occlusion only: rays cast in all directions around the listener's ear to measure the open solid angle (the fibonacci sphere). More rays resolve a partly open room more finely; each is one raycast per evaluation")
+        public int opennessRays = 12;
 
         @Property
         @Comment("Occlusion only: relative weight of each octave band (lowest first) when the per-band attenuations are combined. The defaults (0.50 low, 0.35 mid, 0.15 high) follow the principle that low frequencies are the ones that reach the listener around an obstacle; they are a judgement call rather than a measured spectrum, so they are exposed for testing. '/dstune bandWeights 0.7,0.25,0.05' makes a hill even more transparent")

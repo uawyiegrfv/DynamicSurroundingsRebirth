@@ -227,7 +227,7 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @IntegerRange(min = 4, max = 32)
-        @Comment("Occlusion only: rays cast in all directions around the listener's ear to measure the open solid angle (the fibonacci sphere). More rays resolve a partly open room more finely; each is one raycast per evaluation")
+        @Comment("Occlusion only: rays cast in all directions around the listener's ear to measure the open solid angle. A direction counts as open when the ray reaches a point that can see the sky, which is what separates a room or a tunnel from open terrain - counting a nearby block instead made a player standing in a valley or a forest read as fully enclosed. More rays resolve a partly open room more finely; each is one raycast per evaluation")
         public int opennessRays = 12;
 
         @Property

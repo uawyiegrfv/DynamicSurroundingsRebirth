@@ -178,10 +178,12 @@ public final class SoundFXUtils {
      */
     private static final float DIFFRACTION_LOSS_SCALE = 0.75F;
     /**
-     * Distance the listener-openness rays travel. Long enough to leave a normal room (a 5-block ray would
-     * report every room as sealed), short enough that open terrain reads as open.
+     * Distance the listener-openness rays travel. Long enough to leave a normal room or tunnel, and the
+     * endpoint test is sky visibility rather than a hit, so open terrain of any shape reads as open.
      */
     private static final float OPENNESS_PROBE_DISTANCE = 16F;
+    /** Steps each openness ray is walked in, looking for a point that can see the sky. */
+    private static final int OPENNESS_PROBE_STEPS = 4;
     /** Directions the silhouette walk tries around the line. Four covers the four quadrants of the plane. */
     private static final int SILHOUETTE_DIRECTIONS = 4;
     /** Steps the silhouette walk takes outward before giving up and calling the obstacle impassable. */
@@ -944,8 +946,20 @@ public final class SoundFXUtils {
             final double r = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
             final double phi = Math.PI * (1.0D + Math.sqrt(5.0D)) * i;
             final Vec3 dir = new Vec3(Math.cos(phi) * r, y, Math.sin(phi) * r).normalize();
-            if (isMiss(traceContext.trace(eye, eye.add(dir.scale(OPENNESS_PROBE_DISTANCE)))))
-                open++;
+            // Walk the ray out and accept the first endpoint that can see the sky. A direction counts as open
+            // when the sound leaving that way actually gets out, which sky visibility answers and "did the ray
+            // hit a block" does not: in a valley, a forest or on a slope the ground itself is hit within a few
+            // blocks, so a listener in the open measured as fully enclosed and the term muffled everything.
+            Vec3 point = eye;
+            for (int stepIndex = 0; stepIndex < OPENNESS_PROBE_STEPS; stepIndex++) {
+                point = point.add(dir.scale(OPENNESS_PROBE_DISTANCE / OPENNESS_PROBE_STEPS));
+                if (isMiss(traceContext.trace(point.subtract(dir.scale(0.5D)), point)))
+                    continue;                       // this stretch is inside rock; keep walking
+                if (ctx.world.canSeeSky(BlockPos.containing(point))) {
+                    open++;
+                    break;
+                }
+            }
         }
         return open / (float) rays;
     }

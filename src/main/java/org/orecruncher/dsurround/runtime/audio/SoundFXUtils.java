@@ -325,6 +325,12 @@ public final class SoundFXUtils {
     /** The raw zone coefficient and the raw material sum from the most recent measurement. */
     private float lastZoneCoefficient = -1F;
     private float lastMaterialSum;
+    /** Aperture sample outcomes from the most recent measurement: solid, source-leg blocked, listener-leg
+     * blocked, accepted. Diagnostics for why the clear fraction never rises. */
+    private int lastApertureSolid;
+    private int lastApertureSourceBlocked;
+    private int lastApertureListenerBlocked;
+    private int lastApertureAccepted;
     /** Per-band edge loss in dB from the most recent measurement, for diagnostics. */
     private final float[] lastEdgeDb = new float[8];
     /** The smallest detour the edge search found, for diagnostics. */
@@ -495,7 +501,8 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f hfRestore=%.3f levelRestore=%.3f centerOccl=%.3f leak=%.3f send=%.3f "
                         + "fresnel=%.2f fan=%.3f zonedb=%.1f cost=%.0fus ring=%.0fus "
-                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d open=%.2f openloss=%.1f src=%d zonec=%.3f matsum=%.3f",
+                        + "wp=%d edge=%b delta=%.2f edgedb=%.1f/%.1f/%.1f rays=%d open=%.2f openloss=%.1f src=%d zonec=%.3f matsum=%.3f "
+                        + "ap=solid%d/src%d/ear%d/ok%d",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 directHfCutoff <= 0F ? 0F : (directHfCutoff - MathStuff.exp(sendCoeff)) / Math.max(1e-6F, 1F - MathStuff.exp(sendCoeff)),
@@ -507,7 +514,9 @@ public final class SoundFXUtils {
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2],
                 ReusableRaycastContext.raycastCount(),
                 this.lastListenerOpenness, this.lastOpennessLossDb,
-                this.lastOcclusionSource, this.lastZoneCoefficient, this.lastMaterialSum));
+                this.lastOcclusionSource, this.lastZoneCoefficient, this.lastMaterialSum,
+                this.lastApertureSolid, this.lastApertureSourceBlocked, this.lastApertureListenerBlocked,
+                this.lastApertureAccepted));
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -1047,6 +1056,10 @@ public final class SoundFXUtils {
         final Vec3 sourceLegOrigin = stepOutOfSolid(ctx.world, source, listener);
 
         this.lastFresnelRadius = 0F;
+        this.lastApertureSolid = 0;
+        this.lastApertureSourceBlocked = 0;
+        this.lastApertureListenerBlocked = 0;
+        this.lastApertureAccepted = 0;
         float worstClear = 1F;
         float excessDb = 0F;
         // The best edge path around the occluder, per band. A wavefront takes the most effective path
@@ -1170,17 +1183,24 @@ public final class SoundFXUtils {
                     // A sample inside solid matter is not a secondary source at all: there is no air there
                     // to carry the wave, and stepping it out would let it escape through a thick wall and
                     // report the wall as transparent. It blocks its share of the zone.
-                    if (isSolidBlock(ctx.world, sample))
+                    if (isSolidBlock(ctx.world, sample)) {
+                        this.lastApertureSolid++;
                         continue;
+                    }
                     // Both legs are a BINARY question - does this secondary source see the source, and does
                     // it see the listener - so each is ONE raycast. They used to walk up to twelve segments
                     // per leg to measure material THICKNESS, which the aperture never uses; that segment
                     // walk was the dominant cost of the whole occlusion path (96 legs, measured at 597
                     // raycasts per evaluation against a pre-change budget of 193).
-                    if (!isMiss(traceContext.trace(sourceLegOrigin, sample)))
+                    if (!isMiss(traceContext.trace(sourceLegOrigin, sample))) {
+                        this.lastApertureSourceBlocked++;
                         continue;
-                    if (!isMiss(traceContext.trace(sample, listener)))
+                    }
+                    if (!isMiss(traceContext.trace(sample, listener))) {
+                        this.lastApertureListenerBlocked++;
                         continue;
+                    }
+                    this.lastApertureAccepted++;
                     planeClearWeight[p - 1] += zoneWeight;
                 }
             }

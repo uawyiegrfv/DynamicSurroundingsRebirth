@@ -868,10 +868,9 @@ public final class SoundFXUtils {
         // (returned share x spherical spreading x material), gated by the fusion window: a reflection that
         // arrives within ~50 ms of the direct sound is part of the space, not an echo.
         //
-        // Occlusion is applied HERE rather than upstream: calculate() already multiplied sendGain3 by
-        // sendOcclusionGain, but this assignment REPLACES that value, so without this the occlusion of the
-        // direct path had no effect on the echo at all. The echo is a reflection of the same source, so if
-        // the source is heard through a wall the reflected energy is reduced too.
+        // This assignment REPLACES the value, which is why occlusion is applied further down (to all four
+        // sends at once) rather than upstream: multiplying sendGain3 before this point had no effect, so the
+        // direct path's occlusion never reached the echo.
         reverb.sendGain3 = reverb.echoGain;
 
         // The returned energy drives the reverb TAIL. This is not a duplicate of the EAXREVERB reflection

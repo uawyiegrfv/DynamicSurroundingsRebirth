@@ -713,8 +713,12 @@ public final class SoundFXUtils {
         this.lastFacingShare = facingShare;
         final float density = this.lastReverbMeanFreePath
                 / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);
-        this.lastEarlyReflectionGain = density * (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
-                * facingShare * REFLECTION_DENSITY_GAIN;
+        // Smoothed: the raw value is a ratio of two 32-ray averages and was measured to swing by up to 0.36
+        // between evaluations 0.4 s apart, which made the tail appear and vanish at random.
+        this.lastEarlyReflectionGain = this.source.smoothEarlyReflection(
+                density * (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
+                        * facingShare * REFLECTION_DENSITY_GAIN,
+                this.source.isImmediateUpdate());
         // Handed to finalizeSendGains rather than added here: see ReverbTrace.earlyReflection.
         out.earlyReflection = this.lastEarlyReflectionGain;
         // The early-reflection zones are kept BRIGHT. A reflection off a distant wall travels through AIR,

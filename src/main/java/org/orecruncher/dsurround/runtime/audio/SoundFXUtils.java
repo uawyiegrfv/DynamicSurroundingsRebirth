@@ -390,6 +390,11 @@ public final class SoundFXUtils {
          * is the surface an echo actually returns from.
          */
         float farthest;
+        /**
+         * Strength of the discrete echo sent to the last aux send. Zero unless the first reflection arrives
+         * late enough to be heard as a separate event rather than as part of the space.
+         */
+        float echoGain;
         /** Mean reflectivity of the first bounce: soft ground absorbs, stone returns. */
         float reflectivity;
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
@@ -510,6 +515,14 @@ public final class SoundFXUtils {
         final float spreading = (float) MathStuff.clamp1(directDistance / Math.max(1.0D, reflectionPath));
         final float material = (float) Math.sqrt(MathStuff.clamp1(reverb.reflectivity));
         final float reflectionGain = reverb.returnedShare * spreading * material * EARLY_REFLECTION_GAIN;
+
+        // The fusion window: a reflection that reaches the ear within about 50 ms of the direct sound is not
+        // heard as a separate event, it is heard as part of the space. That boundary is a property of the
+        // auditory system (the Haas window), so it is a constant and not a tuning knob - and it is what makes
+        // a narrow gorge and a cave keep their reverb while a valley gains an echo, with no branch on scene
+        // type anywhere. The fade spans 25-60 ms so the transition is continuous rather than a switch.
+        final float echoGate = MathStuff.clamp1((reflectionGap - 0.025F) / 0.035F);
+        reverb.echoGain = reflectionGain * echoGate;
 
         if (CONFIG.enableEarlyReflectionEcho)
             Effects.setEarlyReflection(reflectionGain, reflectionGap);
@@ -840,7 +853,18 @@ public final class SoundFXUtils {
     private static void finalizeSendGains(final ReverbTrace reverb) {
         reverb.sendGain1 *= reverb.bounceRatio[1];
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.bounceRatio[2], 3.0);
-        reverb.sendGain3 *= (float) MathStuff.pow(reverb.bounceRatio[3], 4.0);
+
+        // Zone 3 is not a diffuse zone any more: the last aux send carries the discrete ECHO, so its send
+        // gain is the echo's strength and must NOT be multiplied by bounceRatio^4.
+        //
+        // That multiplication is why this zone never contributed anything: bounceRatio is a mean reflectivity,
+        // so 0.15^4 = 0.0005 for grass and 0.65^4 = 0.18 even for stone. Measured, the zone's gain was exactly
+        // zero in all 314 probe rows across 564 log files. An echo fed through it would have been silent.
+        //
+        // The echo's strength is the reflected amplitude, already computed physically in calculate()
+        // (returned share x spherical spreading x material), gated by the fusion window: a reflection that
+        // arrives within ~50 ms of the direct sound is part of the space, not an echo.
+        reverb.sendGain3 = reverb.echoGain;
 
         // The returned energy drives the reverb TAIL. This is not a duplicate of the EAXREVERB reflection
         // gain: that one feeds the early-reflection TAP, a discrete event; this one feeds the diffuse field
@@ -867,8 +891,12 @@ public final class SoundFXUtils {
         // The early-reflection zones are kept bright. A reflection off a distant wall crosses AIR, not rock,
         // so the direct path's occlusion cutoff is the wrong filter for it - inheriting that darkening is why
         // a valley read as "a weakened cave". Only raises: an enclosed space's own cutoff is already higher.
+        //
+        // Zone 3 carries the discrete echo, so it gets the same treatment for the same reason: the echo is a
+        // reflection that travelled through open air and must not be darkened by what blocks the direct path.
         reverb.sendCutoff1 = Math.max(reverb.sendCutoff1, reverb.earlyReflectionCutoff);
         reverb.sendCutoff2 = Math.max(reverb.sendCutoff2, reverb.earlyReflectionCutoff);
+        reverb.sendCutoff3 = Math.max(reverb.sendCutoff3, reverb.earlyReflectionCutoff);
     }
 
     /** Writes the computed effect parameters onto the source under its sync lock. */

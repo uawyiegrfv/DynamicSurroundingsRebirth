@@ -425,6 +425,12 @@ public final class SoundFXUtils {
         float echoGain;
         /** Round-trip gap of that reflection, in seconds; the echo's delay. */
         float echoDelay;
+        /**
+         * Lower bound for the DIRECT path's brightness, from the share of reflections that come back through
+         * the listener's own airspace. Zero in the open; in an enclosed space it stops the direct sound from
+         * being darkened by the very rock the reflections travelled around.
+         */
+        float directCutoffFloor;
         /** Mean reflectivity of the first bounce: soft ground absorbs, stone returns. */
         float reflectivity;
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
@@ -508,6 +514,15 @@ public final class SoundFXUtils {
 
         final ReverbTrace reverb = new ReverbTrace();
         traceReverb(ctx, soundPos, sendCoeff, reverb);
+
+        // The direct path gets a brightness floor from the reflections, after the trace has measured how many
+        // of them come back through the listener's own airspace. This is the original mod's rule, restored:
+        // an enclosed space darkens the direct sound hard, and without the floor nothing puts the brightness
+        // back, which is what made a cave sound thin rather than reverberant.
+        //
+        // It can only RAISE the cutoff, so an open scene (where the floor is zero) is unaffected.
+        directCutoff = Math.max(directCutoff, reverb.directCutoffFloor);
+        directHfCutoff = Math.max(directHfCutoff, reverb.directCutoffFloor);
 
         // ------------------------------------------------------------------ echo vs reverb
         //
@@ -848,6 +863,19 @@ public final class SoundFXUtils {
         out.sendCutoff1 = exp1 * (1.0F - sharedAirspaceWeight1) + sharedAirspaceWeight1;
         out.sendCutoff2 = exp2 * (1.0F - sharedAirspaceWeight2) + sharedAirspaceWeight2;
         out.sendCutoff3 = exp2 * (1.0F - sharedAirspaceWeight3) + sharedAirspaceWeight3;
+
+        // A floor on the DIRECT path's brightness when the reflections come back through the same airspace
+        // as the listener. This is the original mod's rule and it was dropped here; its absence is half of
+        // why an enclosed space sounded thin, because a cave darkens the direct sound hard (sendCoeff is
+        // large and negative) and nothing put the brightness back.
+        //
+        // The physical reading is that a reflection arriving through open air has crossed no rock, so the
+        // direct path's material darkening is the wrong filter for it - which is exactly the argument already
+        // made for the early-reflection cutoffs below. Reported to the caller through the trace so the
+        // direct filter can use it.
+        final float averageSharedAirspace = (sharedAirspaceWeight0 + sharedAirspaceWeight1
+                + sharedAirspaceWeight2 + sharedAirspaceWeight3) * 0.25F;
+        out.directCutoffFloor = Math.max((float) Math.sqrt(averageSharedAirspace) * 0.2F, 0F);
 
         // ------------------------------------------------------- returned energy (open space)
         //

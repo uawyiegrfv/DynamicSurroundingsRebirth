@@ -541,9 +541,9 @@ public final class SoundFXUtils {
         float firstReflectivitySum = 0F;
         int firstHits = 0;
         float farthest = 0F;
-        // Mean free path: the distance between consecutive reflections, summed over every ray.
+        // Mean free path: the distance between consecutive reflections, summed over every ray and normalised
+        // by the full ray x bounce count, so a ray that escapes contributes zero.
         double pathSum = 0D;
-        int pathCount = 0;
         // How much of the reflection comes off surfaces that RETURN energy to the listener. Two earlier
         // versions of this were wrong and both are worth recording:
         //   * |normal.y| alone    - "vertical" is not "facing the listener". A wall with its back to you has
@@ -554,7 +554,6 @@ public final class SoundFXUtils {
         // The measure below is the returned energy: the surface must face back along the incoming direction
         // AND have a clear path to the ear.
         float facingSum = 0F;
-        float facingWeightSum = 0F;
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
         for (int i = 0; i < REVERB_RAYS; i++) {
@@ -604,7 +603,6 @@ public final class SoundFXUtils {
                     final double segment = lastHitPos.distanceTo(rayHit.getLocation());
                     totalRayDistance += segment;
                     pathSum += segment;
-                    pathCount++;
 
                     lastHitPos = rayHit.getLocation();
                     lastHitNormal = surfaceNormal(rayHit.getDirection());
@@ -630,12 +628,19 @@ public final class SoundFXUtils {
                         sharedAirspace += 1.0F;
                     }
 
-                    // Reflectivity-weighted, so a wall the source actually illuminated counts more than one
-                    // it only grazed, and only counted when the path back is clear.
+                    // Reflectivity-weighted, and counted only when the path back is clear.
+                    //
+                    // This is accumulated as an ABSOLUTE total and normalised at the end by the number of
+                    // rays x bounces, not as a mean over the bounces that happened to hit. The distinction
+                    // matters: a plain hits very few surfaces, so a mean over those few was dominated by
+                    // whichever distant slope one ray happened to strike - measured, a flat plain produced
+                    // face 0.85 while only 0.05 of its bounces could see the listener at all, which is
+                    // self-contradictory. The fraction of ALL rays that return energy is the quantity that
+                    // says how much of this space reflects sound back, and it cannot be inflated by a
+                    // handful of lucky hits.
                     final double towardsSource = -lastHitNormal.dot(newRayDir);
                     facingSum += blockReflectivity * (float) Math.max(0.0D, towardsSource)
                             * (pathBackToListener ? 1F : 0F);
-                    facingWeightSum += blockReflectivity;
 
                     // Farthest reflection of any bounce, from the source. This is where a valley's far wall
                     // shows up; the first bounce is the ground under the listener in every scene.
@@ -676,7 +681,14 @@ public final class SoundFXUtils {
         this.lastReverbHitFraction = firstHits / (float) REVERB_RAYS;
         this.lastReverbShared = sharedAirspace / 64F;
         this.lastReverbFarthest = farthest;
-        this.lastReverbMeanFreePath = pathCount > 0 ? (float) (pathSum / pathCount) : 0F;
+        // Mean free path, normalised by rays x bounces rather than by the bounces that happened.
+        //
+        // As a mean over hits it was inflated by escapes: in a plain most rays leave for the sky and never
+        // bounce, so the few that do - striking distant terrain - dominated the average. Measured, a flat
+        // plain reported mfp 139 m, which is not a property of a plain. Dividing by the full ray x bounce
+        // count makes an escaping ray contribute zero, so the number falls towards zero exactly where the
+        // space is open and there is nothing to reflect off.
+        this.lastReverbMeanFreePath = (float) (pathSum / (double) (REVERB_RAYS * REVERB_RAY_BOUNCES));
 
         final float sharedAirspaceWeight0 = MathStuff.clamp1(sharedAirspace / 20.0F);
         final float sharedAirspaceWeight1 = MathStuff.clamp1(sharedAirspace / 15.0F);
@@ -698,23 +710,21 @@ public final class SoundFXUtils {
         // grass 0.15, dirt 0.35, against stone's 1.0 - is crushed. Measured: zone2 and zone3 send gains are
         // EXACTLY ZERO for every row below reflectivity 0.4, which is where all outdoor terrain sits.
         //
-        // Worse, the probe showed the tail is perfectly ANTI-correlated with openness: a stone cupboard with
-        // 2.8 m between reflections reached g1 0.956 while a 222 m open valley reached 0.013. The relationship
-        // was backwards, because the decay time was being driven by material instead of by geometry.
-        //
-        // Reflection DENSITY is the quantity that actually separates the two, and it is physical: a cave packs
-        // reflections a few blocks apart so they fuse into a diffuse tail, while a valley leaves tens of
-        // blocks of open air between them. The term is continuous - no threshold - so a hall gets a partial
-        // share, which is what a hall does.
         // NO THRESHOLD GATE: the term is scaled by the measured share of wall-facing reflections, so it is
         // continuous and derived from geometry rather than from a proxy. A plain's reflections are its own
         // ground, whose normal points up, so its share goes to zero; a valley's are its walls.
-        final float facingShare = facingWeightSum > 0F ? facingSum / facingWeightSum : 0F;
+        // Normalised by the number of rays x bounces, i.e. the fraction of ALL reflections that return
+        // energy to the listener - an absolute measure of how much of this space reflects sound back.
+        final float facingShare = facingSum / (float) (REVERB_RAYS * REVERB_RAY_BOUNCES);
         this.lastFacingShare = facingShare;
         final float density = this.lastReverbMeanFreePath
                 / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);
-        this.lastEarlyReflectionGain = density * (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
-                * facingShare * REFLECTION_DENSITY_GAIN;
+        // Smoothed: the raw value is a ratio of two 32-ray averages and was measured to swing by up to 0.36
+        // between evaluations 0.4 s apart, which made the tail appear and vanish at random.
+        this.lastEarlyReflectionGain = this.source.smoothEarlyReflection(
+                density * (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
+                        * facingShare * REFLECTION_DENSITY_GAIN,
+                this.source.isImmediateUpdate());
         // Handed to finalizeSendGains rather than added here: see ReverbTrace.earlyReflection.
         out.earlyReflection = this.lastEarlyReflectionGain;
         // The early-reflection zones are kept BRIGHT. A reflection off a distant wall travels through AIR,

@@ -34,6 +34,11 @@ public final class SourceContext implements Callable<Void> {
     // Occlusion smoothing gets its own constant so tuning it never accidentally changes
     // the water damping (same 0.85 baseline).
     private static final float OCCLUSION_SMOOTH_ALPHA = 0.85F;
+    // The early-reflection gain is a ratio of two 32-ray averages, so it is noisier than the occlusion
+    // value it sits beside; it gets a slower constant of its own so calming it never changes the others.
+    // 0.5 settles in about 0.7 s at the 0.5 s update interval: long enough to average the sampling noise,
+    // short enough that walking out of a valley still fades rather than lagging.
+    private static final float EARLY_REFLECTION_SMOOTH_ALPHA = 0.5F;
 
     private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
 
@@ -66,6 +71,9 @@ public final class SourceContext implements Callable<Void> {
     private boolean occlusionInitialized;
     private float smoothedDiffraction = 0F;
     private boolean diffractionInitialized;
+    /** Smoothed early-reflection gain; see {@link #smoothEarlyReflection}. */
+    private float smoothedEarlyReflection = 0F;
+    private boolean earlyReflectionInitialized;
     // Set by the sound processor when the player just entered/left water. The next
     // evaluation snaps the smoothing state straight to its target instead of easing, so
     // entering/exiting water responds with no audible lag.
@@ -193,6 +201,31 @@ public final class SourceContext implements Callable<Void> {
     }
 
     /**
+     * Time-smooths the early-reflection gain toward its target.
+     *
+     * <p>Measured jitter without this: between consecutive evaluations less than 0.4 s apart the gain
+     * swung by up to 0.36 - from 0.152 to 0.512, and from 0.482 down to 0.136 - so a scene either had a
+     * tail or did not, apparently at random. The user described exactly that: "the places that should not
+     * have it sometimes do and sometimes do not".
+     *
+     * <p>The cause is sampling, not the model. The gain is built from the mean free path and the returned
+     * energy share, both averaged over only 32 rays, and the mean free path alone was measured to swing by
+     * up to 53 blocks within a single second as the source moved. Easing the result is what the occlusion
+     * and water terms already do for the same reason.
+     *
+     * <p>Snaps on the first evaluation, so a freshly played sound is not initially silent.
+     */
+    public float smoothEarlyReflection(final float target, final boolean snap) {
+        if (!this.earlyReflectionInitialized || snap) {
+            this.earlyReflectionInitialized = true;
+            this.smoothedEarlyReflection = target;
+        } else {
+            this.smoothedEarlyReflection = ease(this.smoothedEarlyReflection, target, EARLY_REFLECTION_SMOOTH_ALPHA);
+        }
+        return this.smoothedEarlyReflection;
+    }
+
+    /**
      * Time-smooths the diffraction compensation toward the target. The compensation
      * jumps when the player crosses a room boundary - the openness and enclosure
      * probes change in a single step, so the direct restore would snap. Easing it
@@ -245,7 +278,7 @@ public final class SourceContext implements Callable<Void> {
         if (this.isEnabled()) {
             synchronized (this.sync()) {
                 this.ensureFilters();
-                // 26.1: upload through the effect manager so the reverb zones are mapped onto
+                // 1.20.1: upload through the effect manager so the reverb zones are mapped onto
                 // the number of auxiliary sends the device actually supports.
                 Effects.applyReverb(this);
                 AudioUtilities.validate("SourceHandler::tick");
@@ -305,9 +338,10 @@ public final class SourceContext implements Callable<Void> {
             this.fxProcessor.calculate(SoundFXProcessor.getWorldContext());
         } catch (final Throwable t) {
             // Suppress to keep a failing source from killing the processing thread, but
-            // leave a debug breadcrumb: this catch previously hid real defects (e.g. an
-            // out-of-bounds reverb config silently disabling reverb for every sound).
-            LOGGER.debug(t, "Sound FX update failed for %s", AudioUtilities.debugString(this.sound));
+            // leave an error breadcrumb: this catch previously hid real defects (e.g. an
+            // unregistered accessor mixin throwing ClassCastException on every evaluation,
+            // silently disabling reverb for every sound).
+            LOGGER.error(t, "REVERB_CALCFAIL sound=%s", AudioUtilities.debugString(this.sound));
         }
     }
 

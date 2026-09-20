@@ -259,6 +259,15 @@ public final class SoundFXUtils {
      */
     /** Mean distance to the first reflection, in blocks. Small = a room, large = a valley wall. */
     private float lastReverbFirstDistance;
+    /**
+     * Farthest reflection of any bounce, in blocks, measured from the source.
+     *
+     * <p>Needed because the FIRST reflection cannot tell a room from a valley: a listener standing on the
+     * ground hits the ground first, so the first bounce is a few blocks away in both cases (measured: median
+     * 5.9 m across four scenes). A valley's far wall only appears in the LATER bounces. This is the number
+     * that should separate the two, and it is measured before anything is changed on the strength of it.
+     */
+    private float lastReverbFarthest;
     /** Fraction of rays that found a reflection at all. Low = open sky, high = surrounded by surfaces. */
     private float lastReverbHitFraction;
     /** Mean reflectivity of the first bounce. Low = soft ground (grass, leaves), high = stone. */
@@ -437,7 +446,8 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
                         + "clear=%.2f walk=%d/%.1fm "
-                        + "rv=%.1fm/%.2f/%.2f/%.2f g=%.3f,%.3f,%.3f,%.3f "
+                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm "
+                        + "g=%.3f,%.3f,%.3f,%.3f "
                         + "rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
@@ -446,7 +456,7 @@ public final class SoundFXUtils {
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
                 this.lastWalkSegments, this.lastWalkDistance,
                 this.lastReverbFirstDistance, this.lastReverbHitFraction,
-                this.lastReverbReflectivity, this.lastReverbShared,
+                this.lastReverbReflectivity, this.lastReverbShared, this.lastReverbFarthest,
                 reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
                 ReusableRaycastContext.raycastCount(),
                 (System.nanoTime() - evaluationStart) / 1000.0D));
@@ -465,6 +475,7 @@ public final class SoundFXUtils {
         float firstDistanceSum = 0F;
         float firstReflectivitySum = 0F;
         int firstHits = 0;
+        float farthest = 0F;
 
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
@@ -516,6 +527,10 @@ public final class SoundFXUtils {
                     lastRayDir = newRayDir;
                     lastHitBlock = rayHit.getBlockPos();
 
+                    // Farthest reflection of any bounce, from the source. This is where a valley's far wall
+                    // shows up; the first bounce is the ground under the listener in every scene.
+                    farthest = Math.max(farthest, (float) soundPos.distanceTo(lastHitPos));
+
                     // Cast a ray back at the player.  If it is a miss there is a path back from the reflection
                     // point to the player meaning they share the same airspace.
                     final Vec3 finalRayStart = MathStuff.addScaled(lastHitPos, lastHitNormal, 0.01F);
@@ -558,6 +573,7 @@ public final class SoundFXUtils {
         this.lastReverbReflectivity = firstHits > 0 ? firstReflectivitySum / firstHits : 0F;
         this.lastReverbHitFraction = firstHits / (float) REVERB_RAYS;
         this.lastReverbShared = sharedAirspace / 64F;
+        this.lastReverbFarthest = farthest;
 
         final float sharedAirspaceWeight0 = MathStuff.clamp1(sharedAirspace / 20.0F);
         final float sharedAirspaceWeight1 = MathStuff.clamp1(sharedAirspace / 15.0F);

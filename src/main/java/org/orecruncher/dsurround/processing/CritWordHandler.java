@@ -343,7 +343,7 @@ public class CritWordHandler {
      * already {@code grow} (1.14) while the shrink aimed at 1.0 - the number ended visibly smaller
      * than it started, which the user spotted immediately.
      */
-    private float sizeAtAge(final int age) {
+    private float sizeAtAge(final float age) {
         final float peakSize = (float) Math.pow(this.growFactor, this.peakTick);
         final float size = age <= this.peakTick
                 ? (float) Math.pow(this.growFactor, age)
@@ -364,12 +364,13 @@ public class CritWordHandler {
      * which is exactly what SpeechBubbleHandler does for its bubbles; the only difference between
      * the two features is the world size (1.12.2: 0.024 for the crit word, 0.015 for a bubble).
      */
-    private float computeTextScale(final CritWord entry, final float depth, final Minecraft mc,
-                                   final float guiHeight) {
+    private float computeTextScale(final CritWord entry, final float renderAge, final float depth,
+                                   final Minecraft mc, final float guiHeight) {
         final float fov = mc.options.fov().get();
         final float tanHalfFov = (float) Math.tan(Math.toRadians(fov) / 2.0D);
 
-        final float worldUnitsPerFontPx = entry.worldUnitsPerFontPx * sizeAtAge(entry.age) * this.sizeScale;
+        final float worldUnitsPerFontPx =
+                entry.worldUnitsPerFontPx * sizeAtAge(renderAge) * this.sizeScale;
         float scale = worldUnitsPerFontPx * (guiHeight / 2.0F) / (float) (depth * tanHalfFov);
 
         // guard rails only: never microscopic, never absurdly large on screen
@@ -491,6 +492,13 @@ public class CritWordHandler {
             final double py = Mth.lerp(partialTick, entry.prevY, entry.y);
             final double pz = Mth.lerp(partialTick, entry.prevZ, entry.z);
 
+            // The simulation advances `age` once per TICK, but this runs once per FRAME - so a size
+            // or alpha read straight from entry.age steps at 20 Hz and reads as choppy. Interpolating
+            // it is the same treatment the position already gets above, and it is visual only: `age`
+            // still decides when the entry dies, and the growth curve, peak tick, lifetime and fade
+            // window are all unchanged.
+            final float renderAge = entry.age + partialTick;
+
             // Cheap projection first: words behind the camera or beyond the render depth
             // are dropped before the (comparatively expensive) occlusion raycast runs.
             final double sqDist = (px - camPos.x) * (px - camPos.x)
@@ -529,12 +537,15 @@ public class CritWordHandler {
             final float sy = (1.0F - (this.clip.y / depth * 0.5F + 0.5F)) * height;
 
             // Distance fade + shrink: scale by 1/depth so a word on a far target stays small.
-            float textScale = this.computeTextScale(entry, depth, mc, height);
+            float textScale = this.computeTextScale(entry, renderAge, depth, mc, height);
 
             int alpha = 255;
-            if (entry.age > this.fadeStart())
-                alpha = (int) (255F * (this.lifetime - entry.age)
+            if (renderAge > this.fadeStart())
+                alpha = (int) (255F * (this.lifetime - renderAge)
                         / (float) (this.lifetime - this.fadeStart()));
+            // Clamp: the truncating cast could go negative on the last frame, which handed an
+            // invalid alpha to the colour.
+            alpha = alpha < 0 ? 0 : (alpha > 255 ? 255 : alpha);
             int color = (entry.color & 0x00FFFFFF) | (alpha << 24);
 
             final int drawX = -font.width(entry.text) / 2 + 1;

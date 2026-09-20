@@ -725,9 +725,17 @@ public final class SoundFXUtils {
                     }
                     facingSum += returned;
 
-                    // Farthest reflection of any bounce, from the source. This is where a valley's far wall
-                    // shows up; the first bounce is the ground under the listener in every scene.
-                    farthest = Math.max(farthest, (float) soundPos.distanceTo(lastHitPos));
+                    // Farthest reflection of any bounce, measured FROM THE LISTENER. That is the quantity an
+                    // echo's delay is made of: the reflection reaches the ear after travelling from the
+                    // surface, so what matters is how far the surface is from the EAR, not from the source.
+                    //
+                    // Measured from the SOURCE it was useless, and the probe showed it: `far` read 1-16 m in
+                    // scenes whose `rv` (first-reflection distance) was 23-76 m. Rays leave the source in every
+                    // direction, so they strike whatever nearby terrain is in the way, while a distant valley
+                    // wall subtends a tiny solid angle and is almost never sampled. A valley therefore looked
+                    // like it had a wall a few blocks away - which is exactly why a narrow stone gorge, where
+                    // the walls really ARE close to the listener, produced the strongest echo.
+                    farthest = Math.max(farthest, (float) ctx.playerEyePosition.distanceTo(lastHitPos));
                 }
 
                 assert totalRayDistance >= 0;

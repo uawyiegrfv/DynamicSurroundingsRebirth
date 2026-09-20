@@ -478,15 +478,15 @@ public final class SoundFXUtils {
         // Snap flag read once at the top for all smoothing (occlusion + water factor).
         final boolean snap = this.source.isImmediateUpdate();
 
-        // Fabric original value: GLOBAL_BLOCK_ABSORPTION * 3.0. Temporarily raised to 4.0
-        // to make a single wool wall more obvious, but the user asked for the original back.
-        final float absorptionCoeff = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
         final float airAbsorptionFactor = calculateWeatherAbsorption(ctx, soundPos, ctx.playerEyePosition);
         // Real ray-traced occlusion, time-smoothed so a geometric boundary (a ray starting
         // to clip the ground a few blocks away) fades instead of snapping the muffling.
         final float occlusionAccumulation = this.source.smoothOcclusion(
                 calculateOcclusion(ctx, soundPos, ctx.playerEyePosition), snap);
-        final float sendCoeff = -occlusionAccumulation * absorptionCoeff;
+        // The occlusion measurement IS a decibel loss (see calculateOcclusion), so the exponent is its
+        // negation directly. This used to be divided by a constant in the callee and multiplied by the
+        // same constant here; the two cancelled, and the round trip only obscured the units.
+        final float sendCoeff = -occlusionAccumulation;
 
         // Broadband restore value: drives the level through pow(x, 0.1) and, unless diffraction
         // damps it, the high-frequency gain as well.
@@ -1214,7 +1214,6 @@ public final class SoundFXUtils {
         final float openness = listenerOpenness(ctx, target);
         this.lastOpenness = openness;
 
-        final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
         // The material loss is scaled by the SHARE OF DIRECTIONS THAT ARE NOT OPEN.
         //
         // Only the energy arriving along a blocked direction has to cross the rock; everything arriving through
@@ -1251,7 +1250,7 @@ public final class SoundFXUtils {
         }
         final float lossDb = weightTotal > 0F ? weightedDb / weightTotal : 0F;
 
-        // The occlusion value drives the direct low-pass as exp(-occlusion * absorption), and the engine also
+        // The returned value drives the direct low-pass as exp(-x), and the engine also
         // derives the direct LEVEL from it as pow(that, 0.1). Feeding it the full transmission loss applied
         // that loss TWICE - once as a filter, once as level - and drove directCutoff to ~1e-26 behind rock,
         // which is silence, not muffling. The filter gets the full loss (that is what muffling is); the level
@@ -1259,7 +1258,8 @@ public final class SoundFXUtils {
         final float levelLossDb = lossDb * MATERIAL_LEVEL_RESTORE;
 
         this.lastZoneLossDb = lossDb;
-        return levelLossDb / Math.max(1.0E-6F, absorption);
+        // The level loss in dB, which is exactly what the caller needs for exp(-x).
+        return levelLossDb;
     }
 
     /**

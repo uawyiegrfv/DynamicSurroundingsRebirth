@@ -24,6 +24,12 @@ public final class Effects {
     // 1.667 restores the previous default strength, 0.0 disables reverb entirely.
     private static final float GLOBAL_REVERB_MULTIPLIER = 0.36F;
 
+    /**
+     * Unused. It was the coefficient in occlusion = levelLossDb / (this * 3) inside the occlusion walk,
+     * and the caller multiplied the same constant back immediately, so the two cancelled and it never
+     * affected the result. Removed from the calculation; kept so the constant's history is not lost.
+     */
+    @Deprecated
     public static final float GLOBAL_BLOCK_ABSORPTION = 1F;
     public static final float SNOW_AIR_ABSORPTION_FACTOR = 5F;
     public static final float RAIN_AIR_ABSORPTION_FACTOR = 2F;

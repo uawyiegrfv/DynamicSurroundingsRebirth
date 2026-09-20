@@ -168,6 +168,14 @@ public final class SoundFXProcessor {
      * loud the effect is as a whole; a reflection is always quieter than the sound that caused it.
      */
     private static final float ECHO_GAIN = 2.0F;
+    /**
+     * Below this, the reflection is inaudible against the direct sound and scheduling it is pure waste.
+     *
+     * <p>Masking, not geometry: a reflection 25 dB down is not heard however late it arrives. At ECHO_GAIN
+     * 2.0 this admits a stony valley (~-15 dB) and rejects a wide grassy one (~-33 dB), which is the
+     * distinction the ear makes.
+     */
+    private static final float ECHO_MIN_VOLUME = 0.045F;
 
     private record PendingEcho(SoundInstance sound, long playAtMs) {}
 
@@ -248,7 +256,11 @@ public final class SoundFXProcessor {
             return false;
 
         final float volume = sound.getVolume() * path.gain * ECHO_GAIN;
-        if (volume <= 0.01F)
+        // A reflection more than about 25 dB below the direct sound is inaudible however long its delay, so
+        // scheduling one only costs a voice. The delay test alone cannot catch that: it says "separate
+        // event", not "audible event". Measured, a stony valley's reflection lands near -15 dB and a wide
+        // grassy one near -33, so this is the test that separates the two.
+        if (volume < ECHO_MIN_VOLUME)
             return false;
 
         // Placed at the reflecting surface, played without attenuation: the copy IS the sound arriving from

@@ -198,10 +198,6 @@ public class Configuration extends ConfigurationData {
         public double reverbIntensity = 1.0D;
 
         @Property
-        @Comment("Delayed-copy echo in open spaces: when the geometry shows a wall returns sound to the listener, a second copy of the sound plays from that wall after the measured delay, so a valley answers back")
-        public boolean enableDelayedEcho = true;
-
-        @Property
         @Comment("Enable/disable damping for sounds whose path to the player passes through water. Reduces both volume and high frequencies (muffling)")
         public boolean enableWaterSoundDamping = true;
 

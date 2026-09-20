@@ -2,7 +2,6 @@ package org.orecruncher.dsurround.runtime.audio;
 
 import com.mojang.blaze3d.audio.Channel;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.sounds.ChannelAccess;
 import net.minecraft.network.chat.Component;
@@ -38,8 +37,6 @@ public final class SoundFXProcessor {
     private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
     private static final Configuration.EnhancedSounds CONFIG =
             ContainerManager.resolve(Configuration.EnhancedSounds.class);
-    private static final org.orecruncher.dsurround.sound.IAudioPlayer ECHO_PLAYER =
-            ContainerManager.resolve(org.orecruncher.dsurround.sound.IAudioPlayer.class);
     private static final int SOUND_PROCESS_ITERATION = 1000 / 20;   // Match MC client tick rate
     // Upper bound on how many sources are evaluated per processing pass. Dense sound
     // scenes (cave full of mobs) otherwise queue every source's ray-trace work at once,
@@ -149,194 +146,6 @@ public final class SoundFXProcessor {
             }
             Effects.deinitialize();
         }
-    }
-
-    // ------------------------------------------------------------------ delayed-copy echo
-    //
-    // A real echo is a second arrival of the sound, so it is produced by playing a second copy later. See
-    // One aux send carries one effect and all four are reverb zones, so an echo cannot be an aux send at
-    // all - and OpenAL's EAXREVERB early reflections are diffused into the tail by design. A second copy of
-    // the sound is the only mechanism that keeps all four zones. See HANDOFF 8.83 and 8.89.
-    //
-    // Bounds are deliberate. MAX_PENDING caps the queue so a burst of sounds cannot multiply into hundreds
-    // of voices; ECHO_MIN_DELAY_MS is the Haas fusion window - a reflection arriving sooner than this is
-    // heard as part of the space, not as a separate event, and playing a copy there would only make the
-    // sound louder and phasey.
-    private static final int MAX_PENDING_ECHOES = 12;
-    /**
-     * Below this the copy is heard as the sound PLAYING TWICE rather than as an echo.
-     *
-     * <p>90 ms was too low: measured, a cave's reflections arrive at 92-129 ms, which is the classic
-     * slap-back range - long enough to separate from the direct sound, short enough to read as a defect. A
-     * discrete echo only sounds like an echo beyond roughly 150 ms, and a cave should get its space from the
-     * reverb zones instead.
-     */
-    private static final long ECHO_MIN_DELAY_MS = 150L;
-    private static final long ECHO_MAX_DELAY_MS = 900L;
-    /**
-     * Overall level of the echo. The geometry already supplies the relative strength, so this only sets how
-     * loud the effect is as a whole; a reflection is always quieter than the sound that caused it.
-     */
-    private static final float ECHO_GAIN = 2.0F;
-    /**
-     * Below this, the reflection is inaudible against the direct sound and scheduling it is pure waste.
-     *
-     * <p>Masking, not geometry: a reflection 25 dB down is not heard however late it arrives. At ECHO_GAIN
-     * 2.0 this admits a stony valley (~-15 dB) and rejects a wide grassy one (~-33 dB), which is the
-     * distinction the ear makes.
-     */
-    private static final float ECHO_MIN_VOLUME = 0.045F;
-
-    private record PendingEcho(SoundInstance sound, long playAtMs) {}
-
-    /**
-     * A delayed copy of a sound, marked so the echo scheduler can recognise it.
-     *
-     * <p>Without a marker the copy is an ordinary sound instance, so playing it runs it back through
-     * {@code onSoundPlay} and it schedules an echo of itself - a decaying train of copies rather than one
-     * answer. The marker is the whole reason this is a subclass and not a plain SimpleSoundInstance.
-     */
-    private static final class EchoSoundInstance extends SimpleSoundInstance {
-        EchoSoundInstance(net.minecraft.resources.ResourceLocation location, SoundSource source, float volume,
-                float pitch, double x, double y, double z) {
-            super(location, source, volume, pitch,
-                    org.orecruncher.dsurround.lib.random.Randomizer.current(),
-                    false, 0, SoundInstance.Attenuation.NONE, x, y, z, false);
-        }
-    }
-
-    private static final java.util.ArrayDeque<PendingEcho> pendingEchoes = new java.util.ArrayDeque<>();
-
-    /**
-     * Plays any echo whose delay has elapsed. Called once per client tick, like the footstep echo queue.
-     */
-    private static void drainPendingEchoes() {
-        if (pendingEchoes.isEmpty())
-            return;
-        final long now = System.currentTimeMillis();
-        while (!pendingEchoes.isEmpty() && pendingEchoes.peek().playAtMs() <= now) {
-            final SoundInstance echo = pendingEchoes.poll().sound();
-            try {
-                ECHO_PLAYER.play(echo);
-            } catch (final Throwable t) {
-                // A copy that fails to start must never take the sound system with it.
-                LOGGER.debug("ECHO_PLAY failed: %s", t.getClass().getSimpleName());
-            }
-        }
-    }
-
-    /**
-     * Schedules a delayed copy of a sound when the geometry says its reflection returns to the listener.
-     *
-     * <p>Called from {@code SoundFXUtils.calculate} with THAT source's own measurements. It used to be called
-     * from the sound-play hook and read them from a static "most recent value", which is whatever source was
-     * evaluated last rather than the source being played - the same defect already removed from the
-     * early-reflection tap.
-     *
-     * <p>An evaluation runs about twice a second per source, so the echo is scheduled only once per sound:
-     * {@code SourceContext} remembers that this sound has been answered.
-     */
-    /** Rate limit for the rejection diagnostics; see reject(). */
-    private static long lastEchoRejectLogAt = 0L;
-    private static final long ECHO_REJECT_LOG_INTERVAL_MS = 1500L;
-
-    /**
-     * Reports why an echo was not scheduled.
-     *
-     * <p>Added because the feature was silent with no evidence: six guards can each reject a candidate and
-     * from outside they are indistinguishable, so "no echo" could not be turned into an action. Rate limited
-     * so a busy scene cannot flood the log.
-     */
-    private static void reject(final String reason, final String detail) {
-        final long now = System.currentTimeMillis();
-        if (now - lastEchoRejectLogAt < ECHO_REJECT_LOG_INTERVAL_MS)
-            return;
-        lastEchoRejectLogAt = now;
-        LOGGER.info("ECHO_REJECT %s | %s", reason, detail);
-    }
-
-    public static boolean scheduleEcho(final SoundInstance sound, final WorldContext ctx, final Vec3 soundPos,
-            final float share, final float reflectivity) {
-        if (!CONFIG.enableDelayedEcho) {
-            reject("disabled", "config enableDelayedEcho=false");
-            return false;
-        }
-        if (sound == null) {
-            reject("no-sound", "");
-            return false;
-        }
-        // An echo must never echo. The copy is a real sound instance, so it comes back through the FX
-        // pipeline; without this guard a valley would answer with a decaying train of copies.
-        if (sound instanceof EchoSoundInstance)
-            return false;
-        if (pendingEchoes.size() >= MAX_PENDING_ECHOES) {
-            reject("queue-full", "pending=" + pendingEchoes.size());
-            return false;
-        }
-        // A looping sound has no end to echo, and music or weather is not a discrete event.
-        if (sound.isLooping()
-                || sound.getSource() == SoundSource.MASTER
-                || sound.getSource() == SoundSource.MUSIC
-                || sound.getSource() == SoundSource.WEATHER) {
-            reject("sound-type", "looping=" + sound.isLooping() + " source=" + sound.getSource());
-            return false;
-        }
-        // A plain's reflections are its own ground, so its share collapses to ~0.015 and it gets no echo.
-        if (share <= 0.02F) {
-            reject("low-share", String.format("share=%.4f (need >0.02)", share));
-            return false;
-        }
-
-        // `share` is NOT passed on: it counts the fraction of rays that return energy, and in a valley
-        // most rays leave for the sky, so it is small outdoors by construction (measured 0.015-0.05
-        // against 0.35 for an enclosed space). It is the right measure for the diffuse tail; a single
-        // specular reflection's strength is its own path length and its own material.
-        final SoundFXUtils.EchoPath path = SoundFXUtils.findEchoPath(ctx, soundPos, reflectivity);
-        if (path == null) {
-            reject("no-path", String.format("share=%.4f refl=%.3f pos=%.1f,%.1f,%.1f ear=%.1f,%.1f,%.1f",
-                    share, reflectivity, soundPos.x(), soundPos.y(), soundPos.z(),
-                    ctx.playerEyePosition.x(), ctx.playerEyePosition.y(), ctx.playerEyePosition.z()));
-            return false;
-        }
-
-        // Delay is the extra distance the reflection travels, at the speed of sound.
-        final long delayMs = Math.round(path.extraDistance / SoundFXUtils.speedOfSound() * 1000.0D);
-        if (delayMs < ECHO_MIN_DELAY_MS || delayMs > ECHO_MAX_DELAY_MS) {
-            reject("delay-range", String.format("delay=%dms extra=%.1f blocks (want %d..%d ms)",
-                    delayMs, path.extraDistance, ECHO_MIN_DELAY_MS, ECHO_MAX_DELAY_MS));
-            return false;
-        }
-
-        final float volume = sound.getVolume() * path.gain * ECHO_GAIN;
-        // A reflection more than about 25 dB below the direct sound is inaudible however long its delay, so
-        // scheduling one only costs a voice. The delay test alone cannot catch that: it says "separate
-        // event", not "audible event".
-        if (volume < ECHO_MIN_VOLUME) {
-            reject("too-quiet", String.format("vol=%.4f gain=%.4f (want >=%.3f)",
-                    volume, path.gain, ECHO_MIN_VOLUME));
-            return false;
-        }
-
-        // Placed at the reflecting surface, played without attenuation: the copy IS the sound arriving from
-        // the wall, and the geometry's spreading term already set its level. That also gives correct stereo
-        // placement for free - the echo arrives from the direction of the wall, not from the original sound.
-        final SoundInstance copy = new EchoSoundInstance(
-                sound.getLocation(),
-                sound.getSource(),
-                volume,
-                sound.getPitch(),
-                path.surface.x(),
-                path.surface.y(),
-                path.surface.z());
-
-        pendingEchoes.add(new PendingEcho(copy, System.currentTimeMillis() + delayMs));
-
-        // Logged at INFO on purpose while the feature is being verified: the debug level is off by default,
-        // and without this line "I heard nothing" cannot distinguish "no wall was found" from "too quiet".
-        LOGGER.info("ECHO_SCHEDULE sound=%s delay=%dms gain=%.3f vol=%.3f at=%.1f,%.1f,%.1f",
-                sound.getLocation(), delayMs, path.gain, volume,
-                path.surface.x(), path.surface.y(), path.surface.z());
-        return true;
     }
 
     private static boolean shouldIgnoreSound(SoundInstance sound) {
@@ -478,7 +287,6 @@ public final class SoundFXProcessor {
             if (++diagCounter % 1200 == 0)
                 logPoolDiag();
         }
-        drainPendingEchoes();
     }
 
     // Every 60s: pool occupancy (used/max per pool), registered-context count and the

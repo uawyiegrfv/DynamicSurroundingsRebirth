@@ -112,58 +112,20 @@ public final class SoundFXUtils {
      */
     private static final float MATERIAL_LEVEL_RESTORE = 0.2F;
 
-    /**
-     * How far from the listener a reflecting surface may be and still count.
-     *
-     * <p>A specular reflection off a flat wall at distance L with the source and the listener a
-     * distance D apart over the same side of it has an extra path length of 2L - 2D, so the wall has
-     * to be much farther from the listener than the sound is for the reflection to arrive late enough
-     * to be heard as an echo at all. 64 blocks admits every geometry that can produce an audible one.
-     */
-    private static final int ECHO_SEARCH_DISTANCE = 64;
-    /**
-     * How far a candidate plane's reflection point may sit from the line joining the source and the
-     * listener before the plane is not the one carrying the reflection.
-     *
-     * <p>Not a tolerance on the geometry - the reflection point itself is computed exactly. This only
-     * rejects a plane whose reflection point falls outside the stretch of surface between the two,
-     * where no single reflection can join them.
-     */
-    private static final double ECHO_PLANE_MAX_LATERAL = 48.0D;
-    /**
-     * A small offset into the block a reflecting plane belongs to, indexed by
-     * {@code axis * 2 + (plane &gt; listenerCoordinate ? 1 : 0)}. Added to a computed reflection point
-     * to ask the world whether that point is actually on a surface.
-     */
-    private static final Vec3[] AXIS_OFFSETS = {
-            new Vec3(0.05D, 0, 0), new Vec3(-0.05D, 0, 0),
-            new Vec3(0, 0.05D, 0), new Vec3(0, -0.05D, 0),
-            new Vec3(0, 0, 0.05D), new Vec3(0, 0, -0.05D)
-    };
-
-    /** Axis names, so the plane sweep is one loop rather than three copies. */
-    private static final String[] AXIS_NAMES = { "x", "y", "z" };
-    /**
-     * How far apart the two raycast hits may land and still count as the same surface, squared.
-     *
-     * <p>Both rays are aimed at the reflection point, so in free air they land on the same block. The
-     * slack absorbs a grazing arrival that rounds to a neighbouring block at a boundary.
-     */
-    private static final double ECHO_HIT_MATCH_SQR = 4.0D;
     /** Skylight at a position that can see the sky in full. */
     /**
      * Gain of the returned-energy term applied to the reverb TAIL.
      *
-     * <p>Kept at 1.0, the value the tail was tuned to before the echo work began. The early-reflection TAP
-     * has its own gain (Effects.EARLY_REFLECTION_GAIN) and the two are deliberately separate: the tap is a
-     * discrete event, the tail is the diffuse field behind it.
+     * <p>Kept at 1.0, the value the tail was tuned to. The early-reflection TAP has its own gain
+     * (Effects.EARLY_REFLECTION_GAIN) and the two are deliberately separate: the tap is a discrete event,
+     * the tail is the diffuse field behind it.
      */
     private static final float EARLY_REFLECTION_TAIL_GAIN = 1.0F;
     /**
      * Reference gain of the early reflection, applied to the returned-energy share AFTER the physical
-     * spreading and material terms. Sets the overall level of the echo, not its shape: the shape comes from
-     * the geometry, so this only needs to be right once. At 1.0 a grassy valley lands near -18 dB and a
-     * narrow stone gorge near -4 dB, both of which are levels real reflections reach.
+     * spreading and material terms. Sets the overall level of the reflection, not its shape: the shape
+     * comes from the geometry, so this only needs to be right once. At 1.0 a grassy valley lands near
+     * -18 dB and a narrow stone gorge near -4 dB, both of which are levels real reflections reach.
      */
     private static final float EARLY_REFLECTION_GAIN = 1.0F;
     private static final int MAX_SKY_LIGHT = 15;
@@ -336,10 +298,10 @@ public final class SoundFXUtils {
     /**
      * Early-reflection share contributed by distant reflectors, reported by the probe as {@code erf=}.
      *
-     * <p>A valley echo is not a late diffuse tail, it is an EARLY DISCRETE reflection off one large
-     * distant surface - which is why summing it into the late zones could never carry it. This is the
-     * measured share of the space that is "a distant wall, and it reflects", and it is added to the early
-     * zones instead. See traceReverb for why it cannot affect a room or a cave.
+     * <p>A reflection off a distant surface is an EARLY DISCRETE arrival, not a late diffuse tail -
+     * which is why summing it into the late zones could never carry it. This is the measured share of the
+     * space that is "a distant wall, and it reflects", and it is added to the early zones instead. See
+     * traceReverb for why it cannot affect a room or a cave.
      */
     /**
      * Mean distance between consecutive reflections, in blocks: the mean free path of the space, reported by
@@ -349,8 +311,8 @@ public final class SoundFXUtils {
      * that used the FARTHEST reflection instead. Distance alone cannot separate them: a large hall has far
      * walls too, and it SHOULD reverberate (a cathedral does). What actually differs is the DENSITY of the
      * reflections - a cave packs them a few blocks apart so they fuse into a diffuse tail, while a valley
-     * leaves tens of blocks of open air between them, which is what makes an echo discrete and audible
-     * rather than a wash.
+     * leaves tens of blocks of open air between them, so its reflections stay discrete rather than
+     * becoming a wash.
      *
      * <p>Measured before anything is changed on the strength of it, because the probe data already showed
      * that the long reverb zones are currently driven by MATERIAL (exactly zero below reflectivity 0.4) when
@@ -420,11 +382,11 @@ public final class SoundFXUtils {
         /** Smoothed returned energy for the reverb tail; consumed by finalizeSendGains. */
         float earlyReflection;
         /**
-         * Farthest reflection of any bounce, from the source. The EARLY REFLECTION's delay is measured from
-         * this rather than from the mean first-reflection distance: the mean only counts rays that hit
+         * Farthest reflection of any bounce, from the source. The EARLY REFLECTION's distance is measured
+         * from this rather than from the mean first-reflection distance: the mean only counts rays that hit
          * something, and in a large valley most rays leave for the sky, so it is biased towards the few near
-         * hits and comes out far too short for an echo. The farthest hit is dominated by the far wall, which
-         * is the surface an echo actually returns from.
+         * hits and comes out far too short. The farthest hit is dominated by the far wall, which is the
+         * surface the reflection actually returns from.
          */
         float farthest;
         /**
@@ -438,10 +400,10 @@ public final class SoundFXUtils {
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
         float earlyReflectionCutoff;
         /**
-         * Mean distance from the source to its FIRST reflection, in blocks. This is the measurement the
-         * reverb-or-echo decision is made from: a short first-reflection distance means the reflection
-         * arrives almost with the direct sound and is heard as reverb, a long one means it arrives as a
-         * separate event and is heard as an echo. See the note in {@code calculate}.
+         * Mean distance from the source to its FIRST reflection, in blocks. This is what separates a room
+         * from an open space: a short first-reflection distance means the reflection arrives almost with the
+         * direct sound and is heard as the space itself, a long one means it arrives as a separate event.
+         * That boundary is the Haas fusion window. See the note in {@code calculate}.
          */
         float firstDistance;
     }
@@ -526,48 +488,45 @@ public final class SoundFXUtils {
         directCutoff = Math.max(directCutoff, reverb.directCutoffFloor);
         directHfCutoff = Math.max(directHfCutoff, reverb.directCutoffFloor);
 
-        // ------------------------------------------------------------------ echo vs reverb
+        // ------------------------------------------------------------------ the early reflection
         //
         // The early reflection is set here, ONCE, from two measurements the ray trace above already made.
-        // This is the single place its loudness and its timing are decided - there is no second copy of
+        // This is the single place its loudness and its brightness are decided - there is no second copy of
         // either anywhere in the system.
         //
-        //   WHEN it arrives  <- first-reflection distance. This is what the ear uses to decide reverb or
-        //                       echo: below ~50 ms the reflection fuses with the direct sound and is heard
-        //                       as the space itself, above it the reflection separates and is heard as an
-        //                       echo. That boundary is the Haas fusion window, a property of the auditory
-        //                       system, so it is a constant and not a tuning knob.
         //   HOW LOUD it is   <- the returned-energy share. A plain's reflections are its own ground, whose
-        //                       normal points up, so its share collapses to ~0.015 and it gets no echo at
-        //                       all; a valley's walls return ~0.35.
+        //                       normal points up, so its share collapses to ~0.015 and the reflection is
+        //                       negligible; a valley's walls return ~0.35.
+        //   HOW BRIGHT it is <- the same share, lifted off the direct path's material darkening, because a
+        //                       reflection off a distant wall travels through AIR and crosses none of the
+        //                       rock that darkens the direct sound.
         //
-        // Both regimes come out of the same two formulas with no branch on scene type:
-        //   * a cave's first reflection is 3-18 blocks away  -> 10-40 ms  -> fuses     -> reverb
-        //   * a valley's first reflection is 45-120 blocks away -> 130-340 ms -> separates -> echo
+        // Both regimes come out of the same formula with no branch on scene type: an enclosed space's
+        // reflections are close and its share is high, an open one's are distant and its share is low.
         //
-        // ------------------------------------------------------------------ no discrete echo
+        // ------------------------------------------------------------------ why there is no discrete echo
         //
-        // A discrete echo was implemented, measured, and WITHDRAWN. Two independent reasons:
+        // A discrete echo - a second, separately audible arrival - was implemented and then removed. Two
+        // independent findings, both worth keeping so they are not re-learned:
         //
-        //  1. There is nowhere to send it. One OpenAL aux send carries exactly one effect, and all four sends
-        //     are reverb zones. Attaching the echo to a zone replaced that zone's tail - and routing the
-        //     zone's tail through AL_EFFECT_ECHO as well made every sound in a cave play twice, because that
-        //     effect has a default 0.1 s delay. It would need a fifth send, and ALC_MAX_AUXILIARY_SENDS is 4
-        //     here; OpenAL Soft's `sends` config can only LOWER that (alc.cpp: new_sends = minu(numSends,
-        //     config)), never raise it.
-        //
-        //  2. The EAXREVERB reflection tap is not an echo anyway. OpenAL's own source says its early taps are
+        //  1. The EAXREVERB reflection tap is not an echo. OpenAL's own source says its early taps are
         //     decorrelated through a Gerzon all-pass filter and exist to "smooth out the reverb tail" - so
         //     AL_EAXREVERB_REFLECTIONS_GAIN feeds the SAME perceptual quantity as the tail boost in
         //     finalizeSendGains, from the same measurement. Driving both counted reflected energy twice,
         //     which is consistent with the report that the result "sounds too much like the reverb".
+        //     AL_EAXREVERB_REFLECTIONS_DELAY cannot turn it into an echo for the same reason.
         //
-        // Driving that tap from here was also defective: reflection gain and delay are per-SLOT parameters,
-        // but this code runs once per source, so the global value ended up being whatever the last evaluated
-        // source had. Leaving them at their OpenAL defaults removes that.
+        //  2. A real echo has to be a delayed COPY of the sound, which needs its own send. One OpenAL aux
+        //     send carries exactly one effect and all four are reverb zones, so an echo could only have
+        //     replaced a zone's tail rather than joining it.
         //
-        // A real echo needs delayed COPIES of the sound - a separate subsystem. It is recorded in HANDOFF
-        // 8.81/8.83 and its code is in git history (8b9b781), not left here switched off.
+        // Driving the reflection tap from here was also defective: reflection gain and delay are per-SLOT
+        // parameters, but this code runs once per source, so the global value ended up being whatever the
+        // last evaluated source had. Leaving them at their OpenAL defaults removes that.
+        //
+        // The delayed-copy echo was built, calibrated and measured, and did not produce an audible echo in
+        // real terrain. Its geometry is recorded in HANDOFF 8.91 and its code is in git history (9fcdd90),
+        // not left here switched off.
 
         // The edge path is already part of the occlusion (see calculateOcclusion), so there is nothing to
         // restore here. This used to run a second, ring-based diffraction probe over the top of it, which
@@ -583,8 +542,8 @@ public final class SoundFXUtils {
         //
         // Computed BEFORE finalizeSendGains and applied inside it, in one place. It used to be applied
         // afterwards to all four sends, which worked for sends 0-2 but was silently discarded for send 3:
-        // finalizeSendGains assigns sendGain3 outright (it is the echo now, not a diffuse zone), so anything
-        // multiplied in beforehand was thrown away.
+        // finalizeSendGains used to assign sendGain3 outright, so anything multiplied in beforehand was
+        // thrown away. It now weights send 3 like the other zones, so all four take the occlusion.
         final float sendOcclusionGain = SEND_OCCLUSION_FLOOR
                 + (1F - SEND_OCCLUSION_FLOOR) * MathStuff.clamp1(directHfCutoff);
 
@@ -797,16 +756,16 @@ public final class SoundFXUtils {
                     }
                     facingSum += returned;
 
-                    // Farthest reflection of any bounce, measured FROM THE LISTENER. That is the quantity an
-                    // echo's delay is made of: the reflection reaches the ear after travelling from the
-                    // surface, so what matters is how far the surface is from the EAR, not from the source.
+                    // Farthest reflection of any bounce, measured FROM THE LISTENER. A reflection reaches
+                    // the ear after travelling from the surface, so what matters is how far the surface is
+                    // from the EAR, not from the source.
                     //
                     // Measured from the SOURCE it was useless, and the probe showed it: `far` read 1-16 m in
                     // scenes whose `rv` (first-reflection distance) was 23-76 m. Rays leave the source in every
                     // direction, so they strike whatever nearby terrain is in the way, while a distant valley
                     // wall subtends a tiny solid angle and is almost never sampled. A valley therefore looked
-                    // like it had a wall a few blocks away - which is exactly why a narrow stone gorge, where
-                    // the walls really ARE close to the listener, produced the strongest echo.
+                    // like it had a wall a few blocks away, while a narrow stone gorge, where the walls really
+                    // ARE close to the listener, reported the strongest reflection.
                     farthest = Math.max(farthest, (float) ctx.playerEyePosition.distanceTo(lastHitPos));
                 }
 
@@ -887,7 +846,7 @@ public final class SoundFXUtils {
 
         // ------------------------------------------------------- returned energy (open space)
         //
-        // A valley echo is physically an EARLY reflection off a distant surface. Summing it into the late
+        // A reflection off a distant surface is physically an EARLY arrival. Summing it into the late
         // zones could never carry it, because reflectivity is multiplied into that chain FOUR times
         // (bounceRatio, the per-bounce energy, the delay, and zone2/3's refl^3 / refl^4), so natural terrain -
         // grass 0.15, dirt 0.35, against stone's 1.0 - is crushed. Measured: zone2 and zone3 send gains are
@@ -904,21 +863,6 @@ public final class SoundFXUtils {
         // of how much of the space returns energy: a plain collapses to ~0.015 because its reflections are
         // its own ground, whose normal points up, while a valley's walls return ~0.35.
         out.returnedShare = facingShare;
-        // The echo is scheduled HERE, where the measurement is, rather than from the sound-play hook.
-        //
-        // That is not a style choice. The hook runs on the client thread while evaluations run on the sound
-        // thread, so a hook could only read the share through a static "most recent value" - which is
-        // whatever source happened to be evaluated last, not the source being played. The identical defect
-        // was already found and removed from the early-reflection tap. Here the share belongs to THIS source
-        // by construction, and it is the same number that drives the tail.
-        //
-        // Once per sound: an evaluation runs about twice a second, so the flag stops the same event being
-        // answered repeatedly.
-        if (!this.source.isEchoScheduled()
-                && SoundFXProcessor.scheduleEcho(this.source.getSound(), ctx, soundPos, facingShare,
-                        this.lastReverbReflectivity)) {
-            this.source.markEchoScheduled();
-        }
         // Smoothed: the raw value is a ratio of two 32-ray averages and was measured to swing by up to 0.36
         // between evaluations 0.4 s apart, which made the tail appear and vanish at random.
         this.lastEarlyReflectionGain = this.source.smoothEarlyReflection(
@@ -935,278 +879,20 @@ public final class SoundFXUtils {
         out.earlyReflectionCutoff = MathStuff.clamp1(0.35F + 0.65F * facingShare * 4.0F);
     }
 
-    /**
-     * The echo path for one sound event, by exact mirror-source (image-source) geometry.
-     *
-     * <p>An echo is a specular reflection: sound leaves the source, strikes a surface, and returns to
-     * the ear. Equivalently the ear receives the straight-line sound from the MIRROR IMAGE of the
-     * source in that surface, which turns an awkward search over reflection points into a closed-form
-     * construction.
-     *
-     * <p>The construction is exact and it replaced a sampled fan, because the fan could not work. For
-     * a flat surface the specular point is FIXED by the geometry, not somewhere to be searched for: a
-     * vertical wall puts it at the LISTENER's height (see the derivation in HANDOFF 8.91), which on
-     * blocky terrain is a sub-degree target. A 32-ray fan hits it essentially never, and widening the
-     * acceptance angle to 60 degrees - the previous attempt - admits reflections whose direction
-     * demonstrably points AWAY from the source, so it found neither the real reflection nor a usable
-     * approximation of it. Measured exhaustively over analytic valley cross-sections, that search
-     * returned no candidate at all in any scene where the listener was not already standing against
-     * the wall.
-     *
-     * <p>Cost is LOWER than the fan it replaced: the planes are enumerated (at most 6 x 64), each
-     * reflection point is a few arithmetic operations, and each candidate costs two raycasts. The fan
-     * spent 32 raycasts on sampling a surface that could then only be checked approximately.
-     *
-     * <p>Runs once per sound START, not per evaluation, so its cost is paid per event.
-     */
-    public static final class EchoPath {
-        /** Where the reflection happens; the delayed copy is placed here. */
-        public Vec3 surface;
-        /** Extra distance the reflection travels over the direct path, in blocks. */
-        public double extraDistance;
-        /** Amplitude of the reflection: spreading x material. */
-        public float gain;
-        /** How far the wall is from a perfect mirror for this source/listener pair, in radians. */
-        public float angle;
-        /** Which axis the reflecting face is perpendicular to, for diagnostics. */
-        public String axis;
-        /** The plane the reflecting face lies in, for diagnostics. */
-        public int plane;
-    }
-
-    /** One axis-aligned plane considered by the echo search, kept for the diagnostic summary. */
-    private static final class EchoPlaneScan {
-        int planes;
-        int halfSpace;
-        int range;
-        int castMiss;
-        int surfaceMismatch;
-        int tooEarly;
-        double bestExtra = -1.0D;
-        String bestAxis = "-";
-        int bestPlane;
-        String bestReject = "-";
-
-        void note(final String axis, final int plane, final double extra, final String reason) {
-            if (extra > this.bestExtra) {
-                this.bestExtra = extra;
-                this.bestAxis = axis;
-                this.bestPlane = plane;
-                this.bestReject = reason;
-            }
-        }
-    }
-
-    /**
-     * @param ctx          the world and listener
-     * @param soundPos     where the sound was played
-     * @param reflectivity mean reflectivity of the surfaces, for the material term
-     * @return the strongest specular reflection found, or null when there is none
-     */
-    @Nullable
-    public static EchoPath findEchoPath(final WorldContext ctx, final Vec3 soundPos, final float reflectivity) {
-        if (ctx.world == null || ctx.playerEyePosition == null)
-            return null;
-
-        final Vec3 ear = ctx.playerEyePosition;
-        final double directDistance = soundPos.distanceTo(ear);
-        if (directDistance < 0.5D)
-            return null;
-
-        // The search starts from the listener, so a source buried in a solid block (a jukebox) does not
-        // immediately hit the block it sits in.
-        final Vec3 source = stepOutOfSolid(ctx.world, soundPos, ear);
-
-        final ReusableRaycastContext searchCtx =
-                new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
-
-        final EchoPlaneScan scan = new EchoPlaneScan();
-        EchoPath best = null;
-
-        for (int axis = 0; axis < 3; axis++) {
-            final String axisName = AXIS_NAMES[axis];
-            final double earCoord = coord(ear, axis);
-            final double sourceCoord = coord(source, axis);
-
-            // The candidate planes are those whose coordinate lies within ECHO_PLANE_MAX_LATERAL of the
-            // two endpoints. That is not a tolerance on the geometry - the reflection point for each
-            // plane is computed exactly below. It only bounds how far off to one side of the source-ear
-            // line a reflecting surface may be, so a wall behind a hill 200 blocks away is not searched.
-            final double minCoord = Math.min(earCoord, sourceCoord) - ECHO_PLANE_MAX_LATERAL;
-            final double maxCoord = Math.max(earCoord, sourceCoord) + ECHO_PLANE_MAX_LATERAL;
-            final int firstPlane = (int) Math.ceil(minCoord);
-            final int lastPlane = (int) Math.floor(maxCoord);
-
-            for (int p = firstPlane; p <= lastPlane; p++) {
-                scan.planes++;
-
-                final double earToPlane = p - earCoord;
-                final double sourceToPlane = p - sourceCoord;
-                final double dEar = Math.abs(earToPlane);
-                final double dSource = Math.abs(sourceToPlane);
-
-                // Existence condition, and it is exact. The reflection point is where the ray from the
-                // EAR to the MIRRORED SOURCE crosses the plane, which puts it 2 x dEar from the plane,
-                // on the far side from the ear. So it lies beyond BOTH endpoints, and that is what the
-                // law of reflection demands: the outgoing ray turns back toward the ear only when the
-                // reflection happens beyond both. Hence:
-                //
-                //   * the two must be on the SAME side of the plane, and
-                //   * the EAR must be the FARTHER one.
-                //
-                // It also fixes the delay a valley can produce, in closed form: the extra path length
-                // is 2 x dEar, twice the EAR's distance from the wall. So a wall closer to the listener
-                // than the sound is cannot answer at all - the reflection has to happen beyond both -
-                // and an echo needs the listener well away from the wall, with the sound nearer to it.
-                //
-                // Getting this backwards is easy and was done twice here. The check that catches it is
-                // the surface test below: with the wrong sign the reflection point lands in mid-air
-                // inside the source's half-space, and nothing else in the method notices.
-                if (dEar < 1.0D || dEar <= dSource || earToPlane * sourceToPlane <= 0.0D) {
-                    scan.halfSpace++;
-                    continue;
-                }
-                if (dSource > ECHO_SEARCH_DISTANCE) {
-                    scan.range++;
-                    scan.note(axisName, p, 2.0D * dEar, "range");
-                    continue;
-                }
-
-                // The reflection point: where the line from the EAR to the MIRRORED SOURCE crosses the
-                // plane. Reflecting the source across the plane puts its image at
-                // 2p - sourceCoord along this axis.
-                final double imageToPlane = p - (2.0D * p - sourceCoord);
-                final double t = earToPlane / (earToPlane - imageToPlane);
-                final Vec3 point = ear.add(ear.vectorTo(mirror(source, axis, p)).scale(t));
-
-                // The reflection point must BE a surface. The construction places it by arithmetic, so
-                // with the wrong existence condition - or on terrain that simply is not there - it can
-                // land in mid-air, and nothing else in the method would notice. This check is what
-                // catches that, and it is cheap enough to run first.
-                if (!isSolidBlock(ctx.world, point.add(AXIS_OFFSETS[axis * 2 + (p > earCoord ? 1 : 0)]))) {
-                    scan.surfaceMismatch++;
-                    scan.note(axisName, p, 2.0D * dEar, "not-solid");
-                    continue;
-                }
-                // And it must lie inside the stretch of world the two ends span, not out to one side.
-                final double lateral = Math.abs(coord(point, (axis + 1) % 3) - coord(ear, (axis + 1) % 3))
-                        + Math.abs(coord(point, (axis + 2) % 3) - coord(ear, (axis + 2) % 3));
-                if (lateral > ECHO_PLANE_MAX_LATERAL) {
-                    scan.surfaceMismatch++;
-                    scan.note(axisName, p, 2.0D * dEar, "lateral");
-                    continue;
-                }
-
-                // Confirm by raycast instead of trusting the arithmetic: the SOURCE must see that face,
-                // and the EAR must see it back. Both rays are aimed exactly AT the reflection point,
-                // which lies on the plane by construction, so the test is simply whether each ray
-                // arrives - and whether the surface it arrives at is the one the reflection needs.
-                //
-                // The origins are stepped into the air first. A sound source is very often exactly on a
-                // surface - a footstep at the player's feet, a block break on the block's own face - and
-                // a ray starting on or inside the ground hits the ground at t=0, which rejected every
-                // candidate. That single detail is what kept this search silent.
-                final Vec3 toPoint = ear.vectorTo(point);
-                final BlockHitResult fromSource = searchCtx.trace(
-                        stepOutOfSolid(ctx.world, source, point, toPoint), point);
-                final BlockHitResult fromEar = searchCtx.trace(
-                        stepOutOfSolid(ctx.world, ear, point, toPoint), point);
-                if (isMiss(fromSource) || isMiss(fromEar)) {
-                    scan.castMiss++;
-                    scan.note(axisName, p, 2.0D * dEar, "blocked");
-                    continue;
-                }
-                // Both rays must arrive at the SAME place, which is the reflection point. Comparing the
-                // two hits rather than each one against a computed face means the test does not depend
-                // on how a raycast rounds a grazing hit at a block boundary - and it is the stronger
-                // statement anyway: a reflection needs one surface that both ends can see.
-                if (fromSource.getBlockPos().distSqr(fromEar.getBlockPos()) > ECHO_HIT_MATCH_SQR) {
-                    scan.surfaceMismatch++;
-                    scan.note(axisName, p, 2.0D * dEar, "mismatch");
-                    continue;
-                }
-
-                final double toWall = source.distanceTo(point);
-                final double wallToEar = point.distanceTo(ear);
-                final double extra = toWall + wallToEar - directDistance;
-                if (extra <= 0.0D) {
-                    scan.tooEarly++;
-                    scan.note(axisName, p, extra, "early");
-                    continue;
-                }
-
-                // Two reflections can be equally good; the nearer one carries more energy, because its
-                // spreading loss is smaller. This is the whole selection rule - there is no angle
-                // tolerance left to tune, because the construction is exact.
-                final double pathRatio = directDistance / Math.max(1.0D, toWall + wallToEar);
-                final double gain = pathRatio * pathRatio * Math.sqrt(MathStuff.clamp1(reflectivity));
-                if (best == null || extra < best.extraDistance) {
-                    final EchoPath path = new EchoPath();
-                    path.surface = point;
-                    path.extraDistance = extra;
-                    path.gain = (float) gain;
-                    path.angle = 0F;
-                    path.axis = axisName;
-                    path.plane = p;
-                    best = path;
-                }
-            }
-        }
-
-        if (best == null) {
-            // Rate limited by the caller: six kinds of rejection are indistinguishable from outside, so
-            // "no echo" could not otherwise be turned into an action.
-            org.orecruncher.dsurround.lib.Library.LOGGER.info(
-                    "ECHO_NOPATH planes=%d halfspace=%d range=%d blocked=%d surface=%d early=%d"
-                            + " | bestRejected=%s@%d extra=%.1f %s | direct=%.1fm",
-                    scan.planes, scan.halfSpace, scan.range, scan.castMiss, scan.surfaceMismatch,
-                    scan.tooEarly, scan.bestAxis, scan.bestPlane, scan.bestExtra, scan.bestReject,
-                    directDistance);
-            return null;
-        }
-
-        // The geometry's own numbers, so a silent echo can be told apart from a rejected one.
-        org.orecruncher.dsurround.lib.Library.LOGGER.info(
-                "ECHO_PATH axis=%s plane=%d extra=%.1fm gain=%.4f at=%.1f,%.1f,%.1f",
-                best.axis, best.plane, best.extraDistance, best.gain,
-                best.surface.x(), best.surface.y(), best.surface.z());
-        return best;
-    }
-
-    /** The mirror image of a point in the axis-aligned plane at coordinate p. */
-    private static Vec3 mirror(final Vec3 v, final int axis, final double p) {
-        return axis == 0 ? new Vec3(2.0D * p - v.x(), v.y(), v.z())
-                : axis == 1 ? new Vec3(v.x(), 2.0D * p - v.y(), v.z())
-                : new Vec3(v.x(), v.y(), 2.0D * p - v.z());
-    }
-
-    /** Coordinate along one axis, so the plane sweep can be written once instead of three times. */
-    private static double coord(final Vec3 v, final int axis) {
-        return axis == 0 ? v.x() : axis == 1 ? v.y() : v.z();
-    }
-
-    /** Speed of sound in blocks per second, for turning a reflection's extra distance into a delay. */
-    public static float speedOfSound() {
-        return SPEED_OF_SOUND;
-    }
-
     /** Applies the bounce-ratio scaling and clamps the send gains. */
     private static void finalizeSendGains(final ReverbTrace reverb, final float sendOcclusionGain) {
         reverb.sendGain1 *= reverb.bounceRatio[1];
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.bounceRatio[2], 3.0);
 
-        // Zone 3 is not a diffuse zone any more: the last aux send carries the discrete ECHO, so its send
-        // gain is the echo's strength and must NOT be multiplied by bounceRatio^4.
-        //
         // Send 3 is a REVERB ZONE, exactly as the original mod had it. Its long 4.14 s tail is what an
         // enclosed space needs, and bounceRatio[3] is NOT zero there: a cave's rays keep striking stone, so
         // 0.65^4 is 0.18. An earlier revision concluded this zone was dead from 314 probe rows that were all
         // OUTDOORS, where rays escape to the sky before the fourth bounce - a sampling error, not evidence.
         //
-        // It is NOT the echo. Putting the discrete echo on this send was a structural mistake: one aux send
-        // carries exactly ONE effect, so routing the zone's diffuse tail and an echo through the same slot
-        // fed the tail itself through AL_EFFECT_ECHO - which has a default 0.1 s delay, so every sound in a
-        // cave was heard twice. The echo cannot share this send with the tail, and the tail matters more.
+        // It is weighted like the other diffuse zones. A discrete echo was once put on this send instead,
+        // which was a structural mistake worth remembering: one aux send carries exactly ONE effect, so
+        // routing the zone's diffuse tail and an echo through the same slot fed the tail itself through
+        // AL_EFFECT_ECHO - whose default 0.1 s delay made every sound in a cave play twice.
         reverb.sendGain3 = reverb.sendGain3 * (float) MathStuff.pow(reverb.bounceRatio[3], 4.0);
 
         // The returned energy drives the reverb TAIL. This is not a duplicate of the EAXREVERB reflection
@@ -1627,8 +1313,8 @@ public final class SoundFXUtils {
      *
      * <p>A wave that goes around an edge has travelled further than one that goes straight, and its energy is
      * spread over the larger wavefront: for AMPLITUDE that is the ratio of the straight distance to the bent
-     * path length. This is the same first-power spreading already used for the reflected echo, and it is what
-     * makes a distant opening weak while a nearby one stays clear.
+     * path length. This is the same first-power spreading already used for the reflected path, and it is
+     * what makes a distant opening weak while a nearby one stays clear.
      *
      * @param delta    extra distance the bent path covers, in blocks
      * @param spread   straight distance divided by bent path length (1 when the detour is negligible)
@@ -1848,47 +1534,13 @@ public final class SoundFXUtils {
      * that is itself a solid block (a jukebox) would otherwise self-occlude every probe.
      */
     private static Vec3 stepOutOfSolid(final Level world, final Vec3 from, final Vec3 towards) {
-        return stepOutOfSolid(world, from, towards, null);
-    }
-
-    /**
-     * The same, but refusing to move the point far along the ray that is about to be cast.
-     *
-     * <p>This is what makes the escape work when the ray is horizontal. A source standing ON the
-     * ground with its target at the same height cannot be stepped out of the floor along the ray at
-     * all - the floor is still solid a whole block ahead, and eight half-block steps only lift it 2 cm
-     * - so it has to go UP instead. Before this the echo search started its source ray inside the
-     * floor, the ray hit the floor at t=0, and every candidate was rejected: the search was silent for
-     * a reason no amount of gain tuning could have found.
-     *
-     * <p>The escape is allowed to move a little along the ray (the {@code 0.5} below). Forbidding the
-     * ray's direction outright also forbade UP, because a ray that runs along the floor has a small
-     * upward component too - so the escape that was needed was the one being blocked.
-     */
-    private static Vec3 stepOutOfSolid(final Level world, final Vec3 from, final Vec3 towards,
-            @Nullable final Vec3 rayDirection) {
         final Vec3 dir = from.vectorTo(towards).normalize();
         Vec3 pos = from;
         for (int i = 0; i < 8 && isSolidBlock(world, pos); i++)
             pos = pos.add(dir.scale(0.5D));
-        if (!isSolidBlock(world, pos))
-            return pos;
-        // Still inside. Try straight up first, then the horizontal escapes, then down, so a point
-        // buried in a floor, a wall or a ceiling all have somewhere to go. An escape that would carry
-        // the origin too far along the pending ray is skipped: it would move the probe, not free it.
-        for (final Vec3 escape : new Vec3[] { new Vec3(0, 1, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1),
-                new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, -1, 0) }) {
-            if (rayDirection != null && escape.dot(rayDirection.normalize()) > 0.5D)
-                continue;
-            Vec3 candidate = from;
-            for (int i = 0; i < 16; i++) {
-                if (!isSolidBlock(world, candidate))
-                    return candidate;
-                candidate = candidate.add(escape.scale(0.25D));
-            }
-        }
         return pos;
     }
+
 
     private static Vec3 offsetPositionIfSolid(final Level world, final Vec3 origin, final Vec3 target) {
         // Restored to the original Fabric implementation: any non-air block (including

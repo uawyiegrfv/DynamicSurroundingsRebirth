@@ -135,7 +135,7 @@ public final class Effects {
      * Applies the reverb intensity when the config changes. The intensity slider has no
      * restart requirement, so the zone gains and their OpenAL effect slots are refreshed
      * lazily on the next sound processing pass (SourceContext.tick runs on the sound
-     * thread). An intensity of 0 fully silences the wet (echo) path.
+     * thread). An intensity of 0 fully silences the wet path.
      */
     private static void refreshIntensityIfChanged() {
         final float intensity = (float) CONFIG.reverbIntensity;
@@ -148,18 +148,6 @@ public final class Effects {
     }
 
 
-
-    /**
-     * How much the reflection delay must move before the effect slots are re-uploaded.
-     *
-     * <p>Re-attaching an effect to its slot is a real OpenAL call, and the value is recomputed on every
-     * sound evaluation (up to 20/s per source). 5 ms is far below the ~50 ms perceptual boundary and well
-     * below the resolution at which a delay change is audible, so it collapses the great majority of
-     * updates to nothing while keeping the audible behaviour continuous.
-     */
-    private static final float DELAY_UPDATE_EPSILON = 0.005F;
-    /** Same idea for the gain: 0.02 is a fraction of a decibel, inaudible as a step. */
-    private static final float GAIN_UPDATE_EPSILON = 0.02F;
 
     public static void initialize() {
         // Force-regenerate every EFX object. On sound-system reinit (toggling reverb/
@@ -184,21 +172,18 @@ public final class Effects {
             REVERB_SLOTS[i].initialize();
             REVERB_DATA[i].setProcess(true);
 
-            // The discrete echo used to be attached to this send and has been WITHDRAWN.
+            // Every send carries a REVERB ZONE, and every zone is doing work.
             //
-            // One aux send carries exactly ONE effect, so an echo here replaces the zone's reverb - and that
-            // zone is not dead. A cave's rays keep striking stone, so bounceRatio[3] reaches ~0.65 and 0.65^4
-            // is 0.18; its 4.14 s decay is exactly what an enclosed space needs. The "measured 0.0% of the
-            // tail" evidence that justified removing it came from 314 probe rows that were all OUTDOORS,
-            // where rays escape to the sky before the fourth bounce - a sampling error, not evidence.
+            // A discrete echo was once put on the last send and was removed. One aux send carries exactly
+            // ONE effect, so an echo there replaced that zone's reverb - and the zone is not dead: a cave's
+            // rays keep striking stone, so bounceRatio[3] reaches ~0.65 and 0.65^4 is 0.18, and its 4.14 s
+            // decay is exactly what an enclosed space needs. The "measured 0.0% of the tail" evidence that
+            // once justified removing it came from 314 probe rows that were all OUTDOORS, where rays escape
+            // to the sky before the fourth bounce - a sampling error, not evidence.
             //
             // Worse, when the zone's diffuse tail was routed through the echo slot as well, AL_EFFECT_ECHO's
-            // default 0.1 s delay made every sound in a cave play twice.
-            //
-            // A real echo therefore needs its OWN send, and this device reports
-            // ALC_MAX_AUXILIARY_SENDS = 4 with all four taken by the reverb zones. Producing one means either
-            // playing delayed copies of the sound - a separate subsystem, and the only route that keeps all
-            // four zones - or a device with more sends. See HANDOFF 8.81.
+            // default 0.1 s delay made every sound in a cave play twice. A real echo would need its own send,
+            // and this device reports ALC_MAX_AUXILIARY_SENDS = 4 with all four taken. See HANDOFF 8.91.
             //
             // Fixed binding: send i always carries zone i. The reverb effect parameters
             // are static per zone, so the binding never needs to change afterwards.

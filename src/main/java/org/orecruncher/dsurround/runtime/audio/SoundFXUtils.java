@@ -319,6 +319,13 @@ public final class SoundFXUtils {
      */
     private float lastReverbMeanFreePath;
     /**
+     * Share of the reflections that came off a surface FACING the listener, from the most recent
+     * measurement, reported by the probe as {@code face=}. 1 means every reflection was off a vertical wall,
+     * 0 means every one was off the ground or a ceiling. This is the geometric quantity that separates a
+     * valley from a plain, and it is reported so the separation can be verified rather than assumed.
+     */
+    private float lastFacingShare;
+    /**
      * Occlusion accumulation along the centre fan ray only (the direct
      * source-to-player line). Unlike the full-fan average, which clips incidental
      * terrain off to the side and climbs to 5-10 in the open world, this tracks how
@@ -503,7 +510,7 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
                         + "clear=%.2f walk=%d/%.1fm "
-                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%.1fm erf=%.3f "
+                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%.1fm face=%.2f erf=%.3f "
                         + "g=%.3f,%.3f,%.3f,%.3f "
                         + "rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
@@ -514,7 +521,7 @@ public final class SoundFXUtils {
                 this.lastWalkSegments, this.lastWalkDistance,
                 this.lastReverbFirstDistance, this.lastReverbHitFraction,
                 this.lastReverbReflectivity, this.lastReverbShared, this.lastReverbFarthest,
-                this.lastReverbMeanFreePath, this.lastEarlyReflectionGain,
+                this.lastReverbMeanFreePath, this.lastFacingShare, this.lastEarlyReflectionGain,
                 reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
                 ReusableRaycastContext.raycastCount(),
                 (System.nanoTime() - evaluationStart) / 1000.0D));
@@ -537,6 +544,17 @@ public final class SoundFXUtils {
         // Mean free path: the distance between consecutive reflections, summed over every ray.
         double pathSum = 0D;
         int pathCount = 0;
+        // How much of the reflection comes off surfaces FACING the listener. This is the geometric quantity
+        // that separates a valley from a plain, and it is now known to be computable: VoxelShape.clip builds
+        // the hit direction as Direction.getNearest(dx, dy, dz).getOpposite(), i.e. the OUTWARD NORMAL of the
+        // face that was struck. Verified from the bytecode, not assumed - an earlier version of this gate
+        // substituted reflection HEIGHT because the normal was wrongly believed unreliable, and height does
+        // not work (a one-block room's reflections are at ear height too).
+        //
+        // A wall's normal is horizontal, so it sends energy back across the space; the ground under the
+        // listener has an upward normal and reflects the sound away.
+        float facingSum = 0F;
+        int facingCount = 0;
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
         for (int i = 0; i < REVERB_RAYS; i++) {
@@ -594,6 +612,9 @@ public final class SoundFXUtils {
                     lastHitBlock = rayHit.getBlockPos();
 
 
+                    // Facing-ness of the struck face: 1 for a vertical wall, 0 for a floor or ceiling.
+                    facingSum += 1F - Math.abs((float) lastHitNormal.y());
+                    facingCount++;
                     // Farthest reflection of any bounce, from the source. This is where a valley's far wall
                     // shows up; the first bounce is the ground under the listener in every scene.
                     farthest = Math.max(farthest, (float) soundPos.distanceTo(lastHitPos));
@@ -672,10 +693,15 @@ public final class SoundFXUtils {
         // reflections a few blocks apart so they fuse into a diffuse tail, while a valley leaves tens of
         // blocks of open air between them. The term is continuous - no threshold - so a hall gets a partial
         // share, which is what a hall does.
+        // NO THRESHOLD GATE: the term is scaled by the measured share of wall-facing reflections, so it is
+        // continuous and derived from geometry rather than from a proxy. A plain's reflections are its own
+        // ground, whose normal points up, so its share goes to zero; a valley's are its walls.
+        final float facingShare = facingCount > 0 ? facingSum / facingCount : 0F;
+        this.lastFacingShare = facingShare;
         final float density = this.lastReverbMeanFreePath
                 / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);
         this.lastEarlyReflectionGain = density * (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
-                * REFLECTION_DENSITY_GAIN;
+                * facingShare * REFLECTION_DENSITY_GAIN;
         // Handed to finalizeSendGains rather than added here: see ReverbTrace.earlyReflection.
         out.earlyReflection = this.lastEarlyReflectionGain;
         // The early-reflection zones are kept BRIGHT. A reflection off a distant wall travels through AIR,

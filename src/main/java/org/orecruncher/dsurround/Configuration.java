@@ -198,8 +198,8 @@ public class Configuration extends ConfigurationData {
         public double reverbIntensity = 1.0D;
 
         @Property
-        @Comment("Discrete echo in open spaces: the first reflection is delayed by the measured path length, so a valley returns a distinct echo instead of only a tail. Off = pre-echo behaviour")
-        public boolean enableEarlyReflectionEcho = true;
+        @Comment("EXPERIMENTAL, no effect yet: discrete echo in open spaces. Withdrawn because an OpenAL aux send carries one effect and all four are reverb zones - the echo had nowhere to go. Off by default")
+        public boolean enableEarlyReflectionEcho = false;
 
         @Property
         @Comment("Enable/disable damping for sounds whose path to the player passes through water. Reduces both volume and high frequencies (muffling)")

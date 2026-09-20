@@ -552,9 +552,14 @@ public final class SoundFXUtils {
         //
         // ------------------------------------------------------------------ echo (mirror source)
         //
-        // The echo is measured by its own search rather than taken from the reverb ray fan. See
-        // traceEcho for why: the fan is cast from the source and its farthest hit describes distant
-        // terrain, not the wall that returns sound to the ear.
+        // WITHDRAWN. The mirror-source search is correct in principle but there is nowhere to send its
+        // result: one aux send carries one effect, and all four sends are reverb zones. Attaching the echo
+        // to a zone replaced that zone's tail (and routing the tail through AL_EFFECT_ECHO made every sound
+        // in a cave play twice).
+        //
+        // The search is therefore gated on the config flag, which is OFF by default, so it costs nothing
+        // while the feature has no home. The code is kept because a real echo needs its own send, and a
+        // device with more sends would make it work; see HANDOFF 8.81.
         if (CONFIG.enableEarlyReflectionEcho) {
             final EchoPath echo = traceEcho(ctx, soundPos);
             reverb.echoGain = echo.gain;
@@ -1052,19 +1057,9 @@ public final class SoundFXUtils {
         // Zone 3 is not a diffuse zone any more: the last aux send carries the discrete ECHO, so its send
         // gain is the echo's strength and must NOT be multiplied by bounceRatio^4.
         //
-        // That multiplication is why this zone never contributed anything: bounceRatio is a mean reflectivity,
-        // so 0.15^4 = 0.0005 for grass and 0.65^4 = 0.18 even for stone. Measured, the zone's gain was exactly
-        // zero in all 314 probe rows across 564 log files. An echo fed through it would have been silent.
-        //
-        // The echo's strength comes from traceEcho: a specular reflection off a wall, found by mirror-source
-        // geometry, with its amplitude taken as returned share x spherical spreading x material. There is no
-        // separate fusion-window gate any more - a reflection that arrives almost with the direct sound is
-        // simply the shortest accepted path, and its short delay means the engine renders it as part of the
-        // space rather than as a separate event.
-        //
         // Send 3 is a REVERB ZONE, exactly as the original mod had it. Its long 4.14 s tail is what an
         // enclosed space needs, and bounceRatio[3] is NOT zero there: a cave's rays keep striking stone, so
-        // 0.65^4 is 0.18. An earlier revision concluded the zone was dead from 314 probe rows that were all
+        // 0.65^4 is 0.18. An earlier revision concluded this zone was dead from 314 probe rows that were all
         // OUTDOORS, where rays escape to the sky before the fourth bounce - a sampling error, not evidence.
         //
         // It is NOT the echo. Putting the discrete echo on this send was a structural mistake: one aux send
@@ -1095,10 +1090,10 @@ public final class SoundFXUtils {
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.sendCutoff2, 0.1);
         reverb.sendGain3 *= (float) MathStuff.pow(reverb.sendCutoff3, 0.1);
 
-        // Occlusion, applied ONCE to every send. Sends 0-2 are the diffuse reverb and send 3 is the discrete
-        // echo, and all four carry energy from the same source, so a source heard through a wall is quieter
-        // on every path. The CUTOFFS (brightness) are handled separately below, because a reflection travels
-        // through open air and must not inherit the direct path's darkening.
+        // Occlusion, applied ONCE to every send. All four are reverb zones carrying energy from the same
+        // source, so a source heard through a wall is quieter on every path. The CUTOFFS (brightness) are
+        // handled separately below, because a reflection travels through open air and must not inherit the
+        // direct path's darkening.
         reverb.sendGain0 *= sendOcclusionGain;
         reverb.sendGain1 *= sendOcclusionGain;
         reverb.sendGain2 *= sendOcclusionGain;
@@ -1107,9 +1102,6 @@ public final class SoundFXUtils {
         // The early-reflection zones are kept bright. A reflection off a distant wall crosses AIR, not rock,
         // so the direct path's occlusion cutoff is the wrong filter for it - inheriting that darkening is why
         // a valley read as "a weakened cave". Only raises: an enclosed space's own cutoff is already higher.
-        //
-        // Zone 3 carries the discrete echo, so it gets the same treatment for the same reason: the echo is a
-        // reflection that travelled through open air and must not be darkened by what blocks the direct path.
         reverb.sendCutoff1 = Math.max(reverb.sendCutoff1, reverb.earlyReflectionCutoff);
         reverb.sendCutoff2 = Math.max(reverb.sendCutoff2, reverb.earlyReflectionCutoff);
         reverb.sendCutoff3 = Math.max(reverb.sendCutoff3, reverb.earlyReflectionCutoff);

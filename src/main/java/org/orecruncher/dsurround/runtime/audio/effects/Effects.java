@@ -1,5 +1,6 @@
 package org.orecruncher.dsurround.runtime.audio.effects;
 
+import net.minecraft.util.Mth;
 import org.lwjgl.openal.EXTEfx;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
@@ -137,53 +138,84 @@ public final class Effects {
 
     /** Last early-reflection delay pushed to the effect slots, to avoid redundant AL calls. */
     private static float lastReflectionsDelay = Float.NaN;
+    /** Last early-reflection gain pushed to the effect slots. */
+    private static float lastReflectionsGain = Float.NaN;
 
     /**
-     * Sets the FIRST-REFLECTION delay of the reverb, which is what decides whether a space is heard as
-     * REVERB or as an ECHO. This is one physical mechanism with two perceptual regimes, not two modes:
+     * Sets the early reflection of the reverb: WHEN it arrives and HOW LOUD it is. These two together are
+     * the whole of the reverb-or-echo behaviour, and they are the EAXREVERB parameters OpenAL provides for
+     * exactly this purpose - not a layer on top of the tail.
+     *
+     * <p><b>Time decides reverb or echo.</b> The gap between the direct sound and the first reflection is
+     * what the ear uses:
      *
      * <pre>
-     *   gap &lt; ~50 ms  -> the reflection fuses with the direct sound  -> heard as REVERB
-     *   gap &gt; ~50 ms  -> the reflection separates from it            -> heard as an ECHO
+     *   gap &lt; ~50 ms  -&gt; the reflection fuses with the direct sound -&gt; heard as REVERB
+     *   gap &gt; ~50 ms  -&gt; the reflection separates from it           -&gt; heard as an ECHO
      * </pre>
      *
      * <p>The ~50 ms boundary is the Haas fusion window, a property of the auditory system rather than a
-     * preference, so it is used as a constant and NOT as a tuning knob. A cave's walls are 3-18 blocks
-     * away, so its first reflection arrives 10-40 ms late and is heard as reverb; a valley's walls are
-     * 45-120 blocks away, so its first reflection arrives 130-340 ms late and is heard as an echo. The
-     * SAME formula produces both - there is no branch on scene type anywhere.
+     * preference, so it is a constant and NOT a tuning knob. A cave's walls are 3-18 blocks away, so its
+     * first reflection arrives 10-40 ms late and is heard as reverb; a valley's walls are 45-120 blocks
+     * away, so its first reflection arrives 130-340 ms late and is heard as an echo. The SAME formula
+     * produces both - there is no branch on scene type anywhere.
      *
-     * <p>Above the threshold the reflection is a discrete event, so it needs to be one event and not a
-     * train of them: feedback-style repeats are deliberately not used, because they read as a metallic
-     * flutter rather than as a valley. The tail length is left to {@code decayTime}, which the zone
-     * parameters already set from the measured geometry.
+     * <p><b>Level decides whether there is one at all.</b> Above the fusion threshold the reflection is a
+     * discrete event, so it must be a single event: feedback-style repeats are deliberately NOT used,
+     * because they read as a metallic flutter rather than as a valley. The tail length is left to
+     * {@code decayTime}, which the zone parameters already derive from the measured geometry.
      *
-     * <p>Delay is a property of the AUX SLOT, not of a source, so this is a global value: every source
-     * sharing a zone shares its reflection delay. Driving it per source is not possible through EFX.
+     * <p>Delay and gain are properties of the AUX SLOT, not of a source, so these are global values: every
+     * source sharing a zone shares its reflection. Driving them per source is not possible through EFX.
      *
-     * @param seconds measured round-trip gap between the direct sound and the first reflection
+     * @param returnedShare share of rays that come back off a surface facing the source (0..1); a plain
+     *                      measures ~0.015 and a valley ~0.35, so this is what keeps a plain silent
+     * @param seconds       measured round-trip gap between the direct sound and the first reflection
      */
-    public static void setEarlyReflectionDelay(final float seconds) {
+    public static void setEarlyReflection(final float returnedShare, final float seconds) {
         if (activeSends <= 0)
             return;
-        if (Float.isNaN(lastReflectionsDelay) || Math.abs(seconds - lastReflectionsDelay) >= DELAY_UPDATE_EPSILON) {
-            lastReflectionsDelay = seconds;
-            for (int i = 0; i < activeSends; i++) {
-                REVERB_DATA[i].reflectionsDelay = seconds;
-                REVERB_SLOTS[i].apply(REVERB_DATA[i], AUX_SLOTS[i]);
-            }
+
+        // OpenAL's gain is a linear amplitude multiplier (0..3.16), the measurement is a share (0..1), so
+        // the share is scaled into the parameter's range. At this factor a plain lands on 0.06 - the
+        // parameter's own default is 0.05, so a plain gains nothing - while a steep valley reaches 2.1.
+        final float gain = Mth.clamp(returnedShare * EARLY_REFLECTION_GAIN, 0F, EXTEfx.AL_EAXREVERB_MAX_REFLECTIONS_GAIN);
+
+        final boolean delayMoved = Float.isNaN(lastReflectionsDelay)
+                || Math.abs(seconds - lastReflectionsDelay) >= DELAY_UPDATE_EPSILON;
+        final boolean gainMoved = Float.isNaN(lastReflectionsGain)
+                || Math.abs(gain - lastReflectionsGain) >= GAIN_UPDATE_EPSILON;
+        if (!delayMoved && !gainMoved)
+            return;
+
+        lastReflectionsDelay = seconds;
+        lastReflectionsGain = gain;
+        for (int i = 0; i < activeSends; i++) {
+            REVERB_DATA[i].reflectionsDelay = seconds;
+            REVERB_DATA[i].reflectionsGain = gain;
+            REVERB_SLOTS[i].apply(REVERB_DATA[i], AUX_SLOTS[i]);
         }
     }
 
     /**
+     * Scales the measured returned-energy share into OpenAL's reflection-gain range. Chosen so that a plain
+     * (share 0.015) lands on the parameter's default of 0.05 and gains nothing, while a steep valley (0.35)
+     * reaches 2.1. This is the ONE place the early reflection's loudness is decided - the send gains no
+     * longer carry a second copy of it.
+     */
+    private static final float EARLY_REFLECTION_GAIN = 6F;
+
+    /**
      * How much the reflection delay must move before the effect slots are re-uploaded.
      *
-     * <p>Re-attaching an effect to its slot is a real OpenAL call, and the delay is recomputed on every
+     * <p>Re-attaching an effect to its slot is a real OpenAL call, and the value is recomputed on every
      * sound evaluation (up to 20/s per source). 5 ms is far below the ~50 ms perceptual boundary and well
      * below the resolution at which a delay change is audible, so it collapses the great majority of
      * updates to nothing while keeping the audible behaviour continuous.
      */
     private static final float DELAY_UPDATE_EPSILON = 0.005F;
+    /** Same idea for the gain: 0.02 is a fraction of a decibel, inaudible as a step. */
+    private static final float GAIN_UPDATE_EPSILON = 0.02F;
 
     public static void initialize() {
         // Force-regenerate every EFX object. On sound-system reinit (toggling reverb/

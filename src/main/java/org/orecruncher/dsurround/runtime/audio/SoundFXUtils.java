@@ -111,21 +111,6 @@ public final class SoundFXUtils {
      * sound quiet without deleting it.
      */
     private static final float MATERIAL_LEVEL_RESTORE = 0.2F;
-    /**
-     * Gain of the returned-energy term, applied to the early reverb zones.
-     *
-     * <p>The term it scales is {@code sqrt(reflectivity) * returnedShare}. Measured offline against synthetic
-     * terrain (tools/sim_calibrate.py), the returned share is 0.015 on a plain, 0.085 in forest, 0.12 in a wide
-     * valley, 0.27 on a hillside into a bowl and 0.35 in a steep valley - a 23x spread that comes entirely from
-     * geometry. At 1.0 those become -45 dB on a plain and -17 dB in a valley, so the valley is 27 dB above the
-     * plain and level with a cave's tail (-21 dB). There is nothing to tune: the separation is the geometry's.
-     *
-     * <p>Note what this can and cannot buy. OpenAL applies its reverb tail from the instant the sound starts,
-     * so a louder tail is MORE REVERB, never an echo: a real valley echo is direct, then a GAP, then the
-     * reflection, and the gap is what makes it read as an echo. Producing a gap needs discrete delayed taps,
-     * which this architecture does not have.
-     */
-    private static final float REFLECTION_DENSITY_GAIN = 1.0F;
 
     /** Skylight at a position that can see the sky in full. */
     private static final int MAX_SKY_LIGHT = 15;
@@ -303,7 +288,6 @@ public final class SoundFXUtils {
      * measured share of the space that is "a distant wall, and it reflects", and it is added to the early
      * zones instead. See traceReverb for why it cannot affect a room or a cave.
      */
-    private float lastEarlyReflectionGain;
     /**
      * Mean distance between consecutive reflections, in blocks: the mean free path of the space, reported by
      * the probe as {@code mfp=}.
@@ -371,16 +355,11 @@ public final class SoundFXUtils {
         float sendCutoff3;
         final float[] bounceRatio = new float[REVERB_RAY_BOUNCES];
         /**
-         * Reflection-density contribution, added to the early zones AFTER the reflectivity weighting.
-         *
-         * <p>It cannot be folded into sendGain1/2 directly: finalizeSendGains multiplies those by
-         * {@code bounceRatio^3} / {@code bounceRatio^4}, which for outdoor terrain (reflectivity 0.35) is
-         * 0.043 - enough to crush a 0.23 contribution back to 0.010 and make it inaudible. That weighting
-         * belongs to the DIFFUSE field, where the number of bounces really does depend on the material; an
-         * early reflection off a distant wall is a single reflection whose strength is already accounted for
-         * in the term itself.
+         * Share of rays that come back off a surface facing the source (0..1). This is the measurement the
+         * early reflection's LOUDNESS is driven from: a plain measures ~0.015 and gets no echo, a valley
+         * ~0.35 and gets one. Consumed by Effects.setEarlyReflection.
          */
-        float earlyReflection;
+        float returnedShare;
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
         float earlyReflectionCutoff;
         /**
@@ -465,23 +444,29 @@ public final class SoundFXUtils {
 
         // ------------------------------------------------------------------ echo vs reverb
         //
-        // This one number decides whether the space is heard as REVERB or as an ECHO, and it is a
-        // measurement, not a setting. The gap between the direct sound and the FIRST reflection is what the
-        // ear uses: below about 50 ms the reflection fuses with the direct sound and is heard as the space
-        // (reverb); above it the reflection separates and is heard as an echo. That boundary is the Haas
-        // fusion window - a property of the auditory system, so it is NOT a tuning knob.
+        // The early reflection is set here, ONCE, from two measurements the ray trace above already made.
+        // This is the single place its loudness and its timing are decided - there is no second copy of
+        // either anywhere in the system.
         //
-        // Both regimes therefore come out of the same formula with no branch on scene type:
-        //   * a cave's first reflection is 3-18 blocks away -> 10-40 ms -> fuses   -> reverb
+        //   WHEN it arrives  <- first-reflection distance. This is what the ear uses to decide reverb or
+        //                       echo: below ~50 ms the reflection fuses with the direct sound and is heard
+        //                       as the space itself, above it the reflection separates and is heard as an
+        //                       echo. That boundary is the Haas fusion window, a property of the auditory
+        //                       system, so it is a constant and not a tuning knob.
+        //   HOW LOUD it is   <- the returned-energy share. A plain's reflections are its own ground, whose
+        //                       normal points up, so its share collapses to ~0.015 and it gets no echo at
+        //                       all; a valley's walls return ~0.35.
+        //
+        // Both regimes come out of the same two formulas with no branch on scene type:
+        //   * a cave's first reflection is 3-18 blocks away  -> 10-40 ms  -> fuses     -> reverb
         //   * a valley's first reflection is 45-120 blocks away -> 130-340 ms -> separates -> echo
         //
-        // `lastReverbFirstDistance` is the mean distance from the source to its first reflection, measured
-        // by the same ray trace that drives the tail. A reflection point at lateral distance d makes both
-        // legs of the path hypot(|S->L| / 2, d) long, so the extra distance travelled is 2 * leg - |S->L|.
+        // A reflection point at lateral distance d makes both legs of the path hypot(|S->L| / 2, d) long, so
+        // the extra distance travelled is 2 * leg - |S->L|.
         final double directDistance = soundPos.distanceTo(ctx.playerEyePosition);
         final double leg = Math.hypot(directDistance * 0.5D, reverb.firstDistance);
         final float reflectionGap = (float) Math.max(0.0D, (2.0D * leg - directDistance) / SPEED_OF_SOUND);
-        Effects.setEarlyReflectionDelay(reflectionGap);
+        Effects.setEarlyReflection(reverb.returnedShare, reflectionGap);
 
         // The edge path is already part of the occlusion (see calculateOcclusion), so there is nothing to
         // restore here. This used to run a second, ring-based diffraction probe over the top of it, which
@@ -552,7 +537,7 @@ public final class SoundFXUtils {
                 this.lastReverbFirstDistance, this.lastReverbHitFraction,
                 this.lastReverbReflectivity, this.lastReverbFarthest,
                 this.lastReverbMeanFreePath, this.lastReverbShared, this.lastReturnedBounces, this.lastFacingShare,
-                this.lastEarlyReflectionGain,
+                this.lastFacingShare,
                 reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
                 ReusableRaycastContext.raycastCount(),
                 (System.nanoTime() - evaluationStart) / 1000.0D));
@@ -774,14 +759,11 @@ public final class SoundFXUtils {
         // silent. There is no threshold and no proxy: the number IS the geometry.
         final float facingShare = facingSum / (float) REVERB_RAYS;
         this.lastFacingShare = facingShare;
-        // Smoothed: the raw value is a ratio of two 32-ray averages and was measured to swing by up to 0.36
-        // between evaluations 0.4 s apart, which made the tail appear and vanish at random.
-        this.lastEarlyReflectionGain = this.source.smoothEarlyReflection(
-                (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
-                        * facingShare * REFLECTION_DENSITY_GAIN,
-                this.source.isImmediateUpdate());
-        // Handed to finalizeSendGains rather than added here: see ReverbTrace.earlyReflection.
-        out.earlyReflection = this.lastEarlyReflectionGain;
+        // The early reflection's loudness and timing are set from this share by Effects.setEarlyReflection,
+        // through the EAXREVERB parameters that exist for exactly that purpose. It is deliberately NOT added
+        // to the send gains as well: that was a second copy of the same acoustic quantity, and it fought the
+        // parameter it duplicated.
+        out.returnedShare = facingShare;
         // The early-reflection zones are kept BRIGHT. A reflection off a distant wall travels through AIR,
         // so it never crosses the rock that darkens the direct path - the occlusion cutoff is the wrong
         // filter for it. Without this the tail inherited the direct path's darkening and a valley sounded
@@ -795,13 +777,6 @@ public final class SoundFXUtils {
         reverb.sendGain1 *= reverb.bounceRatio[1];
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.bounceRatio[2], 3.0);
         reverb.sendGain3 *= (float) MathStuff.pow(reverb.bounceRatio[3], 4.0);
-
-        // Reflection density, applied AFTER the reflectivity weighting. The weighting above models how many
-        // bounces a diffuse field gets before it dies, which genuinely depends on the material; an early
-        // reflection off a distant surface is one reflection, and its strength is already in the term. Adding
-        // it before the weighting made it inaudible outdoors, where bounceRatio^3 is 0.043.
-        reverb.sendGain1 += reverb.earlyReflection;
-        reverb.sendGain2 += reverb.earlyReflection;
 
         reverb.sendGain0 = MathStuff.clamp1(reverb.sendGain0);
         reverb.sendGain1 = MathStuff.clamp1(reverb.sendGain1);

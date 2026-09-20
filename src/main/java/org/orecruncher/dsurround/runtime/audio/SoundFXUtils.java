@@ -1274,12 +1274,27 @@ public final class SoundFXUtils {
      * standard knife-edge result is 0.5 at the shadow boundary (n = 0) rising towards 1 as the detour
      * clears. Without the wavelength term every frequency diffracted alike, which is wrong in the one way
      * that matters: a low frequency bends around an obstacle that stops a high one outright.
+     *
+     * <p>The result is then scaled by how much the bent path spreads. Without that term the amplitude
+     * saturated almost immediately - measured, even a 5 cm detour returned 70-87% of the energy and a 1 m
+     * detour returned 89-100% - and it did not depend on distance or on the size of the opening AT ALL, so a
+     * single small opening anywhere within the search range let most of the sound through. That is the model
+     * behind "a sound fifteen blocks above a mine is still fully audible".
+     *
+     * <p>A wave that goes around an edge has travelled further than one that goes straight, and its energy is
+     * spread over the larger wavefront: for AMPLITUDE that is the ratio of the straight distance to the bent
+     * path length. This is the same first-power spreading already used for the reflected echo, and it is what
+     * makes a distant opening weak while a nearby one stays clear.
+     *
+     * @param delta    extra distance the bent path covers, in blocks
+     * @param spread   straight distance divided by bent path length (1 when the detour is negligible)
      */
-    private static float edgeAmplitude(final float delta, final float frequencyHz) {
+    private static float edgeAmplitude(final float delta, final float frequencyHz, final float spread) {
         final double lambda = SPEED_OF_SOUND / Math.max(1F, frequencyHz);
         final double n = Math.sqrt(Math.max(0.0D, 2.0D * delta / lambda));
         final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
-        return 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
+        final float fresnel = 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
+        return fresnel * MathStuff.clamp1(spread);
     }
 
     /**
@@ -1382,8 +1397,13 @@ public final class SoundFXUtils {
 
         final int bands = bandCount();
         final float[] amplitudes = new float[bands];
+        // How much the bent path spreads relative to the straight line. The wave travels d1 + h and h + d2
+        // instead of the direct line, so its amplitude is diluted by the ratio of the two path lengths.
+        final double bentPath = Math.sqrt(d1 * d1 + (double) clearance * clearance)
+                + Math.sqrt(d2 * d2 + (double) clearance * clearance);
+        final float spread = (float) (directLen / Math.max(1.0E-6D, bentPath));
         for (int band = 0; band < bands; band++) {
-            amplitudes[band] = edgeAmplitude((float) Math.max(MIN_EDGE_DETOUR, detour), bandFrequency(band));
+            amplitudes[band] = edgeAmplitude((float) Math.max(MIN_EDGE_DETOUR, detour), bandFrequency(band), spread);
             if (band < this.lastEdgeDb.length)
                 this.lastEdgeDb[band] = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, amplitudes[band])));
         }

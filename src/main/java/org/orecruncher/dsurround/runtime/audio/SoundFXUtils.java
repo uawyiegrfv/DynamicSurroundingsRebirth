@@ -287,8 +287,13 @@ public final class SoundFXUtils {
     private float lastReverbHitFraction;
     /** Mean reflectivity of the first bounce. Low = soft ground (grass, leaves), high = stone. */
     private float lastReverbReflectivity;
-    /** How many rays could see the listener from their reflection point: the shared-airspace measure. */
-    private float lastReverbShared;
+    /**
+     * How many bounces completed in open air (clear sky above). Feeds the send-cutoff weights, and is
+     * NOT the same quantity as {@link #lastReturnedBounces} - see the note in traceReverb.
+     */
+    private int lastReverbShared;
+    /** How many bounces came back off a surface facing the source: the early-reflection numerator. */
+    private int lastReturnedBounces;
     /**
      * Early-reflection share contributed by distant reflectors, reported by the probe as {@code erf=}.
      * Currently measured but not applied - see EARLY_REFLECTION_GAIN.
@@ -502,7 +507,7 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
                         + "clear=%.2f walk=%d/%.1fm "
-                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%.1fm ret=%.0f face=%.3f erf=%.4f "
+                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%.1fm ret=%d face=%.3f erf=%.4f "
                         + "g=%.3f,%.3f,%.3f,%.3f "
                         + "rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
@@ -512,8 +517,9 @@ public final class SoundFXUtils {
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
                 this.lastWalkSegments, this.lastWalkDistance,
                 this.lastReverbFirstDistance, this.lastReverbHitFraction,
-                this.lastReverbReflectivity, this.lastReverbShared, this.lastReverbFarthest,
-                this.lastReverbMeanFreePath, this.lastFacingShare, this.lastEarlyReflectionGain,
+                this.lastReverbReflectivity, this.lastReverbFarthest,
+                this.lastReverbMeanFreePath, this.lastReverbShared, this.lastReturnedBounces, this.lastFacingShare,
+                this.lastEarlyReflectionGain,
                 reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
                 ReusableRaycastContext.raycastCount(),
                 (System.nanoTime() - evaluationStart) / 1000.0D));
@@ -695,7 +701,8 @@ public final class SoundFXUtils {
         this.lastReverbFirstDistance = firstHits > 0 ? firstDistanceSum / firstHits : 0F;
         this.lastReverbReflectivity = firstHits > 0 ? firstReflectivitySum / firstHits : 0F;
         this.lastReverbHitFraction = firstHits / (float) REVERB_RAYS;
-        this.lastReverbShared = openBounces;
+        this.lastReverbShared = (int) openBounces;
+        this.lastReturnedBounces = (int) returnedBounces;
         this.lastReverbFarthest = farthest;
         // Mean free path, normalised by rays x bounces rather than by the bounces that happened.
         //

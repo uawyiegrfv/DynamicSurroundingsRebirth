@@ -365,6 +365,17 @@ public final class SoundFXUtils {
         float sendCutoff2;
         float sendCutoff3;
         final float[] bounceRatio = new float[REVERB_RAY_BOUNCES];
+        /**
+         * Reflection-density contribution, added to the early zones AFTER the reflectivity weighting.
+         *
+         * <p>It cannot be folded into sendGain1/2 directly: finalizeSendGains multiplies those by
+         * {@code bounceRatio^3} / {@code bounceRatio^4}, which for outdoor terrain (reflectivity 0.35) is
+         * 0.043 - enough to crush a 0.23 contribution back to 0.010 and make it inaudible. That weighting
+         * belongs to the DIFFUSE field, where the number of bounces really does depend on the material; an
+         * early reflection off a distant wall is a single reflection whose strength is already accounted for
+         * in the term itself.
+         */
+        float earlyReflection;
     }
 
 
@@ -667,8 +678,8 @@ public final class SoundFXUtils {
                 / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);
         this.lastEarlyReflectionGain = density * (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
                 * REFLECTION_DENSITY_GAIN;
-        out.sendGain1 += this.lastEarlyReflectionGain;
-        out.sendGain2 += this.lastEarlyReflectionGain;
+        // Handed to finalizeSendGains rather than added here: see ReverbTrace.earlyReflection.
+        out.earlyReflection = this.lastEarlyReflectionGain;
     }
 
     /** Applies the bounce-ratio scaling and clamps the send gains. */
@@ -676,6 +687,13 @@ public final class SoundFXUtils {
         reverb.sendGain1 *= reverb.bounceRatio[1];
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.bounceRatio[2], 3.0);
         reverb.sendGain3 *= (float) MathStuff.pow(reverb.bounceRatio[3], 4.0);
+
+        // Reflection density, applied AFTER the reflectivity weighting. The weighting above models how many
+        // bounces a diffuse field gets before it dies, which genuinely depends on the material; an early
+        // reflection off a distant surface is one reflection, and its strength is already in the term. Adding
+        // it before the weighting made it inaudible outdoors, where bounceRatio^3 is 0.043.
+        reverb.sendGain1 += reverb.earlyReflection;
+        reverb.sendGain2 += reverb.earlyReflection;
 
         reverb.sendGain0 = MathStuff.clamp1(reverb.sendGain0);
         reverb.sendGain1 = MathStuff.clamp1(reverb.sendGain1);

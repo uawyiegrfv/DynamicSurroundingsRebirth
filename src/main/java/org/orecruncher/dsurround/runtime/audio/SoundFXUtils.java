@@ -383,6 +383,13 @@ public final class SoundFXUtils {
         float earlyReflection;
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
         float earlyReflectionCutoff;
+        /**
+         * Mean distance from the source to its FIRST reflection, in blocks. This is the measurement the
+         * reverb-or-echo decision is made from: a short first-reflection distance means the reflection
+         * arrives almost with the direct sound and is heard as reverb, a long one means it arrives as a
+         * separate event and is heard as an echo. See the note in {@code calculate}.
+         */
+        float firstDistance;
     }
 
 
@@ -455,6 +462,26 @@ public final class SoundFXUtils {
 
         final ReverbTrace reverb = new ReverbTrace();
         traceReverb(ctx, soundPos, sendCoeff, reverb);
+
+        // ------------------------------------------------------------------ echo vs reverb
+        //
+        // This one number decides whether the space is heard as REVERB or as an ECHO, and it is a
+        // measurement, not a setting. The gap between the direct sound and the FIRST reflection is what the
+        // ear uses: below about 50 ms the reflection fuses with the direct sound and is heard as the space
+        // (reverb); above it the reflection separates and is heard as an echo. That boundary is the Haas
+        // fusion window - a property of the auditory system, so it is NOT a tuning knob.
+        //
+        // Both regimes therefore come out of the same formula with no branch on scene type:
+        //   * a cave's first reflection is 3-18 blocks away -> 10-40 ms -> fuses   -> reverb
+        //   * a valley's first reflection is 45-120 blocks away -> 130-340 ms -> separates -> echo
+        //
+        // `lastReverbFirstDistance` is the mean distance from the source to its first reflection, measured
+        // by the same ray trace that drives the tail. A reflection point at lateral distance d makes both
+        // legs of the path hypot(|S->L| / 2, d) long, so the extra distance travelled is 2 * leg - |S->L|.
+        final double directDistance = soundPos.distanceTo(ctx.playerEyePosition);
+        final double leg = Math.hypot(directDistance * 0.5D, reverb.firstDistance);
+        final float reflectionGap = (float) Math.max(0.0D, (2.0D * leg - directDistance) / SPEED_OF_SOUND);
+        Effects.setEarlyReflectionDelay(reflectionGap);
 
         // The edge path is already part of the occlusion (see calculateOcclusion), so there is nothing to
         // restore here. This used to run a second, ring-based diffraction probe over the top of it, which
@@ -705,6 +732,7 @@ public final class SoundFXUtils {
         // `ret` is the raw count of bounces that came back off a surface facing the source - a valley scores
         // far above a plain on the second and not much on the first.
         this.lastReverbFirstDistance = firstHits > 0 ? firstDistanceSum / firstHits : 0F;
+        out.firstDistance = this.lastReverbFirstDistance;
         this.lastReverbReflectivity = firstHits > 0 ? firstReflectivitySum / firstHits : 0F;
         this.lastReverbHitFraction = firstHits / (float) REVERB_RAYS;
         this.lastReverbShared = (int) openBounces;

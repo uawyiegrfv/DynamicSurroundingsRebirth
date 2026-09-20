@@ -120,7 +120,7 @@ public final class Effects {
     }
 
     /**
-     * Re-applies the reverb intensity when the config changes. The intensity slider has no
+     * Applies the reverb intensity when the config changes. The intensity slider has no
      * restart requirement, so the zone gains and their OpenAL effect slots are refreshed
      * lazily on the next sound processing pass (SourceContext.tick runs on the sound
      * thread). An intensity of 0 fully silences the wet (echo) path.
@@ -135,6 +135,56 @@ public final class Effects {
         }
     }
 
+    /** Last early-reflection delay pushed to the effect slots, to avoid redundant AL calls. */
+    private static float lastReflectionsDelay = Float.NaN;
+
+    /**
+     * Sets the FIRST-REFLECTION delay of the reverb, which is what decides whether a space is heard as
+     * REVERB or as an ECHO. This is one physical mechanism with two perceptual regimes, not two modes:
+     *
+     * <pre>
+     *   gap &lt; ~50 ms  -> the reflection fuses with the direct sound  -> heard as REVERB
+     *   gap &gt; ~50 ms  -> the reflection separates from it            -> heard as an ECHO
+     * </pre>
+     *
+     * <p>The ~50 ms boundary is the Haas fusion window, a property of the auditory system rather than a
+     * preference, so it is used as a constant and NOT as a tuning knob. A cave's walls are 3-18 blocks
+     * away, so its first reflection arrives 10-40 ms late and is heard as reverb; a valley's walls are
+     * 45-120 blocks away, so its first reflection arrives 130-340 ms late and is heard as an echo. The
+     * SAME formula produces both - there is no branch on scene type anywhere.
+     *
+     * <p>Above the threshold the reflection is a discrete event, so it needs to be one event and not a
+     * train of them: feedback-style repeats are deliberately not used, because they read as a metallic
+     * flutter rather than as a valley. The tail length is left to {@code decayTime}, which the zone
+     * parameters already set from the measured geometry.
+     *
+     * <p>Delay is a property of the AUX SLOT, not of a source, so this is a global value: every source
+     * sharing a zone shares its reflection delay. Driving it per source is not possible through EFX.
+     *
+     * @param seconds measured round-trip gap between the direct sound and the first reflection
+     */
+    public static void setEarlyReflectionDelay(final float seconds) {
+        if (activeSends <= 0)
+            return;
+        if (Float.isNaN(lastReflectionsDelay) || Math.abs(seconds - lastReflectionsDelay) >= DELAY_UPDATE_EPSILON) {
+            lastReflectionsDelay = seconds;
+            for (int i = 0; i < activeSends; i++) {
+                REVERB_DATA[i].reflectionsDelay = seconds;
+                REVERB_SLOTS[i].apply(REVERB_DATA[i], AUX_SLOTS[i]);
+            }
+        }
+    }
+
+    /**
+     * How much the reflection delay must move before the effect slots are re-uploaded.
+     *
+     * <p>Re-attaching an effect to its slot is a real OpenAL call, and the delay is recomputed on every
+     * sound evaluation (up to 20/s per source). 5 ms is far below the ~50 ms perceptual boundary and well
+     * below the resolution at which a delay change is audible, so it collapses the great majority of
+     * updates to nothing while keeping the audible behaviour continuous.
+     */
+    private static final float DELAY_UPDATE_EPSILON = 0.005F;
+
     public static void initialize() {
         // Force-regenerate every EFX object. On sound-system reinit (toggling reverb/
         // occlusion in config, resource reload, device change) the old OpenAL handles
@@ -145,6 +195,9 @@ public final class Effects {
             s.deinitialize();
 
         activeSends = Math.min(4, AudioUtilities.getMaxAuxSends());
+        // The effect objects are brand new, so any previously pushed reflection delay is gone with the
+        // old context. Reset the cache so the next evaluation re-uploads instead of being skipped.
+        lastReflectionsDelay = Float.NaN;
         // DIAG(1.20.1): reverb slots
         org.orecruncher.dsurround.lib.Library.LOGGER.debug("REVERB_INIT activeSends=%d", getActiveSends());
         if (activeSends <= 0)
@@ -174,6 +227,7 @@ public final class Effects {
         }
 
         activeSends = 0;
+        lastReflectionsDelay = Float.NaN;
     }
 
     /**

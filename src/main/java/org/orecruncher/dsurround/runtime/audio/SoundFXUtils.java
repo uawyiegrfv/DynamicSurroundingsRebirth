@@ -113,6 +113,14 @@ public final class SoundFXUtils {
     private static final float MATERIAL_LEVEL_RESTORE = 0.2F;
 
     /** Skylight at a position that can see the sky in full. */
+    /**
+     * Gain of the returned-energy term applied to the reverb TAIL.
+     *
+     * <p>Kept at 1.0, the value the tail was tuned to before the echo work began. The early-reflection TAP
+     * has its own gain (Effects.EARLY_REFLECTION_GAIN) and the two are deliberately separate: the tap is a
+     * discrete event, the tail is the diffuse field behind it.
+     */
+    private static final float EARLY_REFLECTION_TAIL_GAIN = 1.0F;
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */
     private static final double OPENNESS_CACHE_TOLERANCE_SQR = 0.25D;
@@ -312,6 +320,11 @@ public final class SoundFXUtils {
      */
     private float lastFacingShare;
     /**
+     * Smoothed returned energy feeding the reverb TAIL (see finalizeSendGains). Distinct from the
+     * EAXREVERB reflection gain, which feeds the early-reflection tap.
+     */
+    private float lastEarlyReflectionGain;
+    /**
      * Occlusion accumulation along the centre fan ray only (the direct
      * source-to-player line). Unlike the full-fan average, which clips incidental
      * terrain off to the side and climbs to 5-10 in the open world, this tracks how
@@ -360,6 +373,8 @@ public final class SoundFXUtils {
          * ~0.35 and gets one. Consumed by Effects.setEarlyReflection.
          */
         float returnedShare;
+        /** Smoothed returned energy for the reverb tail; consumed by finalizeSendGains. */
+        float earlyReflection;
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
         float earlyReflectionCutoff;
         /**
@@ -466,7 +481,8 @@ public final class SoundFXUtils {
         final double directDistance = soundPos.distanceTo(ctx.playerEyePosition);
         final double leg = Math.hypot(directDistance * 0.5D, reverb.firstDistance);
         final float reflectionGap = (float) Math.max(0.0D, (2.0D * leg - directDistance) / SPEED_OF_SOUND);
-        Effects.setEarlyReflection(reverb.returnedShare, reflectionGap);
+        if (CONFIG.enableEarlyReflectionEcho)
+            Effects.setEarlyReflection(reverb.returnedShare, reflectionGap);
 
         // The edge path is already part of the occlusion (see calculateOcclusion), so there is nothing to
         // restore here. This used to run a second, ring-based diffraction probe over the top of it, which
@@ -764,6 +780,14 @@ public final class SoundFXUtils {
         // to the send gains as well: that was a second copy of the same acoustic quantity, and it fought the
         // parameter it duplicated.
         out.returnedShare = facingShare;
+        // Smoothed: the raw value is a ratio of two 32-ray averages and was measured to swing by up to 0.36
+        // between evaluations 0.4 s apart, which made the tail appear and vanish at random.
+        this.lastEarlyReflectionGain = this.source.smoothEarlyReflection(
+                (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
+                        * facingShare * EARLY_REFLECTION_TAIL_GAIN,
+                this.source.isImmediateUpdate());
+        // Consumed by finalizeSendGains: it feeds the tail, not the reflection tap.
+        out.earlyReflection = this.lastEarlyReflectionGain;
         // The early-reflection zones are kept BRIGHT. A reflection off a distant wall travels through AIR,
         // so it never crosses the rock that darkens the direct path - the occlusion cutoff is the wrong
         // filter for it. Without this the tail inherited the direct path's darkening and a valley sounded
@@ -777,6 +801,18 @@ public final class SoundFXUtils {
         reverb.sendGain1 *= reverb.bounceRatio[1];
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.bounceRatio[2], 3.0);
         reverb.sendGain3 *= (float) MathStuff.pow(reverb.bounceRatio[3], 4.0);
+
+        // The returned energy drives the reverb TAIL. This is not a duplicate of the EAXREVERB reflection
+        // gain: that one feeds the early-reflection TAP, a discrete event; this one feeds the diffuse field
+        // that follows it. Removing it in an earlier revision is what made a cave lose its tail - the tail
+        // is what makes a cave sound like a cave, so it has to be here.
+        //
+        // Applied AFTER the reflectivity weighting above. That weighting models how many bounces a diffuse
+        // field gets before it dies, which genuinely depends on the material; an early reflection off a
+        // distant surface is one reflection, and its strength is already in the term. Applying it before the
+        // weighting made it inaudible outdoors, where bounceRatio^3 is 0.043.
+        reverb.sendGain1 += reverb.earlyReflection;
+        reverb.sendGain2 += reverb.earlyReflection;
 
         reverb.sendGain0 = MathStuff.clamp1(reverb.sendGain0);
         reverb.sendGain1 = MathStuff.clamp1(reverb.sendGain1);

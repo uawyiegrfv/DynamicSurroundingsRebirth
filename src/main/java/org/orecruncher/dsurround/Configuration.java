@@ -198,6 +198,10 @@ public class Configuration extends ConfigurationData {
         public double reverbIntensity = 1.0D;
 
         @Property
+        @Comment("Discrete echo in open spaces: the first reflection is delayed by the measured path length, so a valley returns a distinct echo instead of only a tail. Off = pre-echo behaviour")
+        public boolean enableEarlyReflectionEcho = true;
+
+        @Property
         @Comment("Enable/disable damping for sounds whose path to the player passes through water. Reduces both volume and high frequencies (muffling)")
         public boolean enableWaterSoundDamping = true;
 

@@ -34,6 +34,8 @@ public final class SourceContext implements Callable<Void> {
     // Occlusion smoothing gets its own constant so tuning it never accidentally changes
     // the water damping (same 0.85 baseline).
     private static final float OCCLUSION_SMOOTH_ALPHA = 0.85F;
+    /** Slower constant for the returned-energy term that feeds the reverb tail; see smoothEarlyReflection. */
+    private static final float EARLY_REFLECTION_SMOOTH_ALPHA = 0.5F;
 
     private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
 
@@ -66,6 +68,9 @@ public final class SourceContext implements Callable<Void> {
     private boolean occlusionInitialized;
     private float smoothedDiffraction = 0F;
     private boolean diffractionInitialized;
+    /** Eased returned-energy term feeding the reverb tail; see smoothEarlyReflection. */
+    private float smoothedEarlyReflection = 0F;
+    private boolean earlyReflectionInitialized;
     // Set by the sound processor when the player just entered/left water. The next
     // evaluation snaps the smoothing state straight to its target instead of easing, so
     // entering/exiting water responds with no audible lag.
@@ -190,6 +195,27 @@ public final class SourceContext implements Callable<Void> {
             this.smoothedOcclusion = ease(this.smoothedOcclusion, target, OCCLUSION_SMOOTH_ALPHA);
         }
         return this.smoothedOcclusion;
+    }
+
+    /**
+     * Time-smooths the returned-energy term that feeds the reverb TAIL.
+     *
+     * <p>The raw value is a ratio of two 32-ray averages, so it is noisier than the occlusion value it sits
+     * beside; it gets a slower constant of its own so calming it never changes the others. 0.5 settles in
+     * about 0.7 s at the 0.5 s update interval: long enough to average the sampling noise, short enough that
+     * walking out of a valley still fades rather than lagging. Measured, the raw value swung by up to 0.36
+     * between evaluations 0.4 s apart, which made the tail appear and vanish at random.
+     *
+     * <p>Snaps on the first evaluation, so a freshly played sound is not initially silent.
+     */
+    public float smoothEarlyReflection(final float target, final boolean snap) {
+        if (!this.earlyReflectionInitialized || snap) {
+            this.earlyReflectionInitialized = true;
+            this.smoothedEarlyReflection = target;
+        } else {
+            this.smoothedEarlyReflection = ease(this.smoothedEarlyReflection, target, EARLY_REFLECTION_SMOOTH_ALPHA);
+        }
+        return this.smoothedEarlyReflection;
     }
 
 

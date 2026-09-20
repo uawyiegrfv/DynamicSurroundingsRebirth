@@ -571,7 +571,13 @@ public final class SoundFXUtils {
                     totalRayDistance += lastHitPos.distanceTo(ctx.playerEyePosition);
                 } else {
                     out.bounceRatio[j] += blockReflectivity;
-                    totalRayDistance += lastHitPos.distanceTo(rayHit.getLocation());
+                    // Segment length between this reflection and the previous one. Captured BEFORE
+                    // lastHitPos is reassigned: using it afterwards measured the new point against itself and
+                    // reported a mean free path of exactly 0.0 in every one of 414 probe rows.
+                    final double segment = lastHitPos.distanceTo(rayHit.getLocation());
+                    totalRayDistance += segment;
+                    pathSum += segment;
+                    pathCount++;
 
                     lastHitPos = rayHit.getLocation();
                     lastHitNormal = surfaceNormal(rayHit.getDirection());
@@ -586,10 +592,6 @@ public final class SoundFXUtils {
                         farHits++;
                         farReflectivitySum += blockReflectivity;
                     }
-                    // Mean free path: how far the wave travelled since its previous reflection. A cave packs
-                    // these a few blocks apart; a valley leaves tens of blocks of open air between them.
-                    pathSum += lastHitPos.distanceTo(rayHit.getLocation());
-                    pathCount++;
 
                     // Cast a ray back at the player.  If it is a miss there is a path back from the reflection
                     // point to the player meaning they share the same airspace.

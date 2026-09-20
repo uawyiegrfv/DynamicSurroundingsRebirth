@@ -1,9 +1,7 @@
 {
-  "dsurround.command.dsbiome.failure": "%s",
   "dsurround.command.dsbiome.failure.unknown_biome": "生物群系 %1$s 未知",
   "dsurround.command.dsdump.failure": "转储到 %1$s §4失败§r,  %2$s",
   "dsurround.command.dsdump.success": "转储到 %1$s §2成功§r,  数据可以在 %2$s 找到.",
-  "dsurround.command.dsdump.steps": "当前位置的脚步取面判定过程：",
   "dsurround.command.dsmm.reset.failure": "无法重置音乐管理器: %1$s",
   "dsurround.command.dsmm.reset.success": "音乐管理器已重置",
   "dsurround.command.dsreload.failure": "资源重新加载 §4失败§r,  %1$s",
@@ -422,7 +420,6 @@
   "dsurround.config.compassAndClockOptions.enableTreasureDistance.tooltip": "启用/禁用 手持探险者地图时在右上角显示到宝藏的水平距离",
   "dsurround.config.particleTweaks.suppressPotionParticles": "抑制药水粒子",
   "dsurround.config.particleTweaks.suppressPotionParticles.tooltip": "抑制渲染玩家的药水粒子",
-  "dsurround.command.dsdump.validate": "DS 数据自检：",
   "dsurround.config.popoffNumbers": "伤害/暴击文字",
   "dsurround.config.popoffNumbers.sizePercent": "文字大小",
   "dsurround.config.popoffNumbers.sizePercent.tooltip": "伤害、治疗与暴击文字相对原版尺寸的百分比。这一项决定的是**起始**大小；文字会在峰值时放大到约 2.5 倍",
@@ -437,6 +434,5 @@
   "dsurround.config.popoffNumbers.peakTickTicks": "最大尺寸所在刻",
   "dsurround.config.popoffNumbers.peakTickTicks.tooltip": "文字在第几刻达到最大。数值越小则放大越快、之后缩小越慢；缩小率由公式反推，保证最终缩回起始大小",
   "dsurround.config.popoffNumbers.gravityPercent": "下落速度",
-  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "文字下落速度，原版重力的百分比。调低则下落更慢、位移更小；调高则落得更沉",
-  "dsurround.command.dsdump.footsteps": "当前位置的脚步链路："
+  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "文字下落速度，原版重力的百分比。调低则下落更慢、位移更小；调高则落得更沉"
 }

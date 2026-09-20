@@ -58,7 +58,6 @@
   "dsurround.command.dsdump.failure": "Zrzut %1$s §4nieudany§r.  %2$s",
   "dsurround.command.dsreload.success": "Przeładowanie zasobów §2udane§r. Sprawdź dziennik dla szczegółów.",
   "dsurround.command.dsreload.failure": "Przeładowanie zasobów §4nieudane§r.  %1$s",
-  "dsurround.command.dsbiome.failure": "%s",
   "dsurround.command.dsbiome.failure.unknown_biome": "Biom %1$s nie jest znany",
   "dsurround.command.dsmm.reset.success": "Menedżer muzyki został zresetowany",
   "dsurround.command.dsmm.reset.failure": "Nie można zresetować menedżera muzyki: %1$s",

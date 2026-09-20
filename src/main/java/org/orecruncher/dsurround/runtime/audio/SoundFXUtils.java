@@ -112,21 +112,28 @@ public final class SoundFXUtils {
      */
     private static final float MATERIAL_LEVEL_RESTORE = 0.2F;
     /**
-     * A reflection beyond this many blocks counts as a DISTANT reflector. Used only to accumulate the
-     * reported {@code erf=} value; see EARLY_REFLECTION_GAIN for why it does not drive anything yet.
-     */
-    private static final float EARLY_REFLECTION_DISTANCE = 48.0F;
-    /**
-     * Gain applied to the distant-reflector share. Currently ZERO: the term is measured and reported as
-     * {@code erf=} but not applied, because the probe data showed the classifier underneath it was wrong.
+     * Scale of the mean-free-path term: the reflection spacing at which half of the effect is reached.
      *
-     * <p>The original classifier was "the farthest reflection is beyond 48 blocks", which cannot separate a
-     * cave from a valley - a large hall has far walls too, and it SHOULD reverberate. The replacement is the
-     * mean free path ({@link #lastReverbMeanFreePath}), which measures reflection DENSITY, and its scale has
-     * to be calibrated against real scenes before it is allowed to drive anything. Until then this stays 0 so
-     * the build changes no behaviour while {@code mfp=} is collected.
+     * <p>25 blocks sits between a cave (measured 2.7-9 m) and an open valley (22-48 m), so the term is small
+     * for enclosed spaces and substantial for open ones WITHOUT a threshold - the curve is smooth, so a space
+     * that is merely large (a hall, measured 13-20 m) gets a partial share, which is what a hall actually
+     * does.
      */
-    private static final float EARLY_REFLECTION_GAIN = 0.0F;
+    private static final float MEAN_FREE_PATH_SCALE = 25.0F;
+    /**
+     * Gain of the reflection-density term, applied to the early reverb zones.
+     *
+     * <p>Sized against 2014 measured probe rows rather than estimated. At 0.6 an ENCLOSED space moves by +6%
+     * (mean zone-1 send 0.161 -> 0.170) while an OPEN one goes from 0.022 to 0.195, a factor of nine. That
+     * asymmetry is the whole point: the requirement is that a small wooden house must not gain an audible
+     * echo, and 6% is not audible, while a valley needs a tail it currently does not have at all.
+     *
+     * <p>Deliberately NOT gated on listener openness. An earlier draft multiplied the term by the
+     * sky-visibility openness to force enclosed spaces to exactly zero, but that is a patch layered on top of
+     * a physical quantity - and a small wooden house genuinely does have a faint reverberation, so zero was
+     * the wrong target to force. Density and reflectivity alone already put it in the right place.
+     */
+    private static final float REFLECTION_DENSITY_GAIN = 0.6F;
     /** Skylight at a position that can see the sky in full. */
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */
@@ -514,9 +521,6 @@ public final class SoundFXUtils {
         float firstReflectivitySum = 0F;
         int firstHits = 0;
         float farthest = 0F;
-        // Distant-reflector accumulators for the early-reflection term (see the fields above).
-        int farHits = 0;
-        float farReflectivitySum = 0F;
         // Mean free path: the distance between consecutive reflections, summed over every ray.
         double pathSum = 0D;
         int pathCount = 0;
@@ -580,11 +584,7 @@ public final class SoundFXUtils {
                     // Farthest reflection of any bounce, from the source. This is where a valley's far wall
                     // shows up; the first bounce is the ground under the listener in every scene.
                     farthest = Math.max(farthest, (float) soundPos.distanceTo(lastHitPos));
-                    final float hitDistance = (float) soundPos.distanceTo(lastHitPos);
-                    if (hitDistance >= EARLY_REFLECTION_DISTANCE) {
-                        farHits++;
-                        farReflectivitySum += blockReflectivity;
-                    }
+
 
                     // Cast a ray back at the player.  If it is a miss there is a path back from the reflection
                     // point to the player meaning they share the same airspace.
@@ -643,23 +643,26 @@ public final class SoundFXUtils {
         out.sendCutoff2 = exp2 * (1.0F - sharedAirspaceWeight2) + sharedAirspaceWeight2;
         out.sendCutoff3 = exp2 * (1.0F - sharedAirspaceWeight3) + sharedAirspaceWeight3;
 
-        // ------------------------------------------------------------------ early reflection (valley)
+        // ------------------------------------------------------------------ reflection density (open space)
         //
-        // A valley echo is physically an EARLY, DISCRETE reflection off one large distant surface. Summing
-        // it into the late zones could never carry it, because reflectivity is multiplied into the chain FOUR
-        // times (bounceRatio, the per-bounce energy, the delay, and zone2/3's refl^3 / refl^4), so natural
-        // terrain - grass 0.15, dirt 0.35, against stone's 1.0 - is crushed. Measured: zone2 and zone3 send
-        // gains are EXACTLY ZERO for every row below reflectivity 0.4, which is where all outdoor terrain
-        // sits, while the valley test produced 53 m reflections with every zone gain near zero.
+        // A valley echo is physically an EARLY, DISCRETE reflection off a distant surface. Summing it into
+        // the late zones could never carry it, because reflectivity is multiplied into the chain FOUR times
+        // (bounceRatio, the per-bounce energy, the delay, and zone2/3's refl^3 / refl^4), so natural terrain -
+        // grass 0.15, dirt 0.35, against stone's 1.0 - is crushed. Measured: zone2 and zone3 send gains are
+        // EXACTLY ZERO for every row below reflectivity 0.4, which is where all outdoor terrain sits.
         //
-        // EARLY_REFLECTION_GAIN is 0 while the classifier is replaced: "farthest reflection beyond 48 blocks"
-        // cannot tell a cave from a valley, because a large hall has far walls too and it SHOULD reverberate.
-        // The mean free path measures reflection DENSITY instead, and is being calibrated first.
-        final float farShare = farHits / (float) (REVERB_RAYS * REVERB_RAY_BOUNCES);
-        final float farReflectivity = farHits > 0 ? farReflectivitySum / farHits : 0F;
-        final float farReach = MathStuff.clamp1(farthest / EARLY_REFLECTION_DISTANCE - 1.0F);
-        this.lastEarlyReflectionGain = farShare * farReflectivity * (float) Math.sqrt(farReach)
-                * EARLY_REFLECTION_GAIN;
+        // Worse, the probe showed the tail is perfectly ANTI-correlated with openness: a stone cupboard with
+        // 2.8 m between reflections reached g1 0.956 while a 222 m open valley reached 0.013. The relationship
+        // was backwards, because the decay time was being driven by material instead of by geometry.
+        //
+        // Reflection DENSITY is the quantity that actually separates the two, and it is physical: a cave packs
+        // reflections a few blocks apart so they fuse into a diffuse tail, while a valley leaves tens of
+        // blocks of open air between them. The term is continuous - no threshold - so a hall gets a partial
+        // share, which is what a hall does.
+        final float density = this.lastReverbMeanFreePath
+                / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);
+        this.lastEarlyReflectionGain = density * (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
+                * REFLECTION_DENSITY_GAIN;
         out.sendGain1 += this.lastEarlyReflectionGain;
         out.sendGain2 += this.lastEarlyReflectionGain;
     }

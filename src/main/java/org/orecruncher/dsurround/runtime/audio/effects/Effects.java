@@ -1,6 +1,7 @@
 package org.orecruncher.dsurround.runtime.audio.effects;
 
 import net.minecraft.util.Mth;
+import org.lwjgl.openal.AL10;
 import org.lwjgl.openal.EXTEfx;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
@@ -121,6 +122,67 @@ public final class Effects {
     }
 
     /**
+     * Reports, once per sound-system init, whether a real echo is possible and how much room there is.
+     *
+     * <p>Why this exists: an echo needs an effect that produces a DISCRETE delayed tap. Measured from the
+     * OpenAL Soft source, AL_EAXREVERB's "early reflections" cannot: its own comment says the taps
+     * "decorrelate the 4-channel signal to approximate an average room response" through a Gerzon all-pass
+     * filter that "helps smooth out the reverb tail". Feeding a measured delay into
+     * AL_EAXREVERB_REFLECTIONS_DELAY therefore only delays a diffused pattern - which is exactly why it was
+     * heard as "part of the reverb" rather than as an echo.
+     *
+     * <p>AL_EFFECT_ECHO is a genuine delay line. Before building anything on it, this probe establishes the
+     * two facts that decide the design, and it only READS state plus writes to a throwaway effect object, so
+     * it cannot disturb a running sound system:
+     *
+     * <ol>
+     *   <li>whether the runtime accepts AL_EFFECT_ECHO and its parameters</li>
+     *   <li>how many auxiliary sends the device really allows - an echo send has to come from somewhere,
+     *       because a source can only carry ALC_MAX_AUXILIARY_SENDS sends in total</li>
+     * </ol>
+     */
+    private static void probeEchoSupport() {
+        final int maxSends = AudioUtilities.getMaxAuxSends();
+        int echoSlot = 0;
+        String verdict;
+        try {
+            echoSlot = EXTEfx.alGenEffects();
+            EXTEfx.alEffecti(echoSlot, EXTEfx.AL_EFFECT_TYPE, EXTEfx.AL_EFFECT_ECHO);
+            final int type = EXTEfx.alGetEffecti(echoSlot, EXTEfx.AL_EFFECT_TYPE);
+            if (type != EXTEfx.AL_EFFECT_ECHO) {
+                verdict = "REJECTED (type reads back as " + type + ")";
+            } else {
+                EXTEfx.alEffectf(echoSlot, EXTEfx.AL_ECHO_DELAY, 0.2F);
+                EXTEfx.alEffectf(echoSlot, EXTEfx.AL_ECHO_DAMPING, 0.5F);
+                EXTEfx.alEffectf(echoSlot, EXTEfx.AL_ECHO_FEEDBACK, 0.0F);
+                final float delay = EXTEfx.alGetEffectf(echoSlot, EXTEfx.AL_ECHO_DELAY);
+                final int err = AL10.alGetError();
+                verdict = err == AL10.AL_NO_ERROR
+                        ? String.format("SUPPORTED (delay reads back %.3f s)", delay)
+                        : String.format("ERROR 0x%X", err);
+            }
+        } catch (final Throwable t) {
+            verdict = "THREW " + t.getClass().getSimpleName();
+        } finally {
+            if (echoSlot != 0) {
+                try {
+                    EXTEfx.alDeleteEffects(echoSlot);
+                } catch (final Throwable ignored) {
+                    // the context may be gone; nothing to clean up
+                }
+            }
+        }
+
+        // A source can carry at most maxSends sends, and all four are already taken by the reverb zones,
+        // so an echo send cannot be ADDED - something has to give. Report the arithmetic plainly.
+        LOGGER.info("ECHO_PROBE effect=%s | maxAuxSends=%d activeSends=%d freeSends=%d | %s",
+                verdict, maxSends, activeSends, Math.max(0, maxSends - activeSends),
+                maxSends > activeSends
+                        ? "room for an echo send"
+                        : "NO spare send: an echo send must displace a reverb zone");
+    }
+
+    /**
      * Applies the reverb intensity when the config changes. The intensity slider has no
      * restart requirement, so the zone gains and their OpenAL effect slots are refreshed
      * lazily on the next sound processing pass (SourceContext.tick runs on the sound
@@ -221,6 +283,7 @@ public final class Effects {
         // The effect objects are brand new, so any previously pushed reflection delay is gone with the
         // old context. Reset the cache so the next evaluation re-uploads instead of being skipped.
         lastReflectionsDelay = Float.NaN;
+        probeEchoSupport();
         // DIAG(1.20.1): reverb slots
         org.orecruncher.dsurround.lib.Library.LOGGER.debug("REVERB_INIT activeSends=%d", getActiveSends());
         if (activeSends <= 0)

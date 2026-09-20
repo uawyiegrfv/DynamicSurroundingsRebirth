@@ -112,36 +112,21 @@ public final class SoundFXUtils {
      */
     private static final float MATERIAL_LEVEL_RESTORE = 0.2F;
     /**
-     * Scale of the mean-free-path term: the reflection spacing at which half of the effect is reached.
+     * Gain of the returned-energy term, applied to the early reverb zones.
      *
-     * <p>25 blocks sits between a cave (measured 2.7-9 m) and an open valley (22-48 m), so the term is small
-     * for enclosed spaces and substantial for open ones WITHOUT a threshold - the curve is smooth, so a space
-     * that is merely large (a hall, measured 13-20 m) gets a partial share, which is what a hall actually
-     * does.
+     * <p>The term it scales is {@code sqrt(reflectivity) * returnedShare}. Measured offline against synthetic
+     * terrain (tools/sim_calibrate.py), the returned share is 0.015 on a plain, 0.085 in forest, 0.12 in a wide
+     * valley, 0.27 on a hillside into a bowl and 0.35 in a steep valley - a 23x spread that comes entirely from
+     * geometry. At 1.0 those become -45 dB on a plain and -17 dB in a valley, so the valley is 27 dB above the
+     * plain and level with a cave's tail (-21 dB). There is nothing to tune: the separation is the geometry's.
+     *
+     * <p>Note what this can and cannot buy. OpenAL applies its reverb tail from the instant the sound starts,
+     * so a louder tail is MORE REVERB, never an echo: a real valley echo is direct, then a GAP, then the
+     * reflection, and the gap is what makes it read as an echo. Producing a gap needs discrete delayed taps,
+     * which this architecture does not have.
      */
-    private static final float MEAN_FREE_PATH_SCALE = 25.0F;
-    /**
-     * Gain of the reflection-density term, applied to the early reverb zones.
-     *
-     * <p>Sized against 2014 measured probe rows rather than estimated. At 0.6 an ENCLOSED space moves by +6%
-     * (mean zone-1 send 0.161 -> 0.170) while an OPEN one goes from 0.022 to 0.195, a factor of nine. That
-     * asymmetry is the whole point: the requirement is that a small wooden house must not gain an audible
-     * echo, and 6% is not audible, while a valley needs a tail it currently does not have at all.
-     *
-     * <p>Deliberately NOT gated on listener openness. An earlier draft multiplied the term by the
-     * sky-visibility openness to force enclosed spaces to exactly zero, but that is a patch layered on top of
-     * a physical quantity - and a small wooden house genuinely does have a faint reverberation, so zero was
-     * the wrong target to force. Density and reflectivity alone already put it in the right place.
-     */
-    private static final float REFLECTION_DENSITY_GAIN = 4.0F;
+    private static final float REFLECTION_DENSITY_GAIN = 1.0F;
     /** Skylight at a position that can see the sky in full. */
-    /**
-     * Bounce count the returned-energy total is divided by. Not the real maximum (rays x bounces): most rays
-     * escape to the sky after one or two bounces and break the loop, so the real maximum is a divisor far
-     * larger than the number of terms and it collapsed a valley's share. A fixed reference keeps the total's
-     * absolute comparison between a plain and a valley and only sets the scale.
-     */
-    private static final int FACING_REFERENCE_BOUNCES = 8;
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */
     private static final double OPENNESS_CACHE_TOLERANCE_SQR = 0.25D;
@@ -517,7 +502,7 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
                         + "clear=%.2f walk=%d/%.1fm "
-                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%.1fm face=%.2f erf=%.3f "
+                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%.1fm ret=%.0f face=%.3f erf=%.4f "
                         + "g=%.3f,%.3f,%.3f,%.3f "
                         + "rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
@@ -542,7 +527,13 @@ public final class SoundFXUtils {
      */
     private void traceReverb(final WorldContext ctx, final Vec3 soundPos, final float sendCoeff, final ReverbTrace out) {
 
-        float sharedAirspace = 0F;
+        // Bounces whose surface faces back along the incoming ray, i.e. that RETURN energy to the source.
+        // Used for the early-reflection term. A second condition used to be applied - an unobstructed line
+        // to the ear - and it read zero outdoors; see the long note in the bounce loop.
+        float returnedBounces = 0F;
+        // Bounces in open air, i.e. with clear sky above. Feeds the send-cutoff weights, which is what it
+        // has always fed; it is a different quantity from the one above and must stay separate.
+        float openBounces = 0F;
         // Observation-point accumulators. See the lastReverb* fields for why they exist.
         float firstDistanceSum = 0F;
         float firstReflectivitySum = 0F;
@@ -558,8 +549,9 @@ public final class SoundFXUtils {
         //                           strike distant terrain, whose normals are slanted, so a plain scored as
         //                           high as a valley (measured 0.43-0.98 in every scene).
         //   * reflection HEIGHT   - a one-block room's reflections are at ear height as well.
-        // The measure below is the returned energy: the surface must face back along the incoming direction
-        // AND have a clear path to the ear.
+        // The measure below is the returned energy: the surface must face back along the incoming direction.
+        // A second condition - a clear path to the ear - was removed after it was measured to zero every
+        // outdoor scene. See the note in the bounce loop.
         float facingSum = 0F;
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
@@ -617,37 +609,52 @@ public final class SoundFXUtils {
                     lastHitBlock = rayHit.getBlockPos();
 
 
-                    // Does this reflection actually RETURN energy to the listener? Two conditions, and both
-                    // are needed:
+                    // Does this reflection actually RETURN energy to the listener? The surface must face BACK
+                    // along the direction the wave arrived from. The wave arrives along newRayDir (the
+                    // direction the trace was cast in), so the surface returns it if its normal opposes that
+                    // direction. Testing against the direction to the LISTENER instead is subtly wrong: a wall
+                    // can face the listener without having been illuminated by the source at all.
                     //
-                    //   1. the surface must face BACK along the direction the wave arrived from. The wave
-                    //      arrives along newRayDir (the direction the trace was cast in), so the surface
-                    //      returns it if its normal opposes that direction. Testing against the direction to
-                    //      the LISTENER instead is what the previous version did, and it is subtly wrong: a
-                    //      wall can face the listener without having been illuminated by the source at all.
-                    //   2. there must be an unobstructed path from here to the listener's ear. A wall facing
-                    //      the listener through solid rock returns nothing. This is the sharedAirspace test,
-                    //      reused - the same ray answers both questions.
-                    final Vec3 finalRayStart = MathStuff.addScaled(lastHitPos, lastHitNormal, 0.01F);
-                    var finalRayHit = traceContext.trace(finalRayStart, ctx.playerEyePosition);
-                    final boolean pathBackToListener = isMiss(finalRayHit);
-                    if (pathBackToListener) {
-                        sharedAirspace += 1.0F;
-                    }
-
-                    // Reflectivity-weighted, and counted only when the path back is clear.
+                    // There used to be a SECOND condition here - an unobstructed straight path from this
+                    // reflection point to the listener's ear - and it was the single thing that made a valley
+                    // silent. Measured offline against synthetic terrain (tools/sim_gate_sweep.py):
                     //
-                    // This is accumulated as an ABSOLUTE total and normalised at the end by the number of
-                    // rays x bounces, not as a mean over the bounces that happened to hit. The distinction
-                    // matters: a plain hits very few surfaces, so a mean over those few was dominated by
-                    // whichever distant slope one ray happened to strike - measured, a flat plain produced
-                    // face 0.85 while only 0.05 of its bounces could see the listener at all, which is
-                    // self-contradictory. The fraction of ALL rays that return energy is the quantity that
-                    // says how much of this space reflects sound back, and it cannot be inflated by a
-                    // handful of lucky hits.
+                    //     scene            without it   with it
+                    //     steep valley        0.347       0.000
+                    //     hill -> bowl        0.272       0.000
+                    //     wide valley         0.120       0.000
+                    //     plain               0.015       0.010
+                    //     room                0.106       0.106
+                    //
+                    // It zeroes EVERY outdoor scene while leaving an indoor one untouched, because the ear
+                    // sits ~1.6 blocks above the ground: a reflection point on a valley wall sees it at a
+                    // grazing angle, so any terrain rise in between blocks the straight line. Indoors every
+                    // reflection point is in the same room, the test passes, and the bug is invisible. It also
+                    // cost one extra raycast per bounce, up to 128 per trace.
+                    //
+                    // `towardsSource > 0` already answers the question the gate was meant to answer: a plain's
+                    // reflections are its own ground, whose normal points up, so a ray leaving the source
+                    // upward and reflecting off the ground again contributes nothing.
                     final double towardsSource = -lastHitNormal.dot(newRayDir);
-                    facingSum += blockReflectivity * (float) Math.max(0.0D, towardsSource)
-                            * (pathBackToListener ? 1F : 0F);
+
+                    // Reflectivity-weighted, accumulated as an ABSOLUTE total and normalised at the end by the
+                    // number of RAYS. Two earlier normalisations were wrong and both are worth recording:
+                    //   * a MEAN over the bounces that happened to hit. A plain hits very few surfaces, so the
+                    //     mean was dominated by whichever distant slope one ray happened to strike: measured, a
+                    //     flat plain scored 0.85 while only 0.05 of its bounces could return anything at all.
+                    //   * the total divided by rays x bounces (128). Most rays escape to the sky after one or
+                    //     two bounces, so the divisor was far larger than the number of terms and a valley
+                    //     collapsed from 0.35 to 0.02. Dividing by a "reference" rays x 8 was a fudge that still
+                    //     starved it 8x and left every scene at 0.00-0.01.
+                    // The numerator is a sum over the rays, so the divisor is the number of rays.
+                    final float returned = blockReflectivity * (float) Math.max(0.0D, towardsSource);
+                    if (returned > 0F) {
+                        returnedBounces += 1.0F;
+                    }
+                    if (openAir(ctx, lastHitPos)) {
+                        openBounces += 1.0F;
+                    }
+                    facingSum += returned;
 
                     // Farthest reflection of any bounce, from the source. This is where a valley's far wall
                     // shows up; the first bounce is the ground under the listener in every scene.
@@ -679,14 +686,16 @@ public final class SoundFXUtils {
         out.bounceRatio[2] = out.bounceRatio[2] / REVERB_RAYS;
         out.bounceRatio[3] = out.bounceRatio[3] / REVERB_RAYS;
 
-        sharedAirspace *= RECIP_TOTAL_RAYS * 64F;
+        // The cutoff weights below want a normalised 0..1 share; the raw counts are kept for the probe.
+        final float returnedShare = returnedBounces * RECIP_TOTAL_RAYS;
+        final float openAirspace = openBounces * RECIP_TOTAL_RAYS * 64F;
 
-        // Observation point. `shared` is the raw count before the scaling above, so it reads as "of 128
-        // bounces, how many could see the listener" - a basin should score far higher than a plain.
+        // Observation point. `ret` is the raw count of returning bounces, so it reads as "of 128 bounces,
+        // how many came back off a surface that faced the source" - a valley scores far above a plain.
         this.lastReverbFirstDistance = firstHits > 0 ? firstDistanceSum / firstHits : 0F;
         this.lastReverbReflectivity = firstHits > 0 ? firstReflectivitySum / firstHits : 0F;
         this.lastReverbHitFraction = firstHits / (float) REVERB_RAYS;
-        this.lastReverbShared = sharedAirspace / 64F;
+        this.lastReverbShared = openBounces;
         this.lastReverbFarthest = farthest;
         // Mean free path, normalised by rays x bounces rather than by the bounces that happened.
         //
@@ -697,10 +706,10 @@ public final class SoundFXUtils {
         // space is open and there is nothing to reflect off.
         this.lastReverbMeanFreePath = (float) (pathSum / (double) (REVERB_RAYS * REVERB_RAY_BOUNCES));
 
-        final float sharedAirspaceWeight0 = MathStuff.clamp1(sharedAirspace / 20.0F);
-        final float sharedAirspaceWeight1 = MathStuff.clamp1(sharedAirspace / 15.0F);
-        final float sharedAirspaceWeight2 = MathStuff.clamp1(sharedAirspace / 10.0F);
-        final float sharedAirspaceWeight3 = MathStuff.clamp1(sharedAirspace / 10.0F);
+        final float sharedAirspaceWeight0 = MathStuff.clamp1(openAirspace / 20.0F);
+        final float sharedAirspaceWeight1 = MathStuff.clamp1(openAirspace / 15.0F);
+        final float sharedAirspaceWeight2 = MathStuff.clamp1(openAirspace / 10.0F);
+        final float sharedAirspaceWeight3 = MathStuff.clamp1(openAirspace / 10.0F);
 
         final float exp1 = (float) MathStuff.exp(sendCoeff);
         final float exp2 = (float) MathStuff.exp(sendCoeff * 1.5F);
@@ -709,27 +718,25 @@ public final class SoundFXUtils {
         out.sendCutoff2 = exp2 * (1.0F - sharedAirspaceWeight2) + sharedAirspaceWeight2;
         out.sendCutoff3 = exp2 * (1.0F - sharedAirspaceWeight3) + sharedAirspaceWeight3;
 
-        // ------------------------------------------------------------------ reflection density (open space)
+        // ------------------------------------------------------- returned energy (open space)
         //
-        // A valley echo is physically an EARLY, DISCRETE reflection off a distant surface. Summing it into
-        // the late zones could never carry it, because reflectivity is multiplied into the chain FOUR times
+        // A valley echo is physically an EARLY reflection off a distant surface. Summing it into the late
+        // zones could never carry it, because reflectivity is multiplied into that chain FOUR times
         // (bounceRatio, the per-bounce energy, the delay, and zone2/3's refl^3 / refl^4), so natural terrain -
         // grass 0.15, dirt 0.35, against stone's 1.0 - is crushed. Measured: zone2 and zone3 send gains are
         // EXACTLY ZERO for every row below reflectivity 0.4, which is where all outdoor terrain sits.
         //
-        // NO THRESHOLD GATE: the term is scaled by the measured share of wall-facing reflections, so it is
-        // continuous and derived from geometry rather than from a proxy. A plain's reflections are its own
-        // ground, whose normal points up, so its share goes to zero; a valley's are its walls.
-        // Normalised by the number of rays x bounces, i.e. the fraction of ALL reflections that return
-        // energy to the listener - an absolute measure of how much of this space reflects sound back.
-        final float facingShare = facingSum / (float) (REVERB_RAYS * FACING_REFERENCE_BOUNCES);
+        // The term is the share of the rays that come back off a surface facing the source. It is a sum over
+        // the rays, so it is divided by the number of rays. Earlier versions divided by rays x bounces (128,
+        // far larger than the number of terms because most rays escape to the sky) and then by a "reference"
+        // rays x 8, which starved the term 8x and left every scene at 0.00-0.01 - the reason a valley was
+        // silent. There is no threshold and no proxy: the number IS the geometry.
+        final float facingShare = facingSum / (float) REVERB_RAYS;
         this.lastFacingShare = facingShare;
-        final float density = this.lastReverbMeanFreePath
-                / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);
         // Smoothed: the raw value is a ratio of two 32-ray averages and was measured to swing by up to 0.36
         // between evaluations 0.4 s apart, which made the tail appear and vanish at random.
         this.lastEarlyReflectionGain = this.source.smoothEarlyReflection(
-                density * (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
+                (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
                         * facingShare * REFLECTION_DENSITY_GAIN,
                 this.source.isImmediateUpdate());
         // Handed to finalizeSendGains rather than added here: see ReverbTrace.earlyReflection.
@@ -737,8 +744,9 @@ public final class SoundFXUtils {
         // The early-reflection zones are kept BRIGHT. A reflection off a distant wall travels through AIR,
         // so it never crosses the rock that darkens the direct path - the occlusion cutoff is the wrong
         // filter for it. Without this the tail inherited the direct path's darkening and a valley sounded
-        // like "a weakened cave", which is exactly what the user reported.
-        out.earlyReflectionCutoff = MathStuff.clamp1(0.35F + 0.65F * density);
+        // like "a weakened cave", which is exactly what the user reported. Scaled by the returned share, so
+        // an open plain gets no brightening at all.
+        out.earlyReflectionCutoff = MathStuff.clamp1(0.35F + 0.65F * facingShare * 4.0F);
     }
 
     /** Applies the bounce-ratio scaling and clamps the send gains. */
@@ -1361,6 +1369,18 @@ public final class SoundFXUtils {
 
     private static float calcFactor(final Biome.Precipitation type, final float base) {
         return type == Biome.Precipitation.NONE ? base : base * (type == Biome.Precipitation.SNOW ? Effects.SNOW_AIR_ABSORPTION_FACTOR : Effects.RAIN_AIR_ABSORPTION_FACTOR);
+    }
+
+    /**
+     * Is this point in open air, i.e. does it have a clear column to the sky?
+     *
+     * <p>Used to weight the send cutoffs: a bounce in the open lets the tail stay bright, one under a ceiling
+     * does not. This is the ORIGINAL sharedAirspace quantity - a straight line from the reflection to the ear -
+     * re-expressed as a column test, because the straight line read zero in every outdoor scene (see the note
+     * in traceReverb) and would have taken the cutoffs with it.
+     */
+    private static boolean openAir(final WorldContext ctx, final Vec3 pos) {
+        return ctx.world.getBrightness(LightLayer.SKY, BlockPos.containing(pos)) >= MAX_SKY_LIGHT;
     }
 
     private static boolean isMiss(@Nullable final BlockHitResult result) {

@@ -198,8 +198,8 @@ public class Configuration extends ConfigurationData {
         public double reverbIntensity = 1.0D;
 
         @Property
-        @Comment("EXPERIMENTAL, no effect yet: discrete echo in open spaces. Withdrawn because an OpenAL aux send carries one effect and all four are reverb zones - the echo had nowhere to go. Off by default")
-        public boolean enableEarlyReflectionEcho = false;
+        @Comment("Delayed-copy echo in open spaces: when the geometry shows a wall returns sound to the listener, a second copy of the sound plays from that wall after the measured delay, so a valley answers back")
+        public boolean enableDelayedEcho = true;
 
         @Property
         @Comment("Enable/disable damping for sounds whose path to the player passes through water. Reduces both volume and high frequencies (muffling)")

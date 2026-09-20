@@ -172,38 +172,29 @@ public final class Effects {
      *                      measures ~0.015 and a valley ~0.35, so this is what keeps a plain silent
      * @param seconds       measured round-trip gap between the direct sound and the first reflection
      */
-    public static void setEarlyReflection(final float returnedShare, final float seconds) {
+    public static void setEarlyReflection(final float gain, final float seconds) {
         if (activeSends <= 0)
             return;
 
-        // OpenAL's gain is a linear amplitude multiplier (0..3.16), the measurement is a share (0..1), so
-        // the share is scaled into the parameter's range. At this factor a plain lands on 0.06 - the
-        // parameter's own default is 0.05, so a plain gains nothing - while a steep valley reaches 2.1.
-        final float gain = Mth.clamp(returnedShare * EARLY_REFLECTION_GAIN, 0F, EXTEfx.AL_EAXREVERB_MAX_REFLECTIONS_GAIN);
+        // The caller has already applied the physics - spherical spreading over the reflection's longer path
+        // and the material it bounced off - so this is a plain clamp into the parameter's range.
+        final float clampedGain = Mth.clamp(gain, 0F, EXTEfx.AL_EAXREVERB_MAX_REFLECTIONS_GAIN);
 
         final boolean delayMoved = Float.isNaN(lastReflectionsDelay)
                 || Math.abs(seconds - lastReflectionsDelay) >= DELAY_UPDATE_EPSILON;
         final boolean gainMoved = Float.isNaN(lastReflectionsGain)
-                || Math.abs(gain - lastReflectionsGain) >= GAIN_UPDATE_EPSILON;
+                || Math.abs(clampedGain - lastReflectionsGain) >= GAIN_UPDATE_EPSILON;
         if (!delayMoved && !gainMoved)
             return;
 
         lastReflectionsDelay = seconds;
-        lastReflectionsGain = gain;
+        lastReflectionsGain = clampedGain;
         for (int i = 0; i < activeSends; i++) {
             REVERB_DATA[i].reflectionsDelay = seconds;
-            REVERB_DATA[i].reflectionsGain = gain;
+            REVERB_DATA[i].reflectionsGain = clampedGain;
             REVERB_SLOTS[i].apply(REVERB_DATA[i], AUX_SLOTS[i]);
         }
     }
-
-    /**
-     * Scales the measured returned-energy share into OpenAL's reflection-gain range. Chosen so that a plain
-     * (share 0.015) lands on the parameter's default of 0.05 and gains nothing, while a steep valley (0.35)
-     * reaches 2.1. This is the ONE place the early reflection's loudness is decided - the send gains no
-     * longer carry a second copy of it.
-     */
-    private static final float EARLY_REFLECTION_GAIN = 6F;
 
     /**
      * How much the reflection delay must move before the effect slots are re-uploaded.

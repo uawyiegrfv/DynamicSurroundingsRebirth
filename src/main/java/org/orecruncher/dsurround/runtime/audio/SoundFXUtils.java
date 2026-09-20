@@ -121,6 +121,13 @@ public final class SoundFXUtils {
      * discrete event, the tail is the diffuse field behind it.
      */
     private static final float EARLY_REFLECTION_TAIL_GAIN = 1.0F;
+    /**
+     * Reference gain of the early reflection, applied to the returned-energy share AFTER the physical
+     * spreading and material terms. Sets the overall level of the echo, not its shape: the shape comes from
+     * the geometry, so this only needs to be right once. At 1.0 a grassy valley lands near -18 dB and a
+     * narrow stone gorge near -4 dB, both of which are levels real reflections reach.
+     */
+    private static final float EARLY_REFLECTION_GAIN = 1.0F;
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */
     private static final double OPENNESS_CACHE_TOLERANCE_SQR = 0.25D;
@@ -375,6 +382,16 @@ public final class SoundFXUtils {
         float returnedShare;
         /** Smoothed returned energy for the reverb tail; consumed by finalizeSendGains. */
         float earlyReflection;
+        /**
+         * Farthest reflection of any bounce, from the source. The EARLY REFLECTION's delay is measured from
+         * this rather than from the mean first-reflection distance: the mean only counts rays that hit
+         * something, and in a large valley most rays leave for the sky, so it is biased towards the few near
+         * hits and comes out far too short for an echo. The farthest hit is dominated by the far wall, which
+         * is the surface an echo actually returns from.
+         */
+        float farthest;
+        /** Mean reflectivity of the first bounce: soft ground absorbs, stone returns. */
+        float reflectivity;
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
         float earlyReflectionCutoff;
         /**
@@ -476,13 +493,26 @@ public final class SoundFXUtils {
         //   * a cave's first reflection is 3-18 blocks away  -> 10-40 ms  -> fuses     -> reverb
         //   * a valley's first reflection is 45-120 blocks away -> 130-340 ms -> separates -> echo
         //
+        // The reflection's geometry, from the farthest reflection rather than the mean (see ReverbTrace).
         // A reflection point at lateral distance d makes both legs of the path hypot(|S->L| / 2, d) long, so
         // the extra distance travelled is 2 * leg - |S->L|.
         final double directDistance = soundPos.distanceTo(ctx.playerEyePosition);
-        final double leg = Math.hypot(directDistance * 0.5D, reverb.firstDistance);
-        final float reflectionGap = (float) Math.max(0.0D, (2.0D * leg - directDistance) / SPEED_OF_SOUND);
+        final double leg = Math.hypot(directDistance * 0.5D, reverb.farthest);
+        final double reflectionPath = 2.0D * leg;
+        final float reflectionGap = (float) Math.max(0.0D, (reflectionPath - directDistance) / SPEED_OF_SOUND);
+
+        // The reflection's AMPLITUDE, which is what stops it sounding metallic. A reflected wave is weaker
+        // for two reasons and both are needed:
+        //   * spherical spreading over its longer path - the dominant term, and the reason a distant wall is
+        //     never louder than a nearby one
+        //   * the material it bounced off - amplitude falls as sqrt(reflectivity)
+        // Without this the reflection reached a level air cannot produce, which is heard as a metal ring.
+        final float spreading = (float) MathStuff.clamp1(directDistance / Math.max(1.0D, reflectionPath));
+        final float material = (float) Math.sqrt(MathStuff.clamp1(reverb.reflectivity));
+        final float reflectionGain = reverb.returnedShare * spreading * material * EARLY_REFLECTION_GAIN;
+
         if (CONFIG.enableEarlyReflectionEcho)
-            Effects.setEarlyReflection(reverb.returnedShare, reflectionGap);
+            Effects.setEarlyReflection(reflectionGain, reflectionGap);
 
         // The edge path is already part of the occlusion (see calculateOcclusion), so there is nothing to
         // restore here. This used to run a second, ring-based diffraction probe over the top of it, which
@@ -735,10 +765,12 @@ public final class SoundFXUtils {
         this.lastReverbFirstDistance = firstHits > 0 ? firstDistanceSum / firstHits : 0F;
         out.firstDistance = this.lastReverbFirstDistance;
         this.lastReverbReflectivity = firstHits > 0 ? firstReflectivitySum / firstHits : 0F;
+        out.reflectivity = this.lastReverbReflectivity;
         this.lastReverbHitFraction = firstHits / (float) REVERB_RAYS;
         this.lastReverbShared = (int) openBounces;
         this.lastReturnedBounces = (int) returnedBounces;
         this.lastReverbFarthest = farthest;
+        out.farthest = farthest;
         // Mean free path, normalised by rays x bounces rather than by the bounces that happened.
         //
         // As a mean over hits it was inflated by escapes: in a plain most rays leave for the sky and never

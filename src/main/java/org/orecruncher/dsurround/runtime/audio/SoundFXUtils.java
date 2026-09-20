@@ -830,7 +830,6 @@ public final class SoundFXUtils {
         out.firstDistance = this.lastReverbFirstDistance;
         this.lastReverbReflectivity = firstHits > 0 ? firstReflectivitySum / firstHits : 0F;
         out.reflectivity = this.lastReverbReflectivity;
-        sharedReflectivity = this.lastReverbReflectivity;
         this.lastReverbHitFraction = firstHits / (float) REVERB_RAYS;
         this.lastReverbShared = (int) openBounces;
         this.lastReturnedBounces = (int) returnedBounces;
@@ -889,7 +888,21 @@ public final class SoundFXUtils {
         // of how much of the space returns energy: a plain collapses to ~0.015 because its reflections are
         // its own ground, whose normal points up, while a valley's walls return ~0.35.
         out.returnedShare = facingShare;
-        sharedReturnedShare = facingShare;
+        // The echo is scheduled HERE, where the measurement is, rather than from the sound-play hook.
+        //
+        // That is not a style choice. The hook runs on the client thread while evaluations run on the sound
+        // thread, so a hook could only read the share through a static "most recent value" - which is
+        // whatever source happened to be evaluated last, not the source being played. The identical defect
+        // was already found and removed from the early-reflection tap. Here the share belongs to THIS source
+        // by construction, and it is the same number that drives the tail.
+        //
+        // Once per sound: an evaluation runs about twice a second, so the flag stops the same event being
+        // answered repeatedly.
+        if (!this.source.isEchoScheduled()
+                && SoundFXProcessor.scheduleEcho(this.source.getSound(), ctx, soundPos, facingShare,
+                        this.lastReverbReflectivity)) {
+            this.source.markEchoScheduled();
+        }
         // Smoothed: the raw value is a ratio of two 32-ray averages and was measured to swing by up to 0.36
         // between evaluations 0.4 s apart, which made the tail appear and vanish at random.
         this.lastEarlyReflectionGain = this.source.smoothEarlyReflection(
@@ -1026,26 +1039,7 @@ public final class SoundFXUtils {
     }
 
 
-    // ------------------------------------------------------------------ echo inputs
-    //
-    // The delayed-copy echo runs from SoundFXProcessor, which is a different object, so it needs the two
-    // measurements the trace produced. The most recent values are shared statically: a stale read makes one
-    // echo slightly wrong rather than breaking anything, so no synchronisation is warranted.
-
-    private static volatile float sharedReturnedShare;
-    private static volatile float sharedReflectivity;
-
-    /** Returned-energy share of the space, 0..1, from the most recent trace. */
-    public static float lastReturnedShare() {
-        return sharedReturnedShare;
-    }
-
-    /** Mean reflectivity of the first bounce, from the most recent trace. */
-    public static float lastReflectivity() {
-        return sharedReflectivity;
-    }
-
-    /** Speed of sound in blocks per second, for converting a reflection's extra distance into a delay. */
+    /** Speed of sound in blocks per second, for turning a reflection's extra distance into a delay. */
     public static float speedOfSound() {
         return SPEED_OF_SOUND;
     }

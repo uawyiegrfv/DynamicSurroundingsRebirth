@@ -167,7 +167,7 @@ public final class SoundFXProcessor {
      * Overall level of the echo. The geometry already supplies the relative strength, so this only sets how
      * loud the effect is as a whole; a reflection is always quieter than the sound that caused it.
      */
-    private static final float ECHO_GAIN = 0.85F;
+    private static final float ECHO_GAIN = 2.0F;
 
     private record PendingEcho(SoundInstance sound, long playAtMs) {}
 
@@ -210,50 +210,50 @@ public final class SoundFXProcessor {
     /**
      * Schedules a delayed copy of a sound when the geometry says its reflection returns to the listener.
      *
-     * <p>The measurements come from the same reverb ray trace that drives everything else, and the search
-     * itself is the mirror-source one in {@link SoundFXUtils#findEchoPath}: it proves the reflecting surface
-     * was lit by the source AND that the reflection reaches the ear. Nothing here invents a proxy.
+     * <p>Called from {@code SoundFXUtils.calculate} with THAT source's own measurements. It used to be called
+     * from the sound-play hook and read them from a static "most recent value", which is whatever source was
+     * evaluated last rather than the source being played - the same defect already removed from the
+     * early-reflection tap.
+     *
+     * <p>An evaluation runs about twice a second per source, so the echo is scheduled only once per sound:
+     * {@code SourceContext} remembers that this sound has been answered.
      */
-    private static void scheduleEcho(final SoundInstance sound, final WorldContext ctx) {
-        if (!CONFIG.enableDelayedEcho)
-            return;
-        // An echo must never echo. The copy is a real sound instance, so it comes back through onSoundPlay,
-        // and without this guard a valley would answer with a decaying train of copies - which is exactly
-        // the metallic flutter the aux-send attempt produced, reached from the other direction.
+    public static boolean scheduleEcho(final SoundInstance sound, final WorldContext ctx, final Vec3 soundPos,
+            final float share, final float reflectivity) {
+        if (!CONFIG.enableDelayedEcho || sound == null)
+            return false;
+        // An echo must never echo. The copy is a real sound instance, so it comes back through the FX
+        // pipeline; without this guard a valley would answer with a decaying train of copies.
         if (sound instanceof EchoSoundInstance)
-            return;
+            return false;
         if (pendingEchoes.size() >= MAX_PENDING_ECHOES)
-            return;
+            return false;
         // A looping sound has no end to echo, and music or weather is not a discrete event.
         if (sound.isLooping()
                 || sound.getSource() == SoundSource.MASTER
                 || sound.getSource() == SoundSource.MUSIC
                 || sound.getSource() == SoundSource.WEATHER)
-            return;
-
-        final Vec3 pos = new Vec3(sound.getX(), sound.getY(), sound.getZ());
-        // The share and reflectivity come from the most recent trace of THIS sound's source context; they
-        // are filled in by SoundFXUtils.calculate, which runs on the sound thread.
-        final float share = SoundFXUtils.lastReturnedShare();
-        final float reflectivity = SoundFXUtils.lastReflectivity();
+            return false;
+        // A plain's reflections are its own ground, so its share collapses to ~0.015 and it gets no echo.
         if (share <= 0.02F)
-            return;
+            return false;
 
-        final SoundFXUtils.EchoPath path = SoundFXUtils.findEchoPath(ctx, pos, share, reflectivity);
+        final SoundFXUtils.EchoPath path = SoundFXUtils.findEchoPath(ctx, soundPos, share, reflectivity);
         if (path == null)
-            return;
+            return false;
 
         // Delay is the extra distance the reflection travels, at the speed of sound.
         final long delayMs = Math.round(path.extraDistance / SoundFXUtils.speedOfSound() * 1000.0D);
         if (delayMs < ECHO_MIN_DELAY_MS || delayMs > ECHO_MAX_DELAY_MS)
-            return;
+            return false;
 
         final float volume = sound.getVolume() * path.gain * ECHO_GAIN;
         if (volume <= 0.01F)
-            return;
+            return false;
 
         // Placed at the reflecting surface, played without attenuation: the copy IS the sound arriving from
-        // the wall, and the geometry's spreading term already set its level.
+        // the wall, and the geometry's spreading term already set its level. That also gives correct stereo
+        // placement for free - the echo arrives from the direction of the wall, not from the original sound.
         final SoundInstance copy = new EchoSoundInstance(
                 sound.getLocation(),
                 sound.getSource(),
@@ -265,12 +265,12 @@ public final class SoundFXProcessor {
 
         pendingEchoes.add(new PendingEcho(copy, System.currentTimeMillis() + delayMs));
 
-        // One line per echo, at debug level. Without this the only way to tell whether the geometry ever
-        // accepts a path is by ear, and "I heard nothing" cannot distinguish "no wall was found" from
-        // "the copy was scheduled but too quiet".
-        LOGGER.debug("ECHO_SCHEDULE sound=%s delay=%dms gain=%.3f vol=%.3f at=%.1f,%.1f,%.1f",
+        // Logged at INFO on purpose while the feature is being verified: the debug level is off by default,
+        // and without this line "I heard nothing" cannot distinguish "no wall was found" from "too quiet".
+        LOGGER.info("ECHO_SCHEDULE sound=%s delay=%dms gain=%.3f vol=%.3f at=%.1f,%.1f,%.1f",
                 sound.getLocation(), delayMs, path.gain, volume,
                 path.surface.x(), path.surface.y(), path.surface.z());
+        return true;
     }
 
     private static boolean shouldIgnoreSound(SoundInstance sound) {
@@ -304,13 +304,6 @@ public final class SoundFXProcessor {
         if (shouldIgnoreSound(sound))
             return;
 
-        // An echo is decided when the sound STARTS, so its 32-ray search is paid once per event rather than
-        // twice a second per source. Failures here must not stop the sound from being registered.
-        try {
-            scheduleEcho(sound, worldContext);
-        } catch (final Throwable t) {
-            LOGGER.debug("ECHO_SCHEDULE failed: %s", t.getClass().getSimpleName());
-        }
 
         ISourceContext source = (ISourceContext)(((IChannelHandle) entry).dsurround_getSource());
         assert source != null;

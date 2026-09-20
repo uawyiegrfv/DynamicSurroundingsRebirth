@@ -256,7 +256,25 @@ public final class SourceContext implements Callable<Void> {
     public void attachSound(final SoundInstance sound) {
         this.sound = sound;
         this.category = sound.getSource();
+        // A new sound on this channel has not been answered yet. Evaluations run about twice a second, and
+        // the echo is scheduled from an evaluation, so without this the same sound would be echoed repeatedly.
+        this.echoScheduled = false;
         captureState();
+    }
+
+    /**
+     * Whether a delayed echo has already been scheduled for the sound currently on this channel.
+     *
+     * <p>Set once and cleared when a new sound is attached, so each sound event is answered at most once.
+     */
+    private boolean echoScheduled;
+
+    public boolean isEchoScheduled() {
+        return this.echoScheduled;
+    }
+
+    public void markEchoScheduled() {
+        this.echoScheduled = true;
     }
 
     @Nullable

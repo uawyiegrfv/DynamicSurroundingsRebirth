@@ -133,8 +133,15 @@ public final class SoundFXUtils {
      * a physical quantity - and a small wooden house genuinely does have a faint reverberation, so zero was
      * the wrong target to force. Density and reflectivity alone already put it in the right place.
      */
-    private static final float REFLECTION_DENSITY_GAIN = 2.0F;
+    private static final float REFLECTION_DENSITY_GAIN = 4.0F;
     /** Skylight at a position that can see the sky in full. */
+    /**
+     * Bounce count the returned-energy total is divided by. Not the real maximum (rays x bounces): most rays
+     * escape to the sky after one or two bounces and break the loop, so the real maximum is a divisor far
+     * larger than the number of terms and it collapsed a valley's share. A fixed reference keeps the total's
+     * absolute comparison between a plain and a valley and only sets the scale.
+     */
+    private static final int FACING_REFERENCE_BOUNCES = 8;
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */
     private static final double OPENNESS_CACHE_TOLERANCE_SQR = 0.25D;
@@ -715,7 +722,7 @@ public final class SoundFXUtils {
         // ground, whose normal points up, so its share goes to zero; a valley's are its walls.
         // Normalised by the number of rays x bounces, i.e. the fraction of ALL reflections that return
         // energy to the listener - an absolute measure of how much of this space reflects sound back.
-        final float facingShare = facingSum / (float) (REVERB_RAYS * REVERB_RAY_BOUNCES);
+        final float facingShare = facingSum / (float) (REVERB_RAYS * FACING_REFERENCE_BOUNCES);
         this.lastFacingShare = facingShare;
         final float density = this.lastReverbMeanFreePath
                 / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);

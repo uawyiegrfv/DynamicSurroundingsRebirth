@@ -226,42 +226,82 @@ public final class SoundFXProcessor {
      * <p>An evaluation runs about twice a second per source, so the echo is scheduled only once per sound:
      * {@code SourceContext} remembers that this sound has been answered.
      */
+    /** Rate limit for the rejection diagnostics; see reject(). */
+    private static long lastEchoRejectLogAt = 0L;
+    private static final long ECHO_REJECT_LOG_INTERVAL_MS = 1500L;
+
+    /**
+     * Reports why an echo was not scheduled.
+     *
+     * <p>Added because the feature was silent with no evidence: six guards can each reject a candidate and
+     * from outside they are indistinguishable, so "no echo" could not be turned into an action. Rate limited
+     * so a busy scene cannot flood the log.
+     */
+    private static void reject(final String reason, final String detail) {
+        final long now = System.currentTimeMillis();
+        if (now - lastEchoRejectLogAt < ECHO_REJECT_LOG_INTERVAL_MS)
+            return;
+        lastEchoRejectLogAt = now;
+        LOGGER.info("ECHO_REJECT %s | %s", reason, detail);
+    }
+
     public static boolean scheduleEcho(final SoundInstance sound, final WorldContext ctx, final Vec3 soundPos,
             final float share, final float reflectivity) {
-        if (!CONFIG.enableDelayedEcho || sound == null)
+        if (!CONFIG.enableDelayedEcho) {
+            reject("disabled", "config enableDelayedEcho=false");
             return false;
+        }
+        if (sound == null) {
+            reject("no-sound", "");
+            return false;
+        }
         // An echo must never echo. The copy is a real sound instance, so it comes back through the FX
         // pipeline; without this guard a valley would answer with a decaying train of copies.
         if (sound instanceof EchoSoundInstance)
             return false;
-        if (pendingEchoes.size() >= MAX_PENDING_ECHOES)
+        if (pendingEchoes.size() >= MAX_PENDING_ECHOES) {
+            reject("queue-full", "pending=" + pendingEchoes.size());
             return false;
+        }
         // A looping sound has no end to echo, and music or weather is not a discrete event.
         if (sound.isLooping()
                 || sound.getSource() == SoundSource.MASTER
                 || sound.getSource() == SoundSource.MUSIC
-                || sound.getSource() == SoundSource.WEATHER)
+                || sound.getSource() == SoundSource.WEATHER) {
+            reject("sound-type", "looping=" + sound.isLooping() + " source=" + sound.getSource());
             return false;
+        }
         // A plain's reflections are its own ground, so its share collapses to ~0.015 and it gets no echo.
-        if (share <= 0.02F)
+        if (share <= 0.02F) {
+            reject("low-share", String.format("share=%.4f (need >0.02)", share));
             return false;
+        }
 
         final SoundFXUtils.EchoPath path = SoundFXUtils.findEchoPath(ctx, soundPos, share, reflectivity);
-        if (path == null)
+        if (path == null) {
+            reject("no-path", String.format("share=%.4f refl=%.3f pos=%.1f,%.1f,%.1f ear=%.1f,%.1f,%.1f",
+                    share, reflectivity, soundPos.x(), soundPos.y(), soundPos.z(),
+                    ctx.playerEyePosition.x(), ctx.playerEyePosition.y(), ctx.playerEyePosition.z()));
             return false;
+        }
 
         // Delay is the extra distance the reflection travels, at the speed of sound.
         final long delayMs = Math.round(path.extraDistance / SoundFXUtils.speedOfSound() * 1000.0D);
-        if (delayMs < ECHO_MIN_DELAY_MS || delayMs > ECHO_MAX_DELAY_MS)
+        if (delayMs < ECHO_MIN_DELAY_MS || delayMs > ECHO_MAX_DELAY_MS) {
+            reject("delay-range", String.format("delay=%dms extra=%.1f blocks (want %d..%d ms)",
+                    delayMs, path.extraDistance, ECHO_MIN_DELAY_MS, ECHO_MAX_DELAY_MS));
             return false;
+        }
 
         final float volume = sound.getVolume() * path.gain * ECHO_GAIN;
         // A reflection more than about 25 dB below the direct sound is inaudible however long its delay, so
         // scheduling one only costs a voice. The delay test alone cannot catch that: it says "separate
-        // event", not "audible event". Measured, a stony valley's reflection lands near -15 dB and a wide
-        // grassy one near -33, so this is the test that separates the two.
-        if (volume < ECHO_MIN_VOLUME)
+        // event", not "audible event".
+        if (volume < ECHO_MIN_VOLUME) {
+            reject("too-quiet", String.format("vol=%.4f gain=%.4f (want >=%.3f)",
+                    volume, path.gain, ECHO_MIN_VOLUME));
             return false;
+        }
 
         // Placed at the reflecting surface, played without attenuation: the copy IS the sound arriving from
         // the wall, and the geometry's spreading term already set its level. That also gives correct stereo

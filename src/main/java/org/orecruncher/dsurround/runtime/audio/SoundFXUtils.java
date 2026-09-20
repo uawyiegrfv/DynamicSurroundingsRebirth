@@ -133,7 +133,20 @@ public final class SoundFXUtils {
      * the hit point. A fraction of a block keeps the geometry honest without demanding exactness from a
      * voxel world.
      */
-    private static final double ECHO_SPECULAR_TOLERANCE = 0.9D;
+    /**
+     * How far a wall may be from a perfect mirror and still count as reflecting the source.
+     *
+     * <p>An exact specular test is unusable here: it demands the source-to-mirror line to pass within a
+     * fraction of a block of the hit point, which over a 90-block path is a tolerance of about half a degree
+     * - and the hit point is set by the LISTENER's ray while the mirror line is fixed by the geometry, so the
+     * two essentially never meet on blocky terrain. Measured, that requirement rejected every candidate and
+     * the echo was never scheduled at all.
+     *
+     * <p>60 degrees keeps the physically meaningful part - the reflected ray must point substantially back
+     * towards the source, or the wall is scattering rather than returning - while tolerating the shape of
+     * real terrain. The best-aligned wall wins, so a better mirror is always preferred.
+     */
+    private static final double ECHO_MAX_REFLECTION_ANGLE = Math.toRadians(60.0D);
     /** Skylight at a position that can see the sky in full. */
     /**
      * Gain of the returned-energy term applied to the reverb TAIL.
@@ -944,6 +957,8 @@ public final class SoundFXUtils {
         public double extraDistance;
         /** Amplitude of the reflection: spreading x material x how much the space returns. */
         public float gain;
+        /** How far the wall is from a perfect mirror for this source/listener pair, in radians. */
+        public float angle;
     }
 
     /**
@@ -967,7 +982,8 @@ public final class SoundFXUtils {
         final ReusableRaycastContext searchCtx =
                 new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
-        double bestExtra = Double.MAX_VALUE;
+        double bestAngle = Double.MAX_VALUE;
+        double bestExtra = 0D;
         double bestGain = 0D;
         Vec3 bestSurface = null;
 
@@ -986,28 +1002,29 @@ public final class SoundFXUtils {
 
             final Vec3 surface = hit.getLocation();
             final Vec3 normal = surfaceNormal(hit.getDirection());
-            // Ground is not a wall: its reflection arrives from below and almost immediately.
+            // Ground is not a wall: a reflection off the floor the listener stands on arrives from below and
+            // almost immediately, which is part of the space rather than an echo.
             if (Math.abs(normal.y()) > ECHO_WALL_MAX_NORMAL_Y)
                 continue;
 
-            // Mirror the source across the surface plane through the hit point.
-            final Vec3 toSurface = soundPos.subtract(surface);
-            final Vec3 mirrored = soundPos.subtract(normal.scale(2.0D * toSurface.dot(normal)));
-
-            // Specular test: the source-to-mirror line must pass through the hit point.
-            final Vec3 mirrorLine = mirrored.subtract(soundPos);
-            final double mirrorLen = mirrorLine.length();
-            if (mirrorLen < 1.0E-6D)
+            // Does this wall return sound to the listener?
+            //
+            // The ray was cast FROM THE LISTENER, so reflecting its direction gives the direction a ray
+            // arriving from the source along that same line would leave in. The wall returns energy when that
+            // reflected direction points at the listener. The angle between them measures how far the wall is
+            // from a perfect mirror for this source/listener pair.
+            //
+            // An earlier version compared against a constant - the listener-to-source direction - which is
+            // independent of the hit point and therefore does not test whether the reflection ARRIVES at all.
+            // Light-path reversibility makes the two agree for a perfect mirror, which is exactly why the
+            // error was easy to miss.
+            final Vec3 reflected = MathStuff.reflection(dir, normal);
+            final Vec3 toEarFromSurface = ear.subtract(surface).normalize();
+            final double dot = reflected.dot(toEarFromSurface);
+            if (dot <= 0.0D)
                 continue;
-            final Vec3 mirrorDir = mirrorLine.scale(1.0D / mirrorLen);
-            final double projection = surface.subtract(soundPos).dot(mirrorDir);
-            if (projection <= 0.0D || projection >= mirrorLen)
-                continue;
-            if (soundPos.add(mirrorDir.scale(projection)).distanceTo(surface) > ECHO_SPECULAR_TOLERANCE)
-                continue;
-
-            // ...and it must be unobstructed, so the surface really was lit by the source.
-            if (!isMiss(searchCtx.trace(soundPos, mirrored)))
+            final double angle = Math.acos(MathStuff.clamp1(dot));
+            if (angle > ECHO_MAX_REFLECTION_ANGLE)
                 continue;
 
             final double toWall = soundPos.distanceTo(surface);
@@ -1016,25 +1033,33 @@ public final class SoundFXUtils {
             if (extra <= 0.0D)
                 continue;
 
-            // Amplitude: spherical spreading over the longer path, times the material it bounced off,
-            // times how much of the space returns energy at all.
-            final double spread = directDistance / Math.max(1.0D, toWall + wallToEar);
-            final double gain = share * spread * Math.sqrt(MathStuff.clamp1(reflectivity));
-
-            if (extra < bestExtra) {
+            // The wall that reflects most directly toward the source wins; ties are not interesting.
+            if (angle < bestAngle) {
+                bestAngle = angle;
                 bestExtra = extra;
-                bestGain = gain;
                 bestSurface = surface;
+                // Amplitude: spreading over the longer path, times the material, times how much of the space
+                // returns energy at all.
+                final double spread = directDistance / Math.max(1.0D, toWall + wallToEar);
+                bestGain = share * spread * Math.sqrt(MathStuff.clamp1(reflectivity));
             }
         }
 
         if (bestSurface == null)
             return null;
 
+        // The geometry's own numbers, so a silent echo can be told apart from a rejected one. Rate limited
+        // by the caller's reject() path for the failure case; a found path is worth seeing every time.
+        org.orecruncher.dsurround.lib.Library.LOGGER.info(
+                "ECHO_PATH angle=%.1fdeg extra=%.1fm gain=%.4f at=%.1f,%.1f,%.1f",
+                Math.toDegrees(bestAngle), bestExtra, bestGain,
+                bestSurface.x(), bestSurface.y(), bestSurface.z());
+
         final EchoPath path = new EchoPath();
         path.surface = bestSurface;
         path.extraDistance = bestExtra;
         path.gain = (float) bestGain;
+        path.angle = (float) bestAngle;
         return path;
     }
 

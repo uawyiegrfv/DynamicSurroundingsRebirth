@@ -157,11 +157,6 @@ public class Configuration extends ConfigurationData {
         public double realismFrequencyHz = 500.0D;
 
         @Property
-        @DoubleRange(min = 0.0D, max = 64.0D)
-        @Comment("Occlusion only: how far along the source-to-listener line block material still counts fully. Beyond that distance the contribution is divided by (1 + d/this), so a wall a few blocks from the source can no longer silence a sound 40 blocks away, while rock genuinely between the two ends still muffles. 0 disables the weighting (every block counts fully, the previous behaviour)")
-        public double occlusionFocusDistance = 8.0D;
-
-        @Property
         @Comment("Diagnostics: write the audio evaluation trace to the log (about one line every 250 ms while sounds are being processed). Off by default so a normal session stays quiet; '/dstune probe true' turns it on for a session, and '/dstune' always shows the most recent trace whether or not this is on")
         public boolean logAudioTrace = false;
 

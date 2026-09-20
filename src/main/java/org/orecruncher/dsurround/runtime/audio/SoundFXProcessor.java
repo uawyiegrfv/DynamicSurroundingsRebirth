@@ -97,6 +97,23 @@ public final class SoundFXProcessor {
     // volatile so the worker always observes a fully constructed snapshot.
     private static volatile WorldContext worldContext = new WorldContext();
 
+    /**
+     * The evaluations submitted by the most recent pass, so teardown can wait for them.
+     *
+     * <p>Without this there is a use-after-free window. {@code processSounds} submits each evaluation to
+     * {@link #threadPool}, a SEPARATE executor from the one {@code Worker} owns - so {@code Worker.stop()}
+     * awaiting termination waits for the worker THREAD, not for the evaluations that thread submitted. If
+     * the worker is interrupted on stop (its 2 s await expires) its evaluations keep running, and
+     * {@code deinitialize} then calls {@code Effects.deinitialize()}, which deletes the OpenAL filter and
+     * effect objects those evaluations upload to. A slot's own {@code isInitialized} check cannot close
+     * that window, because the deletion happens after the check has passed.
+     *
+     * <p>The sound system is torn down and rebuilt on a config reload, a device change and a
+     * reverb/occlusion toggle, so this is a reachable path rather than a theoretical one. It would present
+     * as a rare crash or a silent OpenAL error rather than a reproducible failure, which is the worst kind.
+     */
+    private static volatile ObjectArray<Future<?>> inFlightEvaluations;
+
     static {
         ClientEventHooks.COLLECT_DIAGNOSTICS.register(SoundFXProcessor::onGatherText);
         ClientState.TICK_START.register(SoundFXProcessor::clientTick);
@@ -140,12 +157,35 @@ public final class SoundFXProcessor {
                 soundProcessor.stop();
                 soundProcessor = null;
             }
+            // Wait for evaluations that stop() may not have covered. They run on threadPool, which is a
+            // different executor from the worker's, and they upload to the OpenAL objects that
+            // Effects.deinitialize() is about to delete. See inFlightEvaluations.
+            awaitInFlightEvaluations();
             if (sources != null) {
                 Arrays.fill(sources, null);
                 sources = null;
             }
             Effects.deinitialize();
         }
+    }
+
+    /**
+     * Waits for the evaluations of the last pass, so nothing is still uploading when the effects are
+     * deleted. Bounded, because a hung evaluation must not hang the client's shutdown; each evaluation is
+     * a ray trace and a handful of OpenAL calls, so this returns immediately in practice.
+     */
+    private static void awaitInFlightEvaluations() {
+        final ObjectArray<Future<?>> pending = inFlightEvaluations;
+        inFlightEvaluations = null;
+        if (pending == null)
+            return;
+        pending.forEach(task -> {
+            try {
+                task.get(1, TimeUnit.SECONDS);
+            } catch (final Throwable ignored) {
+                // Timed out, cancelled or failed: either way it is no longer something to wait on.
+            }
+        });
     }
 
     private static boolean shouldIgnoreSound(SoundInstance sound) {
@@ -391,7 +431,7 @@ public final class SoundFXProcessor {
      */
     private static void processSounds() {
         // The worker can still be draining its queue while deinitialize() nulls the
-        // sources array (Worker.stop does not await termination) - bail out quietly.
+        // sources array - bail out quietly.
         if (sources == null)
             return;
         try {
@@ -399,6 +439,8 @@ public final class SoundFXProcessor {
             assert pool != null;
 
             final ObjectArray<Future<?>> tasks = new ObjectArray<>(64);
+            // Published so deinitialize() can wait for these before the effects are deleted.
+            inFlightEvaluations = tasks;
 
             // Collect the sources due for an update this pass. See
             // SourceContext.UPDATE_FREQUENCY_TICKS for the interval. If the player just
@@ -445,6 +487,11 @@ public final class SoundFXProcessor {
                 } catch (InterruptedException | ExecutionException ignored) {
                 }
             });
+
+            // The pass is done, so nothing is left for teardown to wait on. Clearing it keeps the
+            // reference from pinning the last batch's Futures for the life of the session.
+            if (inFlightEvaluations == tasks)
+                inFlightEvaluations = null;
 
         } catch (final Throwable t) {
             LOGGER.error(t, "Error in enhanced sound processor worker");

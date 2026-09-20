@@ -29,7 +29,6 @@ public final class AudioTuning {
     private static volatile boolean evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
     private static volatile boolean realismWavelength = CONFIG.realismWavelength;
     private static volatile float realismFrequencyHz = clamp((float) CONFIG.realismFrequencyHz, 100F, 4000F);
-    private static volatile float occlusionFocusDistance = clamp((float) CONFIG.occlusionFocusDistance, 0F, 64F);
     private static volatile boolean logAudioTrace = CONFIG.logAudioTrace;
     private static final float[] DEFAULT_BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
     private static final float[] DEFAULT_BAND_FREQUENCIES = {125F, 500F, 2000F};
@@ -77,14 +76,6 @@ public final class AudioTuning {
         return realismFrequencyHz;
     }
 
-
-    /**
-     * Distance over which block material counts fully for occlusion. Beyond it the contribution is
-     * divided by (1 + d/focus). 0 = every block counts fully.
-     */
-    public static float occlusionFocusDistance() {
-        return occlusionFocusDistance;
-    }
 
     /** Whether the evaluation trace is written to the log. Off by default. */
     public static boolean logAudioTrace() {
@@ -172,12 +163,6 @@ public final class AudioTuning {
                 realismFrequencyHz = v;
                 return describe(key, old, v);
             }
-            case "occlusionFocusDistance": {
-                final float v = clamp(parseFloat(key, value), 0F, 64F);
-                final float old = occlusionFocusDistance;
-                occlusionFocusDistance = v;
-                return describe(key, old, v);
-            }
             case "probe": {
                 final boolean v = Boolean.parseBoolean(value);
                 final boolean old = logAudioTrace;
@@ -203,7 +188,7 @@ public final class AudioTuning {
             default:
                 throw new IllegalArgumentException("Unknown key '" + key + "'. Try: "
                         + "occlusionSegments, evaluateOnSoundThread, "
-                        + "realismWavelength, realismFrequencyHz, occlusionFocusDistance, "
+                        + "realismWavelength, realismFrequencyHz, "
                         + "probe, bandWeights, bandFrequencies");
         }
     }
@@ -214,7 +199,6 @@ public final class AudioTuning {
         evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
         realismWavelength = CONFIG.realismWavelength;
         realismFrequencyHz = clamp((float) CONFIG.realismFrequencyHz, 100F, 4000F);
-        occlusionFocusDistance = clamp((float) CONFIG.occlusionFocusDistance, 0F, 64F);
         logAudioTrace = CONFIG.logAudioTrace;
         bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
         bandFrequencies = parseFloats(CONFIG.bandFrequencies, DEFAULT_BAND_FREQUENCIES);
@@ -228,14 +212,13 @@ public final class AudioTuning {
                         + "  evaluateOnSoundThread    = %b   (config: enhancedSounds.evaluateOnSoundThread)%n"
                         + "  realismWavelength        = %b   (config: enhancedSounds.realismWavelength; wavelength-dependent diffraction)%n"
                         + "  realismFrequencyHz       = %.0f   (config: enhancedSounds.realismFrequencyHz, 100-4000)%n"
-                        + "  occlusionFocusDistance   = %.1f   (config: enhancedSounds.occlusionFocusDistance, 0-64 blocks; 0 = every block counts fully)%n"
                         + "  probe                    = %b   (config: enhancedSounds.logAudioTrace; write the evaluation trace to the log)%n"
                         + "  bandWeights              = %s   (config: enhancedSounds.bandWeights; relative weight per octave band, lowest first)%n"
                         + "  bandFrequencies          = %s   (config: enhancedSounds.bandFrequencies; octave bands in Hz, lowest first)%n"
                         + "Session overrides only - nothing is written to disk. '/dstune reset' restores the config values.%n"
                         + "Last evaluation: %s",
                 occlusionSegments, evaluateOnSoundThread,
-                realismWavelength, realismFrequencyHz, occlusionFocusDistance, logAudioTrace,
+                realismWavelength, realismFrequencyHz, logAudioTrace,
                 describeArray(bandWeights), describeArray(bandFrequencies), lastTrace);
     }
 

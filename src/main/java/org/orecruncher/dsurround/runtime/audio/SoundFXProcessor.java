@@ -287,7 +287,11 @@ public final class SoundFXProcessor {
             return false;
         }
 
-        final SoundFXUtils.EchoPath path = SoundFXUtils.findEchoPath(ctx, soundPos, share, reflectivity);
+        // `share` is NOT passed on: it counts the fraction of rays that return energy, and in a valley
+        // most rays leave for the sky, so it is small outdoors by construction (measured 0.015-0.05
+        // against 0.35 for an enclosed space). It is the right measure for the diffuse tail; a single
+        // specular reflection's strength is its own path length and its own material.
+        final SoundFXUtils.EchoPath path = SoundFXUtils.findEchoPath(ctx, soundPos, reflectivity);
         if (path == null) {
             reject("no-path", String.format("share=%.4f refl=%.3f pos=%.1f,%.1f,%.1f ear=%.1f,%.1f,%.1f",
                     share, reflectivity, soundPos.x(), soundPos.y(), soundPos.z(),

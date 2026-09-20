@@ -113,40 +113,43 @@ public final class SoundFXUtils {
     private static final float MATERIAL_LEVEL_RESTORE = 0.2F;
 
     /**
-     * Directions cast from the listener when searching for the wall that returns an echo.
+     * How far from the listener a reflecting surface may be and still count.
      *
-     * <p>Sampled over the upper hemisphere by a Fibonacci spiral, so the directions spread evenly without
-     * clustering at the poles. 32 finds a valley wall, which subtends a large solid angle from the valley
-     * floor; a wall so distant that 32 rays miss it is also too distant to return an audible echo.
+     * <p>A specular reflection off a flat wall at distance L with the source and the listener a
+     * distance D apart over the same side of it has an extra path length of 2L - 2D, so the wall has
+     * to be much farther from the listener than the sound is for the reflection to arrive late enough
+     * to be heard as an echo at all. 64 blocks admits every geometry that can produce an audible one.
      */
-    private static final int ECHO_SEARCH_RAYS = 32;
+    private static final int ECHO_SEARCH_DISTANCE = 64;
     /**
-     * A surface counts as a wall when its normal is closer to horizontal than this. Reflections off the
-     * ground are not echoes: the ground is what the listener stands on, and its reflection arrives from
-     * below and almost immediately.
-     */
-    private static final float ECHO_WALL_MAX_NORMAL_Y = 0.7F;
-    /** How far a ray from the listener may travel looking for a wall. */
-    private static final float ECHO_SEARCH_DISTANCE = 96F;
-    /**
-     * A reflection is accepted as specular when the source-to-mirror line passes within this many blocks of
-     * the hit point. A fraction of a block keeps the geometry honest without demanding exactness from a
-     * voxel world.
-     */
-    /**
-     * How far a wall may be from a perfect mirror and still count as reflecting the source.
+     * How far a candidate plane's reflection point may sit from the line joining the source and the
+     * listener before the plane is not the one carrying the reflection.
      *
-     * <p>An exact specular test is unusable here: it demands the source-to-mirror line to pass within a
-     * fraction of a block of the hit point, which over a 90-block path is a tolerance of about half a degree
-     * - and the hit point is set by the LISTENER's ray while the mirror line is fixed by the geometry, so the
-     * two essentially never meet on blocky terrain. Measured, that requirement rejected every candidate and
-     * the echo was never scheduled at all.
-     *
-     * <p>60 degrees keeps the physically meaningful part - the reflected ray must point substantially back
-     * towards the source, or the wall is scattering rather than returning - while tolerating the shape of
-     * real terrain. The best-aligned wall wins, so a better mirror is always preferred.
+     * <p>Not a tolerance on the geometry - the reflection point itself is computed exactly. This only
+     * rejects a plane whose reflection point falls outside the stretch of surface between the two,
+     * where no single reflection can join them.
      */
-    private static final double ECHO_MAX_REFLECTION_ANGLE = Math.toRadians(60.0D);
+    private static final double ECHO_PLANE_MAX_LATERAL = 48.0D;
+    /**
+     * A small offset into the block a reflecting plane belongs to, indexed by
+     * {@code axis * 2 + (plane &gt; listenerCoordinate ? 1 : 0)}. Added to a computed reflection point
+     * to ask the world whether that point is actually on a surface.
+     */
+    private static final Vec3[] AXIS_OFFSETS = {
+            new Vec3(0.05D, 0, 0), new Vec3(-0.05D, 0, 0),
+            new Vec3(0, 0.05D, 0), new Vec3(0, -0.05D, 0),
+            new Vec3(0, 0, 0.05D), new Vec3(0, 0, -0.05D)
+    };
+
+    /** Axis names, so the plane sweep is one loop rather than three copies. */
+    private static final String[] AXIS_NAMES = { "x", "y", "z" };
+    /**
+     * How far apart the two raycast hits may land and still count as the same surface, squared.
+     *
+     * <p>Both rays are aimed at the reflection point, so in free air they land on the same block. The
+     * slack absorbs a grazing arrival that rounds to a neighbouring block at a boundary.
+     */
+    private static final double ECHO_HIT_MATCH_SQR = 4.0D;
     /** Skylight at a position that can see the sky in full. */
     /**
      * Gain of the returned-energy term applied to the reverb TAIL.
@@ -933,45 +936,76 @@ public final class SoundFXUtils {
     }
 
     /**
-     * The echo path for one sound event, found by mirror-source geometry.
+     * The echo path for one sound event, by exact mirror-source (image-source) geometry.
      *
-     * <p>An echo is a specular reflection: sound leaves the source, strikes a surface, and returns to the
-     * ear. Equivalently the ear receives the straight-line sound from the MIRROR IMAGE of the source in that
-     * surface, which turns an awkward search over reflection points into a visibility question.
+     * <p>An echo is a specular reflection: sound leaves the source, strikes a surface, and returns to
+     * the ear. Equivalently the ear receives the straight-line sound from the MIRROR IMAGE of the
+     * source in that surface, which turns an awkward search over reflection points into a closed-form
+     * construction.
      *
-     * <p>The search goes from the LISTENER. That matters: the ray density then scales with how much of the
-     * view the wall occupies, which is what the echo's loudness should depend on. A fan cast from the SOURCE
-     * describes the source's surroundings instead, and was measured to report 98-231 blocks in a valley
-     * whose first reflection was 20-60 blocks away.
+     * <p>The construction is exact and it replaced a sampled fan, because the fan could not work. For
+     * a flat surface the specular point is FIXED by the geometry, not somewhere to be searched for: a
+     * vertical wall puts it at the LISTENER's height (see the derivation in HANDOFF 8.91), which on
+     * blocky terrain is a sub-degree target. A 32-ray fan hits it essentially never, and widening the
+     * acceptance angle to 60 degrees - the previous attempt - admits reflections whose direction
+     * demonstrably points AWAY from the source, so it found neither the real reflection nor a usable
+     * approximation of it. Measured exhaustively over analytic valley cross-sections, that search
+     * returned no candidate at all in any scene where the listener was not already standing against
+     * the wall.
      *
-     * <p>The specular test is the point of the whole thing: the straight line from the source to its mirror
-     * must pass through the hit point AND be unobstructed. That proves in one step that the surface was
-     * actually illuminated by the source and that its reflection reaches the ear.
+     * <p>Cost is LOWER than the fan it replaced: the planes are enumerated (at most 6 x 64), each
+     * reflection point is a few arithmetic operations, and each candidate costs two raycasts. The fan
+     * spent 32 raycasts on sampling a surface that could then only be checked approximately.
      *
-     * <p>This runs once per sound START, not per evaluation, so its cost is paid per event.
+     * <p>Runs once per sound START, not per evaluation, so its cost is paid per event.
      */
     public static final class EchoPath {
         /** Where the reflection happens; the delayed copy is placed here. */
         public Vec3 surface;
         /** Extra distance the reflection travels over the direct path, in blocks. */
         public double extraDistance;
-        /** Amplitude of the reflection: spreading x material x how much the space returns. */
+        /** Amplitude of the reflection: spreading x material. */
         public float gain;
         /** How far the wall is from a perfect mirror for this source/listener pair, in radians. */
         public float angle;
+        /** Which axis the reflecting face is perpendicular to, for diagnostics. */
+        public String axis;
+        /** The plane the reflecting face lies in, for diagnostics. */
+        public int plane;
+    }
+
+    /** One axis-aligned plane considered by the echo search, kept for the diagnostic summary. */
+    private static final class EchoPlaneScan {
+        int planes;
+        int halfSpace;
+        int range;
+        int castMiss;
+        int surfaceMismatch;
+        int tooEarly;
+        double bestExtra = -1.0D;
+        String bestAxis = "-";
+        int bestPlane;
+        String bestReject = "-";
+
+        void note(final String axis, final int plane, final double extra, final String reason) {
+            if (extra > this.bestExtra) {
+                this.bestExtra = extra;
+                this.bestAxis = axis;
+                this.bestPlane = plane;
+                this.bestReject = reason;
+            }
+        }
     }
 
     /**
-     * @param ctx      the world and listener
-     * @param soundPos where the sound was played
-     * @param share    the returned-energy share of the space, 0..1; 0 disables the search
+     * @param ctx          the world and listener
+     * @param soundPos     where the sound was played
      * @param reflectivity mean reflectivity of the surfaces, for the material term
      * @return the strongest specular reflection found, or null when there is none
      */
     @Nullable
-    public static EchoPath findEchoPath(final WorldContext ctx, final Vec3 soundPos,
-            final float share, final float reflectivity) {
-        if (ctx.world == null || ctx.playerEyePosition == null || share <= 0F)
+    public static EchoPath findEchoPath(final WorldContext ctx, final Vec3 soundPos, final float reflectivity) {
+        if (ctx.world == null || ctx.playerEyePosition == null)
             return null;
 
         final Vec3 ear = ctx.playerEyePosition;
@@ -979,101 +1013,177 @@ public final class SoundFXUtils {
         if (directDistance < 0.5D)
             return null;
 
+        // The search starts from the listener, so a source buried in a solid block (a jukebox) does not
+        // immediately hit the block it sits in.
+        final Vec3 source = stepOutOfSolid(ctx.world, soundPos, ear);
+
         final ReusableRaycastContext searchCtx =
                 new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
-        double bestAngle = Double.MAX_VALUE;
-        double bestExtra = 0D;
-        double bestGain = 0D;
-        Vec3 bestSurface = null;
+        final EchoPlaneScan scan = new EchoPlaneScan();
+        EchoPath best = null;
 
-        final double golden = Math.PI * (3.0D - Math.sqrt(5.0D));
-        for (int i = 0; i < ECHO_SEARCH_RAYS; i++) {
-            // Fibonacci hemisphere: even coverage without clustering at the zenith.
-            final double t = (i + 0.5D) / ECHO_SEARCH_RAYS;
-            final double y = t;
-            final double r = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
-            final double phi = golden * i;
-            final Vec3 dir = new Vec3(Math.cos(phi) * r, y, Math.sin(phi) * r).normalize();
+        for (int axis = 0; axis < 3; axis++) {
+            final String axisName = AXIS_NAMES[axis];
+            final double earCoord = coord(ear, axis);
+            final double sourceCoord = coord(source, axis);
 
-            final var hit = searchCtx.trace(ear, ear.add(dir.scale(ECHO_SEARCH_DISTANCE)));
-            if (isMiss(hit))
-                continue;
+            // The candidate planes are those whose coordinate lies within ECHO_PLANE_MAX_LATERAL of the
+            // two endpoints. That is not a tolerance on the geometry - the reflection point for each
+            // plane is computed exactly below. It only bounds how far off to one side of the source-ear
+            // line a reflecting surface may be, so a wall behind a hill 200 blocks away is not searched.
+            final double minCoord = Math.min(earCoord, sourceCoord) - ECHO_PLANE_MAX_LATERAL;
+            final double maxCoord = Math.max(earCoord, sourceCoord) + ECHO_PLANE_MAX_LATERAL;
+            final int firstPlane = (int) Math.ceil(minCoord);
+            final int lastPlane = (int) Math.floor(maxCoord);
 
-            final Vec3 surface = hit.getLocation();
-            final Vec3 normal = surfaceNormal(hit.getDirection());
-            // Ground is not a wall: a reflection off the floor the listener stands on arrives from below and
-            // almost immediately, which is part of the space rather than an echo.
-            if (Math.abs(normal.y()) > ECHO_WALL_MAX_NORMAL_Y)
-                continue;
+            for (int p = firstPlane; p <= lastPlane; p++) {
+                scan.planes++;
 
-            // Does this wall return sound to the listener?
-            //
-            // The ray was cast FROM THE LISTENER, so reflecting its direction gives the direction a ray
-            // arriving from the source along that same line would leave in. The wall returns energy when that
-            // reflected direction points at the listener. The angle between them measures how far the wall is
-            // from a perfect mirror for this source/listener pair.
-            //
-            // An earlier version compared against a constant - the listener-to-source direction - which is
-            // independent of the hit point and therefore does not test whether the reflection ARRIVES at all.
-            // Light-path reversibility makes the two agree for a perfect mirror, which is exactly why the
-            // error was easy to miss.
-            final Vec3 reflected = MathStuff.reflection(dir, normal);
-            final Vec3 toEarFromSurface = ear.subtract(surface).normalize();
-            final double dot = reflected.dot(toEarFromSurface);
-            if (dot <= 0.0D)
-                continue;
-            final double angle = Math.acos(MathStuff.clamp1(dot));
-            if (angle > ECHO_MAX_REFLECTION_ANGLE)
-                continue;
+                final double earToPlane = p - earCoord;
+                final double sourceToPlane = p - sourceCoord;
+                final double dEar = Math.abs(earToPlane);
+                final double dSource = Math.abs(sourceToPlane);
 
-            final double toWall = soundPos.distanceTo(surface);
-            final double wallToEar = surface.distanceTo(ear);
-            final double extra = toWall + wallToEar - directDistance;
-            if (extra <= 0.0D)
-                continue;
-
-            // The wall that reflects most directly toward the source wins; ties are not interesting.
-            if (angle < bestAngle) {
-                bestAngle = angle;
-                bestExtra = extra;
-                bestSurface = surface;
-                // Amplitude of THIS reflection path: the spreading over its length, times the material it
-                // bounced off.
+                // Existence condition, and it is exact. The reflection point is where the ray from the
+                // EAR to the MIRRORED SOURCE crosses the plane, which puts it 2 x dEar from the plane,
+                // on the far side from the ear. So it lies beyond BOTH endpoints, and that is what the
+                // law of reflection demands: the outgoing ray turns back toward the ear only when the
+                // reflection happens beyond both. Hence:
                 //
-                // `share` deliberately does NOT appear here. It counts the fraction of rays that return
-                // energy, and in a valley most rays leave for the sky, so it is small there by construction -
-                // measured 0.015-0.05 outdoors against 0.35 for enclosed spaces. Multiplying it in depressed
-                // the valley's echo twice, once for the real geometry and once for a statistic that mostly
-                // measures how open the sky is. Share is the right measure for the diffuse TAIL; a single
-                // specular reflection's strength is its own path length and its own material.
-                // The distance term is the POWER ratio, (direct / path)^2, not the amplitude ratio. Sound
-                // spreads over a sphere, so intensity falls as the square of the distance while pressure falls
-                // linearly; this gain multiplies a VOLUME, so it needs the power form. Using 1/r understated a
-                // distant reflection badly enough that every valley echo was rejected as inaudible, and
-                // dropping the term altogether then made the echo LOUDER than the sound that caused it.
+                //   * the two must be on the SAME side of the plane, and
+                //   * the EAR must be the FARTHER one.
+                //
+                // It also fixes the delay a valley can produce, in closed form: the extra path length
+                // is 2 x dEar, twice the EAR's distance from the wall. So a wall closer to the listener
+                // than the sound is cannot answer at all - the reflection has to happen beyond both -
+                // and an echo needs the listener well away from the wall, with the sound nearer to it.
+                //
+                // Getting this backwards is easy and was done twice here. The check that catches it is
+                // the surface test below: with the wrong sign the reflection point lands in mid-air
+                // inside the source's half-space, and nothing else in the method notices.
+                if (dEar < 1.0D || dEar <= dSource || earToPlane * sourceToPlane <= 0.0D) {
+                    scan.halfSpace++;
+                    continue;
+                }
+                if (dSource > ECHO_SEARCH_DISTANCE) {
+                    scan.range++;
+                    scan.note(axisName, p, 2.0D * dEar, "range");
+                    continue;
+                }
+
+                // The reflection point: where the line from the EAR to the MIRRORED SOURCE crosses the
+                // plane. Reflecting the source across the plane puts its image at
+                // 2p - sourceCoord along this axis.
+                final double imageToPlane = p - (2.0D * p - sourceCoord);
+                final double t = earToPlane / (earToPlane - imageToPlane);
+                final Vec3 point = ear.add(ear.vectorTo(mirror(source, axis, p)).scale(t));
+
+                // The reflection point must BE a surface. The construction places it by arithmetic, so
+                // with the wrong existence condition - or on terrain that simply is not there - it can
+                // land in mid-air, and nothing else in the method would notice. This check is what
+                // catches that, and it is cheap enough to run first.
+                if (!isSolidBlock(ctx.world, point.add(AXIS_OFFSETS[axis * 2 + (p > earCoord ? 1 : 0)]))) {
+                    scan.surfaceMismatch++;
+                    scan.note(axisName, p, 2.0D * dEar, "not-solid");
+                    continue;
+                }
+                // And it must lie inside the stretch of world the two ends span, not out to one side.
+                final double lateral = Math.abs(coord(point, (axis + 1) % 3) - coord(ear, (axis + 1) % 3))
+                        + Math.abs(coord(point, (axis + 2) % 3) - coord(ear, (axis + 2) % 3));
+                if (lateral > ECHO_PLANE_MAX_LATERAL) {
+                    scan.surfaceMismatch++;
+                    scan.note(axisName, p, 2.0D * dEar, "lateral");
+                    continue;
+                }
+
+                // Confirm by raycast instead of trusting the arithmetic: the SOURCE must see that face,
+                // and the EAR must see it back. Both rays are aimed exactly AT the reflection point,
+                // which lies on the plane by construction, so the test is simply whether each ray
+                // arrives - and whether the surface it arrives at is the one the reflection needs.
+                //
+                // The origins are stepped into the air first. A sound source is very often exactly on a
+                // surface - a footstep at the player's feet, a block break on the block's own face - and
+                // a ray starting on or inside the ground hits the ground at t=0, which rejected every
+                // candidate. That single detail is what kept this search silent.
+                final Vec3 toPoint = ear.vectorTo(point);
+                final BlockHitResult fromSource = searchCtx.trace(
+                        stepOutOfSolid(ctx.world, source, point, toPoint), point);
+                final BlockHitResult fromEar = searchCtx.trace(
+                        stepOutOfSolid(ctx.world, ear, point, toPoint), point);
+                if (isMiss(fromSource) || isMiss(fromEar)) {
+                    scan.castMiss++;
+                    scan.note(axisName, p, 2.0D * dEar, "blocked");
+                    continue;
+                }
+                // Both rays must arrive at the SAME place, which is the reflection point. Comparing the
+                // two hits rather than each one against a computed face means the test does not depend
+                // on how a raycast rounds a grazing hit at a block boundary - and it is the stronger
+                // statement anyway: a reflection needs one surface that both ends can see.
+                if (fromSource.getBlockPos().distSqr(fromEar.getBlockPos()) > ECHO_HIT_MATCH_SQR) {
+                    scan.surfaceMismatch++;
+                    scan.note(axisName, p, 2.0D * dEar, "mismatch");
+                    continue;
+                }
+
+                final double toWall = source.distanceTo(point);
+                final double wallToEar = point.distanceTo(ear);
+                final double extra = toWall + wallToEar - directDistance;
+                if (extra <= 0.0D) {
+                    scan.tooEarly++;
+                    scan.note(axisName, p, extra, "early");
+                    continue;
+                }
+
+                // Two reflections can be equally good; the nearer one carries more energy, because its
+                // spreading loss is smaller. This is the whole selection rule - there is no angle
+                // tolerance left to tune, because the construction is exact.
                 final double pathRatio = directDistance / Math.max(1.0D, toWall + wallToEar);
-                bestGain = pathRatio * pathRatio * Math.sqrt(MathStuff.clamp1(reflectivity));            }
+                final double gain = pathRatio * pathRatio * Math.sqrt(MathStuff.clamp1(reflectivity));
+                if (best == null || extra < best.extraDistance) {
+                    final EchoPath path = new EchoPath();
+                    path.surface = point;
+                    path.extraDistance = extra;
+                    path.gain = (float) gain;
+                    path.angle = 0F;
+                    path.axis = axisName;
+                    path.plane = p;
+                    best = path;
+                }
+            }
         }
 
-        if (bestSurface == null)
+        if (best == null) {
+            // Rate limited by the caller: six kinds of rejection are indistinguishable from outside, so
+            // "no echo" could not otherwise be turned into an action.
+            org.orecruncher.dsurround.lib.Library.LOGGER.info(
+                    "ECHO_NOPATH planes=%d halfspace=%d range=%d blocked=%d surface=%d early=%d"
+                            + " | bestRejected=%s@%d extra=%.1f %s | direct=%.1fm",
+                    scan.planes, scan.halfSpace, scan.range, scan.castMiss, scan.surfaceMismatch,
+                    scan.tooEarly, scan.bestAxis, scan.bestPlane, scan.bestExtra, scan.bestReject,
+                    directDistance);
             return null;
+        }
 
-        // The geometry's own numbers, so a silent echo can be told apart from a rejected one. Rate limited
-        // by the caller's reject() path for the failure case; a found path is worth seeing every time.
+        // The geometry's own numbers, so a silent echo can be told apart from a rejected one.
         org.orecruncher.dsurround.lib.Library.LOGGER.info(
-                "ECHO_PATH angle=%.1fdeg extra=%.1fm gain=%.4f share=%.4f at=%.1f,%.1f,%.1f",
-                Math.toDegrees(bestAngle), bestExtra, bestGain, share,
-                bestSurface.x(), bestSurface.y(), bestSurface.z());
-
-        final EchoPath path = new EchoPath();
-        path.surface = bestSurface;
-        path.extraDistance = bestExtra;
-        path.gain = (float) bestGain;
-        path.angle = (float) bestAngle;
-        return path;
+                "ECHO_PATH axis=%s plane=%d extra=%.1fm gain=%.4f at=%.1f,%.1f,%.1f",
+                best.axis, best.plane, best.extraDistance, best.gain,
+                best.surface.x(), best.surface.y(), best.surface.z());
+        return best;
     }
 
+    /** The mirror image of a point in the axis-aligned plane at coordinate p. */
+    private static Vec3 mirror(final Vec3 v, final int axis, final double p) {
+        return axis == 0 ? new Vec3(2.0D * p - v.x(), v.y(), v.z())
+                : axis == 1 ? new Vec3(v.x(), 2.0D * p - v.y(), v.z())
+                : new Vec3(v.x(), v.y(), 2.0D * p - v.z());
+    }
+
+    /** Coordinate along one axis, so the plane sweep can be written once instead of three times. */
+    private static double coord(final Vec3 v, final int axis) {
+        return axis == 0 ? v.x() : axis == 1 ? v.y() : v.z();
+    }
 
     /** Speed of sound in blocks per second, for turning a reflection's extra distance into a delay. */
     public static float speedOfSound() {
@@ -1738,10 +1848,45 @@ public final class SoundFXUtils {
      * that is itself a solid block (a jukebox) would otherwise self-occlude every probe.
      */
     private static Vec3 stepOutOfSolid(final Level world, final Vec3 from, final Vec3 towards) {
+        return stepOutOfSolid(world, from, towards, null);
+    }
+
+    /**
+     * The same, but refusing to move the point far along the ray that is about to be cast.
+     *
+     * <p>This is what makes the escape work when the ray is horizontal. A source standing ON the
+     * ground with its target at the same height cannot be stepped out of the floor along the ray at
+     * all - the floor is still solid a whole block ahead, and eight half-block steps only lift it 2 cm
+     * - so it has to go UP instead. Before this the echo search started its source ray inside the
+     * floor, the ray hit the floor at t=0, and every candidate was rejected: the search was silent for
+     * a reason no amount of gain tuning could have found.
+     *
+     * <p>The escape is allowed to move a little along the ray (the {@code 0.5} below). Forbidding the
+     * ray's direction outright also forbade UP, because a ray that runs along the floor has a small
+     * upward component too - so the escape that was needed was the one being blocked.
+     */
+    private static Vec3 stepOutOfSolid(final Level world, final Vec3 from, final Vec3 towards,
+            @Nullable final Vec3 rayDirection) {
         final Vec3 dir = from.vectorTo(towards).normalize();
         Vec3 pos = from;
         for (int i = 0; i < 8 && isSolidBlock(world, pos); i++)
             pos = pos.add(dir.scale(0.5D));
+        if (!isSolidBlock(world, pos))
+            return pos;
+        // Still inside. Try straight up first, then the horizontal escapes, then down, so a point
+        // buried in a floor, a wall or a ceiling all have somewhere to go. An escape that would carry
+        // the origin too far along the pending ray is skipped: it would move the probe, not free it.
+        for (final Vec3 escape : new Vec3[] { new Vec3(0, 1, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1),
+                new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, -1, 0) }) {
+            if (rayDirection != null && escape.dot(rayDirection.normalize()) > 0.5D)
+                continue;
+            Vec3 candidate = from;
+            for (int i = 0; i < 16; i++) {
+                if (!isSolidBlock(world, candidate))
+                    return candidate;
+                candidate = candidate.add(escape.scale(0.25D));
+            }
+        }
         return pos;
     }
 

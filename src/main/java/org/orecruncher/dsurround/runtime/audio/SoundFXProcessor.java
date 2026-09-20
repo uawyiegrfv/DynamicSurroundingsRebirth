@@ -154,7 +154,9 @@ public final class SoundFXProcessor {
     // ------------------------------------------------------------------ delayed-copy echo
     //
     // A real echo is a second arrival of the sound, so it is produced by playing a second copy later. See
-    // the class note in tools/add_echo_scheduler.py for why this replaced the aux-send approach.
+    // One aux send carries one effect and all four are reverb zones, so an echo cannot be an aux send at
+    // all - and OpenAL's EAXREVERB early reflections are diffused into the tail by design. A second copy of
+    // the sound is the only mechanism that keeps all four zones. See HANDOFF 8.83 and 8.89.
     //
     // Bounds are deliberate. MAX_PENDING caps the queue so a burst of sounds cannot multiply into hundreds
     // of voices; ECHO_MIN_DELAY_MS is the Haas fusion window - a reflection arriving sooner than this is

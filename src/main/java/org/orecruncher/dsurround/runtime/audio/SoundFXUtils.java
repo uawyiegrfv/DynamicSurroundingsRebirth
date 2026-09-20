@@ -135,9 +135,16 @@ public final class SoundFXUtils {
      */
     private static final float REFLECTION_DENSITY_GAIN = 2.0F;
     /**
-     * Scale applied to the surface-orientation measure before it gates the reflection-density term. The
-     * measure is 1 for a vertical wall and 0 for a floor, averaged over every bounce, so a scene mixing walls
-     * and ground lands in the middle; this brings the useful range up without a threshold.
+     * How far above or below the listener's ear a reflection can be and still count as one that returns
+     * sound to them. A reflection at ear height came off a wall and crosses the space back to the listener;
+     * one this far below is the ground, which reflects upward and away. 8 blocks is roughly a valley's wall
+     * height and well above any floor.
+     */
+    private static final float RETURNED_HEIGHT_RANGE = 8.0F;
+    /**
+     * Scale applied to the returned-ness measure before it gates the reflection-density term. The measure is
+     * 1 for a reflection at ear height and 0 for one 8 blocks below, averaged over every bounce, so a scene
+     * mixing walls and ground lands in the middle; this brings the useful range up without a threshold.
      */
     private static final float RETURNED_SHARE_SCALE = 2.5F;
     /** Skylight at a position that can see the sky in full. */
@@ -548,12 +555,12 @@ public final class SoundFXUtils {
         // Mean free path: the distance between consecutive reflections, summed over every ray.
         double pathSum = 0D;
         int pathCount = 0;
-        // Sum of the horizontal-ness of the surfaces the rays reflect off. A valley's walls are vertical and
-        // send energy back toward the listener; a plain's reflections are its own ground, whose normal points
-        // straight up, so nothing comes back. This is the quantity that separates the two - the mean free path
-        // cannot, because a plain's is large simply because its rays cross a lot of empty air.
-        float horizontalSum = 0F;
-        int horizontalCount = 0;
+        // Sum of the returned-ness of the reflections. A valley's walls are vertical and send energy back
+        // toward the listener; a plain's reflections are its own ground, whose normal points straight up, so
+        // nothing comes back. This is the quantity that separates the two - the mean free path cannot, because
+        // a plain's is large simply because its rays cross a lot of empty air.
+        float returnedSum = 0F;
+        int returnedCount = 0;
 
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
@@ -611,10 +618,14 @@ public final class SoundFXUtils {
                     lastRayDir = newRayDir;
                     lastHitBlock = rayHit.getBlockPos();
 
-                    // How horizontal the reflecting surface is: 1 for a wall, 0 for a floor or ceiling. A wall
-                    // reflects energy back across the space; the ground under the listener does not.
-                    horizontalSum += 1F - Math.abs((float) lastHitNormal.y());
-                    horizontalCount++;
+                    // Measured as HEIGHT RELATIVE TO THE LISTENER rather than from the surface normal: the
+                    // normal-based version read 1.00 in all 255 probe rows, including rows that were plainly
+                    // enclosed, so the direction mapping could not be trusted. A reflection point at the
+                    // listener's height is a wall that can return sound across the space; one far below is the
+                    // ground, which reflects upward and away.
+                    final float heightAboveEar = (float) (lastHitPos.y - ctx.playerEyePosition.y);
+                    returnedSum += MathStuff.clamp1(1.0F - Math.abs(heightAboveEar) / RETURNED_HEIGHT_RANGE);
+                    returnedCount++;
                     // Farthest reflection of any bounce, from the source. This is where a valley's far wall
                     // shows up; the first bounce is the ground under the listener in every scene.
                     farthest = Math.max(farthest, (float) soundPos.distanceTo(lastHitPos));
@@ -694,7 +705,7 @@ public final class SoundFXUtils {
         // blocks of open air between them. The term is continuous - no threshold - so a hall gets a partial
         // share, which is what a hall does.
         final float returnedShare = MathStuff.clamp1(
-                (horizontalCount > 0 ? horizontalSum / horizontalCount : 0F) * RETURNED_SHARE_SCALE);
+                (returnedCount > 0 ? returnedSum / returnedCount : 0F) * RETURNED_SHARE_SCALE);
         this.lastReturnedShare = returnedShare;
         final float density = this.lastReverbMeanFreePath
                 / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);

@@ -133,7 +133,7 @@ public final class SoundFXUtils {
      * a physical quantity - and a small wooden house genuinely does have a faint reverberation, so zero was
      * the wrong target to force. Density and reflectivity alone already put it in the right place.
      */
-    private static final float REFLECTION_DENSITY_GAIN = 0.6F;
+    private static final float REFLECTION_DENSITY_GAIN = 2.0F;
     /** Skylight at a position that can see the sky in full. */
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */

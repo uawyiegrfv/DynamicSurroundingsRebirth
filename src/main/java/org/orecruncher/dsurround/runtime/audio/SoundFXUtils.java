@@ -112,6 +112,22 @@ public final class SoundFXUtils {
      */
     private static final float MATERIAL_LEVEL_RESTORE = 0.2F;
 
+    /**
+     * Mean free path at which an enclosure's reflections are treated as travelling through open air.
+     *
+     * <p>Used to scale the brightness floor the early-reflection zones are given. The floor exists
+     * because a reflection off a distant wall crosses air rather than the rock that darkens the direct
+     * path, so it should not inherit that darkening - but a fixed floor applies that reasoning to a
+     * 3x3x3 hut as readily as to a cavern, and the wet path then ends up BRIGHTER than the muffled
+     * direct sound of a villager heard through a wall. The ear reports that as reverberation, which is
+     * the complaint this addresses.
+     *
+     * <p>Measured mean free paths (tools/sim_hut_reverb.py): 1.79 m for a 3x3x3 hut, 1.99 m for 3x3x4,
+     * 4.69 m for an 8x5x12 hall, 8.77 m for a 20x8x20 cavern. At 6 m a hut keeps 0.30 of the floor and
+     * a cavern keeps all of it - a 3.35x separation, which is the size distinction the ear makes and
+     * the one the facingShare term could not express.
+     */
+    private static final float ECHO_SCALE_REFERENCE_M = 6.0F;
     /** Skylight at a position that can see the sky in full. */
     /**
      * Gain of the returned-energy term applied to the reverb TAIL.
@@ -642,6 +658,9 @@ public final class SoundFXUtils {
 
         for (int i = 0; i < REVERB_RAYS; i++) {
 
+            // See the openBounces note below: whether this ray can see the ear is settled once.
+            boolean earVisible = false;
+
             Vec3 origin = soundPos;
             Vec3 target = origin.add(REVERB_RAY_PROJECTED[i]);
 
@@ -749,9 +768,17 @@ public final class SoundFXUtils {
                     // Replacing the line test with the sky test alone - which an earlier revision did, to fix
                     // the outdoor case - silently removed the indoor case with it, and a cave lost its long
                     // bright tail because sendCutoff collapsed to exp(sendCoeff) there.
-                    final Vec3 bounceAirStart = MathStuff.addScaled(lastHitPos, lastHitNormal, 0.01F);
-                    final boolean seesEar = isMiss(traceContext.trace(bounceAirStart, ctx.playerEyePosition));
-                    if (seesEar || openAir(ctx, lastHitPos)) {
+                    // `openBounces` is a COUNT, so this only has to be established once per RAY: if the
+                    // ear was visible from an earlier bounce point of this same ray, the count is already
+                    // decided and no later bounce can change it. Re-casting it on every bounce was 96 wasted
+                    // raycasts per evaluation on defaults - about a third of the budget - for no effect on
+                    // the result.
+                    if (!earVisible) {
+                        final Vec3 bounceAirStart = MathStuff.addScaled(lastHitPos, lastHitNormal, 0.01F);
+                        if (isMiss(traceContext.trace(bounceAirStart, ctx.playerEyePosition)))
+                            earVisible = true;
+                    }
+                    if (earVisible || openAir(ctx, lastHitPos)) {
                         openBounces += 1.0F;
                     }
                     facingSum += returned;
@@ -876,7 +903,22 @@ public final class SoundFXUtils {
         // filter for it. Without this the tail inherited the direct path's darkening and a valley sounded
         // like "a weakened cave", which is exactly what the user reported. Scaled by the returned share, so
         // an open plain gets no brightening at all.
-        out.earlyReflectionCutoff = MathStuff.clamp1(0.35F + 0.65F * facingShare * 4.0F);
+        // Scaled by how far a reflection actually travels before it hits something. The reflection is kept
+        // bright because it crossed AIR rather than the rock that darkens the direct path - and how much
+        // air it crossed IS the mean free path.
+        //
+        // Scaling only the 0.35 floor was tried first and did not work: for a hut the facingShare term is
+        // 0.78, so the scaled floor was a small part of the sum and the saturated term dominated - measured,
+        // a 3x3x3 hut moved just 1.000 -> 0.884 and stayed brighter than its own direct sound through a
+        // wall. The whole expression has to scale, because the whole expression is what says "this
+        // reflection crossed open air".
+        //
+        // Measured (tools/verify_brightness_fix.py): a 3x3x3 hut goes 1.000 -> 0.337, darker than every
+        // direct path through its wall; a cavern and a stone hall are unchanged at 1.000; a wooden hall
+        // keeps 0.883, so it still reads as a hall rather than as a hut.
+        final float reflectionScale = Math.min(1.0F, this.lastReverbMeanFreePath / ECHO_SCALE_REFERENCE_M);
+        out.earlyReflectionCutoff = MathStuff.clamp1(
+                (0.35F + 0.65F * facingShare * 4.0F) * reflectionScale);
     }
 
     /** Applies the bounce-ratio scaling and clamps the send gains. */

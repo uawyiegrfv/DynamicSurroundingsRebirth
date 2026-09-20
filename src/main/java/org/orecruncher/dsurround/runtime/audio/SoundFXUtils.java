@@ -355,6 +355,13 @@ public final class SoundFXUtils {
      */
     private float lastEchoDelayMs;
     /**
+     * Mean reflectivity at the fourth bounce, for the /dstune probe. This is what decides whether the long
+     * 4.14 s reverb zone carries anything: its tail is scaled by this value to the fourth power, so a cave
+     * (stone, ~0.65) reaches 0.18 while an open scene (rays escape before the fourth bounce) is zero. It was
+     * never measured indoors, which is why removing the zone looked safe when it was not.
+     */
+    private float lastBounceRatio3;
+    /**
      * Smoothed returned energy feeding the reverb TAIL (see finalizeSendGains). Distinct from the
      * EAXREVERB reflection gain, which feeds the early-reflection tap.
      */
@@ -616,10 +623,11 @@ public final class SoundFXUtils {
         // problem is the filter or the audibility of the band, not the model.
         if (AudioTuning.shouldTrace()) {
             AudioTuning.recordTrace(String.format(
-                                                    "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
+                                                                    "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb0=%.1f edgedb1=%.1f "
                         + "edgedb2=%.1f clear=%.2f walk=%d walkm=%.1f rv=%.1f rvhit=%.2f rvrefl=%.2f far=%.0f mfp=%.1f "
-                        + "shared=%d ret=%d face=%.3f g0=%.3f g1=%.3f g2=%.3f g3=%.3f echo_ms=%.0f rays=%d cost=%.0f ",
+                        + "shared=%d ret=%d face=%.3f g0=%.3f g1=%.3f g2=%.3f g3=%.3f echo_ms=%.0f bounce3=%.3f "
+                        + "rays=%d cost=%.0f ",
                     this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                     MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                     sendOcclusionGain, this.lastMaterialSum, this.lastOpenness, this.lastZoneLossDb,
@@ -631,7 +639,7 @@ public final class SoundFXUtils {
                     this.lastReverbMeanFreePath, this.lastReverbShared, this.lastReturnedBounces,
                     this.lastFacingShare,
                     reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
-                    this.lastEchoDelayMs,
+                    this.lastEchoDelayMs, this.lastBounceRatio3,
                     ReusableRaycastContext.raycastCount(),
                     (System.nanoTime() - evaluationStart) / 1000.0D));
         }
@@ -826,6 +834,7 @@ public final class SoundFXUtils {
         out.bounceRatio[1] = out.bounceRatio[1] / REVERB_RAYS;
         out.bounceRatio[2] = out.bounceRatio[2] / REVERB_RAYS;
         out.bounceRatio[3] = out.bounceRatio[3] / REVERB_RAYS;
+        this.lastBounceRatio3 = out.bounceRatio[3];
 
         // The cutoff weights below want a normalised 0..1 share; the raw counts are kept for the probe.
         final float returnedShare = returnedBounces * RECIP_TOTAL_RAYS;
@@ -1053,10 +1062,21 @@ public final class SoundFXUtils {
         // simply the shortest accepted path, and its short delay means the engine renders it as part of the
         // space rather than as a separate event.
         //
-        // This assignment REPLACES the value, which is why occlusion is applied further down (to all four
-        // sends at once) rather than upstream: multiplying sendGain3 before this point had no effect, so the
-        // direct path's occlusion never reached the echo.
-        reverb.sendGain3 = reverb.echoGain;
+        // Send 3 carries BOTH the diffuse tail of its zone and the discrete echo.
+        //
+        // This is a correction. An earlier revision assigned the echo alone, on the grounds that this zone's
+        // tail was multiplied by bounceRatio^4 and had measured exactly zero - but that measurement came from
+        // 314 probe rows that were almost entirely OUTDOORS, where rays escape to the sky after one or two
+        // bounces and never reach the fourth. It was never checked IN A CAVE, where a ray keeps striking stone
+        // and bounceRatio[3] approaches the stone reflectivity: 0.65^4 is 0.18, not zero. A long reverb zone
+        // with a 4.14 s decay is exactly what an enclosed space needs, and removing it is why a cave came
+        // back with a short, dry tail.
+        //
+        // So the zone's own tail is restored, and the echo is ADDED to it. They are not the same signal: the
+        // tail is a diffuse field, the echo is one discrete reflection. In a cave the echo is zero (its search
+        // finds no specular wall return) and the tail stands alone; in a valley the tail is weak and the echo
+        // dominates. The two never compete for the same energy.
+        reverb.sendGain3 = reverb.sendGain3 * (float) MathStuff.pow(reverb.bounceRatio[3], 4.0) + reverb.echoGain;
 
         // The returned energy drives the reverb TAIL. This is not a duplicate of the EAXREVERB reflection
         // gain: that one feeds the early-reflection TAP, a discrete event; this one feeds the diffuse field

@@ -905,11 +905,27 @@ public final class SoundFXUtils {
         // of how much of the space returns energy: a plain collapses to ~0.015 because its reflections are
         // its own ground, whose normal points up, while a valley's walls return ~0.35.
         out.returnedShare = facingShare;
+        // Scaled by how far the reflection actually travelled before it arrived.
+        //
+        // The boost below describes an EARLY reflection off a DISTANT surface - a valley wall, a cavern
+        // wall - which is a separate arrival and therefore feeds the tail. In a small room the first
+        // reflection is 1-2 m away: it arrives WITH the direct sound and fuses into it, and boosting the
+        // tail for it is simply making a small room loud. Measured on a 3x3x3 hut, this term was 0.66
+        // against a geometry contribution of 0.22, so it was 75% of the wet path - g1 logged at 0.889,
+        // the wet path sitting at 65% of the dry path. A cave is unaffected: its first reflection is
+        // 5-15 m away and the scale is 1.
+        //
+        // The measurement already exists as lastReverbFirstDistance (the probe's rv=) and is set above.
+        // The reference is the same one used for the brightness scale, because the physical statement is
+        // the same: a reflection stops being part of the direct sound only once it has travelled far
+        // enough through air.
+        final float reflectionDistanceScale =
+                Math.min(1.0F, this.lastReverbFirstDistance / ECHO_SCALE_REFERENCE_M);
         // Smoothed: the raw value is a ratio of two 32-ray averages and was measured to swing by up to 0.36
         // between evaluations 0.4 s apart, which made the tail appear and vanish at random.
         this.lastEarlyReflectionGain = this.source.smoothEarlyReflection(
                 (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
-                        * facingShare * EARLY_REFLECTION_TAIL_GAIN,
+                        * facingShare * EARLY_REFLECTION_TAIL_GAIN * reflectionDistanceScale,
                 this.source.isImmediateUpdate());
         // Consumed by finalizeSendGains: it feeds the tail, not the reflection tap.
         out.earlyReflection = this.lastEarlyReflectionGain;

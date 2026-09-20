@@ -248,6 +248,24 @@ public final class SoundFXUtils {
     /** Listener openness from the most recent measurement, reported by the probe. */
     private float lastOpenness = 1F;
     /**
+     * Reverb geometry from the most recent measurement, reported by the probe as {@code rv=}.
+     *
+     * <p>These exist because the reverb is a GLOBAL system: every scene goes through the same four zones,
+     * so a change intended for one of them lands on all of them. Before this, tuning it meant guessing -
+     * the session had already broken things three times by changing a formula without an observation point
+     * (the material walk's reach, the wrong path, the openness range). What is needed to see the difference
+     * between a room, a cave and a valley is the SHAPE of the reflections: how far away they are, how much
+     * energy comes back, and how much of the space is seen from the reflection points.
+     */
+    /** Mean distance to the first reflection, in blocks. Small = a room, large = a valley wall. */
+    private float lastReverbFirstDistance;
+    /** Fraction of rays that found a reflection at all. Low = open sky, high = surrounded by surfaces. */
+    private float lastReverbHitFraction;
+    /** Mean reflectivity of the first bounce. Low = soft ground (grass, leaves), high = stone. */
+    private float lastReverbReflectivity;
+    /** How many rays could see the listener from their reflection point: the shared-airspace measure. */
+    private float lastReverbShared;
+    /**
      * Occlusion accumulation along the centre fan ray only (the direct
      * source-to-player line). Unlike the full-fan average, which clips incidental
      * terrain off to the side and climbs to 5-10 in the open world, this tracks how
@@ -418,13 +436,18 @@ public final class SoundFXUtils {
         AudioTuning.recordTrace(String.format(
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
-                        + "clear=%.2f walk=%d/%.1fm rays=%d cost=%.0fus",
+                        + "clear=%.2f walk=%d/%.1fm "
+                        + "rv=%.1fm/%.2f/%.2f/%.2f g=%.3f,%.3f,%.3f,%.3f "
+                        + "rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                 MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                 sendOcclusionGain, this.lastMaterialSum, this.lastOpenness, this.lastZoneLossDb,
                 this.lastEdgeFound,
                 this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
                 this.lastWalkSegments, this.lastWalkDistance,
+                this.lastReverbFirstDistance, this.lastReverbHitFraction,
+                this.lastReverbReflectivity, this.lastReverbShared,
+                reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
                 ReusableRaycastContext.raycastCount(),
                 (System.nanoTime() - evaluationStart) / 1000.0D));
 
@@ -438,6 +461,10 @@ public final class SoundFXUtils {
     private void traceReverb(final WorldContext ctx, final Vec3 soundPos, final float sendCoeff, final ReverbTrace out) {
 
         float sharedAirspace = 0F;
+        // Observation-point accumulators. See the lastReverb* fields for why they exist.
+        float firstDistanceSum = 0F;
+        float firstReflectivitySum = 0F;
+        int firstHits = 0;
 
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
@@ -450,6 +477,12 @@ public final class SoundFXUtils {
 
             if (isMiss(rayHit))
                 continue;
+
+            // First reflection: its distance is what separates a room from a valley, and its reflectivity is
+            // what decides whether the reflection survives at all.
+            firstHits++;
+            firstDistanceSum += (float) origin.distanceTo(rayHit.getLocation());
+            firstReflectivitySum += getReflectivity(ctx.world.getBlockState(rayHit.getBlockPos()));
 
             // Additional bounces
             BlockPos lastHitBlock = rayHit.getBlockPos();
@@ -518,6 +551,13 @@ public final class SoundFXUtils {
         out.bounceRatio[3] = out.bounceRatio[3] / REVERB_RAYS;
 
         sharedAirspace *= RECIP_TOTAL_RAYS * 64F;
+
+        // Observation point. `shared` is the raw count before the scaling above, so it reads as "of 128
+        // bounces, how many could see the listener" - a basin should score far higher than a plain.
+        this.lastReverbFirstDistance = firstHits > 0 ? firstDistanceSum / firstHits : 0F;
+        this.lastReverbReflectivity = firstHits > 0 ? firstReflectivitySum / firstHits : 0F;
+        this.lastReverbHitFraction = firstHits / (float) REVERB_RAYS;
+        this.lastReverbShared = sharedAirspace / 64F;
 
         final float sharedAirspaceWeight0 = MathStuff.clamp1(sharedAirspace / 20.0F);
         final float sharedAirspaceWeight1 = MathStuff.clamp1(sharedAirspace / 15.0F);

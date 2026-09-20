@@ -1072,11 +1072,6 @@ public final class SoundFXUtils {
     }
 
     /**
-     * How much block material at a given distance along the line still counts. 1 up to the focus
-     * distance, then 1 / (1 + (d - focus)/focus). With the focus at 0 every block counts fully (the
-     * previous behaviour).
-     */
-    /**
      * Frequency for band {@code index}, or the single configured frequency when the wavelength model is
      * off (in which case every band collapses to the same value and the combination is a no-op).
      */
@@ -1128,16 +1123,10 @@ public final class SoundFXUtils {
         return (float) Math.sqrt(ratio);
     }
 
-    private static double occlusionDistanceWeight(final double along, final double totalDistance) {
-        final float focus = AudioTuning.occlusionFocusDistance();
-        if (focus <= 0F)
-            return 1.0D;
-        // Measure from whichever end is nearer: the effect is local to the source AND to the listener.
-        final double fromNearestEnd = Math.min(along, Math.max(0.0D, totalDistance - along));
-        if (fromNearestEnd <= focus)
-            return 1.0D;
-        return 1.0D / (1.0D + (fromNearestEnd - focus) / focus);
-    }
+    // A distance-weighted occlusion sum - material near either end counting for more than material far
+    // along the line - lived here, with its own tuning knob. It was removed deliberately when the aperture
+    // was changed to ask a binary question per sample instead of walking segments: the walk it weighted no
+    // longer exists. The knob outlived it and has been removed with it.
 
     /**
      * Knife-edge amplitude for a path-length detour of {@code delta} blocks at {@code frequencyHz}.

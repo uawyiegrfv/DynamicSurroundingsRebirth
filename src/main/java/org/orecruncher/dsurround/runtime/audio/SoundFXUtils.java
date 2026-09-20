@@ -123,17 +123,21 @@ public final class SoundFXUtils {
     /**
      * Gain of the reflection-density term, applied to the early reverb zones.
      *
-     * <p>Sized against 2014 measured probe rows rather than estimated. At 0.6 an ENCLOSED space moves by +6%
-     * (mean zone-1 send 0.161 -> 0.170) while an OPEN one goes from 0.022 to 0.195, a factor of nine. That
-     * asymmetry is the whole point: the requirement is that a small wooden house must not gain an audible
-     * echo, and 6% is not audible, while a valley needs a tail it currently does not have at all.
+     * <p><b>Raised from 0.6 to 2.0 on the user's instruction to judge by ear alone.</b> At 0.6 the term was
+     * measured to be working (valley zone-1 send 0.037 -> 0.177, zone-2 0.000 -> 0.126) but the user still
+     * could not hear it, and converting to level showed why: the valley tail sat at -34 dB while the cave's
+     * was -21 dB, so it existed without being audible. 0.6 was chosen for "does not change a house", which
+     * turned out to be the wrong criterion to optimise.
      *
-     * <p>Deliberately NOT gated on listener openness. An earlier draft multiplied the term by the
-     * sky-visibility openness to force enclosed spaces to exactly zero, but that is a patch layered on top of
-     * a physical quantity - and a small wooden house genuinely does have a faint reverberation, so zero was
-     * the wrong target to force. Density and reflectivity alone already put it in the right place.
+     * <p>At 2.0 the valley tail reaches about -21 dB, level with a cave, while a house stays near -40 dB -
+     * still 20 dB below the valley and inaudible as an echo. See tools/wet_levels.py for the arithmetic.
+     *
+     * <p>Note what this can and cannot buy. OpenAL applies its reverb tail from the instant the sound starts,
+     * so a louder tail is MORE REVERB, never an echo: a real valley echo is direct, then a GAP, then the
+     * reflection, and the gap is what makes it read as an echo. Producing a gap needs discrete delayed taps,
+     * which this architecture does not have.
      */
-    private static final float REFLECTION_DENSITY_GAIN = 0.6F;
+    private static final float REFLECTION_DENSITY_GAIN = 2.0F;
     /** Skylight at a position that can see the sky in full. */
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */

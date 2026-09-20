@@ -544,21 +544,17 @@ public final class SoundFXUtils {
         // Mean free path: the distance between consecutive reflections, summed over every ray.
         double pathSum = 0D;
         int pathCount = 0;
-        // How much of the reflection comes off surfaces FACING THE LISTENER. This is the geometric quantity
-        // that separates a valley from a plain, and it is measured directly from the surface normal:
-        // VoxelShape.clip builds the hit direction as Direction.getNearest(dx, dy, dz).getOpposite(), i.e. the
-        // OUTWARD NORMAL of the face that was struck (verified from bytecode).
-        //
-        // The measure is the dot product of that normal with the direction from the reflection point to the
-        // listener, clamped at zero. Two earlier versions of this were wrong and both are worth recording:
+        // How much of the reflection comes off surfaces that RETURN energy to the listener. Two earlier
+        // versions of this were wrong and both are worth recording:
         //   * |normal.y| alone    - "vertical" is not "facing the listener". A wall with its back to you has
-        //                           |y| = 0 too, and it sends nothing back. Worse, in a plain the upward and
-        //                           sideways rays eventually strike distant terrain, whose normals are slanted,
-        //                           so a plain scored as high as a valley (measured 0.43-0.98 everywhere).
+        //                           |y| = 0 too. Worse, in a plain the upward and sideways rays eventually
+        //                           strike distant terrain, whose normals are slanted, so a plain scored as
+        //                           high as a valley (measured 0.43-0.98 in every scene).
         //   * reflection HEIGHT   - a one-block room's reflections are at ear height as well.
-        // The dot product is what "returns energy to the listener" actually means.
+        // The measure below is the returned energy: the surface must face back along the incoming direction
+        // AND have a clear path to the ear.
         float facingSum = 0F;
-        int facingCount = 0;
+        float facingWeightSum = 0F;
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
         for (int i = 0; i < REVERB_RAYS; i++) {
@@ -616,28 +612,34 @@ public final class SoundFXUtils {
                     lastHitBlock = rayHit.getBlockPos();
 
 
-                    // Does this surface face the listener? A wall in front of you reflects energy back across
-                    // the space; the ground under you reflects it up and away; a wall behind you sends it the
-                    // other way. The dot product with the direction to the listener is the measurement.
-                    final Vec3 toListener = ctx.playerEyePosition.subtract(lastHitPos);
-                    final double listenerDistance = toListener.length();
-                    if (listenerDistance > 0.01D) {
-                        final double towards = lastHitNormal.dot(toListener.scale(1.0D / listenerDistance));
-                        facingSum += (float) Math.max(0.0D, towards);
-                        facingCount++;
+                    // Does this reflection actually RETURN energy to the listener? Two conditions, and both
+                    // are needed:
+                    //
+                    //   1. the surface must face BACK along the direction the wave arrived from. The wave
+                    //      arrives along newRayDir (the direction the trace was cast in), so the surface
+                    //      returns it if its normal opposes that direction. Testing against the direction to
+                    //      the LISTENER instead is what the previous version did, and it is subtly wrong: a
+                    //      wall can face the listener without having been illuminated by the source at all.
+                    //   2. there must be an unobstructed path from here to the listener's ear. A wall facing
+                    //      the listener through solid rock returns nothing. This is the sharedAirspace test,
+                    //      reused - the same ray answers both questions.
+                    final Vec3 finalRayStart = MathStuff.addScaled(lastHitPos, lastHitNormal, 0.01F);
+                    var finalRayHit = traceContext.trace(finalRayStart, ctx.playerEyePosition);
+                    final boolean pathBackToListener = isMiss(finalRayHit);
+                    if (pathBackToListener) {
+                        sharedAirspace += 1.0F;
                     }
+
+                    // Reflectivity-weighted, so a wall the source actually illuminated counts more than one
+                    // it only grazed, and only counted when the path back is clear.
+                    final double towardsSource = -lastHitNormal.dot(newRayDir);
+                    facingSum += blockReflectivity * (float) Math.max(0.0D, towardsSource)
+                            * (pathBackToListener ? 1F : 0F);
+                    facingWeightSum += blockReflectivity;
+
                     // Farthest reflection of any bounce, from the source. This is where a valley's far wall
                     // shows up; the first bounce is the ground under the listener in every scene.
                     farthest = Math.max(farthest, (float) soundPos.distanceTo(lastHitPos));
-
-
-                    // Cast a ray back at the player.  If it is a miss there is a path back from the reflection
-                    // point to the player meaning they share the same airspace.
-                    final Vec3 finalRayStart = MathStuff.addScaled(lastHitPos, lastHitNormal, 0.01F);
-                    var finalRayHit = traceContext.trace(finalRayStart, ctx.playerEyePosition);
-                    if (isMiss(finalRayHit)) {
-                        sharedAirspace += 1.0F;
-                    }
                 }
 
                 assert totalRayDistance >= 0;
@@ -707,7 +709,7 @@ public final class SoundFXUtils {
         // NO THRESHOLD GATE: the term is scaled by the measured share of wall-facing reflections, so it is
         // continuous and derived from geometry rather than from a proxy. A plain's reflections are its own
         // ground, whose normal points up, so its share goes to zero; a valley's are its walls.
-        final float facingShare = facingCount > 0 ? facingSum / facingCount : 0F;
+        final float facingShare = facingWeightSum > 0F ? facingSum / facingWeightSum : 0F;
         this.lastFacingShare = facingShare;
         final float density = this.lastReverbMeanFreePath
                 / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);

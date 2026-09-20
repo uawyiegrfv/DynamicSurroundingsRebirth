@@ -248,6 +248,13 @@ public final class SoundFXProcessor {
                 false);
 
         pendingEchoes.add(new PendingEcho(copy, System.currentTimeMillis() + delayMs));
+
+        // One line per echo, at debug level. Without this the only way to tell whether the geometry ever
+        // accepts a path is by ear, and "I heard nothing" cannot distinguish "no wall was found" from
+        // "the copy was scheduled but too quiet".
+        LOGGER.debug("ECHO_SCHEDULE sound=%s delay=%dms gain=%.3f vol=%.3f at=%.1f,%.1f,%.1f",
+                sound.getLocation(), delayMs, path.gain, volume,
+                path.surface.x(), path.surface.y(), path.surface.z());
     }
 
     private static boolean shouldIgnoreSound(SoundInstance sound) {

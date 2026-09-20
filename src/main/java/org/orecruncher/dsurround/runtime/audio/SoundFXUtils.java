@@ -1239,9 +1239,18 @@ public final class SoundFXUtils {
             // low one (the mass law), so sharing one coefficient across the bands understated how dull a
             // wall sounds. See materialAbsorptionScale.
             final float bandLossDb = materialLossDb * materialAbsorptionScale(bandFrequency(band));
-            float amplitude = amplitudeFromDb(bandLossDb);
-            if (edgeAmplitude != null && band < edgeAmplitude.length)
-                amplitude += edgeAmplitude[band];
+            final float transmitted = amplitudeFromDb(bandLossDb);
+            // Transmission through the material and diffraction around its edge are two INDEPENDENT paths, so
+            // their POWERS add: combining amplitudes means the square root of the sum of squares.
+            //
+            // Adding the amplitudes let the total exceed the incident energy - a linear sum of two terms each
+            // up to 1 reaches 2 - and the clamp below only hid that. This form is bounded by 1 by
+            // construction, so the clamp is a safety net rather than part of the model.
+            float amplitude = transmitted;
+            if (edgeAmplitude != null && band < edgeAmplitude.length) {
+                final float edge = edgeAmplitude[band];
+                amplitude = (float) Math.sqrt(transmitted * transmitted + edge * edge);
+            }
             amplitude = MathStuff.clamp1(amplitude);
             final float db = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, amplitude)));
             final float weight = bandWeight(band);

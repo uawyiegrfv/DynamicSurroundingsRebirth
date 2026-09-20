@@ -128,6 +128,29 @@ public final class SoundFXUtils {
      * narrow stone gorge near -4 dB, both of which are levels real reflections reach.
      */
     private static final float EARLY_REFLECTION_GAIN = 1.0F;
+    /**
+     * Directions cast from the listener when searching for the wall that returns an echo.
+     *
+     * <p>Sampled over the upper hemisphere by a Fibonacci spiral, so the directions are evenly spread
+     * without clustering at the poles. 32 is enough to find a valley wall, which subtends a large solid
+     * angle from the floor of the valley; a wall so distant that 32 rays miss it is also too distant to
+     * return an audible echo, because AL_ECHO_MAX_DELAY caps the path at about 71 blocks anyway.
+     */
+    private static final int ECHO_SEARCH_RAYS = 32;
+    /**
+     * A surface counts as a wall when its normal is closer to horizontal than this. Reflections off the
+     * ground are not echoes: the ground is what the listener is standing on, and its reflection arrives
+     * from below and almost immediately.
+     */
+    private static final float ECHO_WALL_MAX_NORMAL_Y = 0.7F;
+    /** How far a ray from the listener may travel looking for a wall. */
+    private static final float ECHO_SEARCH_DISTANCE = 96F;
+    /**
+     * A reflection is accepted as specular when the source-to-mirror line passes within this many blocks of
+     * the hit point. Larger values accept more, blurrier reflections; this is a fraction of a block, which
+     * keeps the geometry honest without demanding exactness from a voxel world.
+     */
+    private static final double ECHO_SPECULAR_TOLERANCE = 0.9D;
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */
     private static final double OPENNESS_CACHE_TOLERANCE_SQR = 0.25D;
@@ -391,10 +414,12 @@ public final class SoundFXUtils {
          */
         float farthest;
         /**
-         * Strength of the discrete echo sent to the last aux send. Zero unless the first reflection arrives
-         * late enough to be heard as a separate event rather than as part of the space.
+         * Strength of the discrete echo sent to the last aux send. Zero unless a genuinely specular
+         * reflection off a wall returns to the listener late enough to be heard as a separate event.
          */
         float echoGain;
+        /** Round-trip gap of that reflection, in seconds; the echo's delay. */
+        float echoDelay;
         /** Mean reflectivity of the first bounce: soft ground absorbs, stone returns. */
         float reflectivity;
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
@@ -498,34 +523,20 @@ public final class SoundFXUtils {
         //   * a cave's first reflection is 3-18 blocks away  -> 10-40 ms  -> fuses     -> reverb
         //   * a valley's first reflection is 45-120 blocks away -> 130-340 ms -> separates -> echo
         //
-        // The reflection's geometry, from the farthest reflection rather than the mean (see ReverbTrace).
-        // A reflection point at lateral distance d makes both legs of the path hypot(|S->L| / 2, d) long, so
-        // the extra distance travelled is 2 * leg - |S->L|.
-        final double directDistance = soundPos.distanceTo(ctx.playerEyePosition);
-        final double leg = Math.hypot(directDistance * 0.5D, reverb.farthest);
-        final double reflectionPath = 2.0D * leg;
-        final float reflectionGap = (float) Math.max(0.0D, (reflectionPath - directDistance) / SPEED_OF_SOUND);
-
-        // The reflection's AMPLITUDE, which is what stops it sounding metallic. A reflected wave is weaker
-        // for two reasons and both are needed:
-        //   * spherical spreading over its longer path - the dominant term, and the reason a distant wall is
-        //     never louder than a nearby one
-        //   * the material it bounced off - amplitude falls as sqrt(reflectivity)
-        // Without this the reflection reached a level air cannot produce, which is heard as a metal ring.
-        final float spreading = (float) MathStuff.clamp1(directDistance / Math.max(1.0D, reflectionPath));
-        final float material = (float) Math.sqrt(MathStuff.clamp1(reverb.reflectivity));
-        final float reflectionGain = reverb.returnedShare * spreading * material * EARLY_REFLECTION_GAIN;
-
-        // The fusion window: a reflection that reaches the ear within about 50 ms of the direct sound is not
-        // heard as a separate event, it is heard as part of the space. That boundary is a property of the
-        // auditory system (the Haas window), so it is a constant and not a tuning knob - and it is what makes
-        // a narrow gorge and a cave keep their reverb while a valley gains an echo, with no branch on scene
-        // type anywhere. The fade spans 25-60 ms so the transition is continuous rather than a switch.
-        final float echoGate = MathStuff.clamp1((reflectionGap - 0.025F) / 0.035F);
-        reverb.echoGain = reflectionGain * echoGate;
-
-        if (CONFIG.enableEarlyReflectionEcho)
-            Effects.setEarlyReflection(reflectionGain, reflectionGap);
+        // ------------------------------------------------------------------ echo (mirror source)
+        //
+        // The echo is measured by its own search rather than taken from the reverb ray fan. See
+        // traceEcho for why: the fan is cast from the source and its farthest hit describes distant
+        // terrain, not the wall that returns sound to the ear.
+        if (CONFIG.enableEarlyReflectionEcho) {
+            final EchoPath echo = traceEcho(ctx, soundPos);
+            reverb.echoGain = echo.gain;
+            reverb.echoDelay = echo.delay;
+            Effects.setEarlyReflection(echo.gain, echo.delay);
+        } else {
+            reverb.echoGain = 0F;
+            reverb.echoDelay = 0F;
+        }
 
         // The edge path is already part of the occlusion (see calculateOcclusion), so there is nothing to
         // restore here. This used to run a second, ring-based diffraction probe over the top of it, which
@@ -850,6 +861,128 @@ public final class SoundFXUtils {
         out.earlyReflectionCutoff = MathStuff.clamp1(0.35F + 0.65F * facingShare * 4.0F);
     }
 
+    /** Result of the echo search: the strength and delay of the strongest specular reflection found. */
+    private static final class EchoPath {
+        float gain;
+        float delay;
+    }
+
+    /**
+     * Finds the wall that returns an echo, by mirror-source geometry.
+     *
+     * <p>An echo is a specular reflection: sound leaves the source, strikes a surface, and returns to the
+     * ear. Equivalently the ear receives the straight-line sound from the MIRROR IMAGE of the source in that
+     * surface. That equivalence turns an awkward search over reflection points into a visibility question.
+     *
+     * <p>The search goes from the LISTENER, not from the source, for two reasons:
+     * <ul>
+     *   <li>the ray density then scales with how much of the view the wall occupies, which is what the
+     *       echo's loudness should depend on;</li>
+     *   <li>a fan cast from the source describes the SOURCE's surroundings, not the surfaces visible from
+     *       the ear. Measured, that statistic read 98-231 blocks in a valley while the first-reflection
+     *       distance was 20-60, because the rays strike nearby ground, bounce, and travel on to distant
+     *       terrain - so the delay came out at 0.55 s, was clamped to the engine's 0.207 s, and the gain
+     *       collapsed to almost nothing.</li>
+     * </ul>
+     *
+     * <p>The specular test is the whole point: the straight line from the source to the mirrored source
+     * must pass through the hit point AND be unobstructed. That proves in one step that the surface was
+     * actually illuminated by the source and that its reflection reaches the ear, which no source-side
+     * statistic can establish.
+     *
+     * <p>The SHORTEST accepted path wins: that is the strongest, most audible echo, and it also keeps the
+     * delay inside AL_ECHO_MAX_DELAY.
+     */
+    private EchoPath traceEcho(final WorldContext ctx, final Vec3 soundPos) {
+        final EchoPath result = new EchoPath();
+
+        final Vec3 ear = ctx.playerEyePosition;
+        final double directDistance = soundPos.distanceTo(ear);
+        if (directDistance < 0.5D)
+            return result;
+
+        // The returned-energy share still comes from the reverb fan: it measures how much of the space
+        // reflects at all, which is what keeps a plain silent.
+        final float share = this.lastFacingShare;
+        if (share <= 0F)
+            return result;
+
+        final ReusableRaycastContext searchCtx =
+                new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
+
+        double bestExtra = Double.MAX_VALUE;
+        double bestGain = 0D;
+
+        final double golden = Math.PI * (3.0D - Math.sqrt(5.0D));
+        for (int i = 0; i < ECHO_SEARCH_RAYS; i++) {
+            // Fibonacci hemisphere: even coverage without clustering at the zenith.
+            final double t = (i + 0.5D) / ECHO_SEARCH_RAYS;
+            final double y = t;
+            final double r = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
+            final double phi = golden * i;
+            final Vec3 dir = new Vec3(Math.cos(phi) * r, y, Math.sin(phi) * r).normalize();
+
+            final Vec3 target = ear.add(dir.scale(ECHO_SEARCH_DISTANCE));
+            final var hit = searchCtx.trace(ear, target);
+            if (isMiss(hit))
+                continue;
+
+            final Vec3 surface = hit.getLocation();
+            final Vec3 normal = surfaceNormal(hit.getDirection());
+            // Ground is not a wall: a reflection off the floor the listener stands on arrives from below
+            // and almost immediately, which is part of the space rather than an echo.
+            if (Math.abs(normal.y()) > ECHO_WALL_MAX_NORMAL_Y)
+                continue;
+
+            // Mirror the source across the surface plane through the hit point.
+            final Vec3 toSurface = soundPos.subtract(surface);
+            final double distanceAlongNormal = toSurface.dot(normal);
+            final Vec3 mirrored = soundPos.subtract(normal.scale(2.0D * distanceAlongNormal));
+
+            // Specular test: the line from the source to its mirror must pass through the hit point.
+            final Vec3 mirrorLine = mirrored.subtract(soundPos);
+            final double mirrorLen = mirrorLine.length();
+            if (mirrorLen < 1.0E-6D)
+                continue;
+            final Vec3 mirrorDir = mirrorLine.scale(1.0D / mirrorLen);
+            final Vec3 toHit = surface.subtract(soundPos);
+            final double projection = toHit.dot(mirrorDir);
+            if (projection <= 0.0D || projection >= mirrorLen)
+                continue;
+            final Vec3 closest = soundPos.add(mirrorDir.scale(projection));
+            if (closest.distanceTo(surface) > ECHO_SPECULAR_TOLERANCE)
+                continue;
+
+            // ...and that line must be unobstructed, so the surface really was lit by the source.
+            if (!isMiss(searchCtx.trace(soundPos, mirrored)))
+                continue;
+
+            final double toWall = soundPos.distanceTo(surface);
+            final double wallToEar = surface.distanceTo(ear);
+            final double extra = toWall + wallToEar - directDistance;
+            if (extra <= 0.0D)
+                continue;
+
+            // Amplitude: spherical spreading over the longer path, times the material it bounced off,
+            // times how much of the space reflects at all.
+            final double spread = directDistance / Math.max(1.0D, toWall + wallToEar);
+            final double material = Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity));
+            final double gain = share * spread * material;
+
+            if (extra < bestExtra) {
+                bestExtra = extra;
+                bestGain = gain;
+            }
+        }
+
+        if (bestExtra == Double.MAX_VALUE)
+            return result;
+
+        result.gain = (float) (bestGain * EARLY_REFLECTION_GAIN);
+        result.delay = (float) (bestExtra / SPEED_OF_SOUND);
+        return result;
+    }
+
     /** Applies the bounce-ratio scaling and clamps the send gains. */
     private static void finalizeSendGains(final ReverbTrace reverb, final float sendOcclusionGain) {
         reverb.sendGain1 *= reverb.bounceRatio[1];
@@ -862,9 +995,11 @@ public final class SoundFXUtils {
         // so 0.15^4 = 0.0005 for grass and 0.65^4 = 0.18 even for stone. Measured, the zone's gain was exactly
         // zero in all 314 probe rows across 564 log files. An echo fed through it would have been silent.
         //
-        // The echo's strength is the reflected amplitude, already computed physically in calculate()
-        // (returned share x spherical spreading x material), gated by the fusion window: a reflection that
-        // arrives within ~50 ms of the direct sound is part of the space, not an echo.
+        // The echo's strength comes from traceEcho: a specular reflection off a wall, found by mirror-source
+        // geometry, with its amplitude taken as returned share x spherical spreading x material. There is no
+        // separate fusion-window gate any more - a reflection that arrives almost with the direct sound is
+        // simply the shortest accepted path, and its short delay means the engine renders it as part of the
+        // space rather than as a separate event.
         //
         // This assignment REPLACES the value, which is why occlusion is applied further down (to all four
         // sends at once) rather than upstream: multiplying sendGain3 before this point had no effect, so the

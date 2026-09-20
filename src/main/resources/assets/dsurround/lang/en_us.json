@@ -442,5 +442,19 @@
   "dsurround.config.popoffNumbers.peakTickTicks": "Tick of the largest size",
   "dsurround.config.popoffNumbers.peakTickTicks.tooltip": "Which tick the text reaches its largest. Low values grow fast and then shrink slowly; the shrink rate is derived so the text ends at the size it started",
   "dsurround.config.popoffNumbers.gravityPercent": "Fall speed",
-  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "How fast the text drops, as a percentage of the original mod's gravity. Lower falls more slowly and travels less; raise it for a heavier drop"
+  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "How fast the text drops, as a percentage of the original mod's gravity. Lower falls more slowly and travels less; raise it for a heavier drop",
+  "dsurround.config.enhancedSounds.occlusionSegments": "Occlusion ray segments",
+  "dsurround.config.enhancedSounds.occlusionSegments.tooltip": "Occlusion only: segments a source-to-player ray is split into when measuring how much block material it passes through. Higher = finer distance-weighted occlusion at slightly more cost per ray",
+  "dsurround.config.enhancedSounds.evaluateOnSoundThread": "Evaluate on sound thread",
+  "dsurround.config.enhancedSounds.evaluateOnSoundThread.tooltip": "Evaluate the environment on the sound thread when a sound starts (default: correct occlusion/reverb on the very first frame) or defer it to the background worker (less sound-thread work when many sounds start in the same tick, at the cost of up to one worker cycle - 50 ms - of default settings at the start of each sound)",
+  "dsurround.config.enhancedSounds.realismWavelength": "Use real sound wavelength",
+  "dsurround.config.enhancedSounds.realismWavelength.tooltip": "Occlusion only: use the real wavelength of sound instead of treating every frequency alike. Diffraction loss then follows the Fresnel number of the detour around the obstacle's edge (low frequencies bend around obstacles, high frequencies do not). This is the physically correct direction, and the reason a low rumble carries around a corner while a high clink does not. Turn off to get the previous frequency-blind behaviour back",
+  "dsurround.config.enhancedSounds.realismFrequencyHz": "Representative frequency (Hz)",
+  "dsurround.config.enhancedSounds.realismFrequencyHz.tooltip": "Occlusion only: the representative frequency in Hz used for the wavelength above. The engine applies ONE low-pass filter per source, so the model has to pick a single band; 500 Hz is a low-mid voice/thud band, where a game's audible occlusion is dominated, and it makes the model generous (low frequencies bend around obstacles) rather than harsh",
+  "dsurround.config.enhancedSounds.logAudioTrace": "Log the audio trace",
+  "dsurround.config.enhancedSounds.logAudioTrace.tooltip": "Diagnostics: write the audio evaluation trace to the log (about one line every 250 ms while sounds are being processed). Off by default so a normal session stays quiet; '/dstune probe true' turns it on for a session, and '/dstune' always shows the most recent trace whether or not this is on",
+  "dsurround.config.enhancedSounds.bandWeights": "Octave band weights",
+  "dsurround.config.enhancedSounds.bandWeights.tooltip": "Occlusion only: relative weight of each octave band (lowest first) when the per-band attenuations are combined. The defaults (0.50 low, 0.35 mid, 0.15 high) follow the principle that low frequencies are the ones that reach the listener around an obstacle; they are a judgement call rather than a measured spectrum, so they are exposed for testing. '/dstune bandWeights 0.7,0.25,0.05' makes a hill even more transparent",
+  "dsurround.config.enhancedSounds.bandFrequencies": "Octave band frequencies (Hz)",
+  "dsurround.config.enhancedSounds.bandFrequencies.tooltip": "Occlusion only: the octave bands in Hz the Fresnel zone is measured in, lowest first. The zone radius scales as 1/sqrt(frequency), so the lowest band decides whether a large obstacle (a hill) is a wall or a nuisance. '/dstune bandFrequencies 63,250,1000' shifts the whole model down an octave"
 }

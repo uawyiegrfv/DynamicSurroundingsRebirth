@@ -434,5 +434,19 @@
   "dsurround.config.popoffNumbers.peakTickTicks": "最大尺寸所在刻",
   "dsurround.config.popoffNumbers.peakTickTicks.tooltip": "文字在第几刻达到最大。数值越小则放大越快、之后缩小越慢；缩小率由公式反推，保证最终缩回起始大小",
   "dsurround.config.popoffNumbers.gravityPercent": "下落速度",
-  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "文字下落速度，原版重力的百分比。调低则下落更慢、位移更小；调高则落得更沉"
+  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "文字下落速度，原版重力的百分比。调低则下落更慢、位移更小；调高则落得更沉",
+  "dsurround.config.enhancedSounds.occlusionSegments": "遮挡射线分段数",
+  "dsurround.config.enhancedSounds.occlusionSegments.tooltip": "遮挡计算时，声源到玩家这条射线被切成多少段来测量途中穿过多少方块。段数越多越精确、开销越大（1-32）",
+  "dsurround.config.enhancedSounds.evaluateOnSoundThread": "在声音线程求值",
+  "dsurround.config.enhancedSounds.evaluateOnSoundThread.tooltip": "声音开始时在声音线程上立即求值（默认）。关闭后改由后台线程求值，声音线程负担更轻，但遮挡会晚约 50ms 才生效",
+  "dsurround.config.enhancedSounds.realismWavelength": "使用真实声波波长",
+  "dsurround.config.enhancedSounds.realismWavelength.tooltip": "用声波的真实波长（由下方频率决定）计算绕射，而不是所有频率一视同仁。关闭后低音和高音衰减相同，这是本模型里唯一一个定性而非精度上的错误 —— 现实中低频能绕过障碍物，高频则被直接挡住",
+  "dsurround.config.enhancedSounds.realismFrequencyHz": "代表频率 (Hz)",
+  "dsurround.config.enhancedSounds.realismFrequencyHz.tooltip": "上一条所用波长的代表频率 (Hz)。引擎每个声源只能挂一个低通滤波器，所以模型必须选一个频带；500Hz 是低中频的人声/闷响频段，游戏里可听见的遮挡主要集中在这里，而且它让模型偏「宽松」（低频更容易绕过去）",
+  "dsurround.config.enhancedSounds.logAudioTrace": "把音频探针写入日志",
+  "dsurround.config.enhancedSounds.logAudioTrace.tooltip": "诊断：把音频求值探针写入日志（有声音处理时约每 250ms 一行）。默认关闭以保持日志干净；/dstune probe true 可临时开启，且 /dstune 无论开关都会显示最近一行",
+  "dsurround.config.enhancedSounds.bandWeights": "倍频带权重",
+  "dsurround.config.enhancedSounds.bandWeights.tooltip": "各倍频带的相对权重（从低到高），用于合并各频带的衰减。默认 (0.50 低 / 0.35 中 / 0.15 高) 的依据是「绕过障碍物到达听者的主要是低频」；这是判断而非实测频谱，因此开放出来供测试。/dstune bandWeights 0.7,0.25,0.05 会让山丘更加透明",
+  "dsurround.config.enhancedSounds.bandFrequencies": "倍频带频率 (Hz)",
+  "dsurround.config.enhancedSounds.bandFrequencies.tooltip": "测量菲涅尔区所用的倍频带频率 (Hz)，从低到高。改变它会改变多大范围的障碍物会挡住哪个频带，从而改变绕射的音色"
 }

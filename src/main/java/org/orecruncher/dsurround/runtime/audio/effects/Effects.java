@@ -121,117 +121,9 @@ public final class Effects {
         reverbData3.gain = 0.4F * 0.85F * GLOBAL_REVERB_MULTIPLIER * intensity;
     }
 
-    /**
-     * Reports, once per sound-system init, whether a real echo is possible and how much room there is.
-     *
-     * <p>Why this exists: an echo needs an effect that produces a DISCRETE delayed tap. Measured from the
-     * OpenAL Soft source, AL_EAXREVERB's "early reflections" cannot: its own comment says the taps
-     * "decorrelate the 4-channel signal to approximate an average room response" through a Gerzon all-pass
-     * filter that "helps smooth out the reverb tail". Feeding a measured delay into
-     * AL_EAXREVERB_REFLECTIONS_DELAY therefore only delays a diffused pattern - which is exactly why it was
-     * heard as "part of the reverb" rather than as an echo.
-     *
-     * <p>AL_EFFECT_ECHO is a genuine delay line. Before building anything on it, this probe establishes the
-     * two facts that decide the design, and it only READS state plus writes to a throwaway effect object, so
-     * it cannot disturb a running sound system:
-     *
-     * <ol>
-     *   <li>whether the runtime accepts AL_EFFECT_ECHO and its parameters</li>
-     *   <li>how many auxiliary sends the device really allows - an echo send has to come from somewhere,
-     *       because a source can only carry ALC_MAX_AUXILIARY_SENDS sends in total</li>
-     * </ol>
-     */
-    private static void probeEchoSupport() {
-        final int maxSends = AudioUtilities.getMaxAuxSends();
-        int echoSlot = 0;
-        String verdict;
-        try {
-            echoSlot = EXTEfx.alGenEffects();
-            EXTEfx.alEffecti(echoSlot, EXTEfx.AL_EFFECT_TYPE, EXTEfx.AL_EFFECT_ECHO);
-            final int type = EXTEfx.alGetEffecti(echoSlot, EXTEfx.AL_EFFECT_TYPE);
-            if (type != EXTEfx.AL_EFFECT_ECHO) {
-                verdict = "REJECTED (type reads back as " + type + ")";
-            } else {
-                EXTEfx.alEffectf(echoSlot, EXTEfx.AL_ECHO_DELAY, 0.2F);
-                EXTEfx.alEffectf(echoSlot, EXTEfx.AL_ECHO_DAMPING, 0.5F);
-                EXTEfx.alEffectf(echoSlot, EXTEfx.AL_ECHO_FEEDBACK, 0.0F);
-                final float delay = EXTEfx.alGetEffectf(echoSlot, EXTEfx.AL_ECHO_DELAY);
-                final int err = AL10.alGetError();
-                verdict = err == AL10.AL_NO_ERROR
-                        ? String.format("SUPPORTED (delay reads back %.3f s)", delay)
-                        : String.format("ERROR 0x%X", err);
-            }
-        } catch (final Throwable t) {
-            verdict = "THREW " + t.getClass().getSimpleName();
-        } finally {
-            if (echoSlot != 0) {
-                try {
-                    EXTEfx.alDeleteEffects(echoSlot);
-                } catch (final Throwable ignored) {
-                    // the context may be gone; nothing to clean up
-                }
-            }
-        }
 
-        // A source can carry at most maxSends sends, and all four are already taken by the reverb zones,
-        // so an echo send cannot be ADDED - something has to give. Report the arithmetic plainly.
-        LOGGER.info("ECHO_PROBE effect=%s | maxAuxSends=%d activeSends=%d freeSends=%d | %s",
-                verdict, maxSends, activeSends, Math.max(0, maxSends - activeSends),
-                maxSends > activeSends
-                        ? "room for an echo send"
-                        : "NO spare send: an echo send must displace a reverb zone");
-    }
 
-    /** The effect handle carrying the discrete echo, or 0 when the device refused it. */
-    private static int echoEffect = 0;
-    /** True once the echo effect has been attached to the last aux slot. */
-    private static boolean echoActive = false;
 
-    /**
-     * Attaches a genuine delay-line echo to an aux slot, replacing the reverb zone it carried.
-     *
-     * <p>Every step is verified and every failure path is a plain "no": if the runtime will not give us an
-     * AL_EFFECT_ECHO the caller falls back to the reverb zone, so a device that lacks it degrades to the
-     * previous behaviour instead of losing the wet path entirely. That matters because a throw here happens
-     * inside the effect upload, and the FX evaluation is wrapped in a catch-all that would otherwise swallow
-     * it and silently disable occlusion and reverb for every sound - which has already happened once in this
-     * project.
-     *
-     * @return true when the echo is in place and the caller should skip its reverb zone
-     */
-    private static boolean tryEchoOn(final int index) {
-        try {
-            final int slot = EXTEfx.alGenEffects();
-            EXTEfx.alEffecti(slot, EXTEfx.AL_EFFECT_TYPE, EXTEfx.AL_EFFECT_ECHO);
-            if (EXTEfx.alGetEffecti(slot, EXTEfx.AL_EFFECT_TYPE) != EXTEfx.AL_EFFECT_ECHO) {
-                EXTEfx.alDeleteEffects(slot);
-                LOGGER.info("ECHO_SLOT send=%d refused by the device; keeping the reverb zone", index);
-                return false;
-            }
-            // One tap, no repeats. Feedback is left at zero on purpose: a train of repeats reads as a
-            // metallic flutter rather than as a valley, and a real valley returns one dominant reflection.
-            EXTEfx.alEffectf(slot, EXTEfx.AL_ECHO_DELAY, EXTEfx.AL_ECHO_DEFAULT_DELAY);
-            EXTEfx.alEffectf(slot, EXTEfx.AL_ECHO_FEEDBACK, 0.0F);
-            EXTEfx.alEffectf(slot, EXTEfx.AL_ECHO_DAMPING, 0.5F);
-            if (AL10.alGetError() != AL10.AL_NO_ERROR) {
-                EXTEfx.alDeleteEffects(slot);
-                LOGGER.info("ECHO_SLOT send=%d parameter upload failed; keeping the reverb zone", index);
-                return false;
-            }
-            EXTEfx.alAuxiliaryEffectSloti(AUX_SLOTS[index].getSlot(), EXTEfx.AL_EFFECTSLOT_EFFECT, slot);
-            if (AL10.alGetError() != AL10.AL_NO_ERROR) {
-                EXTEfx.alDeleteEffects(slot);
-                LOGGER.info("ECHO_SLOT send=%d could not attach to the aux slot; keeping the reverb zone", index);
-                return false;
-            }
-            echoEffect = slot;
-            echoActive = true;
-            return true;
-        } catch (final Throwable t) {
-            LOGGER.info("ECHO_SLOT send=%d threw %s; keeping the reverb zone", index, t.getClass().getSimpleName());
-            return false;
-        }
-    }
 
     /**
      * Applies the reverb intensity when the config changes. The intensity slider has no
@@ -249,79 +141,7 @@ public final class Effects {
         }
     }
 
-    /** Last early-reflection delay pushed to the effect slots, to avoid redundant AL calls. */
-    private static float lastReflectionsDelay = Float.NaN;
-    /** Last early-reflection gain pushed to the effect slots. */
-    private static float lastReflectionsGain = Float.NaN;
 
-    /**
-     * Sets the early reflection of the reverb: WHEN it arrives and HOW LOUD it is. These two together are
-     * the whole of the reverb-or-echo behaviour, and they are the EAXREVERB parameters OpenAL provides for
-     * exactly this purpose - not a layer on top of the tail.
-     *
-     * <p><b>Time decides reverb or echo.</b> The gap between the direct sound and the first reflection is
-     * what the ear uses:
-     *
-     * <pre>
-     *   gap &lt; ~50 ms  -&gt; the reflection fuses with the direct sound -&gt; heard as REVERB
-     *   gap &gt; ~50 ms  -&gt; the reflection separates from it           -&gt; heard as an ECHO
-     * </pre>
-     *
-     * <p>The ~50 ms boundary is the Haas fusion window, a property of the auditory system rather than a
-     * preference, so it is a constant and NOT a tuning knob. A cave's walls are 3-18 blocks away, so its
-     * first reflection arrives 10-40 ms late and is heard as reverb; a valley's walls are 45-120 blocks
-     * away, so its first reflection arrives 130-340 ms late and is heard as an echo. The SAME formula
-     * produces both - there is no branch on scene type anywhere.
-     *
-     * <p><b>Level decides whether there is one at all.</b> Above the fusion threshold the reflection is a
-     * discrete event, so it must be a single event: feedback-style repeats are deliberately NOT used,
-     * because they read as a metallic flutter rather than as a valley. The tail length is left to
-     * {@code decayTime}, which the zone parameters already derive from the measured geometry.
-     *
-     * <p>Delay and gain are properties of the AUX SLOT, not of a source, so these are global values: every
-     * source sharing a zone shares its reflection. Driving them per source is not possible through EFX.
-     *
-     * @param returnedShare share of rays that come back off a surface facing the source (0..1); a plain
-     *                      measures ~0.015 and a valley ~0.35, so this is what keeps a plain silent
-     * @param seconds       measured round-trip gap between the direct sound and the first reflection
-     */
-    public static void setEarlyReflection(final float gain, final float seconds) {
-        if (activeSends <= 0)
-            return;
-
-        // The caller has already applied the physics - spherical spreading over the reflection's longer path
-        // and the material it bounced off - so this is a plain clamp into the parameter's range.
-        final float clampedGain = Mth.clamp(gain, 0F, EXTEfx.AL_EAXREVERB_MAX_REFLECTIONS_GAIN);
-
-        final boolean delayMoved = Float.isNaN(lastReflectionsDelay)
-                || Math.abs(seconds - lastReflectionsDelay) >= DELAY_UPDATE_EPSILON;
-        final boolean gainMoved = Float.isNaN(lastReflectionsGain)
-                || Math.abs(clampedGain - lastReflectionsGain) >= GAIN_UPDATE_EPSILON;
-        if (!delayMoved && !gainMoved)
-            return;
-
-        lastReflectionsDelay = seconds;
-        lastReflectionsGain = clampedGain;
-
-        // When a real echo is in place, its delay is set on the echo effect and the reverb zones are left
-        // alone - driving AL_EAXREVERB_REFLECTIONS_DELAY as well would be the "two paths for one quantity"
-        // mistake this project has already paid for twice.
-        if (echoActive && echoEffect != 0) {
-            final float echoDelay = Mth.clamp(seconds, EXTEfx.AL_ECHO_MIN_DELAY, EXTEfx.AL_ECHO_MAX_DELAY);
-            EXTEfx.alEffectf(echoEffect, EXTEfx.AL_ECHO_DELAY, echoDelay);
-            // A distant wall returns a duller reflection than a near one, because air absorbs high
-            // frequencies over the longer path. Damping rises with the distance travelled.
-            EXTEfx.alEffectf(echoEffect, EXTEfx.AL_ECHO_DAMPING,
-                    Mth.clamp(echoDelay / EXTEfx.AL_ECHO_MAX_DELAY * 0.9F, 0.0F, EXTEfx.AL_ECHO_MAX_DAMPING));
-            return;
-        }
-
-        for (int i = 0; i < activeSends; i++) {
-            REVERB_DATA[i].reflectionsDelay = seconds;
-            REVERB_DATA[i].reflectionsGain = clampedGain;
-            REVERB_SLOTS[i].apply(REVERB_DATA[i], AUX_SLOTS[i]);
-        }
-    }
 
     /**
      * How much the reflection delay must move before the effect slots are re-uploaded.
@@ -345,10 +165,6 @@ public final class Effects {
             s.deinitialize();
 
         activeSends = Math.min(4, AudioUtilities.getMaxAuxSends());
-        // The effect objects are brand new, so any previously pushed reflection delay is gone with the
-        // old context. Reset the cache so the next evaluation re-uploads instead of being skipped.
-        lastReflectionsDelay = Float.NaN;
-        probeEchoSupport();
         // DIAG(1.20.1): reverb slots
         org.orecruncher.dsurround.lib.Library.LOGGER.debug("REVERB_INIT activeSends=%d", getActiveSends());
         if (activeSends <= 0)
@@ -395,19 +211,6 @@ public final class Effects {
         }
 
         activeSends = 0;
-        lastReflectionsDelay = Float.NaN;
-        // The echo effect dies with the context. Deleting it explicitly matters: a sound-system re-init
-        // (toggling a config option, a resource reload, a device change) runs this and then creates a new
-        // one, so without the delete every re-init would leak an OpenAL effect object.
-        if (echoEffect != 0) {
-            try {
-                EXTEfx.alDeleteEffects(echoEffect);
-            } catch (final Throwable ignored) {
-                // the context may already be gone; nothing left to release
-            }
-        }
-        echoEffect = 0;
-        echoActive = false;
     }
 
     /**

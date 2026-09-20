@@ -533,19 +533,20 @@ public final class SoundFXUtils {
 
         float directGain = (float) MathStuff.pow(directCutoff, 0.1);
 
-        finalizeSendGains(reverb);
-
         // The occlusion has to reach the reverb tail, not just the direct filter. Behind a wall the
         // energy that would have fed the room is blocked too, so the tail must get quieter as well
         // as darker. Only the DARKENING was reaching it before (the send cutoffs were lifted, never
         // lowered, and sendGain never saw the occlusion at all), which left a heavily muffled direct
         // sound sitting under a bright, undiminished reverb - heard as "occlusion does not work".
+        //
+        // Computed BEFORE finalizeSendGains and applied inside it, in one place. It used to be applied
+        // afterwards to all four sends, which worked for sends 0-2 but was silently discarded for send 3:
+        // finalizeSendGains assigns sendGain3 outright (it is the echo now, not a diffuse zone), so anything
+        // multiplied in beforehand was thrown away.
         final float sendOcclusionGain = SEND_OCCLUSION_FLOOR
                 + (1F - SEND_OCCLUSION_FLOOR) * MathStuff.clamp1(directHfCutoff);
-        reverb.sendGain0 *= sendOcclusionGain;
-        reverb.sendGain1 *= sendOcclusionGain;
-        reverb.sendGain2 *= sendOcclusionGain;
-        reverb.sendGain3 *= sendOcclusionGain;
+
+        finalizeSendGains(reverb, sendOcclusionGain);
 
         if (ctx.player.isUnderWater()) {
             reverb.sendCutoff0 *= 0.4F;
@@ -580,26 +581,28 @@ public final class SoundFXUtils {
         // computed: if these numbers do not move when standing behind a wall, the path is not
         // running for the sound being listened to; if they do move and nothing is heard, the
         // problem is the filter or the audibility of the band, not the model.
-        AudioTuning.recordTrace(String.format(
-                "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                        + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
-                        + "clear=%.2f walk=%d/%.1fm "
-                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%d ret=%d face=%.3f erf=%.4f "
-                        + "g=%.3f,%.3f,%.3f,%.3f "
-                        + "rays=%d cost=%.0fus",
-                this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
-                MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
-                sendOcclusionGain, this.lastMaterialSum, this.lastOpenness, this.lastZoneLossDb,
-                this.lastEdgeFound,
-                this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
-                this.lastWalkSegments, this.lastWalkDistance,
-                this.lastReverbFirstDistance, this.lastReverbHitFraction,
-                this.lastReverbReflectivity, this.lastReverbFarthest,
-                this.lastReverbMeanFreePath, this.lastReverbShared, this.lastReturnedBounces, this.lastFacingShare,
-                this.lastFacingShare,
-                reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
-                ReusableRaycastContext.raycastCount(),
-                (System.nanoTime() - evaluationStart) / 1000.0D));
+        if (AudioTuning.shouldTrace()) {
+            AudioTuning.recordTrace(String.format(
+                    "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
+                            + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
+                            + "clear=%.2f walk=%d/%.1fm "
+                            + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%d ret=%d face=%.3f erf=%.4f "
+                            + "g=%.3f,%.3f,%.3f,%.3f "
+                            + "rays=%d cost=%.0fus",
+                    this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
+                    MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
+                    sendOcclusionGain, this.lastMaterialSum, this.lastOpenness, this.lastZoneLossDb,
+                    this.lastEdgeFound,
+                    this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
+                    this.lastWalkSegments, this.lastWalkDistance,
+                    this.lastReverbFirstDistance, this.lastReverbHitFraction,
+                    this.lastReverbReflectivity, this.lastReverbFarthest,
+                    this.lastReverbMeanFreePath, this.lastReverbShared, this.lastReturnedBounces, this.lastFacingShare,
+                    this.lastFacingShare,
+                    reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
+                    ReusableRaycastContext.raycastCount(),
+                    (System.nanoTime() - evaluationStart) / 1000.0D));
+        }
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -850,7 +853,7 @@ public final class SoundFXUtils {
     }
 
     /** Applies the bounce-ratio scaling and clamps the send gains. */
-    private static void finalizeSendGains(final ReverbTrace reverb) {
+    private static void finalizeSendGains(final ReverbTrace reverb, final float sendOcclusionGain) {
         reverb.sendGain1 *= reverb.bounceRatio[1];
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.bounceRatio[2], 3.0);
 
@@ -864,6 +867,11 @@ public final class SoundFXUtils {
         // The echo's strength is the reflected amplitude, already computed physically in calculate()
         // (returned share x spherical spreading x material), gated by the fusion window: a reflection that
         // arrives within ~50 ms of the direct sound is part of the space, not an echo.
+        //
+        // Occlusion is applied HERE rather than upstream: calculate() already multiplied sendGain3 by
+        // sendOcclusionGain, but this assignment REPLACES that value, so without this the occlusion of the
+        // direct path had no effect on the echo at all. The echo is a reflection of the same source, so if
+        // the source is heard through a wall the reflected energy is reduced too.
         reverb.sendGain3 = reverb.echoGain;
 
         // The returned energy drives the reverb TAIL. This is not a duplicate of the EAXREVERB reflection
@@ -887,6 +895,15 @@ public final class SoundFXUtils {
         reverb.sendGain1 *= (float) MathStuff.pow(reverb.sendCutoff1, 0.1);
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.sendCutoff2, 0.1);
         reverb.sendGain3 *= (float) MathStuff.pow(reverb.sendCutoff3, 0.1);
+
+        // Occlusion, applied ONCE to every send. Sends 0-2 are the diffuse reverb and send 3 is the discrete
+        // echo, and all four carry energy from the same source, so a source heard through a wall is quieter
+        // on every path. The CUTOFFS (brightness) are handled separately below, because a reflection travels
+        // through open air and must not inherit the direct path's darkening.
+        reverb.sendGain0 *= sendOcclusionGain;
+        reverb.sendGain1 *= sendOcclusionGain;
+        reverb.sendGain2 *= sendOcclusionGain;
+        reverb.sendGain3 *= sendOcclusionGain;
 
         // The early-reflection zones are kept bright. A reflection off a distant wall crosses AIR, not rock,
         // so the direct path's occlusion cutoff is the wrong filter for it - inheriting that darkening is why

@@ -103,6 +103,19 @@ public final class AudioTuning {
 
 
     /**
+     * Whether the caller should build a trace string at all.
+     *
+     * <p>The trace is built by the CALLER, as the argument to {@link #recordTrace}, so its 33-argument
+     * {@code String.format} ran on every sound evaluation even with the probe switched off - and off is the
+     * default. At about two evaluations per second per source and dozens of concurrent sources, that is
+     * several hundred string formats per second spent on a string nobody reads. Call sites must gate the
+     * formatting on this.
+     */
+    public static boolean shouldTrace() {
+        return logAudioTrace;
+    }
+
+    /**
      * Called from the audio thread at the end of every evaluation. Stores the line for {@code
      * /dstune} and writes it to the LOG whenever it changes, because chat text cannot be copied out.
      * Rate limited and change-gated: 32 sources evaluating twice a second would otherwise flood the

@@ -398,7 +398,16 @@ public final class Effects {
 
         activeSends = 0;
         lastReflectionsDelay = Float.NaN;
-        // The echo effect handle dies with the context, so drop it and let the next init re-create it.
+        // The echo effect dies with the context. Deleting it explicitly matters: a sound-system re-init
+        // (toggling a config option, a resource reload, a device change) runs this and then creates a new
+        // one, so without the delete every re-init would leak an OpenAL effect object.
+        if (echoEffect != 0) {
+            try {
+                EXTEfx.alDeleteEffects(echoEffect);
+            } catch (final Throwable ignored) {
+                // the context may already be gone; nothing left to release
+            }
+        }
         echoEffect = 0;
         echoActive = false;
     }

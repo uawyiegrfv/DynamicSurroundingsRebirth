@@ -138,20 +138,6 @@ public final class SoundFXUtils {
      * which this architecture does not have.
      */
     private static final float REFLECTION_DENSITY_GAIN = 2.0F;
-    /**
-     * How far above or below the listener's ear a reflection can be and still count as one that returns
-     * sound to them. A reflection at ear height came off a wall and crosses the space back to the listener;
-     * one this far below is the ground, which reflects upward and away. 8 blocks is roughly a valley's wall
-     * height and well above any floor.
-     */
-    private static final float RETURNED_HEIGHT_RANGE = 8.0F;
-    /**
-     * Scale applied to the surface-orientation measure before it gates the reflection-density term. The
-     * measure is 1 for a reflection at ear height and 0 for one 8 blocks below, averaged over every bounce,
-     * so a scene mixing walls and ground lands in the middle; this brings the useful range up without a
-     * threshold.
-     */
-    private static final float RETURNED_SHARE_SCALE = 2.5F;
     /** Skylight at a position that can see the sky in full. */
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */
@@ -341,13 +327,6 @@ public final class SoundFXUtils {
      */
     private float lastReverbMeanFreePath;
     /**
-     * Share of the reflections that came off a surface FACING the listener (a wall), from the most recent
-     * measurement, reported by the probe as {@code wall=}. 1 means every reflection was off a vertical
-     * surface, 0 means every one was off the ground or a ceiling. This is what separates a valley from a
-     * plain, and it is reported so the separation can be verified rather than assumed.
-     */
-    private float lastReturnedShare;
-    /**
      * Occlusion accumulation along the centre fan ray only (the direct
      * source-to-player line). Unlike the full-fan average, which clips incidental
      * terrain off to the side and climbs to 5-10 in the open world, this tracks how
@@ -401,6 +380,8 @@ public final class SoundFXUtils {
          * in the term itself.
          */
         float earlyReflection;
+        /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
+        float earlyReflectionCutoff;
     }
 
 
@@ -531,7 +512,7 @@ public final class SoundFXUtils {
                 "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
                         + "clear=%.2f walk=%d/%.1fm "
-                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%.1fm wall=%.2f erf=%.3f "
+                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%.1fm erf=%.3f "
                         + "g=%.3f,%.3f,%.3f,%.3f "
                         + "rays=%d cost=%.0fus",
                 this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
@@ -542,7 +523,7 @@ public final class SoundFXUtils {
                 this.lastWalkSegments, this.lastWalkDistance,
                 this.lastReverbFirstDistance, this.lastReverbHitFraction,
                 this.lastReverbReflectivity, this.lastReverbShared, this.lastReverbFarthest,
-                this.lastReverbMeanFreePath, this.lastReturnedShare, this.lastEarlyReflectionGain,
+                this.lastReverbMeanFreePath, this.lastEarlyReflectionGain,
                 reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
                 ReusableRaycastContext.raycastCount(),
                 (System.nanoTime() - evaluationStart) / 1000.0D));
@@ -565,13 +546,6 @@ public final class SoundFXUtils {
         // Mean free path: the distance between consecutive reflections, summed over every ray.
         double pathSum = 0D;
         int pathCount = 0;
-        // Sum of the horizontal-ness of the surfaces the rays reflect off. A valley's walls are vertical and
-        // send energy back toward the listener; a plain's reflections are its own ground, whose normal points
-        // straight up, so nothing comes back. This is the quantity that separates the two - the mean free path
-        // cannot, because a plain's is large simply because its rays cross a lot of empty air.
-        float returnedSum = 0F;
-        int returnedCount = 0;
-
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
 
         for (int i = 0; i < REVERB_RAYS; i++) {
@@ -628,16 +602,6 @@ public final class SoundFXUtils {
                     lastRayDir = newRayDir;
                     lastHitBlock = rayHit.getBlockPos();
 
-                    // How horizontal the reflecting surface is: 1 for a wall, 0 for a floor or ceiling. A wall
-                    // reflects energy back across the space; the ground under the listener does not.
-                    // Measured as HEIGHT RELATIVE TO THE LISTENER rather than from the surface normal: the
-                    // normal-based version read 1.00 in all 255 probe rows, including rows that were plainly
-                    // enclosed, so the direction mapping could not be trusted. A reflection point at the
-                    // listener's height is a wall that can return sound across the space; one far below is the
-                    // ground, which reflects upward and away.
-                    final float heightAboveEar = (float) (lastHitPos.y - ctx.playerEyePosition.y);
-                    returnedSum += MathStuff.clamp1(1.0F - Math.abs(heightAboveEar) / RETURNED_HEIGHT_RANGE);
-                    returnedCount++;
 
                     // Farthest reflection of any bounce, from the source. This is where a valley's far wall
                     // shows up; the first bounce is the ground under the listener in every scene.
@@ -708,27 +672,26 @@ public final class SoundFXUtils {
         // grass 0.15, dirt 0.35, against stone's 1.0 - is crushed. Measured: zone2 and zone3 send gains are
         // EXACTLY ZERO for every row below reflectivity 0.4, which is where all outdoor terrain sits.
         //
-        // The term is gated on how much of the reflection comes off SURFACES FACING THE LISTENER, and that
-        // gate is what separates a valley from a plain. The mean free path alone cannot: a flat plain has a
-        // LARGE mean free path because its rays cross a lot of empty air before meeting the ground, not
-        // because anything reflects them back. Measured, a plain reached mfp 57 with erf 0.82 - the strongest
-        // echo in the data - purely from crossing empty air, which the user reported as "a plain and a forest
-        // also gained an echo".
-        //
-        // What a valley has and a plain does not is VERTICAL surfaces: a wall reflects energy back across the
-        // space, while the ground under the listener has an upward normal and sends nothing back. The reverb
-        // trace already computes each bounce's surface normal, so the share of the reflections that came off
-        // a wall is free to measure. sharedAirspace was tried first and does NOT work: measured, open scenes
-        // all sit at a median of 0.16 regardless of whether they are a plain or a valley.
-        final float returnedShare = MathStuff.clamp1(
-                (returnedCount > 0 ? returnedSum / returnedCount : 0F) * RETURNED_SHARE_SCALE);
-        this.lastReturnedShare = returnedShare;
+        // NO GATE. Three were tried and all three failed, which is worth recording so they are not retried:
+        //   * mean free path alone      - a plain's is large too, because its rays cross empty air
+        //   * sharedAirspace            - every open scene sits at a median of 0.16, plain or valley
+        //   * reflection height         - a one-block room's reflections are also at ear height
+        //   * surface normal            - read 1.00 in all 255 rows; the direction mapping was never verified
+        // Each was a guess at a geometric proxy rather than a derived quantity, and each was believed before
+        // being measured. The user's point stands: real acoustics needs no gate, because the geometry is
+        // computed. Where this model falls short is that its ray trace does not distinguish a surface that
+        // faces the listener from one that does not, and no cheap proxy for that was found.
         final float density = this.lastReverbMeanFreePath
                 / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);
         this.lastEarlyReflectionGain = density * (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
-                * returnedShare * REFLECTION_DENSITY_GAIN;
+                * REFLECTION_DENSITY_GAIN;
         // Handed to finalizeSendGains rather than added here: see ReverbTrace.earlyReflection.
         out.earlyReflection = this.lastEarlyReflectionGain;
+        // The early-reflection zones are kept BRIGHT. A reflection off a distant wall travels through AIR,
+        // so it never crosses the rock that darkens the direct path - the occlusion cutoff is the wrong
+        // filter for it. Without this the tail inherited the direct path's darkening and a valley sounded
+        // like "a weakened cave", which is exactly what the user reported.
+        out.earlyReflectionCutoff = MathStuff.clamp1(0.35F + 0.65F * density);
     }
 
     /** Applies the bounce-ratio scaling and clamps the send gains. */
@@ -753,6 +716,12 @@ public final class SoundFXUtils {
         reverb.sendGain1 *= (float) MathStuff.pow(reverb.sendCutoff1, 0.1);
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.sendCutoff2, 0.1);
         reverb.sendGain3 *= (float) MathStuff.pow(reverb.sendCutoff3, 0.1);
+
+        // The early-reflection zones are kept bright. A reflection off a distant wall crosses AIR, not rock,
+        // so the direct path's occlusion cutoff is the wrong filter for it - inheriting that darkening is why
+        // a valley read as "a weakened cave". Only raises: an enclosed space's own cutoff is already higher.
+        reverb.sendCutoff1 = Math.max(reverb.sendCutoff1, reverb.earlyReflectionCutoff);
+        reverb.sendCutoff2 = Math.max(reverb.sendCutoff2, reverb.earlyReflectionCutoff);
     }
 
     /** Writes the computed effect parameters onto the source under its sync lock. */

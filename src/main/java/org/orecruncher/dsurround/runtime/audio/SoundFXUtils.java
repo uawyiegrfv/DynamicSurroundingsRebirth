@@ -1038,11 +1038,22 @@ public final class SoundFXUtils {
                 bestAngle = angle;
                 bestExtra = extra;
                 bestSurface = surface;
-                // Amplitude: spreading over the longer path, times the material, times how much of the space
-                // returns energy at all.
-                final double spread = directDistance / Math.max(1.0D, toWall + wallToEar);
-                bestGain = share * spread * Math.sqrt(MathStuff.clamp1(reflectivity));
-            }
+                // Amplitude of THIS reflection path: the spreading over its length, times the material it
+                // bounced off.
+                //
+                // `share` deliberately does NOT appear here. It counts the fraction of rays that return
+                // energy, and in a valley most rays leave for the sky, so it is small there by construction -
+                // measured 0.015-0.05 outdoors against 0.35 for enclosed spaces. Multiplying it in depressed
+                // the valley's echo twice, once for the real geometry and once for a statistic that mostly
+                // measures how open the sky is. Share is the right measure for the diffuse TAIL; a single
+                // specular reflection's strength is its own path length and its own material.
+                // The distance term is the POWER ratio, (direct / path)^2, not the amplitude ratio. Sound
+                // spreads over a sphere, so intensity falls as the square of the distance while pressure falls
+                // linearly; this gain multiplies a VOLUME, so it needs the power form. Using 1/r understated a
+                // distant reflection badly enough that every valley echo was rejected as inaudible, and
+                // dropping the term altogether then made the echo LOUDER than the sound that caused it.
+                final double pathRatio = directDistance / Math.max(1.0D, toWall + wallToEar);
+                bestGain = pathRatio * pathRatio * Math.sqrt(MathStuff.clamp1(reflectivity));            }
         }
 
         if (bestSurface == null)
@@ -1051,8 +1062,8 @@ public final class SoundFXUtils {
         // The geometry's own numbers, so a silent echo can be told apart from a rejected one. Rate limited
         // by the caller's reject() path for the failure case; a found path is worth seeing every time.
         org.orecruncher.dsurround.lib.Library.LOGGER.info(
-                "ECHO_PATH angle=%.1fdeg extra=%.1fm gain=%.4f at=%.1f,%.1f,%.1f",
-                Math.toDegrees(bestAngle), bestExtra, bestGain,
+                "ECHO_PATH angle=%.1fdeg extra=%.1fm gain=%.4f share=%.4f at=%.1f,%.1f,%.1f",
+                Math.toDegrees(bestAngle), bestExtra, bestGain, share,
                 bestSurface.x(), bestSurface.y(), bestSurface.z());
 
         final EchoPath path = new EchoPath();

@@ -161,7 +161,15 @@ public final class SoundFXProcessor {
     // heard as part of the space, not as a separate event, and playing a copy there would only make the
     // sound louder and phasey.
     private static final int MAX_PENDING_ECHOES = 12;
-    private static final long ECHO_MIN_DELAY_MS = 90L;
+    /**
+     * Below this the copy is heard as the sound PLAYING TWICE rather than as an echo.
+     *
+     * <p>90 ms was too low: measured, a cave's reflections arrive at 92-129 ms, which is the classic
+     * slap-back range - long enough to separate from the direct sound, short enough to read as a defect. A
+     * discrete echo only sounds like an echo beyond roughly 150 ms, and a cave should get its space from the
+     * reverb zones instead.
+     */
+    private static final long ECHO_MIN_DELAY_MS = 150L;
     private static final long ECHO_MAX_DELAY_MS = 900L;
     /**
      * Overall level of the echo. The geometry already supplies the relative strength, so this only sets how

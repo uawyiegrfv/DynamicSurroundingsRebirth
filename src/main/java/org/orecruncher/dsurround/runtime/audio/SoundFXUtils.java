@@ -1062,21 +1062,16 @@ public final class SoundFXUtils {
         // simply the shortest accepted path, and its short delay means the engine renders it as part of the
         // space rather than as a separate event.
         //
-        // Send 3 carries BOTH the diffuse tail of its zone and the discrete echo.
+        // Send 3 is a REVERB ZONE, exactly as the original mod had it. Its long 4.14 s tail is what an
+        // enclosed space needs, and bounceRatio[3] is NOT zero there: a cave's rays keep striking stone, so
+        // 0.65^4 is 0.18. An earlier revision concluded the zone was dead from 314 probe rows that were all
+        // OUTDOORS, where rays escape to the sky before the fourth bounce - a sampling error, not evidence.
         //
-        // This is a correction. An earlier revision assigned the echo alone, on the grounds that this zone's
-        // tail was multiplied by bounceRatio^4 and had measured exactly zero - but that measurement came from
-        // 314 probe rows that were almost entirely OUTDOORS, where rays escape to the sky after one or two
-        // bounces and never reach the fourth. It was never checked IN A CAVE, where a ray keeps striking stone
-        // and bounceRatio[3] approaches the stone reflectivity: 0.65^4 is 0.18, not zero. A long reverb zone
-        // with a 4.14 s decay is exactly what an enclosed space needs, and removing it is why a cave came
-        // back with a short, dry tail.
-        //
-        // So the zone's own tail is restored, and the echo is ADDED to it. They are not the same signal: the
-        // tail is a diffuse field, the echo is one discrete reflection. In a cave the echo is zero (its search
-        // finds no specular wall return) and the tail stands alone; in a valley the tail is weak and the echo
-        // dominates. The two never compete for the same energy.
-        reverb.sendGain3 = reverb.sendGain3 * (float) MathStuff.pow(reverb.bounceRatio[3], 4.0) + reverb.echoGain;
+        // It is NOT the echo. Putting the discrete echo on this send was a structural mistake: one aux send
+        // carries exactly ONE effect, so routing the zone's diffuse tail and an echo through the same slot
+        // fed the tail itself through AL_EFFECT_ECHO - which has a default 0.1 s delay, so every sound in a
+        // cave was heard twice. The echo cannot share this send with the tail, and the tail matters more.
+        reverb.sendGain3 = reverb.sendGain3 * (float) MathStuff.pow(reverb.bounceRatio[3], 4.0);
 
         // The returned energy drives the reverb TAIL. This is not a duplicate of the EAXREVERB reflection
         // gain: that one feeds the early-reflection TAP, a discrete event; this one feeds the diffuse field

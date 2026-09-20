@@ -362,24 +362,22 @@ public final class Effects {
             REVERB_SLOTS[i].initialize();
             REVERB_DATA[i].setProcess(true);
 
-            // The LAST send carries the discrete echo instead of a reverb zone.
+            // The discrete echo used to be attached to this send and has been WITHDRAWN.
             //
-            // Why the last one, and why this costs nothing: that zone's send gain is multiplied by
-            // bounceRatio^4 (SoundFXUtils.finalizeSendGains), and bounceRatio is a mean reflectivity - so for
-            // grass 0.15^4 = 0.0005 and even for stone 0.65^4 = 0.18. Measured over 314 probe rows in 564 log
-            // files, that zone's gain was EXACTLY ZERO in every one of them: it has never contributed audio.
-            // The formula is byte-identical to the initial Rebirth port in all three repos, so it is not
-            // something this work broke - the zone was born inert.
+            // One aux send carries exactly ONE effect, so an echo here replaces the zone's reverb - and that
+            // zone is not dead. A cave's rays keep striking stone, so bounceRatio[3] reaches ~0.65 and 0.65^4
+            // is 0.18; its 4.14 s decay is exactly what an enclosed space needs. The "measured 0.0% of the
+            // tail" evidence that justified removing it came from 314 probe rows that were all OUTDOORS,
+            // where rays escape to the sky before the fourth bounce - a sampling error, not evidence.
             //
-            // A discrete echo needs AL_EFFECT_ECHO: measured from the OpenAL Soft source, AL_EAXREVERB's
-            // "early reflections" are decorrelated through a Gerzon all-pass filter and are documented as
-            // helping "smooth out the reverb tail", so they can only ever be part of the reverb.
-            if (i == activeSends - 1 && CONFIG.enableEarlyReflectionEcho && tryEchoOn(i)) {
-                LOGGER.info("ECHO_SLOT send=%d effect=AL_EFFECT_ECHO (zone %d replaced; that zone measured 0.0%% of the tail)",
-                        i, i);
-                continue;
-            }
-
+            // Worse, when the zone's diffuse tail was routed through the echo slot as well, AL_EFFECT_ECHO's
+            // default 0.1 s delay made every sound in a cave play twice.
+            //
+            // A real echo therefore needs its OWN send, and this device reports
+            // ALC_MAX_AUXILIARY_SENDS = 4 with all four taken by the reverb zones. Producing one means either
+            // playing delayed copies of the sound - a separate subsystem, and the only route that keeps all
+            // four zones - or a device with more sends. See HANDOFF 8.81.
+            //
             // Fixed binding: send i always carries zone i. The reverb effect parameters
             // are static per zone, so the binding never needs to change afterwards.
             REVERB_SLOTS[i].apply(REVERB_DATA[i], AUX_SLOTS[i]);

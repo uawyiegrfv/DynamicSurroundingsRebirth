@@ -583,12 +583,10 @@ public final class SoundFXUtils {
         // problem is the filter or the audibility of the band, not the model.
         if (AudioTuning.shouldTrace()) {
             AudioTuning.recordTrace(String.format(
-                    "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                            + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
-                            + "clear=%.2f walk=%d/%.1fm "
-                            + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%d ret=%d face=%.3f erf=%.4f "
-                            + "g=%.3f,%.3f,%.3f,%.3f "
-                            + "rays=%d cost=%.0fus",
+                                    "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
+                        + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb0=%.1f edgedb1=%.1f "
+                        + "edgedb2=%.1f clear=%.2f walk=%d walkm=%.1f rv=%.1f rvhit=%.2f rvrefl=%.2f far=%.0f mfp=%.1f "
+                        + "shared=%d ret=%d face=%.3f g0=%.3f g1=%.3f g2=%.3f g3=%.3f rays=%d cost=%.0f ",
                     this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                     MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                     sendOcclusionGain, this.lastMaterialSum, this.lastOpenness, this.lastZoneLossDb,
@@ -597,7 +595,7 @@ public final class SoundFXUtils {
                     this.lastWalkSegments, this.lastWalkDistance,
                     this.lastReverbFirstDistance, this.lastReverbHitFraction,
                     this.lastReverbReflectivity, this.lastReverbFarthest,
-                    this.lastReverbMeanFreePath, this.lastReverbShared, this.lastReturnedBounces, this.lastFacingShare,
+                    this.lastReverbMeanFreePath, this.lastReverbShared, this.lastReturnedBounces,
                     this.lastFacingShare,
                     reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
                     ReusableRaycastContext.raycastCount(),

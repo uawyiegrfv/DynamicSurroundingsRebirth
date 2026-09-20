@@ -171,6 +171,22 @@ public final class SoundFXProcessor {
 
     private record PendingEcho(SoundInstance sound, long playAtMs) {}
 
+    /**
+     * A delayed copy of a sound, marked so the echo scheduler can recognise it.
+     *
+     * <p>Without a marker the copy is an ordinary sound instance, so playing it runs it back through
+     * {@code onSoundPlay} and it schedules an echo of itself - a decaying train of copies rather than one
+     * answer. The marker is the whole reason this is a subclass and not a plain SimpleSoundInstance.
+     */
+    private static final class EchoSoundInstance extends SimpleSoundInstance {
+        EchoSoundInstance(net.minecraft.resources.ResourceLocation location, SoundSource source, float volume,
+                float pitch, double x, double y, double z) {
+            super(location, source, volume, pitch,
+                    org.orecruncher.dsurround.lib.random.Randomizer.current(),
+                    false, 0, SoundInstance.Attenuation.NONE, x, y, z, false);
+        }
+    }
+
     private static final java.util.ArrayDeque<PendingEcho> pendingEchoes = new java.util.ArrayDeque<>();
 
     /**
@@ -200,6 +216,11 @@ public final class SoundFXProcessor {
      */
     private static void scheduleEcho(final SoundInstance sound, final WorldContext ctx) {
         if (!CONFIG.enableDelayedEcho)
+            return;
+        // An echo must never echo. The copy is a real sound instance, so it comes back through onSoundPlay,
+        // and without this guard a valley would answer with a decaying train of copies - which is exactly
+        // the metallic flutter the aux-send attempt produced, reached from the other direction.
+        if (sound instanceof EchoSoundInstance)
             return;
         if (pendingEchoes.size() >= MAX_PENDING_ECHOES)
             return;
@@ -233,19 +254,14 @@ public final class SoundFXProcessor {
 
         // Placed at the reflecting surface, played without attenuation: the copy IS the sound arriving from
         // the wall, and the geometry's spreading term already set its level.
-        final SoundInstance copy = new net.minecraft.client.resources.sounds.SimpleSoundInstance(
+        final SoundInstance copy = new EchoSoundInstance(
                 sound.getLocation(),
                 sound.getSource(),
                 volume,
                 sound.getPitch(),
-                org.orecruncher.dsurround.lib.random.Randomizer.current(),
-                false,
-                0,
-                SoundInstance.Attenuation.NONE,
                 path.surface.x(),
                 path.surface.y(),
-                path.surface.z(),
-                false);
+                path.surface.z());
 
         pendingEchoes.add(new PendingEcho(copy, System.currentTimeMillis() + delayMs));
 

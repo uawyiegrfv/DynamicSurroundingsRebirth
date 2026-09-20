@@ -753,7 +753,23 @@ public final class SoundFXUtils {
                     if (returned > 0F) {
                         returnedBounces += 1.0F;
                     }
-                    if (openAir(ctx, lastHitPos)) {
+                    // A bounce counts towards the send cutoffs - which is what makes a tail BRIGHT and long -
+                    // when the reflection point is in the same airspace as the ear. TWO tests, and both are
+                    // needed because each one is blind exactly where the other works:
+                    //
+                    //   * a clear straight line to the ear. This is the original mod's test and it is the one
+                    //     that works INDOORS: a cave's walls are a few blocks away, so their reflection points
+                    //     can see the listener. It reads zero outdoors, because the ear sits ~1.6 blocks above
+                    //     the ground and a grazing line is blocked by any terrain rise.
+                    //   * open sky above. This works OUTDOORS, where the line test fails, and reads zero
+                    //     underground.
+                    //
+                    // Replacing the line test with the sky test alone - which an earlier revision did, to fix
+                    // the outdoor case - silently removed the indoor case with it, and a cave lost its long
+                    // bright tail because sendCutoff collapsed to exp(sendCoeff) there.
+                    final Vec3 bounceAirStart = MathStuff.addScaled(lastHitPos, lastHitNormal, 0.01F);
+                    final boolean seesEar = isMiss(traceContext.trace(bounceAirStart, ctx.playerEyePosition));
+                    if (seesEar || openAir(ctx, lastHitPos)) {
                         openBounces += 1.0F;
                     }
                     facingSum += returned;

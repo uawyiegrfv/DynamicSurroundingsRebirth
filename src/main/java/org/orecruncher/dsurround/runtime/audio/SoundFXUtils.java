@@ -178,11 +178,26 @@ public final class SoundFXUtils {
     /** Fallback band weights: low frequencies dominate because they are the ones that get around. */
     private static final float[] DEFAULT_BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
     /**
-     * How much of the reverb sends survives a fully occluded path. Not 0: a sealed room still has a
-     * tail (that is what reverb IS), it is simply the tail of the muffled sound. At 0.35 a fully
-     * occluded source keeps about -9 dB of send against a clear one.
+     * How much of the reverb sends survives a fully occluded path.
+     *
+     * <p>ZERO, and that is a correction rather than a tuning choice. This was 0.35, introduced when the
+     * sends first became occluded at all, with the reasoning that "a sealed room still has a tail, it is
+     * simply the tail of the muffled sound". The reasoning is right about the room and wrong about the
+     * listener: that tail belongs INSIDE the room. A listener standing outside it hears the tail only
+     * after it has crossed the same wall the direct sound crossed, so it must take the same loss.
+     *
+     * <p>At 0.35 the wet path kept -9 dB while the direct path through the same wall lost 6-20 dB, so
+     * walking outside a village hut RAISED the wet-to-direct ratio - measured 1.35x through two blocks of
+     * wood, 1.64x through a wall with framing, 4.15x through a wall and a hill (tools/sim_wet_ratio.py).
+     * The reverb therefore grew relatively louder the more the sound was blocked, which the ear reports
+     * as "the villager inside is reverberant".
+     *
+     * <p>At 0 the wet path inherits the direct path's transmission exactly, so the ratio stays at 1.0
+     * however the source is occluded. A cave is unaffected: with the listener inside it there is almost
+     * no occlusion to inherit (measured loss 0.5-1 dB, giving 0.94-0.96 against 0.96-0.93 at 0.35), so
+     * the long tail the ear reads as "a cave" is preserved.
      */
-    private static final float SEND_OCCLUSION_FLOOR = 0.35F;
+    private static final float SEND_OCCLUSION_FLOOR = 0.0F;
     /**
      * Number of rays to project when doing reverb calculations.
      */

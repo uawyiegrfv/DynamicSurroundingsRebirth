@@ -544,15 +544,19 @@ public final class SoundFXUtils {
         // Mean free path: the distance between consecutive reflections, summed over every ray.
         double pathSum = 0D;
         int pathCount = 0;
-        // How much of the reflection comes off surfaces FACING the listener. This is the geometric quantity
-        // that separates a valley from a plain, and it is now known to be computable: VoxelShape.clip builds
-        // the hit direction as Direction.getNearest(dx, dy, dz).getOpposite(), i.e. the OUTWARD NORMAL of the
-        // face that was struck. Verified from the bytecode, not assumed - an earlier version of this gate
-        // substituted reflection HEIGHT because the normal was wrongly believed unreliable, and height does
-        // not work (a one-block room's reflections are at ear height too).
+        // How much of the reflection comes off surfaces FACING THE LISTENER. This is the geometric quantity
+        // that separates a valley from a plain, and it is measured directly from the surface normal:
+        // VoxelShape.clip builds the hit direction as Direction.getNearest(dx, dy, dz).getOpposite(), i.e. the
+        // OUTWARD NORMAL of the face that was struck (verified from bytecode).
         //
-        // A wall's normal is horizontal, so it sends energy back across the space; the ground under the
-        // listener has an upward normal and reflects the sound away.
+        // The measure is the dot product of that normal with the direction from the reflection point to the
+        // listener, clamped at zero. Two earlier versions of this were wrong and both are worth recording:
+        //   * |normal.y| alone    - "vertical" is not "facing the listener". A wall with its back to you has
+        //                           |y| = 0 too, and it sends nothing back. Worse, in a plain the upward and
+        //                           sideways rays eventually strike distant terrain, whose normals are slanted,
+        //                           so a plain scored as high as a valley (measured 0.43-0.98 everywhere).
+        //   * reflection HEIGHT   - a one-block room's reflections are at ear height as well.
+        // The dot product is what "returns energy to the listener" actually means.
         float facingSum = 0F;
         int facingCount = 0;
         final ReusableRaycastContext traceContext = new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
@@ -612,9 +616,16 @@ public final class SoundFXUtils {
                     lastHitBlock = rayHit.getBlockPos();
 
 
-                    // Facing-ness of the struck face: 1 for a vertical wall, 0 for a floor or ceiling.
-                    facingSum += 1F - Math.abs((float) lastHitNormal.y());
-                    facingCount++;
+                    // Does this surface face the listener? A wall in front of you reflects energy back across
+                    // the space; the ground under you reflects it up and away; a wall behind you sends it the
+                    // other way. The dot product with the direction to the listener is the measurement.
+                    final Vec3 toListener = ctx.playerEyePosition.subtract(lastHitPos);
+                    final double listenerDistance = toListener.length();
+                    if (listenerDistance > 0.01D) {
+                        final double towards = lastHitNormal.dot(toListener.scale(1.0D / listenerDistance));
+                        facingSum += (float) Math.max(0.0D, towards);
+                        facingCount++;
+                    }
                     // Farthest reflection of any bounce, from the source. This is where a valley's far wall
                     // shows up; the first bounce is the ground under the listener in every scene.
                     farthest = Math.max(farthest, (float) soundPos.distanceTo(lastHitPos));

@@ -1,9 +1,7 @@
 {
-  "dsurround.command.dsbiome.failure": "%s",
   "dsurround.command.dsbiome.failure.unknown_biome": "The biome %1$s is not known",
   "dsurround.command.dsdump.failure": "Dump of %1$s §4failed§r.  %2$s",
   "dsurround.command.dsdump.success": "Dump of %1$s §2succeeded§r.  Data can be found in %2$s",
-  "dsurround.command.dsdump.steps": "Footstep surface trace for your current position:",
   "dsurround.command.dsmm.pause.failure": "Unable to pause the Music Manager: %1$s",
   "dsurround.command.dsmm.pause.success": "Music Manager was paused",
   "dsurround.command.dsmm.reset.failure": "Unable to reset the Music Manager: %1$s",
@@ -430,7 +428,6 @@
   "dsurround.sound.caption.snowball_break": "Snowball smashes",
   "dsurround.config.particleTweaks.suppressPotionParticles": "Suppress Potion Particles",
   "dsurround.config.particleTweaks.suppressPotionParticles.tooltip": "Suppress rendering of the player's potion particles",
-  "dsurround.command.dsdump.validate": "DS data self-check:",
   "dsurround.config.popoffNumbers": "Damage / crit text",
   "dsurround.config.popoffNumbers.sizePercent": "Text size",
   "dsurround.config.popoffNumbers.sizePercent.tooltip": "Size of the damage, healing and crit text as a percentage of the original mod's size. This sets the STARTING size; the text grows to about 2.5x that at its peak",
@@ -445,6 +442,5 @@
   "dsurround.config.popoffNumbers.peakTickTicks": "Tick of the largest size",
   "dsurround.config.popoffNumbers.peakTickTicks.tooltip": "Which tick the text reaches its largest. Low values grow fast and then shrink slowly; the shrink rate is derived so the text ends at the size it started",
   "dsurround.config.popoffNumbers.gravityPercent": "Fall speed",
-  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "How fast the text drops, as a percentage of the original mod's gravity. Lower falls more slowly and travels less; raise it for a heavier drop",
-  "dsurround.command.dsdump.footsteps": "Footstep chain for your current position:"
+  "dsurround.config.popoffNumbers.gravityPercent.tooltip": "How fast the text drops, as a percentage of the original mod's gravity. Lower falls more slowly and travels less; raise it for a heavier drop"
 }

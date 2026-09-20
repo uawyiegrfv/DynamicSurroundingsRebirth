@@ -137,7 +137,15 @@ public final class SoundFXUtils {
      * reflection, and the gap is what makes it read as an echo. Producing a gap needs discrete delayed taps,
      * which this architecture does not have.
      */
-    private static final float REFLECTION_DENSITY_GAIN = 2.0F;
+    private static final float REFLECTION_DENSITY_GAIN = 4.0F;
+    /**
+     * Bounce count the returned-energy total is divided by. Not the real maximum (rays x bounces): most rays
+     * escape to the sky after one or two bounces and break the loop, so the real maximum is a divisor far
+     * larger than the number of terms and it collapsed a valley's share. A fixed reference keeps the total's
+     * absolute comparison between a plain and a valley and only sets the scale, which the gain above then
+     * compensates for.
+     */
+    private static final int FACING_REFERENCE_BOUNCES = 8;
     /** Skylight at a position that can see the sky in full. */
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */
@@ -721,9 +729,15 @@ public final class SoundFXUtils {
         // NO THRESHOLD GATE: the term is scaled by the measured share of wall-facing reflections, so it is
         // continuous and derived from geometry rather than from a proxy. A plain's reflections are its own
         // ground, whose normal points up, so its share goes to zero; a valley's are its walls.
-        // Normalised by the number of rays x bounces, i.e. the fraction of ALL reflections that return
-        // energy to the listener - an absolute measure of how much of this space reflects sound back.
-        final float facingShare = facingSum / (float) (REVERB_RAYS * REVERB_RAY_BOUNCES);
+        // Normalised by a REFERENCE bounce count rather than by the bounces that actually completed.
+        //
+        // The numerator is an absolute total, which is what distinguishes a plain from a valley: a plain
+        // completes very few bounces at all (most rays leave for the sky and break the loop), so its total is
+        // small, while a valley's walls keep the rays bouncing. Dividing by the real maximum of
+        // rays x bounces then went too far the other way - most rays never reach the later bounces, so the
+        // divisor was far larger than the number of terms, and a valley's share collapsed to 0.15-0.21 from
+        // 0.5-0.7. A fixed reference keeps the absolute comparison and only sets the scale.
+        final float facingShare = facingSum / (float) (REVERB_RAYS * FACING_REFERENCE_BOUNCES);
         this.lastFacingShare = facingShare;
         final float density = this.lastReverbMeanFreePath
                 / (this.lastReverbMeanFreePath + MEAN_FREE_PATH_SCALE);

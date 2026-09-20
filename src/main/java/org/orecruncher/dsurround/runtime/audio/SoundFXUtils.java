@@ -89,8 +89,18 @@ public final class SoundFXUtils {
     /**
      * Hard ceiling on the material transmission loss. Keeps the term meaningful instead of collapsing into
      * the 1e-6 amplitude clamp, where it stops carrying information and simply zeroes the result.
+     *
+     * <p>Raised from 60 to 90 dB because the old value clipped STRONG absorbers far too early and flattened
+     * the differences between materials: with 4 dB per unit, wool (occlusion 1.0) reached the ceiling at 15
+     * blocks of thickness while stone (0.65) reached it at 23, so between 15 and 23 blocks the gap between
+     * them compressed and above 23 they were identical. A wool wall is a much better absorber than a stone
+     * one at ANY thickness, so the ceiling must sit above the range a player can actually build. At 90 dB the
+     * ceiling is not reached until 22.5 blocks of wool or 34.6 of stone.
+     *
+     * <p>90 dB is still safe: it floors the amplitude at 3.2e-5, well clear of the 1e-6 (-120 dB) clamp that
+     * this constant exists to avoid.
      */
-    private static final float MATERIAL_MAX_LOSS_DB = 60.0F;
+    private static final float MATERIAL_MAX_LOSS_DB = 90.0F;
     /**
      * Share of the material loss handed to the direct LEVEL, as opposed to the direct low-pass.
      *

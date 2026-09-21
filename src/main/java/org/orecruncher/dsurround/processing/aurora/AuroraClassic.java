@@ -11,11 +11,19 @@ import org.orecruncher.dsurround.processing.aurora.AuroraColor.ColorF;
  * (MIT).
  *
  * <p>The 1.12.2 implementation streamed triangles through the immediate-mode
- * {@code Tessellator} with a POSITION_COLOR format and an additive blend.
- * 26.1 has no immediate mode, so the same band geometry is submitted through
- * {@code MultiBufferSource} using {@code RenderTypes.debugQuads()} — that
- * RenderPipeline is POSITION_COLOR + QUADS + translucent blend, which matches
- * the original look without a custom shader.
+ * {@code Tessellator} with a POSITION_COLOR format and an ADDITIVE blend
+ * ({@code tryBlendFuncSeparate(SRC_ALPHA, ONE, ONE, ZERO)}). 26.1 has no immediate mode, so the
+ * same band geometry is submitted through {@code MultiBufferSource} using
+ * {@code RenderTypes.debugQuads()}, which is POSITION_COLOR + QUADS +
+ * <b>translucent</b> blend.
+ *
+ * <p>So this is a close approximation, NOT a faithful drop-in, and the difference is deliberate:
+ * building a custom additive RenderPipeline for a path that only runs when the shader pipeline failed
+ * to register would add a render-state surface for a fallback nobody should ever see. Where it shows:
+ * additive blending accumulates brightness where the front and back faces overlap, so the original's
+ * overlapping bands were brighter than these. The vertex alpha is also lower here - 1.12.2's shader
+ * band doubled {@code getAlpha()} and clamped to 1, which this path has no equivalent of - so the
+ * fallback is somewhat dimmer than the original overall, leaning on the base colour.
  */
 public final class AuroraClassic extends AuroraBase {
 

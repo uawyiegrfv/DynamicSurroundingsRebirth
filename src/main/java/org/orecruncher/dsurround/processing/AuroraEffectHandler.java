@@ -71,6 +71,15 @@ public class AuroraEffectHandler extends AbstractClientHandler {
         if (world == null || player == null)
             return false;
 
+        // A sky is required. 1.12.2's canAuroraStay ended with dimensionHasAuroras(), which was true
+        // only when world.provider.isSurfaceWorld() && world.provider.hasSkyLight() - and the port
+        // dropped that test, gating on biome traits alone. With vanilla data nothing changes, because
+        // no Nether or End biome is snowy or icy; but Forge dispatches AFTER_SKY in every dimension, so
+        // a datapack that adds a snowy biome to a dimension with no sky would draw an aurora under a
+        // ceiling. DayCycle.getCycle uses exactly this test for the same reason.
+        if (world.dimensionType().hasCeiling() || !world.dimensionType().hasSkyLight())
+            return false;
+
         // The aurora is only visible around midnight (a few hours either side).
         // DayCycle angle convention: noon = 0 degrees, midnight = 180 degrees.
         // A window of ~4 hours around midnight (10pm - 2am) maps to 150..210 deg.

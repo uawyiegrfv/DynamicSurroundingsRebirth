@@ -452,5 +452,13 @@
   "dsurround.config.entityEffects.enableCreatureFootprints": "生物脚印",
   "dsurround.config.entityEffects.enableCreatureFootprints.tooltip": "启用/禁用 生物（村民、动物、怪物）的脚印。1.12.2 原版对所有生物都产生脚印，而本移植只对玩家产生，此开关用于恢复原版行为；若觉得粒子太多可以关掉",
   "dsurround.config.popoffNumbers.tooltip": "伤害、治疗与暴击文字（从实体头顶弹出的数字）的相关设置",
-  "dsurround.config.speechBubbles.tooltip": "玩家与实体头顶气泡字幕的相关设置"
+  "dsurround.config.speechBubbles.tooltip": "玩家与实体头顶气泡字幕的相关设置",
+  "dsurround.command.dsmm.pause.failure": "无法暂停音乐管理器：%1$s",
+  "dsurround.command.dsmm.pause.success": "音乐管理器已暂停",
+  "dsurround.command.dsmm.unpause.failure": "无法恢复音乐管理器：%1$s",
+  "dsurround.command.dsmm.unpause.success": "音乐管理器已恢复",
+  "dsurround.command.dsmm.whatsplaying.failure": "无法确定音乐管理器正在播放什么：%1$s",
+  "dsurround.command.dsmm.whatsplaying.success": "§2正在播放§r：%1$s",
+  "dsurround.text.musicmanager.nothing": "当前没有播放音乐",
+  "dsurround.text.musicmanager.playing": "%1$s — %2$s（%3$s）"
 }

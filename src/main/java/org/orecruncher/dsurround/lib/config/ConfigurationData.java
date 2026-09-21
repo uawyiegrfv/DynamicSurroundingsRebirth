@@ -73,14 +73,34 @@ public abstract class ConfigurationData {
             // Check to see if it exists on the disk, and if so, load it up. Otherwise, save it so the defaults are
             // persisted and the user can edit manually.
             T config = ConfigProcessor.createPrototype(clazz).orElseThrow();
+
+            // Whether the file on disk may be overwritten at the end. A file that could not be READ
+            // must not be replaced: it is the user's only copy of their settings, and it is very likely
+            // the thing they need to look at to see what they got wrong.
+            //
+            // Without this the user's file was destroyed on any parse failure. `config` still held the
+            // freshly built prototype, so the save() below wrote the complete default set over a file
+            // that had, say, one trailing comma in it - and the only trace was one error line that
+            // printed the exception's toString and never mentioned the file or that it had been
+            // replaced. Verified against the real Gson: a single trailing comma resets every value and
+            // rewrites the whole file.
+            boolean mayOverwrite = true;
             try {
                 if (Files.exists(configFolderPath)) {
                     try (BufferedReader reader = Files.newBufferedReader(configFolderPath)) {
-                        config = GSON.fromJson(reader, clazz);
+                        final T loaded = GSON.fromJson(reader, clazz);
+                        if (loaded != null) {
+                            config = loaded;
+                        } else {
+                            // The file contained a JSON null, or nothing. Do not replace it.
+                            mayOverwrite = false;
+                        }
                     }
                 }
             } catch (Throwable t) {
-                Library.LOGGER.error(t, "Unable to handle configuration");
+                mayOverwrite = false;
+                Library.LOGGER.error(t, "Unable to read %s - the file is left UNTOUCHED so you can "
+                        + "inspect it. Running with defaults for this session.", configFolderPath);
             }
 
             if (config == null) {
@@ -92,8 +112,20 @@ public abstract class ConfigurationData {
             // Post-load processing
             config.postLoad();
 
-            // Save it out.  Config parameters may have been added, removed, clamped, etc.
-            config.save();
+            // Repair anything the file left null. Gson accepts an unknown enum name as null and
+            // {"section": null} as a null section; both then crash a consumer, and the enum case also
+            // silently drops the key on the next save. See sanitize().
+            final int repaired = config.sanitize();
+            if (repaired > 0) {
+                Library.LOGGER.warn("Repaired %d invalid value(s) in %s - an unknown enum name or a null "
+                        + "section was replaced with the default. Check the file for a typo.",
+                        repaired, configFolderPath);
+            }
+
+            // Save it out.  Config parameters may have been added, removed, clamped, etc. - but never
+            // over a file that could not be read.
+            if (mayOverwrite)
+                config.save();
 
             return config;
         } catch (Throwable t) {
@@ -127,6 +159,60 @@ public abstract class ConfigurationData {
      * Hook to provide processing after the configuration is loaded from the disk
      */
     public void postLoad() {
+    }
+
+    /**
+     * Replaces null enum values with the enum's first constant, and null sections with a fresh instance.
+     *
+     * <p>Gson does NOT reject an unknown enum constant: a typo such as {@code "PIXELATED_CIRCL"} loads
+     * as null with no exception at all, and the key is then dropped from the user's file on the next
+     * save - so the mistake is silent AND the setting is lost. The null then reaches consumers that
+     * assume a value: the compass overlay's constructor calls {@code compassStyle.getSpriteNumber()},
+     * the water-ripple gate compares {@code waterRippleStyle != NONE} (true for null, so it builds a
+     * particle that dereferences it), and the footprint particle calls {@code style.ordinal()}. Each
+     * of those is a crash from a one-character typo in a hand-edited file.
+     *
+     * <p>A null SECTION is worse: {@code {"logging": null}} makes Gson write null into that final
+     * field, and the mod's own constructor then dereferences it during mod loading - a startup crash
+     * whose message says nothing about the config file.
+     *
+     * <p>Done reflectively over the whole tree so a newly added enum or section is covered
+     * automatically, rather than relying on every consumer to remember a null check.
+     *
+     * @return the number of values repaired, for the caller to report
+     */
+    public int sanitize() {
+        int repaired = 0;
+        for (final var field : this.getClass().getFields()) {
+            try {
+                final Object value = field.get(this);
+
+                if (value == null) {
+                    if (field.getType().isEnum()) {
+                        final Object[] constants = field.getType().getEnumConstants();
+                        if (constants != null && constants.length > 0) {
+                            field.set(this, constants[0]);
+                            repaired++;
+                        }
+                    } else if (!field.getType().isPrimitive()
+                            && ConfigurationData.class.isAssignableFrom(field.getType())) {
+                        // A nested config section was nulled by the file.
+                        final var ctor = field.getType().getDeclaredConstructor();
+                        ctor.setAccessible(true);
+                        field.set(this, ctor.newInstance());
+                        repaired++;
+                    }
+                    continue;
+                }
+
+                // Recurse into nested sections so their enums are covered too.
+                if (value instanceof ConfigurationData nested && value != this)
+                    repaired += nested.sanitize();
+            } catch (final Throwable ignored) {
+                // A field that cannot be repaired is left alone; the alternative is refusing to start.
+            }
+        }
+        return repaired;
     }
 
     /**

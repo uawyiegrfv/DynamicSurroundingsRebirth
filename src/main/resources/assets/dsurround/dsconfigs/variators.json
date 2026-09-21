@@ -59,6 +59,7 @@
     "hasFootprint": false
   },
   "humanoid": {
+    "volumeScale": 0.4,
     "hasFootprint": true,
     "footprintScale": 1.0
   }

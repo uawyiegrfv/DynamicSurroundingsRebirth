@@ -28,6 +28,7 @@ import org.orecruncher.dsurround.processing.Handlers;
 import org.orecruncher.dsurround.runtime.ConditionEvaluator;
 import org.orecruncher.dsurround.runtime.IConditionEvaluator;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
+import org.orecruncher.dsurround.sound.AudioPlayer;
 import org.orecruncher.dsurround.sound.AudioPlayerDebug;
 
 import java.util.Optional;
@@ -129,7 +130,10 @@ public final class Client {
                 .registerSingleton(QuickSoundVolumeOverlay.class);
 
         // Depending on debug settings, enable the appropriate player
-        ContainerManager.getRootContainer().registerSingleton(IAudioPlayer.class, AudioPlayerDebug.class);
+        if (this.logger.isDebugging())
+            ContainerManager.getRootContainer().registerSingleton(IAudioPlayer.class, AudioPlayerDebug.class);
+        else
+            ContainerManager.getRootContainer().registerSingleton(IAudioPlayer.class, AudioPlayer.class);
 
         // RELOAD listeners for the data-driven libraries (sound factories, tags, biomes...).
         var container = ContainerManager.getRootContainer();

@@ -225,9 +225,6 @@ public class Configuration extends ConfigurationData {
         @Comment("Enables playing sounds that are considered scary")
         public boolean allowScarySounds = true;
 
-        @Property
-        @Comment("Enables playing biome background music while in creative")
-        public boolean playBiomeMusicWhileCreative = false;
 
         @Property
         @Comment("Enables display of toast messages for credited music")
@@ -520,10 +517,6 @@ public class Configuration extends ConfigurationData {
         @Comment("Enable/disable showing of projectile particle trails")
         public boolean suppressProjectileParticleTrails = false;
 
-        @Property
-        @RestartRequired(client = false)
-        @Comment("Suppress rendering of the player's potion particles")
-        public boolean suppressPotionParticles = false;
     }
 
     public static class CompassAndClockOptions {

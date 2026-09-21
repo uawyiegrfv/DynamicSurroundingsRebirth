@@ -187,7 +187,6 @@ public class Configuration extends ConfigurationData {
         public int reverbRayTraceDistance = 256;
 
         @Property
-        @Slider
         @DoubleRange(min = 0D, max = 2D)
         @Comment("Scales the reverb (echo) intensity (1.0 = default; 0 = no reverb; higher = stronger)")
         public double reverbIntensity = 1.0D;
@@ -197,13 +196,11 @@ public class Configuration extends ConfigurationData {
         public boolean enableWaterSoundDamping = true;
 
         @Property
-        @Slider
         @DoubleRange(min = 0.1D, max = 1D)
         @Comment("Fraction of the sound's volume that passes through each block of water between the sound and the player (lower = quieter, 1.0 = no volume change). The volume never drops below a minimum so distant sounds stay audible")
         public double waterSoundDamping = 0.95D;
 
         @Property
-        @Slider
         @DoubleRange(min = 0.1D, max = 1D)
         @Comment("High-frequency (muffling) cut-off per block of water between the sound and the player (lower = more muffled, 1.0 = no muffling). Kept strong so underwater sounds are clearly muffled regardless of direction")
         public double waterSoundMuffle = 0.7D;
@@ -246,19 +243,16 @@ public class Configuration extends ConfigurationData {
         public boolean enableBiomeSounds = true;
 
         @Property
-        @Slider
         @DoubleRange(min = 0, max = 2)
         @Comment("Footstep sounds will be multiplied by this factor")
         public double footstepVolume = 1.0D;
 
         @Property
-        @Slider
         @DoubleRange(min = 0, max = 2)
         @Comment("Biome ambient sounds will be multiplied by this factor")
         public double biomeVolume = 1.0D;
 
         @Property
-        @Slider
         @DoubleRange(min = 0, max = 2)
         @Comment("Player effect sounds (jump, heartbeat, hunger, crafting, hotbar) will be multiplied by this factor")
         public double playerEffectVolume = 1.0D;
@@ -615,19 +609,16 @@ public class Configuration extends ConfigurationData {
         public double morningFogEndHour = 8.0D;
 
         @Property
-        @Slider
         @DoubleRange(min = 0D, max = 1D)
         @Comment("How early in the morning window the mist reaches full strength (1.0 = only at the peak, lower = the mist ramps in more gradually; 0 = morning fog off). The near plane cannot be pulled closer than the type's reserve, so values above 1.0 had no further effect - the range stops at the point where it saturates. Does not change view distance. Morning fog type follows the season sub-phase: midsummer mornings have none")
         public double morningFogDensity = 1.0D;
 
         @Property
-        @Slider
         @DoubleRange(min = 0D, max = 2D)
         @Comment("Scales biome fog density (1.0 = default; 0 = disable biome fog)")
         public double biomeFogDensity = 1.0D;
 
         @Property
-        @Slider
         @DoubleRange(min = 0.25D, max = 4D)
         @Comment("Scales weather (rain) fog density (1.0 = default; higher = denser/closer fog)")
         public double weatherFogDensity = 1.0D;

@@ -73,10 +73,10 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | reverbRays | int | 32 | 16–64 | ★ Rays projected per sound to compute reverb |
 | reverbBounces | int | 4 | 4–8 | ★ Reflections per ray |
 | reverbRayTraceDistance | int | 256 | 64–512 | ★ Total ray distance (blocks) |
-| reverbIntensity | double | 1.0 | 0–2 (slider) | Reverb/echo strength (1.0 = default, 0 = off) |
+| reverbIntensity | double | 1.0 | 0–2 | Reverb/echo strength (1.0 = default, 0 = off) |
 | enableWaterSoundDamping | bool | true | — | Dampen sounds whose path passes through water |
-| waterSoundDamping | double | 0.95 | 0.1–1 (slider) | Volume fraction surviving each water block (lower = quieter) |
-| waterSoundMuffle | double | 0.7 | 0.1–1 (slider) | High-frequency cut per water block (lower = more muffled) |
+| waterSoundDamping | double | 0.95 | 0.1–1 | Volume fraction surviving each water block (lower = quieter) |
+| waterSoundMuffle | double | 0.7 | 0.1–1 | High-frequency cut per water block (lower = more muffled) |
 
 #### 2.4 `soundOptions`
 | Option | Type | Default | Range | Notes |
@@ -89,9 +89,9 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | remapSounds | bool | true | — | Sound remapping when sounds play |
 | enableBackgroundThunder | bool | true | — | ☆ Distant thunder rumbling during storms |
 | enableBiomeSounds | bool | true | — | Ambient biome and village sounds |
-| footstepVolume | double | 1.0 | 0–2 (slider) | Footstep volume multiplier |
-| biomeVolume | double | 1.0 | 0–2 (slider) | Biome ambient volume multiplier |
-| playerEffectVolume | double | 1.0 | 0–2 (slider) | Player effect volume (jump, heartbeat, hunger, crafting, hotbar) |
+| footstepVolume | double | 1.0 | 0–2 | Footstep volume multiplier |
+| biomeVolume | double | 1.0 | 0–2 | Biome ambient volume multiplier |
+| playerEffectVolume | double | 1.0 | 0–2 | Player effect volume (jump, heartbeat, hunger, crafting, hotbar) |
 
 #### 2.5 `blockEffects`
 | Option | Type | Default | Range | Notes |
@@ -185,8 +185,8 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | morningFogPeakHour | double | 6.0 | 0–24 | Morning fog peak (hours of day) |
 | morningFogEndHour | double | 8.0 | 0–24 | Morning fog end (hours of day) |
 | morningFogDensity | double | 1.0 | 0–1 | How early in the morning window the mist reaches full strength (1.0 = only at the peak, lower = ramps in more gradually; 0 = off). The near plane cannot be pulled closer than the type's reserve, so the range stops at the point where it saturates |
-| biomeFogDensity | double | 1.0 | 0–2 (slider) | Biome fog density (0 = off) |
-| weatherFogDensity | double | 1.0 | 0.25–4 (slider) | Weather fog density |
+| biomeFogDensity | double | 1.0 | 0–2 | Biome fog density (0 = off) |
+| weatherFogDensity | double | 1.0 | 0.25–4 | Weather fog density |
 
 #### 2.12 `speechBubbles`
 | Option | Type | Default | Range | Notes |
@@ -606,10 +606,10 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | reverbRays | 整数 | 32 | 16–64 | ★ 每个声音投射的射线数 |
 | reverbBounces | 整数 | 4 | 2–8 | ★ 每条射线反射次数 |
 | reverbRayTraceDistance | 整数 | 256 | 64–512 | ★ 射线总距离（格） |
-| reverbIntensity | 双精度 | 1.0 | 0–2（滑块） | 混响强度（1.0 默认，0 关闭） |
+| reverbIntensity | 双精度 | 1.0 | 0–2 | 混响强度（1.0 默认，0 关闭） |
 | enableWaterSoundDamping | 布尔 | true | — | 穿过水的声音衰减 |
-| waterSoundDamping | 双精度 | 0.95 | 0.1–1（滑块） | 每格水剩余音量比例（越低越轻） |
-| waterSoundMuffle | 双精度 | 0.7 | 0.1–1（滑块） | 每格水高频削减（越低越闷） |
+| waterSoundDamping | 双精度 | 0.95 | 0.1–1 | 每格水剩余音量比例（越低越轻） |
+| waterSoundMuffle | 双精度 | 0.7 | 0.1–1 | 每格水高频削减（越低越闷） |
 
 #### 2.4 `soundOptions`（声音选项）
 | 选项 | 类型 | 默认 | 范围 | 说明 |
@@ -622,9 +622,9 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | remapSounds | 布尔 | true | — | 播放时声音重映射 |
 | enableBackgroundThunder | 布尔 | true | — | ☆ 暴风雨时远处雷声 |
 | enableBiomeSounds | 布尔 | true | — | 群系与村庄环境音 |
-| footstepVolume | 双精度 | 1.0 | 0–2（滑块） | 脚步音量倍率 |
-| biomeVolume | 双精度 | 1.0 | 0–2（滑块） | 群系环境音量倍率 |
-| playerEffectVolume | 双精度 | 1.0 | 0–2（滑块） | 玩家效果音量（跳跃/心跳/饥饿/制作/快捷栏） |
+| footstepVolume | 双精度 | 1.0 | 0–2 | 脚步音量倍率 |
+| biomeVolume | 双精度 | 1.0 | 0–2 | 群系环境音量倍率 |
+| playerEffectVolume | 双精度 | 1.0 | 0–2 | 玩家效果音量（跳跃/心跳/饥饿/制作/快捷栏） |
 
 #### 2.5 `blockEffects`（方块效果）
 | 选项 | 类型 | 默认 | 范围 | 说明 |
@@ -718,8 +718,8 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | morningFogPeakHour | 双精度 | 6.0 | 0–24 | 晨雾峰值时刻 |
 | morningFogEndHour | 双精度 | 8.0 | 0–24 | 晨雾结束时刻 |
 | morningFogDensity | 双精度 | 1.0 | 0–1 | 晨雾在清晨窗口内达到满强度的早晚（1.0 = 仅在峰值时刻达到，越小则雾越平缓地增强；0 = 关闭）。近平面无法比该类型的 reserve 更近，因此范围止于饱和点 |
-| biomeFogDensity | 双精度 | 1.0 | 0–2（滑块） | 群系雾密度（0 关闭） |
-| weatherFogDensity | 双精度 | 1.0 | 0.25–4（滑块） | 天气雾密度 |
+| biomeFogDensity | 双精度 | 1.0 | 0–2 | 群系雾密度（0 关闭） |
+| weatherFogDensity | 双精度 | 1.0 | 0.25–4 | 天气雾密度 |
 
 #### 2.12 `speechBubbles`（聊天气泡）
 | 选项 | 类型 | 默认 | 范围 | 说明 |

@@ -83,8 +83,9 @@ public class FootprintHandler {
 
     private final Map<Integer, Track> tracks = new HashMap<>();
 
-    // Reused across ticks so the per-tick entity sweep allocates nothing per entity.
-    private final java.util.List<Integer> seen = new java.util.ArrayList<>();
+    // Reused across ticks so the per-tick entity sweep allocates nothing per entity. A Set, because
+    // the prune step asks membership for every tracked id - a List made that a linear scan per id.
+    private final java.util.Set<Integer> seen = new java.util.HashSet<>();
 
     /**
      * The entity's Variator, which carries its print size and whether it prints at all.
@@ -140,7 +141,7 @@ public class FootprintHandler {
 
         // The player first, so its own prints are unaffected by anything below.
         if (playerEnabled && !player.isSpectator())
-            this.process(player, world, true);
+            this.process(player, world);
 
         if (!creatureEnabled) {
             // Drop any creature state so re-enabling cannot resume from a stale position and drop a
@@ -165,18 +166,16 @@ public class FootprintHandler {
             if (entity.distanceToSqr(player) > range * range)
                 continue;
             this.seen.add(entity.getId());
-            this.process(entity, world, false);
+            this.process(entity, world);
         }
 
-        // Prune state for entities that are gone or no longer near, so the map cannot grow without
-        // bound in a busy world.
-        if (this.tracks.size() > this.seen.size() + 1) {
-            this.tracks.keySet().removeIf(id -> id != player.getId() && !this.seen.contains(id));
-        }
+        // Drop state for entities that are gone or no longer near, so the map holds exactly what is in
+        // range. Cheap now that `seen` is a Set: one linear pass over the tracked ids.
+        this.tracks.keySet().removeIf(id -> id != player.getId() && !this.seen.contains(id));
     }
 
     /** Advances one entity's walking state and drops a print when it has moved far enough. */
-    private void process(final LivingEntity entity, final ClientLevel world, final boolean isPlayer) {
+    private void process(final LivingEntity entity, final ClientLevel world) {
         // An entity whose variator says it leaves no prints is skipped entirely. variators.json ships
         // hasFootprint per entity, so a pack can already turn prints off for a mob - it simply had no
         // effect, because nothing read the field.

@@ -38,6 +38,8 @@ public class FootprintHandler {
     private final Configuration config;
 
     private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);
+    private static final org.orecruncher.dsurround.config.libraries.impl.VariatorLibrary VARIATORS =
+            ContainerManager.resolve(org.orecruncher.dsurround.config.libraries.impl.VariatorLibrary.class);
     private static final net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> FOOTPRINTABLE =
             BlockEffectTags.FOOTPRINTABLE;
 
@@ -69,6 +71,21 @@ public class FootprintHandler {
 
     // Reused across ticks so the per-tick entity sweep allocates nothing per entity.
     private final java.util.List<Integer> seen = new java.util.ArrayList<>();
+
+    /**
+     * The entity's Variator, which carries its print size and whether it prints at all.
+     *
+     * <p>Mirrors CreatureFootstepGenerator's lookup: the local player always uses the "player"
+     * variator, everything else is resolved from its entity type with the player's as the fallback.
+     */
+    private static org.orecruncher.dsurround.config.Variator variatorFor(final LivingEntity entity) {
+        if (entity instanceof net.minecraft.world.entity.player.Player)
+            return VARIATORS.getPlayerVariator();
+        return VARIATORS.getEntityVariator(
+                        net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()))
+                .map(VARIATORS::getVariator)
+                .orElseGet(VARIATORS::getPlayerVariator);
+    }
 
     public FootprintHandler(Configuration config, IModLog logger) {
         this.config = config;
@@ -138,6 +155,12 @@ public class FootprintHandler {
 
     /** Advances one entity's walking state and drops a print when it has moved far enough. */
     private void process(final LivingEntity entity, final ClientLevel world) {
+        // An entity whose variator says it leaves no prints is skipped entirely. variators.json ships
+        // hasFootprint per entity, so a pack can already turn prints off for a mob - it simply had no
+        // effect, because nothing read the field.
+        if (!variatorFor(entity).hasFootprint())
+            return;
+
         final Track track = this.tracks.computeIfAbsent(entity.getId(), id -> new Track());
 
         final Vec3 pos = entity.position();
@@ -237,7 +260,12 @@ public class FootprintHandler {
             // Sit the print on the block's visible surface (snow layer top), not the
             // player's foot which sinks slightly into the snow.
             var y = surfaceY;
-            var particle = new FootprintParticle(this.config.entityEffects.footprintStyle, isRight, (float) yawRad, world, x, y, z);
+            // Print size comes from the entity's Variator. variators.json already carries
+            // footprintScale per entity (a child's print is smaller, a quadruped's differs), and the
+            // value was deserialised but never read - every print was the same size.
+            final var variator = variatorFor(entity);
+            var particle = new FootprintParticle(this.config.entityEffects.footprintStyle, isRight,
+                    (float) yawRad, world, x, y, z, variator.footprintScale());
             GameUtils.getParticleManager().add(particle);
             return;
         }

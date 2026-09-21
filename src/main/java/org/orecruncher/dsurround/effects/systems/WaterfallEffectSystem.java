@@ -49,19 +49,58 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
             new Vec3i(0, 0, 1)
     };
 
-    private static final ISoundFactory[] ACOUSTICS = new ISoundFactory[BlockEffectUtils.MAX_STRENGTH + 1];
+    /**
+     * The waterfall loops, indexed by effect strength.
+     *
+     * <p>NOT final and rebuilt on a resource reload. It used to be a {@code static final} array filled
+     * by a static initialiser, which meant a {@code /dsreload} or resource reload that retargeted
+     * {@code dsurround:waterfalls/*} in sound_factories.json never reached waterfall sounds - they kept
+     * the factories captured at class load for the rest of the session.
+     *
+     * <p>The initialiser also used {@code orElseThrow()} on all six lookups, so a resource pack that
+     * replaced sound_factories.json without those entries produced an
+     * {@code ExceptionInInitializerError} at class load - a hard failure of the whole waterfall
+     * system rather than a degraded one. Each lookup now falls back to the first loop that DID resolve,
+     * which is what the original code's {@code Arrays.fill} default was reaching for.
+     */
+    private static volatile ISoundFactory[] ACOUSTICS = new ISoundFactory[0];
 
-    static {
-        var soundLibrary = ContainerManager.resolve(ISoundLibrary.class);
+    private static synchronized void loadAcoustics() {
+        final var soundLibrary = ContainerManager.resolve(ISoundLibrary.class);
+        final var array = new ISoundFactory[BlockEffectUtils.MAX_STRENGTH + 1];
 
-        var factory = soundLibrary.getSoundFactory(ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "waterfalls/0")).orElseThrow();
-        Arrays.fill(ACOUSTICS, factory);
+        // The base loop is the fallback for every strength that has no dedicated entry.
+        ISoundFactory base = soundLibrary
+                .getSoundFactory(ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "waterfalls/0"))
+                .orElse(null);
 
-        ACOUSTICS[2] = ACOUSTICS[3] = soundLibrary.getSoundFactory(ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "waterfalls/1")).orElseThrow();
-        ACOUSTICS[4] = soundLibrary.getSoundFactory(ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "waterfalls/2")).orElseThrow();
-        ACOUSTICS[5] = ACOUSTICS[6] = soundLibrary.getSoundFactory(ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "waterfalls/3")).orElseThrow();
-        ACOUSTICS[7] = ACOUSTICS[8] = soundLibrary.getSoundFactory(ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "waterfalls/4")).orElseThrow();
-        ACOUSTICS[9] = ACOUSTICS[10] = soundLibrary.getSoundFactory(ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "waterfalls/5")).orElseThrow();
+        // If even the base is missing there is nothing sensible to play; leave the array empty so the
+        // caller's null check degrades quietly instead of throwing.
+        if (base == null) {
+            ACOUSTICS = array;
+            return;
+        }
+
+        Arrays.fill(array, base);
+
+        // Each strength gets its own loop when one is defined, otherwise it inherits the previous
+        // entry - so a partially defined set still produces a full ladder.
+        final int[] strengths = {2, 3, 4, 5, 6, 7, 8, 9, 10};
+        final String[] names = {"1", "1", "2", "3", "3", "4", "4", "5", "5"};
+        ISoundFactory previous = base;
+        for (int i = 0; i < strengths.length; i++) {
+            final int idx = strengths[i];
+            if (idx >= array.length)
+                break;
+            final var resolved = soundLibrary
+                    .getSoundFactory(ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "waterfalls/" + names[i]))
+                    .orElse(null);
+            if (resolved != null)
+                previous = resolved;
+            array[idx] = previous;
+        }
+
+        ACOUSTICS = array;
     }
 
     // Keep track of sound plays outside the effect.
@@ -73,6 +112,15 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
         super(logger, config,"Waterfall");
         this.audioPlayer = ContainerManager.resolve(IAudioPlayer.class);
         this.soundCheckThrottle = 0;
+
+        // Resolve the loops now (replacing the old static initialiser), and re-resolve on a resource
+        // reload so a resource pack that retargets dsurround:waterfalls/* takes effect without a
+        // restart. The old static block ran once, at class load, and nothing re-read it - so /dsreload
+        // did not reach waterfall sounds at all.
+        loadAcoustics();
+        org.orecruncher.dsurround.config.libraries.AssetLibraryEvent.RELOAD.register(
+                (resourceUtilities, scope) -> loadAcoustics(),
+                org.orecruncher.dsurround.lib.events.HandlerPriority.LOW);
     }
 
     @Override
@@ -127,8 +175,14 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
             // If it is in a desired location, make it happen
             if (desiredLocations.contains(posIndex)) {
                 if (sound == null) {
-                    int idx = Mth.clamp(waterFallEffect.getStrength(), 0, ACOUSTICS.length - 1);
-                    sound = ACOUSTICS[idx].createBackgroundSoundLoopAt(system.getPos());
+                    final var acoustics = ACOUSTICS;
+                    if (acoustics.length == 0)
+                        continue;   // no waterfall loops resolved at all; nothing to start
+                    int idx = Mth.clamp(waterFallEffect.getStrength(), 0, acoustics.length - 1);
+                    final var factory = acoustics[idx];
+                    if (factory == null)
+                        continue;
+                    sound = factory.createBackgroundSoundLoopAt(system.getPos());
                     this.waterfallSoundInstances.put(posIndex, sound);
                 }
 

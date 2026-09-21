@@ -175,9 +175,9 @@ public class Configuration extends ConfigurationData {
         public int reverbRays = 32;
 
         @Property
-        @IntegerRange(min = 2, max = 8)
+        @IntegerRange(min = 4, max = 8)
         @RestartRequired
-        @Comment("The number of reflections the ray calculation will perform before ending a ray calculation")
+        @Comment("The number of reflections the ray calculation will perform before ending a ray calculation. The minimum is 4 because the zone gain is indexed by the first four bounces, so a lower value cannot be honoured")
         public int reverbBounces = 4;
 
         @Property
@@ -638,9 +638,9 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @Slider
-        @DoubleRange(min = 0D, max = 4D)
-        @Comment("Scales morning fog haze (4.0 = default; higher = mist reaches closer; does not change view distance. Morning fog type follows the season sub-phase: midsummer mornings have none)")
-        public double morningFogDensity = 4.0D;
+        @DoubleRange(min = 0D, max = 1D)
+        @Comment("How early in the morning window the mist reaches full strength (1.0 = only at the peak, lower = the mist ramps in more gradually; 0 = morning fog off). The near plane cannot be pulled closer than the type's reserve, so values above 1.0 had no further effect - the range stops at the point where it saturates. Does not change view distance. Morning fog type follows the season sub-phase: midsummer mornings have none")
+        public double morningFogDensity = 1.0D;
 
         @Property
         @Slider

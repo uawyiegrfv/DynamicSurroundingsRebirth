@@ -190,14 +190,20 @@ public abstract class ConfigurationData {
                     if (field.getType().isEnum()) {
                         final Object[] constants = field.getType().getEnumConstants();
                         if (constants != null && constants.length > 0) {
+                            // The section fields are FINAL, and Field.set on a final field throws
+                            // IllegalAccessException without this. Verified: without it the null
+                            // section survived and the startup crash remained.
+                            field.setAccessible(true);
                             field.set(this, constants[0]);
                             repaired++;
                         }
                     } else if (!field.getType().isPrimitive()
                             && ConfigurationData.class.isAssignableFrom(field.getType())) {
-                        // A nested config section was nulled by the file.
+                        // A nested config section was nulled by the file. Gson writes these fields
+                        // even though they are final, which is why they can be null at all.
                         final var ctor = field.getType().getDeclaredConstructor();
                         ctor.setAccessible(true);
+                        field.setAccessible(true);
                         field.set(this, ctor.newInstance());
                         repaired++;
                     }

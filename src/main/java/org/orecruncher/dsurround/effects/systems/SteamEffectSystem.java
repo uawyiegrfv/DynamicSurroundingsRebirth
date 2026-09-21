@@ -98,7 +98,7 @@ public class SteamEffectSystem extends AbstractEffectSystem implements IEffectSy
             var z = RANDOM.triangle(this.posZ, JITTER);
             var particle = this.createParticle(ParticleTypes.CLOUD, x, this.posY, z, 0, VERTICAL_SPEED, 0D);
             particle.ifPresent(p -> {
-                p.setLifetime(p.getLifetime() * 2);
+                // removed: p.setLifetime(p.getLifetime() * 2);  (was compensating for the double-add; see MixinParticleManager)
                 if (isSolid) {
                     p.scale(0.5F);
                     p.setParticleSpeed(0, VERTICAL_SPEED / 2, 0);

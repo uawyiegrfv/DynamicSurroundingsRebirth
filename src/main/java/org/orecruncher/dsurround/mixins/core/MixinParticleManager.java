@@ -22,6 +22,22 @@ public interface MixinParticleManager {
     @Accessor("spriteSets")
     Map<ResourceLocation, SpriteSet> dsurround_getSpriteSets();
 
-    @Invoker("createParticle")
+    /**
+     * Creates a particle WITHOUT queueing it, so the caller can adjust its state before adding it.
+     *
+     * <p>This invokes {@code makeParticle}, not {@code createParticle}. The public
+     * {@code ParticleEngine.createParticle} is {@code makeParticle(...)} followed by {@code add(...)} -
+     * it queues the particle itself - so invoking it here meant that every caller of
+     * {@code AbstractBlockEffect.createParticle} queued the same instance a SECOND time when it then
+     * called {@code addParticle}.
+     *
+     * <p>The consequences were not cosmetic. The duplicate entry in {@code particlesToAdd} made the
+     * instance tick TWICE per tick and render TWICE per frame, so its age advanced at double rate -
+     * halving its lifetime - and its translucent alpha was composited twice. Two of the four users had
+     * noticed the symptom and compensated with a {@code *2} on the lifetime
+     * ({@code WaterfallEffectSystem}, {@code SteamEffectSystem}); the flame jet and the bubble column
+     * had not, so their particles simply died at half the intended age.
+     */
+    @Invoker("makeParticle")
     <T extends ParticleOptions> Particle dsurround_createParticle(T parameters, double x, double y, double z, double velocityX, double velocityY, double velocityZ);
 }

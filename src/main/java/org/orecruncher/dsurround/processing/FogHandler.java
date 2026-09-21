@@ -1,6 +1,7 @@
 package org.orecruncher.dsurround.processing;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.client.renderer.FogRenderer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.material.FogType;
 import net.minecraftforge.client.event.ViewportEvent;
@@ -48,6 +49,17 @@ public class FogHandler extends AbstractClientHandler {
         // Only atmospheric (clear-air) fog is modified; water/lava/powdered-snow keep
         // vanilla. 1.20.1 has no FogType.ATMOSPHERIC; the "no fluid" type is FogType.NONE.
         if (event.getType() != FogType.NONE)
+            return;
+
+        // ...and only the TERRAIN pass, which is what this handler's values describe.
+        //
+        // The FOG_SKY pass fires TWICE per frame (LevelRenderer.renderLevel calls setupFog with
+        // FogMode.FOG_SKY directly, and again from a lambda at the head of renderSky), so without this
+        // gate the frame's fog is written FOUR times in total - three times by this handler, twice of
+        // those against the sky's own base - instead of once against the terrain's. The sibling ports
+        // already gate on FOG_TERRAIN (see dsurround-neoforge-1.21.1 MixinFogRenderer), so this is also
+        // a port divergence rather than a deliberate difference.
+        if (event.getMode() != FogRenderer.FogMode.FOG_TERRAIN)
             return;
 
         // 1.20.1: near plane == FogData.start (renderDistanceStart), far plane == FogData.end.

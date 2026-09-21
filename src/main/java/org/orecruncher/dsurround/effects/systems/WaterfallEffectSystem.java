@@ -366,7 +366,7 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
 
             particle.ifPresent(p -> {
                 p.setParticleSpeed(motionX, motionY, motionZ);
-                p.setLifetime(p.getLifetime() * 2);
+                // removed: p.setLifetime(p.getLifetime() * 2);  (was compensating for the double-add; see MixinParticleManager)
             });
 
             return particle;

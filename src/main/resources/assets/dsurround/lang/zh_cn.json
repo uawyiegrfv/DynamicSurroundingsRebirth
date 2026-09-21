@@ -450,5 +450,7 @@
   "dsurround.config.enhancedSounds.bandFrequencies": "倍频带频率 (Hz)",
   "dsurround.config.enhancedSounds.bandFrequencies.tooltip": "测量菲涅尔区所用的倍频带频率 (Hz)，从低到高。改变它会改变多大范围的障碍物会挡住哪个频带，从而改变绕射的音色",
   "dsurround.config.entityEffects.enableCreatureFootprints": "生物脚印",
-  "dsurround.config.entityEffects.enableCreatureFootprints.tooltip": "启用/禁用 生物（村民、动物、怪物）的脚印。1.12.2 原版对所有生物都产生脚印，而本移植只对玩家产生，此开关用于恢复原版行为；若觉得粒子太多可以关掉"
+  "dsurround.config.entityEffects.enableCreatureFootprints.tooltip": "启用/禁用 生物（村民、动物、怪物）的脚印。1.12.2 原版对所有生物都产生脚印，而本移植只对玩家产生，此开关用于恢复原版行为；若觉得粒子太多可以关掉",
+  "dsurround.config.popoffNumbers.tooltip": "伤害、治疗与暴击文字（从实体头顶弹出的数字）的相关设置",
+  "dsurround.config.speechBubbles.tooltip": "玩家与实体头顶气泡字幕的相关设置"
 }

@@ -76,6 +76,10 @@ public final class Client {
                     ml.setDebug(config.logging.enableDebugLogging);
                     ml.setTraceMask(config.logging.traceMask);
                 }
+                // Re-read the audio tunables. They are cached in static fields at AudioTuning's class
+                // initialisation and nothing else re-read them, so without this six keys that carry no
+                // @RestartRequired were frozen until a restart.
+                org.orecruncher.dsurround.runtime.audio.AudioTuning.reloadFromConfig();
             }
         });
     }

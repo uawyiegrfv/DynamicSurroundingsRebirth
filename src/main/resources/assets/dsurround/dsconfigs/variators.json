@@ -1,26 +1,30 @@
 {
   "default": {
-    "volumeScale": 0.4
+    "volumeScale": 0.4,
+    "hasFootprint": false
   },
   "player": {
     "playJump": true,
     "stride": 0.9,
     "landHardDistanceMin": 1.5,
     "volumeScale": 0.9,
-    "strideStair": 0.3
+    "strideStair": 0.3,
+    "hasFootprint": true
   },
   "playerSlow": {
     "playJump": true,
     "speedToRun": 0.022,
     "stride": 0.95,
-    "strideStair": 0.6175
+    "strideStair": 0.6175,
+    "hasFootprint": true
   },
   "child": {
     "stride": 0.375,
     "strideStair": 0.24375,
     "distanceToCenter": 0.1,
     "footprintScale": 0.5,
-    "volumeScale": 0.3
+    "volumeScale": 0.3,
+    "hasFootprint": true
   },
   "quadruped": {
     "playJump": true,
@@ -30,7 +34,8 @@
     "strideStair": 0.6175,
     "quadrupedMultiplier": 0.925,
     "footprintScale": 0.75,
-    "volumeScale": 0.55
+    "volumeScale": 0.55,
+    "hasFootprint": true
   },
   "quadrupedSlow": {
     "playJump": true,
@@ -39,15 +44,22 @@
     "stride": 0.95,
     "strideStair": 0.6175,
     "quadrupedMultiplier": 0.925,
-    "footprintScale": 0.75
+    "footprintScale": 0.75,
+    "hasFootprint": true
   },
   "skeleton": {
     "footprintScale": 0.5,
-    "volumeScale": 0.3
+    "volumeScale": 0.3,
+    "hasFootprint": true
   },
   "light": {
     "stride": 0.375,
     "strideStair": 0.24375,
-    "volumeScale": 0.18
+    "volumeScale": 0.18,
+    "hasFootprint": false
+  },
+  "humanoid": {
+    "hasFootprint": true,
+    "footprintScale": 1.0
   }
 }

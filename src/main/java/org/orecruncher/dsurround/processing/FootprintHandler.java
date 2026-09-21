@@ -81,10 +81,17 @@ public class FootprintHandler {
     private static org.orecruncher.dsurround.config.Variator variatorFor(final LivingEntity entity) {
         if (entity instanceof net.minecraft.world.entity.player.Player)
             return VARIATORS.getPlayerVariator();
+        // An unmapped entity falls back to "default", NOT to the player's variator.
+        //
+        // This matters for footprints: the player's variator has hasFootprint true, so falling back to
+        // it made every unmapped creature - cows, pigs, sheep, horses, and any modded mob - leave
+        // player-sized prints. 1.12.2 gave footprints only to the 13 vanilla humanoids that declared
+        // the effect, and to no animal at all, so "default" (which states hasFootprint false) is the
+        // correct fallback.
         return VARIATORS.getEntityVariator(
                         net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()))
                 .map(VARIATORS::getVariator)
-                .orElseGet(VARIATORS::getPlayerVariator);
+                .orElseGet(() -> VARIATORS.getVariator("default"));
     }
 
     public FootprintHandler(Configuration config, IModLog logger) {

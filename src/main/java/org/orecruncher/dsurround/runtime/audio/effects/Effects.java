@@ -111,9 +111,52 @@ public final class Effects {
 
     }
 
+    /**
+     * Pushes the reflection tap onto the zones, but only when it has actually changed.
+     *
+     * <p>The guard matters: applying a ReverbData costs about a dozen {@code alEffectf} calls per
+     * zone, and {@code applyReverb} runs per source per evaluation. Without this the tap would be
+     * re-uploaded hundreds of times a second with identical values. The tap is a listener property
+     * measured once per evaluation, so a plain change check is enough.
+     */
+    private static void applyReflectionTapIfChanged() {
+        final float tapGain = reflectionTapGain;
+        final float tapDelay = reflectionTapDelay;
+        if (tapGain == lastReflectionTapGain && tapDelay == lastReflectionTapDelay)
+            return;
+        lastReflectionTapGain = tapGain;
+        lastReflectionTapDelay = tapDelay;
+        for (int zone = 0; zone < activeSends; zone++) {
+            REVERB_DATA[zone].reflectionsGain = tapGain;
+            REVERB_DATA[zone].reflectionsDelay = tapDelay;
+            REVERB_SLOTS[zone].apply(REVERB_DATA[zone], AUX_SLOTS[zone]);
+        }
+    }
+
+    /** Last values pushed to the slots, so an unchanged tap is not re-uploaded. */
+    private static float lastReflectionTapGain = Float.NaN;
+    private static float lastReflectionTapDelay = Float.NaN;
+
     public static int getActiveSends() {
         return activeSends;
     }
+
+    /**
+     * The discrete early reflection, as opposed to the diffuse tail.
+     *
+     * <p>These drive AL_EAXREVERB_REFLECTIONS_GAIN / _DELAY, which is the ONE place a single early
+     * arrival belongs: it is a discrete event, while the sends feed a diffuse field. The code has
+     * always said so - {@code EARLY_REFLECTION_GAIN}'s javadoc in SoundFXUtils describes exactly this
+     * tap - but nothing ever computed these two values from the scene, so the tap carried OpenAL's
+     * default while all the measured reflection energy went into the diffuse sends instead. That is
+     * how a valley ended up with a reverb tail: a discrete slap was fed into a 0.55 s / 1.68 s decay.
+     *
+     * <p>Written by the sound evaluation and read when the slots are (re)applied, so they are
+     * volatile. They are listener properties, not per-source ones, because an effect slot is shared
+     * by every source that sends to it.
+     */
+    public static volatile float reflectionTapGain = 0F;
+    public static volatile float reflectionTapDelay = 0F;
 
     /**
      * Recomputes each reverb zone's wet gain from the configurable intensity. Called on
@@ -166,6 +209,10 @@ public final class Effects {
 
         refreshReverbIntensity();
         lastReverbIntensity = (float) CONFIG.reverbIntensity;
+        // The slots are brand new, so the reflection tap has to be uploaded to them again even if the
+        // measured value has not changed.
+        lastReflectionTapGain = Float.NaN;
+        lastReflectionTapDelay = Float.NaN;
 
         for (int i = 0; i < activeSends; i++) {
             AUX_SLOTS[i].initialize();
@@ -216,6 +263,7 @@ public final class Effects {
             return;
 
         refreshIntensityIfChanged();
+        applyReflectionTapIfChanged();
 
         final int sourceId = source.getId();
 

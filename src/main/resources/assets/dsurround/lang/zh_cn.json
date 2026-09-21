@@ -458,5 +458,19 @@
   "dsurround.command.dsmm.whatsplaying.failure": "无法确定音乐管理器正在播放什么：%1$s",
   "dsurround.command.dsmm.whatsplaying.success": "§2正在播放§r：%1$s",
   "dsurround.text.musicmanager.nothing": "当前没有播放音乐",
-  "dsurround.text.musicmanager.playing": "%1$s — %2$s（%3$s）"
+  "dsurround.text.musicmanager.playing": "%1$s — %2$s（%3$s）",
+  "dsurround.sound.caption.biome.gnatt": "蚋虫嗡嗡",
+  "dsurround.sound.caption.biome.grasshopper": "蚱蜢鸣叫",
+  "dsurround.sound.caption.footsteps.bone": "骨头脚步",
+  "dsurround.sound.caption.footsteps.sculk": "幽匿脚步",
+  "dsurround.sound.caption.footsteps.sculk_vein": "幽匿脉络脚步",
+  "dsurround.sound.caption.footsteps.moss": "苔藓脚步",
+  "dsurround.sound.caption.footsteps.tuff": "凝灰岩脚步",
+  "dsurround.sound.caption.footsteps.copper": "铜脚步",
+  "dsurround.sound.caption.footsteps.bamboo": "竹脚步",
+  "dsurround.sound.caption.footsteps.honey": "蜂蜜脚步",
+  "dsurround.sound.caption.footsteps.froglight": "蛙明灯脚步",
+  "dsurround.sound.caption.footsteps.slime": "黏液脚步",
+  "dsurround.sound.caption.footsteps.shroomlight": "菌光体脚步",
+  "dsurround.sound.caption.footsteps.sculk_vein_land": "幽匿脉络落地脚步"
 }

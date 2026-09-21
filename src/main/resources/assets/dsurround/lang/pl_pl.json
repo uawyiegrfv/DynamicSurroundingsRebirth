@@ -458,5 +458,19 @@
   "dsurround.config.popoffNumbers.tooltip": "Ustawienia tekstu obrażeń, leczenia i ciosów krytycznych wyskakującego z istoty",
   "dsurround.config.speechBubbles.tooltip": "Ustawienia dymków rysowanych nad głowami graczy i istot",
   "dsurround.config.soundOptions.playBiomeMusicWhileCreative": "Odtwarzaj muzykę biomu w trybie kreatywnym",
-  "dsurround.config.soundOptions.playBiomeMusicWhileCreative.tooltip": "Włącza odtwarzanie skonfigurowanej muzyki w tle biomu w trybie kreatywnym. Zwykle w trybie kreatywnym selektor muzyki sytuacyjnej Minecrafta automatycznie wybiera muzykę kreatywną zamiast muzyki w tle biomu."
+  "dsurround.config.soundOptions.playBiomeMusicWhileCreative.tooltip": "Włącza odtwarzanie skonfigurowanej muzyki w tle biomu w trybie kreatywnym. Zwykle w trybie kreatywnym selektor muzyki sytuacyjnej Minecrafta automatycznie wybiera muzykę kreatywną zamiast muzyki w tle biomu.",
+  "dsurround.sound.caption.biome.gnatt": "Brzęczenie komarów",
+  "dsurround.sound.caption.biome.grasshopper": "Cykanie koników polnych",
+  "dsurround.sound.caption.footsteps.bone": "Kroki po kościach",
+  "dsurround.sound.caption.footsteps.sculk": "Kroki po sculku",
+  "dsurround.sound.caption.footsteps.sculk_vein": "Kroki po żyłach sculku",
+  "dsurround.sound.caption.footsteps.moss": "Kroki po mchu",
+  "dsurround.sound.caption.footsteps.tuff": "Kroki po tufie",
+  "dsurround.sound.caption.footsteps.copper": "Kroki po miedzi",
+  "dsurround.sound.caption.footsteps.bamboo": "Kroki po bambusie",
+  "dsurround.sound.caption.footsteps.honey": "Kroki po miodzie",
+  "dsurround.sound.caption.footsteps.froglight": "Kroki po żabiej lampie",
+  "dsurround.sound.caption.footsteps.slime": "Kroki po szlamie",
+  "dsurround.sound.caption.footsteps.shroomlight": "Kroki po grzyboliście",
+  "dsurround.sound.caption.footsteps.sculk_vein_land": "Kroki po żyłach sculku (lądowanie)"
 }

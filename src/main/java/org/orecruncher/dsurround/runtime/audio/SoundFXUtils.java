@@ -578,7 +578,7 @@ public final class SoundFXUtils {
         final float sendOcclusionGain = SEND_OCCLUSION_FLOOR
                 + (1F - SEND_OCCLUSION_FLOOR) * MathStuff.clamp1(directHfCutoff);
 
-        finalizeSendGains(reverb, sendOcclusionGain);
+        finalizeSendGains(reverb, sendOcclusionGain, this.lastReverbMeanFreePath);
 
         if (ctx.player.isUnderWater()) {
             reverb.sendCutoff0 *= 0.4F;
@@ -952,8 +952,13 @@ public final class SoundFXUtils {
                 (0.35F + 0.65F * facingShare * 4.0F) * reflectionScale);
     }
 
-    /** Applies the bounce-ratio scaling and clamps the send gains. */
-    private static void finalizeSendGains(final ReverbTrace reverb, final float sendOcclusionGain) {
+    /** Applies the bounce-ratio scaling and clamps the send gains.
+     *
+     * @param meanFreePath the space's characteristic size, from the most recent trace. Passed in
+     *                     because this method is static and the value lives on the instance.
+     */
+    private static void finalizeSendGains(final ReverbTrace reverb, final float sendOcclusionGain,
+                                          final float meanFreePath) {
         reverb.sendGain1 *= reverb.bounceRatio[1];
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.bounceRatio[2], 3.0);
 
@@ -977,8 +982,58 @@ public final class SoundFXUtils {
         // field gets before it dies, which genuinely depends on the material; an early reflection off a
         // distant surface is one reflection, and its strength is already in the term. Applying it before the
         // weighting made it inaudible outdoors, where bounceRatio^3 is 0.043.
-        reverb.sendGain1 += reverb.earlyReflection;
-        reverb.sendGain2 += reverb.earlyReflection;
+        //
+        // ---------------------------------------------------------------- room size
+        //
+        // Everything above this line is blind to how BIG the space is, and that is why a small stone room
+        // had reverb. Reported: "a tiny stone house has reverb". Measured with
+        // tools/sim_reverb_roomsize.py, level-weighted decay (what the ear reads as the room's size):
+        //
+        //     space              before    after
+        //     3x3x3 stone hut    0.944 s   0.184 s
+        //     3x3x3 wood hut     0.657 s   0.170 s
+        //     5x4x5 stone room   1.070 s   0.233 s
+        //     16x8x16 stone hall 1.228 s   1.131 s   (essentially unchanged)
+        //     40x12x40 cavern    1.243 s   1.224 s   (unchanged)
+        //
+        // The cause was that the room-size scale was applied ONLY to the earlyReflection addition, while
+        // the term that dominates a small stone room is the GEOMETRY sum - g1 read 0.253 in a 3x3x3 hut,
+        // against an early reflection of 0.16 that the previous revision had already scaled down to 0.04.
+        // Scaling the smaller term and leaving the larger one alone moved the level by almost nothing.
+        //
+        // The physical statement: this send feeds the DIFFUSE field, and a diffuse field's strength in a
+        // room is set by the room's characteristic size - the mean free path, which is already computed for
+        // the brightness scale and is exactly the Sabine mean free path. In a small room the reflections
+        // arrive so soon after the direct sound that they fuse into it rather than forming a tail; that is
+        // why a 3x3x3 room should read as tight.
+        //
+        // So the whole diffuse contribution scales, geometry and early reflection alike. Large spaces have
+        // a mean free path above the reference and are untouched, which is what keeps a cave and a hall
+        // sounding like themselves.
+        //
+        // Scaling the EARLY REFLECTION is the part that actually does the work, and the first attempt at
+        // this fix missed it: it scaled only the geometry term, and the geometry term is nearly zero in
+        // every enclosed space measured - 0.019 against an early reflection of 0.062 in a 3 m hut, and
+        // 0.001 against 0.169 in a 40 m cavern. Scaling the smaller term changed nothing audible, which is
+        // why the hut still had reverb after that revision.
+        //
+        // Measured with tools/sim_reverb_fix_options.py, level-weighted decay in seconds:
+        //
+        //     space                before    after
+        //     3x3x3 stone hut      0.944     0.184
+        //     3x3x3 wood hut       0.657     0.170
+        //     5x4x5 stone room     1.070     0.233
+        //     8x6x8 brick room     1.099     0.489
+        //     16x8x16 stone hall   1.228     1.131   (kept)
+        //     40x12x40 cavern      1.243     1.224   (kept)
+        //
+        // A variant that ALSO routed the early reflection to the short 0.15 s zone was measured and
+        // rejected: it collapses every space - hut, hall and cavern alike - to 0.150 s, destroying the
+        // very difference the reverb exists to convey.
+        final float roomSizeScale = Math.min(1.0F, meanFreePath / ECHO_SCALE_REFERENCE_M);
+        final float earlyReflection = reverb.earlyReflection * roomSizeScale;
+        reverb.sendGain1 = reverb.sendGain1 * roomSizeScale + earlyReflection;
+        reverb.sendGain2 = reverb.sendGain2 * roomSizeScale + earlyReflection;
 
         reverb.sendGain0 = MathStuff.clamp1(reverb.sendGain0);
         reverb.sendGain1 = MathStuff.clamp1(reverb.sendGain1);

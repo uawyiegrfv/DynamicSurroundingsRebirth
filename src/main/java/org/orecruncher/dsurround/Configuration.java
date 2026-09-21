@@ -330,22 +330,22 @@ public class Configuration extends ConfigurationData {
         @Property
         @IntegerRange(min = 50, max = 300)
         @Slider
-        @Comment("Text size as a percentage of the default. 100 reproduces 1.12.2's spawn size, because the world-unit constant already carries 1.12.2's base scale (3.0 * 0.008). 102 is the shipped value: paired with growFactor 123 it puts the peak on 1.12.2's maximum size to within 0.13% (both are integers, so the pair is chosen together - 100 with grow 124 was 1.4% high). Raise it if the text looks too small, lower it if too large")
-        public int sizePercent = 102;
+        @Comment("Text size as a percentage of the default. The world-unit constant already carries 1.12.2's base scale (3.0 * 0.008), so 100 is 1.12.2's SPAWN size; the maximum depends on this times the curve's peak. 66 puts the maximum at about 1.25x 1.12.2's largest, which is the shipped value - raise it if the text still looks small, lower it if too large")
+        public int sizePercent = 66;
 
         @Hidden
         @Property
         @IntegerRange(min = 101, max = 200)
         @Slider
-        @Comment("Growth per tick as a percentage. 123 makes the peak 2.33x the spawn size, which is 1.12.2's own max-to-spawn ratio, so the peak reaches 1.12.2's maximum")
-        public int growFactor = 123;
+        @Comment("Growth per tick as a percentage, which sets the CONTRAST between the peak and the endpoints (the endpoints are always equal to each other). 128 makes the peak 4.4x the endpoints, so the text changes size dramatically; 1.12.2's own curve managed only 2.33x")
+        public int growFactor = 128;
 
         @Hidden
         @Property
         @IntegerRange(min = 1, max = 10)
         @Slider
-        @Comment("Which tick the text reaches its largest. 4 of a 17-tick life is the first quarter, which is where the peak sits; lower values grow faster then shrink for longer")
-        public int peakTickTicks = 4;
+        @Comment("Which tick the text reaches its largest. 6 of a 17-tick life is 38%, so the peak sits at roughly 40% of the animation; lower values peak earlier and then shrink for longer")
+        public int peakTickTicks = 6;
 
         @Hidden
         @Property

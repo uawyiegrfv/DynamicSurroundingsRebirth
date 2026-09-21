@@ -493,6 +493,11 @@ public class Configuration extends ConfigurationData {
         public boolean enableFootprints = true;
 
         @Property
+        @RestartRequired(client = false)
+        @Comment("Enable/disable footprints for creatures (villagers, animals, mobs). The 1.12.2 original gave every living entity footprints; this port only produced them for the player, so this restores that behaviour and can be turned off if the extra particles are unwanted")
+        public boolean enableCreatureFootprints = true;
+
+        @Property
         @EnumType(FootprintStyle.class)
         @Comment("Style of footprints")
         public FootprintStyle footprintStyle = FootprintStyle.LOWRES_SQUARE;

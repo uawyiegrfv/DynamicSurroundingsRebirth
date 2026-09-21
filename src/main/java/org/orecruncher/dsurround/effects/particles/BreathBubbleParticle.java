@@ -4,7 +4,6 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.ParticleRenderType;
 import net.minecraft.client.particle.TextureSheetParticle;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 
 /**
@@ -46,23 +45,36 @@ public class BreathBubbleParticle extends TextureSheetParticle {
         this.move(this.xd, this.yd, this.zd);
         this.yd *= 0.98F;
 
-        // Pop at the surface, using vanilla's own rule.
+        // Pop at the surface - meaning the fluid's TOP face, which is the only place a bubble can burst.
         //
-        // Without this the bubble rose through the water surface and kept going: hasPhysics is false
-        // and the 0.05/tick velocity decays slowly, so a 40-tick life carried it roughly 1.2 blocks
-        // past the surface before it expired. The 1.12.2 original extended vanilla's ParticleBubble,
-        // which carries this check; the port replaced that with a plain particle and lost it.
+        // Two earlier attempts at this were wrong, and the second was the bug that got reported.
         //
-        // This is the same test WaterDropParticle uses (its tick, the final statement): if the block
-        // has a collision surface or a fluid height, anything below that height is inside it and the
-        // particle is done. For a water source the fluid height is 0.875, so a bubble rising from an
-        // entity's eye pops just under the surface.
+        // Without any check the bubble rose through the water and kept going: hasPhysics is false and
+        // the 0.05/tick velocity decays slowly, so a 40-tick life carried it roughly 1.2 blocks past the
+        // surface before expiring. The 1.12.2 original extended vanilla's ParticleBubble, which carries
+        // the check; the port replaced that with a plain particle and lost it.
+        //
+        // The first fix copied WaterDropParticle's test verbatim - remove when below the current
+        // block's collision surface or fluid height. For a RAIN DROP that is right, because a drop
+        // lands on a top face. For a bubble rising through water it is wrong: a block with water above
+        // it reports a fluid height of 1.0, so the particle is "below the surface" of its own block for
+        // the entire ascent and was removed on its very first tick. Bubbles vanished the instant they
+        // appeared.
+        //
+        // So the test is now specific to the surface: only a fluid block with NO fluid above it has an
+        // exposed top face, and the bubble pops when it reaches that height. A bubble deep in a column
+        // is unaffected, and one in the top water block pops exactly at the water line.
         final BlockPos pos = BlockPos.containing(this.x, this.y, this.z);
-        final double surface = Math.max(
-                this.level.getBlockState(pos).getCollisionShape(this.level, pos)
-                        .max(Direction.Axis.Y, this.x - pos.getX(), this.z - pos.getZ()),
-                this.level.getFluidState(pos).getHeight(this.level, pos));
-        if (surface > 0.0D && this.y < pos.getY() + surface)
+        final var fluid = this.level.getFluidState(pos);
+        if (fluid.isEmpty())
+            return;   // out of the water entirely (a popped bubble already removed, or spawned in air)
+
+        if (!this.level.getFluidState(pos.above()).isEmpty())
+            return;   // still under more water; the surface is higher up
+
+        // The top face of this block is the surface. getHeight is 0.875 for a source with air above.
+        final double surfaceY = pos.getY() + fluid.getHeight(this.level, pos);
+        if (this.y >= surfaceY)
             this.remove();
     }
 }

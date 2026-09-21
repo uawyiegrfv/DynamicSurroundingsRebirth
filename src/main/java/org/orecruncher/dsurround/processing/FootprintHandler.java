@@ -69,8 +69,9 @@ public class FootprintHandler {
 
     private final Map<Integer, Track> tracks = new HashMap<>();
 
-    // Reused across ticks so the per-tick entity sweep allocates nothing per entity.
-    private final java.util.List<Integer> seen = new java.util.ArrayList<>();
+    // Reused across ticks so the per-tick entity sweep allocates nothing per entity. A Set, because
+    // the prune step asks membership for every tracked id - a List made that a linear scan per id.
+    private final java.util.Set<Integer> seen = new java.util.HashSet<>();
 
     /**
      * The entity's Variator, which carries its print size and whether it prints at all.
@@ -153,11 +154,9 @@ public class FootprintHandler {
             this.process(entity, world);
         }
 
-        // Prune state for entities that are gone or no longer near, so the map cannot grow without
-        // bound in a busy world.
-        if (this.tracks.size() > this.seen.size() + 1) {
-            this.tracks.keySet().removeIf(id -> id != player.getId() && !this.seen.contains(id));
-        }
+        // Drop state for entities that are gone or no longer near, so the map holds exactly what is in
+        // range. Cheap now that `seen` is a Set: one linear pass over the tracked ids.
+        this.tracks.keySet().removeIf(id -> id != player.getId() && !this.seen.contains(id));
     }
 
     /** Advances one entity's walking state and drops a print when it has moved far enough. */

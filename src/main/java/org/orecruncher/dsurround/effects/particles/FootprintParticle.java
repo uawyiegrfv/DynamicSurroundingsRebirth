@@ -37,10 +37,20 @@ public class FootprintParticle extends SingleQuadParticle {
     private final Quaternionf rotation;
 
     public FootprintParticle(FootprintStyle style, boolean isRight, float yaw, ClientLevel world, double x, double y, double z) {
+        this(style, isRight, yaw, world, x, y, z, 1.0F);
+    }
+
+    /**
+     * @param scale multiplier on the print's size, from the entity's Variator footprintScale
+     */
+    public FootprintParticle(FootprintStyle style, boolean isRight, float yaw, ClientLevel world,
+                             double x, double y, double z, float scale) {
         super(world, x, y, z, ParticleUtils.getSprite(FOOTPRINT_TEXTURE));
 
         this.lifetime = LIFETIME;
-        this.quadSize = 0.12F;
+        // Guard against a nonsense scale from a hand-edited variators.json: a zero or negative print
+        // would be invisible or inverted, and nothing would report it.
+        this.quadSize = 0.12F * (scale > 0.01F ? scale : 1.0F);
         this.alpha = 0.4F;
         this.yaw = yaw;
 

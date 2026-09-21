@@ -69,9 +69,9 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | backgroundThreadWorkers | int | 0 | 0–8 (slider) | ★ Background threads for sound processing (0 = internal default) |
 | enableMonoConversion | bool | true | — | Convert stereo to mono on the fly |
 | enableChannelReaper | bool | false | — | **Experimental.** Tries to free sound channels that have become stuck. Off by default because it can crash the game |
-| enableOcclusionProcessing | bool | false | — | Muffle sounds behind blocks |
+| enableOcclusionProcessing | bool | true | — | Muffle sounds behind blocks |
 | reverbRays | int | 32 | 16–64 | ★ Rays projected per sound to compute reverb |
-| reverbBounces | int | 4 | 2–8 | ★ Reflections per ray |
+| reverbBounces | int | 4 | 4–8 | ★ Reflections per ray |
 | reverbRayTraceDistance | int | 256 | 64–512 | ★ Total ray distance (blocks) |
 | reverbIntensity | double | 1.0 | 0–2 (slider) | Reverb/echo strength (1.0 = default, 0 = off) |
 | enableWaterSoundDamping | bool | true | — | Dampen sounds whose path passes through water |
@@ -106,7 +106,7 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | waterfallsEnabled | bool | true | — | Waterfall effect from flowing water |
 | enableWaterfallSounds | bool | true | — | Waterfall sounds |
 | enableWaterfallParticles | bool | true | — | Waterfall particles |
-| waterfallMaxVolume | double | 0.5 | 0–2 (slider) | Loudest a waterfall is allowed to get (0.5 = default) |
+| waterfallMaxVolume | double | 0.5 | 0–1 | Loudest a waterfall is allowed to get (0.5 = default) |
 | furnaceIgniteEnabled | bool | true | — | Crackle and ignite sound when a furnace starts burning |
 | enableEnchantTableSounds | bool | true | — | Page-turn sounds at an enchanting table |
 | waterRippleStyle | enum | PIXELATED_CIRCLE | NONE, PIXELATED_CIRCLE | Ripple style when a drop hits fluid |
@@ -163,7 +163,7 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | compassStyle | enum | TRANSPARENT_WITH_INDICATOR | OPAQUE, TRANSPARENT, OPAQUE_WITH_INDICATOR, TRANSPARENT_WITH_INDICATOR | Compass rendering style |
 | scale | double | 1.0 | 0.5–4 | Display scale |
 | enableLowDurabilityHighlight | bool | true | — | Highlight a hotbar item that is about to break |
-| lowDurabilityThreshold | int | 10 | 1–100 (slider) | Remaining durability at which that highlight appears |
+| lowDurabilityThreshold | int | 10 | 1–50 | Remaining durability at which that highlight appears |
 
 #### 2.10 `weatherOptions`
 | Option | Type | Default | Notes |
@@ -184,7 +184,7 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | morningFogStartHour | double | 5.0 | 0–24 | Morning fog start (hours of day) |
 | morningFogPeakHour | double | 6.0 | 0–24 | Morning fog peak (hours of day) |
 | morningFogEndHour | double | 8.0 | 0–24 | Morning fog end (hours of day) |
-| morningFogDensity | double | 4.0 | 0–4 (slider) | Morning fog haze scale (4.0 = default); higher means the mist reaches closer. Morning fog type follows the season sub-phase, so midsummer mornings have none |
+| morningFogDensity | double | 1.0 | 0–1 | How early in the morning window the mist reaches full strength (1.0 = only at the peak, lower = ramps in more gradually; 0 = off). The near plane cannot be pulled closer than the type's reserve, so the range stops at the point where it saturates |
 | biomeFogDensity | double | 1.0 | 0–2 (slider) | Biome fog density (0 = off) |
 | weatherFogDensity | double | 1.0 | 0.25–4 (slider) | Weather fog density |
 
@@ -602,7 +602,7 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | backgroundThreadWorkers | 整数 | 0 | 0–8（滑块） | ★ 后台线程数（0 = 内部默认） |
 | enableMonoConversion | 布尔 | true | — | 立体声实时转单声道 |
 | enableChannelReaper | 布尔 | false | — | **实验性**。尝试释放卡住的音效通道。可能会让游戏崩溃，因此默认关闭 |
-| enableOcclusionProcessing | 布尔 | false | — | 方块后声音变闷 |
+| enableOcclusionProcessing | 布尔 | true | — | 方块后声音变闷 |
 | reverbRays | 整数 | 32 | 16–64 | ★ 每个声音投射的射线数 |
 | reverbBounces | 整数 | 4 | 2–8 | ★ 每条射线反射次数 |
 | reverbRayTraceDistance | 整数 | 256 | 64–512 | ★ 射线总距离（格） |
@@ -639,7 +639,7 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | waterfallsEnabled | 布尔 | true | — | 流水瀑布效果 |
 | enableWaterfallSounds | 布尔 | true | — | 瀑布声 |
 | enableWaterfallParticles | 布尔 | true | — | 瀑布粒子 |
-| waterfallMaxVolume | 双精度 | 0.5 | 0–2（滑块） | 瀑布音量的上限（0.5 = 默认） |
+| waterfallMaxVolume | 双精度 | 0.5 | 0–1 | 瀑布音量的上限（0.5 = 默认） |
 | furnaceIgniteEnabled | 布尔 | true | — | 熔炉点火时的噼啪与点燃声 |
 | enableEnchantTableSounds | 布尔 | true | — | 附魔台翻书声 |
 | waterRippleStyle | 枚举 | PIXELATED_CIRCLE | NONE, PIXELATED_CIRCLE | 水滴落水面涟漪样式 |
@@ -696,7 +696,7 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | compassStyle | 枚举 | TRANSPARENT_WITH_INDICATOR | OPAQUE, TRANSPARENT, OPAQUE_WITH_INDICATOR, TRANSPARENT_WITH_INDICATOR | 指南针渲染样式 |
 | scale | 双精度 | 1.0 | 0.5–4 | 显示缩放 |
 | enableLowDurabilityHighlight | 布尔 | true | — | 高亮即将损坏的快捷栏物品 |
-| lowDurabilityThreshold | 整数 | 10 | 1–100（滑块） | 触发高亮的剩余耐久值 |
+| lowDurabilityThreshold | 整数 | 10 | 1–50 | 触发高亮的剩余耐久值 |
 
 #### 2.10 `weatherOptions`（天气效果）
 | 选项 | 类型 | 默认 | 说明 |
@@ -717,7 +717,7 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | morningFogStartHour | 双精度 | 5.0 | 0–24 | 晨雾开始时刻（小时） |
 | morningFogPeakHour | 双精度 | 6.0 | 0–24 | 晨雾峰值时刻 |
 | morningFogEndHour | 双精度 | 8.0 | 0–24 | 晨雾结束时刻 |
-| morningFogDensity | 双精度 | 4.0 | 0–4（滑块） | 晨雾浓度倍率（4.0 = 默认），数值越大雾越贴近；晨雾类型跟随季节子阶段，因此仲夏清晨没有晨雾 |
+| morningFogDensity | 双精度 | 1.0 | 0–1 | 晨雾在清晨窗口内达到满强度的早晚（1.0 = 仅在峰值时刻达到，越小则雾越平缓地增强；0 = 关闭）。近平面无法比该类型的 reserve 更近，因此范围止于饱和点 |
 | biomeFogDensity | 双精度 | 1.0 | 0–2（滑块） | 群系雾密度（0 关闭） |
 | weatherFogDensity | 双精度 | 1.0 | 0.25–4（滑块） | 天气雾密度 |
 

@@ -238,8 +238,7 @@ public class Configuration extends ConfigurationData {
         public boolean remapSounds = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable distant background thunder rumbling during storms")
+                @Comment("Enable/disable distant background thunder rumbling during storms")
         public boolean enableBackgroundThunder = true;
 
         @Property
@@ -320,18 +319,15 @@ public class Configuration extends ConfigurationData {
         public WaterRippleStyle waterRippleStyle = WaterRippleStyle.PIXELATED_CIRCLE;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable steam/smoke when rain hits magma or netherrack")
+                @Comment("Enable/disable steam/smoke when rain hits magma or netherrack")
         public boolean enableMagmaSteam = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable the furnace ignite sound effect")
+                @Comment("Enable/disable the furnace ignite sound effect")
         public boolean furnaceIgniteEnabled = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable enchanting table book sounds")
+                @Comment("Enable/disable enchanting table book sounds")
         public boolean enableEnchantTableSounds = true;
     }
 
@@ -393,8 +389,7 @@ public class Configuration extends ConfigurationData {
         public int entityEffectRange = 24;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable bow pull sound effect")
+                @Comment("Enable/disable bow pull sound effect")
         public boolean enableBowPull = true;
 
         @Property
@@ -403,33 +398,27 @@ public class Configuration extends ConfigurationData {
         public boolean enableProjectileBreakSounds = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable breath effect in cold biomes and underwater")
+                @Comment("Enable/disable breath effect in cold biomes and underwater")
         public boolean enableBreathEffect = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable player toolbar sound effects")
+                @Comment("Enable/disable player toolbar sound effects")
         public boolean enablePlayerToolbarEffect = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable sound effects for blocks on the toolbar")
+                @Comment("Enable/disable sound effects for blocks on the toolbar")
         public boolean enableToolbarBlockSounds = false;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable item swing sound effects from players and mobs")
+                @Comment("Enable/disable item swing sound effects from players and mobs")
         public boolean enableSwingEffect = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable sound effect when walking through dense brush")
+                @Comment("Enable/disable sound effect when walking through dense brush")
         public boolean enableBrushStepEffect = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable heartbeat sound when the player's health is low")
+                @Comment("Enable/disable heartbeat sound when the player's health is low")
         public boolean enablePlayerHeartbeatSound = true;
 
         @Property
@@ -438,8 +427,7 @@ public class Configuration extends ConfigurationData {
         public double playerHurtThreshold = 0.25D;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable stomach growl sound when the player is hungry")
+                @Comment("Enable/disable stomach growl sound when the player is hungry")
         public boolean enablePlayerHungerSound = true;
 
         @Property
@@ -448,28 +436,23 @@ public class Configuration extends ConfigurationData {
         public int playerHungerThreshold = 8;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable jump sound when the player leaves the ground")
+                @Comment("Enable/disable jump sound when the player leaves the ground")
         public boolean enablePlayerJumpSound = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable landing sound when the player falls from a height")
+                @Comment("Enable/disable landing sound when the player falls from a height")
         public boolean enablePlayerLandSound = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable the mod's custom footstep sounds for the player. When disabled, the vanilla footstep sounds are used instead")
+                @Comment("Enable/disable the mod's custom footstep sounds for the player. When disabled, the vanilla footstep sounds are used instead")
         public boolean enableFootstepSounds = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable the scuff sound played when the player stops or turns sharply. This is the material's 'wander' recording in the original 1.12.2 data")
+                @Comment("Enable/disable the scuff sound played when the player stops or turns sharply. This is the material's 'wander' recording in the original 1.12.2 data")
         public boolean enableStopScuffSound = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable footstep sounds while sneaking. The original 1.12.2 mod played no footsteps at all while sneaking; this port keeps them audible by default because a sneaking player would otherwise hear nothing, but the behaviour can be switched back")
+                @Comment("Enable/disable footstep sounds while sneaking. The original 1.12.2 mod played no footsteps at all while sneaking; this port keeps them audible by default because a sneaking player would otherwise hear nothing, but the behaviour can be switched back")
         public boolean enableSneakFootstepSounds = true;
 
         @Property
@@ -483,13 +466,11 @@ public class Configuration extends ConfigurationData {
         public boolean inferFootstepMaterial = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable crafting sound when an item is crafted")
+                @Comment("Enable/disable crafting sound when an item is crafted")
         public boolean enableCraftingSound = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable player footprints while walking")
+                @Comment("Enable/disable player footprints while walking")
         public boolean enableFootprints = true;
 
         @Property
@@ -503,13 +484,11 @@ public class Configuration extends ConfigurationData {
         public FootprintStyle footprintStyle = FootprintStyle.LOWRES_SQUARE;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Display a comic power word when an entity takes a critical hit")
+                @Comment("Display a comic power word when an entity takes a critical hit")
         public boolean showCritWords = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Display damage and healing numbers above entities")
+                @Comment("Display damage and healing numbers above entities")
         public boolean showDamageNumbers = true;
     }
 
@@ -571,8 +550,7 @@ public class Configuration extends ConfigurationData {
         public boolean enableTreasureDistance = true;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable red pulsing frame on the selected hotbar slot when the item's durability is low")
+                @Comment("Enable/disable red pulsing frame on the selected hotbar slot when the item's durability is low")
         public boolean enableLowDurabilityHighlight = true;
 
         @Property
@@ -670,13 +648,11 @@ public class Configuration extends ConfigurationData {
     public static class SpeechBubbles {
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable speech bubbles above player heads for chat messages")
+                @Comment("Enable/disable speech bubbles above player heads for chat messages")
         public boolean enableSpeechBubbles = false;
 
         @Property
-        @RestartRequired(client = false)
-        @Comment("Enable/disable chat bubbles above villagers and other mobs")
+                @Comment("Enable/disable chat bubbles above villagers and other mobs")
         public boolean enableEntityChat = false;
 
         @Property

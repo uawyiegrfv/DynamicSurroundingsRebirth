@@ -2,6 +2,8 @@ package org.orecruncher.dsurround.effects.particles;
 
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.SingleQuadParticle;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 
 /**
@@ -38,9 +40,29 @@ public class BreathBubbleParticle extends SingleQuadParticle {
         this.zo = this.z;
         if (this.age++ >= this.lifetime) {
             this.remove();
-        } else {
-            this.move(this.xd, this.yd, this.zd);
-            this.yd *= 0.98F;
+            return;
         }
+
+        this.move(this.xd, this.yd, this.zd);
+        this.yd *= 0.98F;
+
+        // Pop at the surface, using vanilla's own rule.
+        //
+        // Without this the bubble rose through the water surface and kept going: hasPhysics is false
+        // and the 0.05/tick velocity decays slowly, so a 40-tick life carried it roughly 1.2 blocks
+        // past the surface before it expired. The 1.12.2 original extended vanilla's ParticleBubble,
+        // which carries this check; the port replaced that with a plain particle and lost it.
+        //
+        // This is the same test WaterDropParticle uses (its tick, the final statement): if the block
+        // has a collision surface or a fluid height, anything below that height is inside it and the
+        // particle is done. For a water source the fluid height is 0.875, so a bubble rising from an
+        // entity's eye pops just under the surface.
+        final BlockPos pos = BlockPos.containing(this.x, this.y, this.z);
+        final double surface = Math.max(
+                this.level.getBlockState(pos).getCollisionShape(this.level, pos)
+                        .max(Direction.Axis.Y, this.x - pos.getX(), this.z - pos.getZ()),
+                this.level.getFluidState(pos).getHeight(this.level, pos));
+        if (surface > 0.0D && this.y < pos.getY() + surface)
+            this.remove();
     }
 }

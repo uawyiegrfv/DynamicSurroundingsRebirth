@@ -74,6 +74,8 @@ public class Configuration extends ConfigurationData {
         public static final int AUDIO_PLAYER = 0x1;
         public static final int BASIC_SOUND_PLAY = 0x2;
         public static final int RESOURCE_LOADING = 0x4;
+        /** Crit-word / damage-number rendering: size inputs, animation, and glitch detection. */
+        public static final int CRIT_WORD = 0x8;
     }
 
     public static class Logging {

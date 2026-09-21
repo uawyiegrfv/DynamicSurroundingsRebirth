@@ -104,6 +104,15 @@ public class CritWordHandler {
          */
         final boolean ownedByLocalPlayer;
 
+        // ---- CRITWORD diagnostics (Configuration.Flags.CRIT_WORD) -------------------------
+        /** Alpha/scale/renderAge recorded on the previous frame, to catch a non-monotonic jump. */
+        int diagPrevAlpha = -1;
+        float diagPrevScale = -1F;
+        float diagPrevRenderAge = -1F;
+        /** Which render pass last drew this entry, and how many times within that pass. */
+        int diagLastFrame = -1;
+        int diagDrawsThisFrame;
+
         CritWord(String text, int color, double x, double y, double z, double vx, double vy, double vz,
                  float worldUnitsPerFontPx, boolean ownedByLocalPlayer) {
             this.text = text;
@@ -189,6 +198,8 @@ public class CritWordHandler {
     private final IRandomizer random = Randomizer.current();
     private final ObjectArray<CritWord> active = new ObjectArray<>(4);
     private final Map<Integer, Float> lastHealth = new HashMap<>();
+    /** Render-pass counter for the CRITWORD diagnostics. */
+    private int diagFrame;
 
     // Animation values, refreshed from config on every spawn so a config edit applies without a
     // restart. These field values are only the pre-refresh fallbacks; the shipped defaults live in
@@ -415,6 +426,32 @@ public class CritWordHandler {
         this.viewProj.set(CAPTURED_VIEW_PROJ);
         final var camPos = mc.gameRenderer.getMainCamera().getPosition();
 
+        // ---- CRITWORD diagnostics ---------------------------------------------------------
+        // Off unless BOTH debug logging is on AND traceMask has the CRIT_WORD bit (8). When off
+        // this is one boolean read per frame; the String.format calls below never run.
+        //
+        // It logs the environment the size formula reads (window size, GUI scale, FOV), the
+        // per-entry inputs and the computed result, and it flags the two things that cannot be
+        // seen in the source:
+        //   [CRITWORD-JUMP] alpha or scale went UP between frames - the reported "flashes
+        //                   bright just before it disappears". The fade is monotonic in
+        //                   renderAge, so any upward step means renderAge itself stepped back.
+        //   [CRITWORD-DUP]  the same entry drawn more than once in ONE frame - the
+        //                   ObjectArray add/removeIf race (see the note on `active`).
+        final boolean diag = this.logger.isTracing(Configuration.Flags.CRIT_WORD);
+        final int diagFrame = diag ? ++this.diagFrame : 0;
+        if (diag && (diagFrame % 40) == 1) {
+            final float diagFov = mc.options.fov().get();
+            this.logger.debug("[CRITWORD-ENV] frame=%d win=%dx%d guiScale=%.2f guiScaled=%.0fx%.0f "
+                            + "fov=%.1f tanHalf=%.4f sizeScale=%.3f grow=%.4f shrink=%.4f peak=%d life=%d "
+                            + "fadeStart=%d active=%d",
+                    diagFrame, mc.getWindow().getWidth(), mc.getWindow().getHeight(),
+                    mc.getWindow().getGuiScale(), width, height, diagFov,
+                    (float) Math.tan(Math.toRadians(diagFov) / 2.0D),
+                    this.sizeScale, this.growFactor, this.shrinkFactor, this.peakTick, this.lifetime,
+                    this.fadeStart(), this.active.size());
+        }
+
         for (var entry : this.active) {
             final double px = Mth.lerp(partialTick, entry.prevX, entry.x);
             final double py = Mth.lerp(partialTick, entry.prevY, entry.y);
@@ -470,6 +507,41 @@ public class CritWordHandler {
             int color = (entry.color & 0x00FFFFFF) | (alpha << 24);
 
             float textScale = this.computeTextScale(entry, renderAge, depth, mc, height);
+
+            // ---- CRITWORD diagnostics (see the block at the top of this method) -----------
+            if (diag) {
+                if (entry.diagLastFrame == diagFrame) {
+                    entry.diagDrawsThisFrame++;
+                    this.logger.debug("[CRITWORD-DUP] frame=%d text=%s drawn=%d times in ONE frame "
+                                    + "(ObjectArray add/removeIf race)",
+                            diagFrame, entry.text, entry.diagDrawsThisFrame);
+                } else {
+                    entry.diagLastFrame = diagFrame;
+                    entry.diagDrawsThisFrame = 1;
+                }
+
+                final boolean jumped = entry.diagPrevAlpha >= 0
+                        && (alpha > entry.diagPrevAlpha || textScale > entry.diagPrevScale * 1.02F);
+                if (jumped) {
+                    this.logger.debug("[CRITWORD-JUMP] text=%s renderAge %.3f -> %.3f | alpha %d -> %d | "
+                                    + "scale %.4f -> %.4f  (non-monotonic: this is the flash)",
+                            entry.text, entry.diagPrevRenderAge, renderAge,
+                            entry.diagPrevAlpha, alpha, entry.diagPrevScale, textScale);
+                }
+                if (jumped || (diagFrame % 10) == 1) {
+                    final float guiPxH = textScale * font.lineHeight;
+                    this.logger.debug("[CRITWORD-DRAW] text=%s age=%d renderAge=%.3f partialTick=%.3f "
+                                    + "depth=%.3f sizeAtAge=%.4f textScale=%.4f | onScreen guiPxH=%.1f "
+                                    + "physPxH=%.1f fracOfScreenH=%.5f | alpha=%d at=%.0f,%.0f",
+                            entry.text, entry.age, renderAge, partialTick, depth, sizeAtAge(renderAge),
+                            textScale, guiPxH, guiPxH * mc.getWindow().getGuiScale(),
+                            guiPxH / height, alpha, sx, sy);
+                }
+                entry.diagPrevAlpha = alpha;
+                entry.diagPrevScale = textScale;
+                entry.diagPrevRenderAge = renderAge;
+            }
+
             final int drawX = -font.width(entry.text) / 2 + 1;
             final int drawY = -font.lineHeight / 2 + 1;
 

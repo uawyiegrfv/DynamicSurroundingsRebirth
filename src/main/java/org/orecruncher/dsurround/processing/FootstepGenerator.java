@@ -282,6 +282,13 @@ public class FootstepGenerator extends AbstractClientHandler {
 
     public FootstepGenerator(Configuration config, IAudioPlayer audioPlayer, IModLog logger) {
         super("Footstep Generator", config, logger);
+
+        // Respawn and dimension change. ClientState only raises ON_DISCONNECT when
+        // client.player goes null, which neither of those does, so this listener is the only
+        // notification the generator gets. The handler is a DI singleton constructed once, so
+        // this cannot register twice.
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
+                (net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.Clone event) -> this.resetMotionState());
         this.audioPlayer = audioPlayer;
     }
 
@@ -378,7 +385,13 @@ public class FootstepGenerator extends AbstractClientHandler {
             if (this.isFlying) {
                 if (player.getDeltaMovement().y > 0) {
                     this.didJump = true;
-                    if (this.config.entityEffects.enablePlayerJumpSound && VARIATORS.getPlayerVariator().playJump() && !sneaking) {
+                    // Not while in water. 1.12.2 required BOTH isInWater() == false and the jump input
+                    // before it would grunt; the port kept only the upward-motion test. So standing on
+                    // the bottom of a pool and pressing space to swim up - an airborne transition with
+                    // positive dy - played the jump grunt, and so did a slime-block bounce or any
+                    // piston or explosion launch.
+                    if (!inWater && this.config.entityEffects.enablePlayerJumpSound
+                            && VARIATORS.getPlayerVariator().playJump() && !sneaking) {
                         this.playJump(player);
                     }
                 }
@@ -1091,10 +1104,23 @@ public class FootstepGenerator extends AbstractClientHandler {
 
     @Override
     public void onDisconnect() {
+        this.resetMotionState();
+    }
+
+    /**
+     * Forgets everything derived from where the player was and how they were moving.
+     *
+     * <p>Called on disconnect AND on respawn or a dimension change. The second one was missing: the
+     * only reset hooks were onDisconnect and the disabled-master-switch branch, and ClientState only
+     * raises ON_DISCONNECT when {@code client.player} goes null - which a respawn or a portal trip
+     * never does. So the singleton kept the previous position, and two things went wrong. Dying on the
+     * ground and respawning elsewhere made the first tick accumulate the whole teleport as horizontal
+     * distance, which crossed the stride threshold and played a footstep at the spawn point. Dying in
+     * mid-air left {@code isFlying} true with the pre-death fall distance, so the first grounded tick
+     * looked like a landing and played the full heavy-landing composition.
+     */
+    private void resetMotionState() {
         this.pendingEchoes.clear();
-        // Reset the motion state as well: this handler is a singleton, and the first tick
-        // of the next world would otherwise compute the stride from the old world's
-        // coordinates - a phantom step and possibly a bogus hard-landing sound.
         this.wasRunning = false;
         this.didJump = false;
         this.isFlying = false;
@@ -1103,6 +1129,11 @@ public class FootstepGenerator extends AbstractClientHandler {
         this.dmwBase = 0D;
         this.yPosition = 0D;
         this.lastPos = null;
+        // The stop-scuff state machine as well, or the first tick in the new location can fire a
+        // spurious material scuff (the same un-primed-state defect as on a fresh join).
+        this.xMovec = 0D;
+        this.zMovec = 0D;
+        this.scalStat = false;
     }
 
     @Override

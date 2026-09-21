@@ -121,6 +121,18 @@ public abstract class ConfigurationData {
                         repaired, configFolderPath);
             }
 
+            // Apply the declared ranges. Gson assigns fields reflectively and never clamps, so until
+            // now the @IntegerRange/@DoubleRange annotations were documentation rather than a
+            // contract: a hand-edited out-of-range value was accepted and persisted. Worse, opening
+            // the config screen and pressing Save would then clamp every out-of-range value in one go,
+            // silently changing settings the user never touched. Clamping here uses the same
+            // PropertyValue.clamp the GUI path uses, so the two agree.
+            final int clamped = config.clampToSpec();
+            if (clamped > 0) {
+                Library.LOGGER.warn("Clamped %d out-of-range value(s) in %s to their declared limits.",
+                        clamped, configFolderPath);
+            }
+
             // Save it out.  Config parameters may have been added, removed, clamped, etc. - but never
             // over a file that could not be read.
             if (mayOverwrite)
@@ -152,6 +164,51 @@ public abstract class ConfigurationData {
         } finally {
             CONFIG_CHANGED.raise().onChange(this);
         }
+    }
+
+    /**
+     * Clamps every value to its declared range, using the same code the GUI binder uses.
+     *
+     * <p>Gson assigns fields reflectively and never consults the annotations, so the declared
+     * {@code @IntegerRange}/{@code @DoubleRange} was not a contract: a hand-edited
+     * {@code blockEffectRange: 1000} was accepted, persisted, and honoured by the scanner. It also made
+     * the config screen destructive in a way nobody would expect - Cloth calls every entry's save
+     * consumer, and the slider entries were built with a clamped initial value, so simply opening the
+     * screen and pressing Save rewrote every out-of-range value the user had set. Clamping on load
+     * makes both paths agree, and the count is reported so a surprising value is visible.
+     *
+     * @return the number of values that were out of range and got clamped
+     */
+    public int clampToSpec() {
+        final Collection<ConfigElement<?>> spec = getSpecification();
+        return spec == null ? 0 : clampChildren(spec, this);
+    }
+
+    private static int clampChildren(final Collection<ConfigElement<?>> elements, final Object instance) {
+        int clamped = 0;
+        for (final ConfigElement<?> element : elements) {
+            try {
+                if (element instanceof ConfigElement.PropertyGroup group) {
+                    final Object child = group.getInstance(instance);
+                    if (child != null)
+                        clamped += clampChildren(group.getChildren(), child);
+                } else if (element instanceof ConfigElement.PropertyValue<?> pv) {
+                    clamped += clampOne(pv, instance);
+                }
+            } catch (final Throwable ignored) {
+                // A value that cannot be clamped is left as it is; refusing to start would be worse.
+            }
+        }
+        return clamped;
+    }
+
+    /** Sets a property to its own value, which is how the GUI path routes through clamp(). */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static int clampOne(final ConfigElement.PropertyValue<?> pv, final Object instance) {
+        final Object before = pv.getValue(instance);
+        ((ConfigElement.PropertyValue) pv).setValue(instance, before);
+        final Object after = pv.getValue(instance);
+        return Objects.equals(before, after) ? 0 : 1;
     }
 
     /**

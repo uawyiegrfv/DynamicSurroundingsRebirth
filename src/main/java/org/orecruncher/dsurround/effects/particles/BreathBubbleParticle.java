@@ -70,10 +70,8 @@ public class BreathBubbleParticle extends TextureSheetParticle {
         if (fluid.isEmpty())
             return;   // out of the water entirely (a popped bubble already removed, or spawned in air)
 
-        final BlockPos above = pos.above();
-        if (!this.level.getFluidState(above).isEmpty())
+        if (!this.level.getFluidState(pos.above()).isEmpty())
             return;   // still under more water; the surface is higher up
-
         // The top face of this block is the surface. getHeight is 0.875 for a source with air above.
         final double surfaceY = pos.getY() + fluid.getHeight(this.level, pos);
         if (this.y >= surfaceY)

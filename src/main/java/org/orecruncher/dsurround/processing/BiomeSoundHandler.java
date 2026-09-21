@@ -74,10 +74,22 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         this.tickCount = tickCount;
         this.scanner = scanner;
         this.workMap.defaultReturnValue(0F);
+        this.dimensionInformation = org.orecruncher.dsurround.lib.di.ContainerManager
+                .resolve(org.orecruncher.dsurround.config.libraries.IDimensionInformation.class);
     }
 
+    private final org.orecruncher.dsurround.config.libraries.IDimensionInformation dimensionInformation;
+
+    /**
+     * Whether biome ambience should play at all: the global sound option AND the dimension's own
+     * setting.
+     *
+     * <p>dimensions.json has carried playBiomeSounds all along, and DimensionInfo parsed and stored it,
+     * but there was no accessor and no reader - so a pack that set it to false still got biome ambience.
+     * Checking it here covers every caller, because this is the single gate they all pass through.
+     */
     private boolean doBiomeSounds() {
-        return this.config.soundOptions.enableBiomeSounds;
+        return this.config.soundOptions.enableBiomeSounds && this.dimensionInformation.playBiomeSounds();
     }
 
     private void generateBiomeSounds() {
@@ -188,7 +200,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * around the player at canopy height, so the wind sweeps through the treetops.
      */
     private void handleLeafWindGust(Player player) {
-        if (this.config.soundOptions.enableBiomeSounds && !this.scanner.isInside()) {
+        if (doBiomeSounds() && !this.scanner.isInside()) {
             var biome = this.scanner.playerLogicBiomeInfo();
             if (biome != null && isWooded(biome)) {
                 // Rain and snow cover the sound; skip then.
@@ -228,7 +240,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * Plays a short burst of clicks at a random spot near the player.
      */
     private void handleSculkClick(Player player) {
-        if (this.config.soundOptions.enableBiomeSounds) {
+        if (doBiomeSounds()) {
             var biome = this.scanner.playerLogicBiomeInfo();
             if (biome != null && DEEP_DARK_BIOME.equals(biome.getBiomeId())
                     && RANDOM.nextDouble() < SCULK_CLICK_CHANCE) {

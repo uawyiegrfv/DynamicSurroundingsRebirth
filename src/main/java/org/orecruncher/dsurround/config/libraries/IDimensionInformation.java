@@ -33,4 +33,13 @@ public interface IDimensionInformation {
      * Indicates whether the compass should "wobble" making the bearing unreadable
      */
     boolean getCompassWobble();
+
+    /**
+     * Whether biome ambient sounds play in this dimension.
+     *
+     * <p>dimensions.json has carried a playBiomeSounds key all along, and DimensionInfo parsed and
+     * stored it - but there was no accessor and no reader, so a pack that set it to false got biome
+     * ambience anyway. This exposes it so the setting does what it says.
+     */
+    boolean playBiomeSounds();
 }

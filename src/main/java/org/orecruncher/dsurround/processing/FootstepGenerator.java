@@ -236,12 +236,30 @@ public class FootstepGenerator extends AbstractClientHandler {
 
     private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);
 
-    // Ladder-only tag: `#minecraft:climbable` also covers vines, bamboo and scaffolding, which
-    // must keep their own surface sound. `#c:ladders` is the conventional tag that modded
-    // ladders register into.
+    // Ladder-only test: `#minecraft:climbable` also covers vines, bamboo and scaffolding, which
+    // must keep their own surface sound, so it cannot be used directly.
+    //
+    // The obvious candidate is the conventional `#c:ladders` tag - but NOTHING DEFINES IT. It is not
+    // in this repo, it has never been in its git history, Forge 1.20.1 ships no `c:` tags at all, and
+    // while NeoForge ships 111/127 `c:` tags, `c:ladders` is not among them. TagLibrary cannot rescue
+    // it either: isInCache() only handles DS's own ModTags, so a foreign tag depends entirely on the
+    // game's tag registry, where it does not exist. The result was that ladderClimb was always false,
+    // the material remap was skipped while climbing, and a modded ladder played a plain wood step -
+    // which is precisely what the earlier commit that introduced this tag claimed to fix.
+    //
+    // So the tag is now a SUPPLEMENT, not the mechanism. LadderBlock covers the vanilla ladder and
+    // every modded ladder that extends it, which is the common case; the tag still admits a modded
+    // ladder that does not extend it, for packs that define the convention themselves.
     private static final net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> LADDERS =
             net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.BLOCK,
                     ResourceLocation.fromNamespaceAndPath("c", "ladders"));
+
+    /** True for a ladder (which gets the ladder surface sound) as opposed to a vine or scaffolding. */
+    private static boolean isLadder(final net.minecraft.world.level.block.state.BlockState state) {
+        if (state.getBlock() instanceof net.minecraft.world.level.block.LadderBlock)
+            return true;
+        return TAG_LIBRARY.is(LADDERS, state);
+    }
 
     private final IAudioPlayer audioPlayer;
 
@@ -532,9 +550,12 @@ public class FootstepGenerator extends AbstractClientHandler {
         // material resolution used to be skipped outright, so a Quark ladder - whose step
         // sound is block.wood.step, not block.ladder.step - played a plain wood step and never
         // reached footsteps/ladder.
+        // The second test used to be the bare `#c:ladders` tag, which nothing defines, so this
+        // condition was always false and the fix never took effect. isLadder() tests the block type
+        // first and the convention tag second.
         final boolean ladderClimb = climbing
                 && TAG_LIBRARY.is(net.minecraft.tags.BlockTags.CLIMBABLE, state)
-                && TAG_LIBRARY.is(LADDERS, state);
+                && isLadder(state);
 
         // Climbing (ladder/vine/bamboo/...) plays the vanilla surface step sound louder,
         // matching the original 1.12.2 mod, instead of the DS per-material replacement.

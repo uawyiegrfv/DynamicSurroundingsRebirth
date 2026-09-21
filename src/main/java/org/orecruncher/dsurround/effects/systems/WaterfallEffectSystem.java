@@ -346,7 +346,11 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
             if (!CONFIG.enableWaterfallParticles)
                 return;
 
-            for (int i = 0; i <= this.getSplashParticleSpawnCount(); i++) {
+            // Strictly less than: the bound was inclusive, so a count of 0 - which is exactly what
+            // MINIMAL returns - still emitted ONE splash per waterfall every 4 ticks, and every
+            // other setting emitted count+1. A player selecting MINIMAL for performance was the
+            // one case that could not suppress these particles at all.
+            for (int i = 0; i < this.getSplashParticleSpawnCount(); i++) {
                 this.produceParticle().ifPresent(this::addParticle);
             }
         }
@@ -368,7 +372,9 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
 
             particle.ifPresent(p -> {
                 p.setParticleSpeed(motionX, motionY, motionZ);
-                p.setLifetime(p.getLifetime() * 2);
+                // removed: p.setLifetime(p.getLifetime() * 2) - it compensated for the double-add.
+                            // See MixinParticleManager: createParticle no longer queues, so the
+                            // factory's own lifetime is correct again.
             });
 
             return particle;

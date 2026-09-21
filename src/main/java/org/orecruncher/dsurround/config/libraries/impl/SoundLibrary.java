@@ -363,28 +363,48 @@ public final class SoundLibrary implements ISoundLibrary {
         this.soundConfiguration.clear();
         this.blockedSounds.clear();
 
+        // Whether the file on disk may be overwritten at the end. A file that could not be READ must
+        // not be replaced: it is the user's only copy of their settings, and it is very likely the
+        // thing they need to look at to see what they got wrong.
+        boolean mayOverwrite = true;
+
         // Check to see if it exists on the disk, and if so, load it up. Otherwise, save it so the defaults are
         // persisted and the user can edit manually.
         try {
             if (Files.exists(this.soundConfigPath)) {
                 var content = Files.readString(this.soundConfigPath);
                 var result = CodecExtensions.deserialize(content, SOUND_CONFIG_CODEC);
-                result.ifPresentOrElse(
-                        cfgList -> this.soundConfiguration.addAll(cfgList),
-                        () -> this.logger.warn("Unable to obtain content of %s!", SOUND_CONFIG_FILE)
-                );
+                if (result.isPresent()) {
+                    this.soundConfiguration.addAll(result.get());
+                } else {
+                    // The whole list failed to decode. One malformed entry - most often a mistyped or
+                    // missing soundEventId in a hand-edited file, which this file explicitly invites -
+                    // fails the entire list, and the old code then fell through to postProcess() with an
+                    // empty list and let save() rewrite the file as "[]". That destroyed the user's
+                    // settings AND the shipped defaults (only seeded when the file is absent),
+                    // permanently, behind a single warn line.
+                    this.logger.warn("Could not read %s - the file is left UNTOUCHED so you can inspect "
+                                    + "it. Running with the built-in defaults for this session; fix the "
+                                    + "entry named in the parse error above and reload.",
+                            SOUND_CONFIG_FILE);
+                    mayOverwrite = false;
+                    this.addSoundConfigDefaults();
+                }
             } else {
                 this.addSoundConfigDefaults();
             }
         } catch (Throwable t) {
             this.logger.error(t, "Unable to load sound configuration %s! Resetting to defaults.", SOUND_CONFIG_FILE);
+            mayOverwrite = false;
             this.addSoundConfigDefaults();
         }
 
         this.postProcess();
 
-        // Save it out.  Config parameters may have been added/removed
-        this.save();
+        // Save it out.  Config parameters may have been added/removed - but never over a file that
+        // could not be read.
+        if (mayOverwrite)
+            this.save();
     }
 
     private void addSoundConfigDefaults() {

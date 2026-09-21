@@ -25,7 +25,14 @@ public final class MagmaSplashHandler {
         if (!CONFIG.enableMagmaSteam)
             return;
 
-        final BlockPos pos = BlockPos.containing(position);
+        // The block BELOW the drop, not the one containing it.
+        //
+        // LevelRenderer.tickRain spawns the drop at surfaceY + max(shape.max(Y), fluidHeight), which is
+        // exactly surfaceY + 1.0 for a full block, and BlockPos.containing floors - so it landed in the
+        // AIR cell above the surface. Magma and netherrack are full blocks, so the old lookup at
+        // `position` could never see them and this handler was unreachable: the enableMagmaSteam option
+        // did nothing at all. The 1.12.2 original passed the BlockState itself, which is why it worked.
+        final BlockPos pos = BlockPos.containing(position).below();
         final var block = world.getBlockState(pos).getBlock();
         if (block != Blocks.MAGMA_BLOCK && block != Blocks.NETHERRACK)
             return;

@@ -19,7 +19,20 @@ public class FootstepAccents {
 
     private final ObjectArray<IFootstepAccentProvider> providers = new ObjectArray<>();
 
+    /**
+     * The master switch. Held here rather than checked at each call site because this is the ONE place
+     * every accent passes through, so the gate cannot be forgotten by a future caller.
+     *
+     * <p>It was checked in exactly two places - the two {@code playLand} methods - which meant that
+     * turning "Footstep Accents" off still left armour clank, floor squeak and wet-surface accents
+     * firing on every STEP, for the local player and for DS-managed creatures. The option's own comment
+     * says "globally", so it promised more than it did.
+     */
+    private final Configuration.FootstepAccents config;
+
     public FootstepAccents(Configuration config, IItemLibrary itemLibrary) {
+        this.config = config.footstepAccents;
+
         this.providers.add(new ArmorAccents(config, itemLibrary));
         this.providers.add(new FloorSqueakAccent(config));
 
@@ -30,6 +43,9 @@ public class FootstepAccents {
     }
 
     public void collect(final LivingEntity entity, final BlockPos pos, final BlockState blockState, final ObjectArray<ISoundFactory> in) {
+        if (!this.config.enableAccents)
+            return;
+
         // One definition of "waterlogged" for the whole mod: a SOLID surface holding a fluid, i.e.
         // not air and not a fluid block. Asking only for a non-empty fluid state would be true for
         // pure water and lava as well, which contradicts the discriminator the footstep pipeline

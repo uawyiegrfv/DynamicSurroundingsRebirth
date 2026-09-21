@@ -344,7 +344,11 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
             if (!CONFIG.enableWaterfallParticles)
                 return;
 
-            for (int i = 0; i <= this.getSplashParticleSpawnCount(); i++) {
+            // Strictly less than: the bound was inclusive, so a count of 0 - which is exactly what
+            // MINIMAL returns - still emitted ONE splash per waterfall every 4 ticks, and every other
+            // setting emitted count+1. A player selecting MINIMAL for performance was therefore the one
+            // case that could not suppress these particles at all.
+            for (int i = 0; i < this.getSplashParticleSpawnCount(); i++) {
                 this.produceParticle().ifPresent(this::addParticle);
             }
         }

@@ -26,8 +26,11 @@ public record Variator(
         float footprintScale,
         float volumeScale) {
 
+    // hasFootprint defaults to FALSE: 1.12.2 gave footprints only to the entities that declared the
+    // "footprint" effect (13 vanilla humanoids, no animals), so an entity nothing opts in must not
+    // print. Defaulting to true is what made every quadruped leave player-sized prints.
     public static final Variator DEFAULT = new Variator(200, true, 0.9F, 0.005F, 0.22F,
-            0.75F, 0.4875F, 1.0F, 1.25F, true, false, false, 0.2F, true, 1.0F, 1.0F);
+            0.75F, 0.4875F, 1.0F, 1.25F, true, false, false, 0.2F, false, 1.0F, 1.0F);
 
     public static final Codec<Variator> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.optionalFieldOf("immobileDuration", DEFAULT.immobileDuration()).forGetter(Variator::immobileDuration),

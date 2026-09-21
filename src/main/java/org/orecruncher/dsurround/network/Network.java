@@ -31,36 +31,7 @@ public final class Network {
                 MapCenterMessage::encode, MapCenterMessage::decode, MapCenterMessage::handle);
         CHANNEL.registerMessage(id++, BubbleMessage.class,
                 BubbleMessage::encode, BubbleMessage::decode, BubbleMessage::handle);
-        // The exact damage a hit dealt. Vanilla's damage packet carries no amount, so without this
-        // the popoff number has to be inferred from the entity's health - a separate packet, and
-        // therefore an unreliable source.
-        CHANNEL.registerMessage(id++, DamageMessage.class,
-                DamageMessage::encode, DamageMessage::decode, DamageMessage::handle);
     }
-
-    /**
-     * Sends the exact damage a hit dealt to players near the victim.
-     *
-     * <p>The recipient set mirrors vanilla's own damage packet - everyone tracking the entity - so a
-     * busy server pays for one extra small packet per hit it was already spending one on. The range
-     * is the entity-tracking range, rounded down; {@code ServerPlayer.canSee} does not exist on the
-     * server, so distance is what is available.
-     */
-    public static void sendDamage(final net.minecraft.world.entity.LivingEntity victim, final float amount,
-                                  final double sourceX, final double sourceY, final double sourceZ) {
-        final var message = new DamageMessage(victim.getId(), amount, sourceX, sourceY, sourceZ);
-        final double rangeSqr = ENTITY_TRACK_RANGE * ENTITY_TRACK_RANGE;
-        for (final ServerPlayer player : victim.level().getEntitiesOfClass(ServerPlayer.class,
-                victim.getBoundingBox().inflate(ENTITY_TRACK_RANGE))) {
-            if (player == victim || player.distanceToSqr(victim) > rangeSqr)
-                continue;
-            if (isPlayerPresent(player))
-                CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), message);
-        }
-    }
-
-    /** Client-side entity tracking range, the same set vanilla sends its damage packet to. */
-    private static final double ENTITY_TRACK_RANGE = 48.0D;
 
     public static void sendWeatherToPlayer(ServerPlayer player, boolean raining) {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new WeatherMessage(raining));

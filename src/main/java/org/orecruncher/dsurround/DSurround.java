@@ -46,9 +46,6 @@ public final class DSurround {
         MinecraftForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.WeatherSyncService());
         MinecraftForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.MapCenterSyncService());
         MinecraftForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.BubbleCommand());
-        // Exact damage for the popoff numbers: vanilla's damage packet has no amount, so without
-        // this the client can only infer it from the health sync and gets it wrong.
-        MinecraftForge.EVENT_BUS.register(new org.orecruncher.dsurround.server.DamageSyncService());
 
         if (FMLEnvironment.dist.isClient()) {
             this.client = new Client();

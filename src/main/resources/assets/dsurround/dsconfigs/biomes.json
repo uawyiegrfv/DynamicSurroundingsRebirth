@@ -81,17 +81,6 @@
     ]
   },
   {
-    "biomeSelector": "SWAMP",
-    "_comment": "Gnatt swarms over swamps",
-    "acoustics": [
-      {
-        "factory": "biome.gnatt",
-        "type": "mood",
-        "conditions": "weather.isNotRaining()"
-      }
-    ]
-  },
-  {
     "biomeSelector": "SAVANNA",
     "_comment": "Basic Savanna",
     "priority": 100,
@@ -263,6 +252,10 @@
     "acoustics": [
       {
         "factory": "biome.crickets"
+      },
+      {
+        "factory": "biome.gnatt",
+        "type": "mood"
       }
     ]
   },
@@ -277,6 +270,10 @@
       {
         "factory": "biome.crickets",
         "conditions": "!weather.canWaterFreeze() && diurnal.isNight()"
+      },
+      {
+        "factory": "biome.gnatt",
+        "type": "mood"
       }
     ],
     "fogColor": "#808080",

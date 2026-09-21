@@ -191,10 +191,12 @@ public class CritWordHandler {
     private final Map<Integer, Float> lastHealth = new HashMap<>();
 
     // Animation values, refreshed from config on every spawn so a config edit applies without a
-    // restart. 1.12.2's own numbers are the defaults: grow 1.08, shrink 0.96, peak 3x.
-    private float growFactor = 1.12F;
+    // restart. These field values are only the pre-refresh fallbacks; the shipped defaults live in
+    // Configuration.PopoffNumbers and are computed so the peak matches 1.12.2's maximum with a
+    // symmetric curve (see refreshAnimationSettings).
+    private float growFactor = 1.23F;
     private float gravityScale = 0.57F;
-    private float shrinkFactor = 0.93F;
+    private float shrinkFactor = 0.93F;   // derived on refresh; this is only the fallback
     private float maxScale = 4.0F;
     private int peakTick = 4;
     private float sizeScale = 1.0F;
@@ -493,7 +495,7 @@ public class CritWordHandler {
      * the fall ~13 coming back).
      * <p>
      * The old code multiplied a stored scale once per tick before drawing, so the first frame was
-     * already {@code grow} (1.14) while the shrink aimed at 1.0 - the number ended visibly smaller
+     * already {@code grow} (123) while the shrink aimed at 1.0 - the number ended visibly smaller
      * than it started, which the user spotted immediately.
      */
     private float sizeAtAge(final float age) {

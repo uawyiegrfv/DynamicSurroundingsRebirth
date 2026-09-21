@@ -131,11 +131,27 @@ public final class Effects {
         lastReflectionTapGain = tapGain;
         lastReflectionTapDelay = tapDelay;
         for (int zone = 0; zone < activeSends; zone++) {
-            REVERB_DATA[zone].reflectionsGain = tapGain;
-            REVERB_DATA[zone].reflectionsDelay = tapDelay;
+            final boolean carriesTap = zone == REFLECTION_TAP_ZONE;
+            REVERB_DATA[zone].reflectionsGain = carriesTap ? tapGain : 0F;
+            REVERB_DATA[zone].reflectionsDelay = carriesTap ? tapDelay : 0F;
             REVERB_SLOTS[zone].apply(REVERB_DATA[zone], AUX_SLOTS[zone]);
         }
     }
+
+    /**
+     * The zone that carries the discrete reflection.
+     *
+     * <p>One zone, not all four. AL_EAXREVERB_REFLECTIONS_GAIN is a property of the effect SLOT, so
+     * setting it on every slot makes every zone emit its own reflection - four copies of one arrival,
+     * each behind a different decay (0.15 s, 0.55 s, 1.68 s, 4.142 s), which beat against each other
+     * and were reported in testing as a "double slap" in a cave.
+     *
+     * <p>Zone 0 is the 0.15 s zone, which is right for a discrete arrival: the reflection is a single
+     * event whose decay is the room's, and the room's decay is carried by the diffuse sends on the
+     * other three zones. Putting the tap on a long zone would hand a small room that zone's decay,
+     * which is the defect this work set out to fix.
+     */
+    private static final int REFLECTION_TAP_ZONE = 0;
 
     public static int getActiveSends() {
         return activeSends;

@@ -52,6 +52,10 @@ public class DimensionInformation implements IDimensionInformation {
         return this.getInfo().getCompassWobble();
     }
 
+    public boolean playBiomeSounds() {
+        return this.getInfo().playBiomeSounds();
+    }
+
     private DimensionInfo getInfo() {
         if (this.info == null)
             this.info = this.dimensionLibrary.getData(this.level());

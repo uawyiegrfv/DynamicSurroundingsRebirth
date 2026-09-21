@@ -456,5 +456,7 @@
   "dsurround.config.entityEffects.enableCreatureFootprints": "Creature footprints",
   "dsurround.config.entityEffects.enableCreatureFootprints.tooltip": "Enable/disable footprints for creatures (villagers, animals, mobs). The 1.12.2 original gave every living entity footprints; this port only produced them for the player, so this restores that behaviour and can be turned off if the extra particles are unwanted",
   "dsurround.config.popoffNumbers.tooltip": "Settings for the damage, healing and critical-hit text that pops off an entity",
-  "dsurround.config.speechBubbles.tooltip": "Settings for the speech bubbles drawn above player and entity heads"
+  "dsurround.config.speechBubbles.tooltip": "Settings for the speech bubbles drawn above player and entity heads",
+  "dsurround.config.soundOptions.playBiomeMusicWhileCreative": "Play biome music while creative",
+  "dsurround.config.soundOptions.playBiomeMusicWhileCreative.tooltip": "Enables playing configured biome background music when in creative mode. Normally while in creative mode, Minecraft's situational music selector will automatically pick creative music rather than biome background music."
 }

@@ -84,6 +84,7 @@ The in-game GUI (Mod Options → Dynamic Surroundings Rebirth, requires Cloth Co
 | ambientVolumeScaling | int | 100 | 0–400 (slider) | % — multiplier for ambient sounds played by the mod |
 | replaceThunderSounds | bool | true | — | Use DS's thunder sounds |
 | allowScarySounds | bool | true | — | Allow sounds considered scary |
+| playBiomeMusicWhileCreative | bool | false | — | Biome background music in creative |
 | displayToastMessagesForMusic | bool | true | — | Toast messages for credited music |
 | remapSounds | bool | true | — | Sound remapping when sounds play |
 | enableBackgroundThunder | bool | true | — | ☆ Distant thunder rumbling during storms |
@@ -615,6 +616,7 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | ambientVolumeScaling | 整数 | 100 | 0–400（滑块） | 环境音量百分比倍率 |
 | replaceThunderSounds | 布尔 | true | — | 使用 DS 的雷声 |
 | allowScarySounds | 布尔 | true | — | 允许播放"恐怖"声音 |
+| playBiomeMusicWhileCreative | 布尔 | false | — | 创造模式下播放群系背景音乐 |
 | displayToastMessagesForMusic | 布尔 | true | — | 音乐致谢弹窗 |
 | remapSounds | 布尔 | true | — | 播放时声音重映射 |
 | enableBackgroundThunder | 布尔 | true | — | ☆ 暴风雨时远处雷声 |

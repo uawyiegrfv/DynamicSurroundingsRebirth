@@ -17,6 +17,7 @@
     "core.MixinButtonWidget",
     "core.MixinMapRenderer",
     "core.MixinSoundOptionsScreen",
+    "events.MixinMinecraftClient",
     "core.MixinOptionsSubScreen",
     "audio.MixinSoundEngine",
     "audio.MixinSoundLibrary",

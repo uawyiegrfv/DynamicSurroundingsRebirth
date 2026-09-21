@@ -448,5 +448,7 @@
   "dsurround.config.entityEffects.enableCreatureFootprints": "生物脚印",
   "dsurround.config.entityEffects.enableCreatureFootprints.tooltip": "启用/禁用 生物（村民、动物、怪物）的脚印。1.12.2 原版对**所有**生物都产生脚印，而本移植只对玩家产生，此开关用于恢复原版行为；若觉得粒子太多可以关掉",
   "dsurround.config.popoffNumbers.tooltip": "伤害、治疗与暴击文字（从实体头顶弹出的数字）的相关设置",
-  "dsurround.config.speechBubbles.tooltip": "玩家与实体头顶气泡字幕的相关设置"
+  "dsurround.config.speechBubbles.tooltip": "玩家与实体头顶气泡字幕的相关设置",
+  "dsurround.config.soundOptions.playBiomeMusicWhileCreative": "在创造模式下播放生物群系音乐",
+  "dsurround.config.soundOptions.playBiomeMusicWhileCreative.tooltip": "启用在创造模式下播放配置的生物群系背景音乐\n通常在创造模式下，Minecraft的情境音乐选择器会自动选择创作音乐而不是生物群系背景音乐"
 }

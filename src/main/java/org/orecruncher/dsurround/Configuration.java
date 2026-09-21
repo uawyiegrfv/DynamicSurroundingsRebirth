@@ -222,6 +222,10 @@ public class Configuration extends ConfigurationData {
         @Comment("Enables playing sounds that are considered scary")
         public boolean allowScarySounds = true;
 
+        @Property
+        @Comment("Enables playing biome background music while in creative")
+        public boolean playBiomeMusicWhileCreative = false;
+
 
         @Property
         @Comment("Enables display of toast messages for credited music")

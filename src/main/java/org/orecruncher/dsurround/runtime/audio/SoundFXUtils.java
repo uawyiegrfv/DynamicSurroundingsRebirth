@@ -142,6 +142,8 @@ public final class SoundFXUtils {
      * the one the facingShare term could not express.
      */
     private static final float ECHO_SCALE_REFERENCE_M = 6.0F;
+    /** Seconds per block of travel, i.e. 1 / 343 m/s, converting a reflection distance into a delay. */
+    private static final float SECONDS_PER_BLOCK = 1.0F / 343.0F;
     /** Skylight at a position that can see the sky in full. */
     private static final int MAX_SKY_LIGHT = 15;
     /** How far the listener may drift before the cached openness is recomputed within one pass. */
@@ -793,12 +795,25 @@ public final class SoundFXUtils {
                 Math.min(1.0F, this.lastReverbFirstDistance / ECHO_SCALE_REFERENCE_M);
         // Smoothed: the raw value is a ratio of two 32-ray averages and was measured to swing by up to 0.36
         // between evaluations 0.4 s apart, which made the tail appear and vanish at random.
-        this.lastEarlyReflectionGain = this.source.smoothEarlyReflection(
+        // This is the DISCRETE early reflection, and it is now routed to the discrete tap
+        // (AL_EAXREVERB_REFLECTIONS_GAIN) instead of into the diffuse sends. The distinction is the
+        // whole point, and getting it wrong is what put reverb in a valley:
+        //
+        //   * a diffuse tail requires a CLOSED space for reflections to accumulate in
+        //   * a valley returns a single slap off a wall
+        //
+        // facingShare measures the second - the share of rays that come back off a surface facing the
+        // source - and it is independent of how open the space is, so feeding it into a send with a
+        // 0.55 s or 1.68 s decay gave a valley the tail of a room.
+        final float reflectionTap = this.source.smoothEarlyReflection(
                 (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
                         * facingShare * REFLECTION_DENSITY_GAIN * reflectionDistanceScale,
                 this.source.isImmediateUpdate());
-        // Handed to finalizeSendGains rather than added here: see ReverbTrace.earlyReflection.
-        out.earlyReflection = this.lastEarlyReflectionGain;
+        Effects.reflectionTapGain = reflectionTap;
+        // Delay from the first-reflection distance: a near wall fuses with the direct sound, a distant
+        // one arrives as a separate event. OpenAL clamps the value to its own 0..0.3 s range.
+        Effects.reflectionTapDelay = this.lastReverbFirstDistance * SECONDS_PER_BLOCK;
+        out.earlyReflection = reflectionTap;
         // The early-reflection zones are kept BRIGHT. A reflection off a distant wall travels through AIR,
         // so it never crosses the rock that darkens the direct path - the occlusion cutoff is the wrong
         // filter for it. Without this the tail inherited the direct path's darkening and a valley sounded
@@ -836,21 +851,18 @@ public final class SoundFXUtils {
         // ---------------------------------------------------------------- room size
         //
         // Everything above is blind to how BIG the space is, which is why a small stone room had reverb.
-        // The early-reflection term dominates the wet path in every enclosed space measured - 0.062 against
-        // a geometry contribution of 0.019 in a 3 m hut - so scaling it by the space's characteristic size
-        // is what tightens a small room. Measured, level-weighted decay in seconds:
-        //
-        //     3x3x3 stone hut    0.944 -> 0.184      16x8x16 stone hall  1.228 -> 1.131
-        //     3x3x3 wood hut     0.657 -> 0.170      40x12x40 cavern     1.243 -> 1.224
-        //     5x4x5 stone room   1.070 -> 0.233
-        //
         // The mean free path is the Sabine mean free path and is what the trace already computes as
         // pathSum / (rays x bounces); a room's diffuse field strength is set by it. Large spaces sit above
         // the reference and are untouched, which keeps a cave and a hall sounding like themselves.
+        //
+        // The DISCRETE early reflection is no longer added here - it goes to the reflection tap, which is
+        // where a single arrival belongs. Measured with tools/compare_reverb_terms.py, the diffuse send
+        // after the bounceRatio weighting reaches 0.80 for stone and 0.14 for wood, so a cave keeps a
+        // substantial tail without it. What the discrete term had been producing was the slap, stretched
+        // by a 0.55 s / 1.68 s decay.
         final float roomSizeScale = Math.min(1.0F, meanFreePath / ECHO_SCALE_REFERENCE_M);
-        final float earlyReflection = reverb.earlyReflection * roomSizeScale;
-        reverb.sendGain1 = reverb.sendGain1 * roomSizeScale + earlyReflection;
-        reverb.sendGain2 = reverb.sendGain2 * roomSizeScale + earlyReflection;
+        reverb.sendGain1 *= roomSizeScale;
+        reverb.sendGain2 *= roomSizeScale;
 
         reverb.sendGain0 = MathStuff.clamp1(reverb.sendGain0);
         reverb.sendGain1 = MathStuff.clamp1(reverb.sendGain1);

@@ -1,1 +1,13 @@
-{ "replace": false, "values": [  ] }
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "#c:is_temperate",
+      "required": false
+    },
+    {
+      "id": "#c:is_temperate/overworld",
+      "required": false
+    }
+  ]
+}

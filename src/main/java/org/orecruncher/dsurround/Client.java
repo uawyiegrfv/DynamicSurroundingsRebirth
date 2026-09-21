@@ -28,7 +28,7 @@ import org.orecruncher.dsurround.processing.Handlers;
 import org.orecruncher.dsurround.runtime.ConditionEvaluator;
 import org.orecruncher.dsurround.runtime.IConditionEvaluator;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
-import org.orecruncher.dsurround.sound.AudioPlayer;
+import org.orecruncher.dsurround.sound.AudioPlayerDebug;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -129,8 +129,7 @@ public final class Client {
                 .registerSingleton(QuickSoundVolumeOverlay.class);
 
         // Depending on debug settings, enable the appropriate player
-        // TODO(1.20.1): AudioPlayerDebug (debug audio player) deferred with spatial-audio phase
-        ContainerManager.getRootContainer().registerSingleton(IAudioPlayer.class, AudioPlayer.class);
+        ContainerManager.getRootContainer().registerSingleton(IAudioPlayer.class, AudioPlayerDebug.class);
 
         // RELOAD listeners for the data-driven libraries (sound factories, tags, biomes...).
         var container = ContainerManager.getRootContainer();

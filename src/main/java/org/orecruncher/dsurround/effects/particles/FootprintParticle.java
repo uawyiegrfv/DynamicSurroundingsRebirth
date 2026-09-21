@@ -38,13 +38,32 @@ public class FootprintParticle extends TextureSheetParticle {
     private final float texV2;
     private final float sinYaw;
     private final float cosYaw;
+    // Per-entity print size, from the entity's Variator. A child's print is smaller than an adult's,
+    // and a quadruped's differs again - variators.json already carries those values, they were just
+    // never read.
+    private final float halfWidth;
+    private final float halfLength;
 
     public FootprintParticle(FootprintStyle style, boolean isRight, float yaw, ClientLevel world, double x, double y, double z) {
+        this(style, isRight, yaw, world, x, y, z, 1.0F);
+    }
+
+    /**
+     * @param scale multiplier on the print's size, from the entity's Variator footprintScale
+     */
+    public FootprintParticle(FootprintStyle style, boolean isRight, float yaw, ClientLevel world,
+                             double x, double y, double z, float scale) {
         super(world, x, y, z);
         this.setSprite(ParticleUtils.getSprite(FOOTPRINT_TEXTURE));
 
         this.lifetime = LIFETIME;
         this.alpha = 0.4F;
+
+        // Guard against a nonsense scale from a hand-edited variators.json: a zero or negative print
+        // would be invisible or inverted, and the shader has no way to report that.
+        final float safeScale = scale > 0.01F ? scale : 1.0F;
+        this.halfWidth = HALF_WIDTH * safeScale;
+        this.halfLength = HALF_LENGTH * safeScale;
 
         this.sinYaw = Mth.sin(yaw);
         this.cosYaw = Mth.cos(yaw);
@@ -87,8 +106,8 @@ public class FootprintParticle extends TextureSheetParticle {
         f = f * f;
         float alpha = Mth.clamp(1.0F - f, 0F, 1F) * 0.4F;
 
-        float halfW = HALF_WIDTH;
-        float halfL = HALF_LENGTH;
+        float halfW = this.halfWidth;
+        float halfL = this.halfLength;
         float u0 = this.getU0(), u1 = this.getU1(), v0 = this.getV0(), v1 = this.getV1();
         int light = this.getLightColor(partialTick);
 

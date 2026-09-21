@@ -112,12 +112,24 @@ public final class Effects {
     }
 
     /**
-     * Pushes the reflection tap onto the zones, but only when it has actually changed.
+     * Pushes the reflection tap onto ONE zone, and silences it on the others.
      *
      * <p>The guard matters: applying a ReverbData costs about a dozen {@code alEffectf} calls per
      * zone, and {@code applyReverb} runs per source per evaluation. Without this the tap would be
-     * re-uploaded hundreds of times a second with identical values. The tap is a listener property
-     * measured once per evaluation, so a plain change check is enough.
+     * re-uploaded hundreds of times a second with identical values.
+     *
+     * <p>ONE zone, not all four. AL_EAXREVERB_REFLECTIONS_GAIN is a property of the effect SLOT, so
+     * setting it on every slot makes every zone emit its own reflection - four copies of one arrival,
+     * each behind a different decay time (0.15 s, 0.55 s, 1.68 s, 4.142 s), which beat against each
+     * other and were reported in testing as a "double slap" in a cave. There is one reflection, so
+     * there is one tap.
+     *
+     * <p>It goes on zone 0, the 0.15 s zone, because a discrete arrival is short: the reflection is a
+     * single event whose decay is the room's, and the room's decay is already carried by the diffuse
+     * sends on the other three zones. Putting the tap on a long zone instead would hand a small room
+     * that zone's decay, which is the defect this work set out to fix. The others are explicitly set
+     * to zero rather than left alone, because their OpenAL default is 0.05 - a real, audible
+     * reflection they were never meant to have.
      */
     private static void applyReflectionTapIfChanged() {
         final float tapGain = reflectionTapGain;
@@ -127,11 +139,15 @@ public final class Effects {
         lastReflectionTapGain = tapGain;
         lastReflectionTapDelay = tapDelay;
         for (int zone = 0; zone < activeSends; zone++) {
-            REVERB_DATA[zone].reflectionsGain = tapGain;
-            REVERB_DATA[zone].reflectionsDelay = tapDelay;
+            final boolean carriesTap = zone == REFLECTION_TAP_ZONE;
+            REVERB_DATA[zone].reflectionsGain = carriesTap ? tapGain : 0F;
+            REVERB_DATA[zone].reflectionsDelay = carriesTap ? tapDelay : 0F;
             REVERB_SLOTS[zone].apply(REVERB_DATA[zone], AUX_SLOTS[zone]);
         }
     }
+
+    /** The zone that carries the discrete reflection. See applyReflectionTapIfChanged. */
+    private static final int REFLECTION_TAP_ZONE = 0;
 
     /** Last values pushed to the slots, so an unchanged tap is not re-uploaded. */
     private static float lastReflectionTapGain = Float.NaN;

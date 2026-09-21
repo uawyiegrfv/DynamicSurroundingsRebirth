@@ -190,6 +190,22 @@ public class CritWordHandler {
     private final ObjectArray<CritWord> active = new ObjectArray<>(4);
     private final Map<Integer, Float> lastHealth = new HashMap<>();
 
+    /**
+     * A hit whose amount is not known yet, waiting for its health sync.
+     *
+     * <p>Only used when the exact value did not arrive - see {@link #resolvePendingHits}. 1.20.1's
+     * vanilla damage packet carries no amount, so without this mod's own message a client has nothing
+     * but the entity's health to go on, and the health sync is a separate packet with no ordering
+     * guarantee against the damage event.
+     */
+    private record PendingHit(float healthBefore, double sourceX, double sourceZ) {}
+
+    private final Map<Integer, PendingHit> pendingHits = new HashMap<>();
+    private final Map<Integer, Integer> pendingHitAge = new HashMap<>();
+
+    /** Ticks a recorded hit waits for its health sync before being abandoned. */
+    private static final int PENDING_HIT_TIMEOUT_TICKS = 10;
+
     // Animation values, refreshed from config on every spawn so a config edit applies without a
     // restart. 1.12.2's own numbers are the defaults: grow 1.08, shrink 0.96, peak 3x.
     private float growFactor = 1.12F;
@@ -562,6 +578,9 @@ public class CritWordHandler {
 
                 this.lastHealth.put(id, current);
             }
+            // Settle damage events that are still waiting on their health sync.
+            this.resolvePendingHits(mc);
+
             // Prune entities that left the range or died.
             this.lastHealth.keySet().removeIf(id -> {
                 var e = mc.level.getEntity(id);
@@ -601,6 +620,74 @@ public class CritWordHandler {
         });
     }
 
+    /**
+     * Exact damage, from this mod's own server -&gt; client message.
+     *
+     * <p>Preferred over the health-delta path below, which cannot be exact: vanilla's damage packet
+     * carries no amount, and the health sync that would supply it arrives independently, so a delta
+     * measured at packet time is sometimes zero and the hit is dropped. This carries
+     * {@code LivingHurtEvent.getAmount()} instead - the real post-mitigation value.
+     */
+    public static void onExactDamage(final int entityId, final float damage,
+                                     final double sourceX, final double sourceY, final double sourceZ) {
+        if (INSTANCE != null)
+            INSTANCE.displayDamage(entityId, damage, sourceX, sourceZ);
+    }
+
+    /**
+     * Shows a damage number from a known amount. Shared by the exact-damage path and the
+     * health-delta fallback so the two cannot drift apart.
+     */
+    private void displayDamage(final int entityId, final float damage,
+                               final double sourceX, final double sourceZ) {
+        if (damage < 0.5F)
+            return;
+        if (!this.config.entityEffects.showDamageNumbers && !this.config.entityEffects.showCritWords)
+            return;
+        final Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || !(mc.level.getEntity(entityId) instanceof LivingEntity living))
+            return;
+        if (isOwnTextInFirstPerson(living))
+            return;
+
+        // A killing blow against a nearly-dead mob should read the health it had, not the
+        // attacker's full hit.
+        final int delta = Math.max(1, Math.round(Math.min(damage, living.getHealth() + damage)));
+
+        double dx, dz;
+        final double dirX = living.getX() - sourceX;
+        final double dirZ = living.getZ() - sourceZ;
+        final double len = Math.hypot(dirX, dirZ);
+        if (len > 0.001) {
+            dx = dirX / len;
+            dz = dirZ / len;
+        } else {
+            final double angle = this.random.nextDouble() * Math.PI * 2;
+            dx = Math.cos(angle);
+            dz = Math.sin(angle);
+        }
+
+        // An exact value supersedes any hit still waiting on its health sync for this entity.
+        this.pendingHits.remove(entityId);
+        this.pendingHitAge.remove(entityId);
+
+        refreshAnimationSettings();
+
+        if (this.config.entityEffects.showDamageNumbers) {
+            this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
+                    living.getX(), living.getY() + living.getBbHeight() + 0.5D, living.getZ(),
+                    launchX(dx, dz), launchY(), launchZ(dx, dz),
+                    CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(living)));
+        }
+        if (this.config.entityEffects.showCritWords && damage >= living.getMaxHealth() / 2.5F) {
+            final String word = pickWord() + "!";
+            this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
+                    living.getX(), living.getY() + living.getBbHeight() + 1.0D, living.getZ(),
+                    launchX(dx, dz), launchY(), launchZ(dx, dz),
+                    CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(living)));
+        }
+    }
+
     /** Client-side damage notification from the damage-event packet (1.20.1 has no client damage event). */
     public static void onClientDamage(LivingEntity entity, Vec3 sourcePos) {
         if (INSTANCE != null)
@@ -616,43 +703,75 @@ public class CritWordHandler {
         if (isOwnTextInFirstPerson(entity))
             return;
 
-        // Damage amount is not in the 1.20.1 packet; estimate it from the health delta.
+        // Fallback path. The exact amount arrives in this mod's own server message, and only when the
+        // server has the mod and this client has handshaked the channel. What is left here is the
+        // entity's health - which must NOT be read at this moment.
+        //
+        // The health sync is a SEPARATE packet from this damage event, with no ordering guarantee
+        // against it, and onTick writes the same tracker every tick. Measuring here therefore found
+        // previous == current whenever the sync had already landed, produced a delta of 0, and
+        // DISCARDED the hit - not shown wrong, absent. That is the reported "weapons dealing 15+
+        // damage show as only 9": the big hits are the ones most likely to have been synced already.
+        //
+        // So the hit is recorded, and measured once the health has actually moved.
         final int id = entity.getId();
         final float current = entity.getHealth();
         final float previous = this.lastHealth.getOrDefault(id, current);
-        final float damage = Math.max(0F, previous - current);
-        this.lastHealth.put(id, current);
 
-        // Launch direction: away from the source position (the attacker), like 26.1.
-        double dx = 0D, dz = 0D;
-        if (sourcePos != null) {
-            double dirX = entity.getX() - sourcePos.x;
-            double dirZ = entity.getZ() - sourcePos.z;
-            final double len = Math.hypot(dirX, dirZ);
-            if (len > 0.001) {
-                dx = dirX / len;
-                dz = dirZ / len;
+        // Keep the FIRST hit's `previous`: it is the only pre-hit health available, and a second hit
+        // inside the same window would overwrite it with an already-reduced value.
+        this.pendingHits.putIfAbsent(id, new PendingHit(previous,
+                sourcePos == null ? entity.getX() : sourcePos.x,
+                sourcePos == null ? entity.getZ() : sourcePos.z));
+        this.pendingHitAge.put(id, 0);
+
+        // If the health already rose this is a heal, not a hit; keep the tracker honest without
+        // letting it mask a drop.
+        if (current > previous)
+            this.lastHealth.put(id, current);
+    }
+
+    /**
+     * Settles recorded hits once their health sync has arrived.
+     *
+     * <p>Called from onTick after the tracker update, so this reads the newest health the client has.
+     * Reading the health is sound: {@code LivingEntity.getHealth()} returns a synced entity data item,
+     * so it is the server's value as soon as the sync packet lands.
+     */
+    private void resolvePendingHits(final Minecraft mc) {
+        if (this.pendingHits.isEmpty())
+            return;
+
+        this.pendingHits.entrySet().removeIf(entry -> {
+            final int id = entry.getKey();
+            final PendingHit pending = entry.getValue();
+
+            if (mc.level == null || !(mc.level.getEntity(id) instanceof LivingEntity living)) {
+                this.pendingHitAge.remove(id);
+                return true;
             }
-        } else {
-            double angle = this.random.nextDouble() * Math.PI * 2;
-            dx = Math.cos(angle);
-            dz = Math.sin(angle);
-        }
+            // A removed or dead entity will never deliver another health update.
+            if (living.isRemoved() || !living.isAlive()) {
+                this.pendingHitAge.remove(id);
+                return true;
+            }
 
-        // Damage number above the entity (top + 0.5).
-        if (showNumbers && damage >= 0.5F) {
-            final int delta = Math.max(1, Math.round(damage));
-            this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
-                    entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
-                    launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
-        }
+            final float drop = pending.healthBefore() - living.getHealth();
+            final int age = this.pendingHitAge.merge(id, 1, Integer::sum);
 
-        // Critical hit (>= 40% of max health): an extra comic word one block up.
-        if (showCrits && damage >= entity.getMaxHealth() / 2.5F) {
-            final String word = pickWord() + "!";
-            this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
-                    entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),
-                    launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
-        }
+            if (drop < 0.5F) {
+                // A fully absorbed hit never moves the health, and neither does one whose sync never
+                // arrives; give up after the timeout rather than holding the entry forever.
+                if (age < PENDING_HIT_TIMEOUT_TICKS)
+                    return false;
+                this.pendingHitAge.remove(id);
+                return true;
+            }
+
+            this.pendingHitAge.remove(id);
+            this.lastHealth.put(id, living.getHealth());
+            displayDamage(id, drop, pending.sourceX(), pending.sourceZ());
+            return true;
+        });
     }
 }

@@ -191,7 +191,7 @@ public class CritWordHandler {
 
     // Animation values, refreshed from config on every spawn so a config edit applies without a
     // restart. 1.12.2's own numbers are the defaults: grow 1.08, shrink 0.96, peak 3x.
-    private float growFactor = 1.23F;
+    private float growFactor = 1.28F;
     private float gravityScale = 0.57F;
     private float shrinkFactor = 0.93F;
     private float maxScale = 4.0F;
@@ -340,7 +340,7 @@ public class CritWordHandler {
      * the fall ~13 coming back).
      * <p>
      * The old code multiplied a stored scale once per tick before drawing, so the first frame was
-     * already {@code grow} (123) while the shrink aimed at 1.0 - the number ended visibly smaller
+     * already {@code grow} (128) while the shrink aimed at 1.0 - the number ended visibly smaller
      * than it started, which the user spotted immediately.
      */
     private float sizeAtAge(final float age) {

@@ -460,5 +460,19 @@
   "dsurround.config.entityEffects.enableCreatureFootprints": "Creature footprints",
   "dsurround.config.entityEffects.enableCreatureFootprints.tooltip": "Enable/disable footprints for creatures (villagers, animals, mobs). The 1.12.2 original gave every living entity footprints; this port only produced them for the player, so this restores that behaviour and can be turned off if the extra particles are unwanted",
   "dsurround.config.popoffNumbers.tooltip": "Settings for the damage, healing and critical-hit text that pops off an entity",
-  "dsurround.config.speechBubbles.tooltip": "Settings for the speech bubbles drawn above player and entity heads"
+  "dsurround.config.speechBubbles.tooltip": "Settings for the speech bubbles drawn above player and entity heads",
+  "dsurround.sound.caption.biome.gnatt": "Gnats buzz",
+  "dsurround.sound.caption.biome.grasshopper": "Grasshoppers chirp",
+  "dsurround.sound.caption.footsteps.bone": "Bone steps",
+  "dsurround.sound.caption.footsteps.sculk": "Sculk steps",
+  "dsurround.sound.caption.footsteps.sculk_vein": "Sculk vein steps",
+  "dsurround.sound.caption.footsteps.moss": "Moss steps",
+  "dsurround.sound.caption.footsteps.tuff": "Tuff steps",
+  "dsurround.sound.caption.footsteps.copper": "Copper steps",
+  "dsurround.sound.caption.footsteps.bamboo": "Bamboo steps",
+  "dsurround.sound.caption.footsteps.honey": "Honey steps",
+  "dsurround.sound.caption.footsteps.froglight": "Froglight steps",
+  "dsurround.sound.caption.footsteps.slime": "Slime steps",
+  "dsurround.sound.caption.footsteps.shroomlight": "Shroomlight steps",
+  "dsurround.sound.caption.footsteps.sculk_vein_land": "Sculk vein land steps"
 }

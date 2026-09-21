@@ -5,6 +5,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -18,12 +19,21 @@ import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.tags.BlockEffectTags;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
- * Leaves footprints under the player while walking, ported from the original
- * 1.12.2 EntityFootprintEffect. Instead of depending on the vanilla step event
- * (which is gated on the brush-step entity tag and accent settings), this
- * accumulates horizontal movement each tick and drops a left/right alternating
- * footprint about every half block, matching the vanilla step cadence.
+ * Leaves footprints under entities while they walk, ported from the original 1.12.2
+ * {@code EntityFootprintEffect}. Instead of depending on the vanilla step event (which is gated on the
+ * brush-step entity tag and accent settings), this accumulates horizontal movement each tick and drops
+ * a left/right alternating footprint about every step, matching the vanilla step cadence.
+ *
+ * <p><b>Every living entity, not just the player.</b> 1.12.2 registered this effect for any
+ * {@code EntityLivingBase} and merely had a {@code PlayerFootprintEffect} subclass for the player's
+ * special cases. This port tracked only the player, so villagers, animals and mobs left nothing -
+ * which is a visible regression against the original. The player keeps its own path because its
+ * special cases differ (spectator, first person), and creatures are gated on their own config key so
+ * the extra particles can be turned off.
  */
 public class FootprintHandler {
 
@@ -49,11 +59,30 @@ public class FootprintHandler {
     // (user request: prints a little closer together).
     private static final double FOOT_SPACING = 0.15D;
 
-    private boolean isRightFoot = false;
-    private boolean wasOnGround = true;
-    private double lastAirborneFallDistance = 0D;
-    private Vec3 lastPos;
-    private double walkDistance;
+    /**
+     * Per-entity walking state. One instance per tracked entity, keyed by entity id and pruned when the
+     * entity leaves or dies, so a mob that walks away does not leave state behind.
+     */
+    private static final class Track {
+        boolean isRightFoot;
+        boolean wasOnGround = true;
+        double lastAirborneFallDistance;
+        Vec3 lastPos;
+        double walkDistance;
+
+        void reset() {
+            this.isRightFoot = false;
+            this.wasOnGround = true;
+            this.lastAirborneFallDistance = 0D;
+            this.lastPos = null;
+            this.walkDistance = 0D;
+        }
+    }
+
+    private final Map<Integer, Track> tracks = new HashMap<>();
+
+    // Reused across ticks so the per-tick entity sweep allocates nothing per entity.
+    private final java.util.List<Integer> seen = new java.util.ArrayList<>();
 
     public FootprintHandler(Configuration config, IModLog logger) {
         this.config = config;
@@ -63,77 +92,115 @@ public class FootprintHandler {
     }
 
     private void onConnect(Minecraft client) {
-        this.lastPos = null;
-        this.walkDistance = 0D;
-        this.isRightFoot = false;
-        this.wasOnGround = true;
-        this.lastAirborneFallDistance = 0D;
+        this.tracks.clear();
     }
 
     private void onDisconnect(Minecraft client) {
-        this.lastPos = null;
-        this.walkDistance = 0D;
+        this.tracks.clear();
     }
 
     private void onTick(Minecraft client) {
-        if (!this.config.entityEffects.enableFootprints)
+        final boolean playerEnabled = this.config.entityEffects.enableFootprints;
+        final boolean creatureEnabled = this.config.entityEffects.enableCreatureFootprints;
+        if (!playerEnabled && !creatureEnabled)
             return;
         if (!GameUtils.isInGame() || GameUtils.isPaused())
             return;
 
         var player = GameUtils.getPlayer().orElse(null);
-        if (player == null || player.isSpectator())
+        if (player == null)
             return;
 
         if (!(player.level() instanceof ClientLevel world))
             return;
 
-        final Vec3 pos = player.position();
+        // The player first, so its own prints are unaffected by anything below.
+        if (playerEnabled && !player.isSpectator())
+            this.process(player, world, true);
 
-        final boolean onGround = player.onGround();
-        if (!onGround) {
+        if (!creatureEnabled) {
+            // Drop any creature state so re-enabling cannot resume from a stale position and drop a
+            // print a long way from where the creature actually is.
+            if (this.tracks.size() > (playerEnabled ? 1 : 0))
+                this.tracks.keySet().removeIf(id -> id != player.getId());
+            return;
+        }
+
+        // Creatures: the same scan the other entity effects use. A modest radius keeps the per-tick
+        // cost proportional to what is actually on screen.
+        final double range = Math.min(48.0D, this.config.entityEffects.entityEffectRange);
+        this.seen.clear();
+        for (var entity : world.getEntitiesOfClass(LivingEntity.class,
+                player.getBoundingBox().inflate(range))) {
+            if (entity == player || entity.isRemoved() || !entity.isAlive())
+                continue;
+            if (entity.isSpectator() || entity.isInvisibleTo(player))
+                continue;
+            // Only entities actually close enough to see prints from. The inflate above is a box, so
+            // its corners reach further than `range`.
+            if (entity.distanceToSqr(player) > range * range)
+                continue;
+            this.seen.add(entity.getId());
+            this.process(entity, world, false);
+        }
+
+        // Prune state for entities that are gone or no longer near, so the map cannot grow without
+        // bound in a busy world.
+        if (this.tracks.size() > this.seen.size() + 1) {
+            this.tracks.keySet().removeIf(id -> id != player.getId() && !this.seen.contains(id));
+        }
+    }
+
+    /** Advances one entity's walking state and drops a print when it has moved far enough. */
+    private void process(final LivingEntity entity, final ClientLevel world, final boolean isPlayer) {
+        final Track track = this.tracks.computeIfAbsent(entity.getId(), id -> new Track());
+
+        final Vec3 pos = entity.position();
+
+        if (!entity.onGround()) {
             // Airborne: track the fall distance (vanilla resets it on landing).
-            this.lastAirborneFallDistance = player.fallDistance;
-            this.wasOnGround = false;
+            track.lastAirborneFallDistance = entity.fallDistance;
+            track.wasOnGround = false;
+            track.lastPos = pos;
             return;
         }
 
         // Landing: both feet leave prints.
-        if (!this.wasOnGround && this.lastAirborneFallDistance > LAND_PRINT_DISTANCE) {
-            this.spawnPrint(player, world, pos, true, FOOT_SPACING);
-            this.spawnPrint(player, world, pos, false, FOOT_SPACING);
+        if (!track.wasOnGround && track.lastAirborneFallDistance > LAND_PRINT_DISTANCE) {
+            this.spawnPrint(entity, world, pos, true, FOOT_SPACING);
+            this.spawnPrint(entity, world, pos, false, FOOT_SPACING);
         }
-        this.wasOnGround = true;
+        track.wasOnGround = true;
 
-        if (this.lastPos == null) {
-            this.lastPos = pos;
+        if (track.lastPos == null) {
+            track.lastPos = pos;
             return;
         }
 
-        this.walkDistance += Math.hypot(pos.x - this.lastPos.x, pos.z - this.lastPos.z);
-        this.lastPos = pos;
+        track.walkDistance += Math.hypot(pos.x - track.lastPos.x, pos.z - track.lastPos.z);
+        track.lastPos = pos;
 
-        if (this.walkDistance < STEP_DISTANCE)
+        if (track.walkDistance < STEP_DISTANCE)
             return;
-        this.walkDistance = 0D;
-        this.isRightFoot = !this.isRightFoot;
+        track.walkDistance = 0D;
+        track.isRightFoot = !track.isRightFoot;
 
-        this.spawnPrint(player, world, pos, this.isRightFoot, FOOT_SPACING);
+        this.spawnPrint(entity, world, pos, track.isRightFoot, FOOT_SPACING);
     }
 
     /**
-     * Drop a single footprint under the player's foot. Use the player's facing for
+     * Drop a single footprint under the entity's foot. Use the entity's facing for
      * both the left/right offset and the print yaw (the per-tick movement vector is
      * tiny and unnormalized, which collapsed the offset to ~0 and gave a garbage yaw).
      * Only prints when the foot is resting on solid ground; probing down produced
      * prints on the block below when walking off an edge. Using the exact foot
      * position also keeps prints on dirt under tall grass.
      */
-    private void spawnPrint(Player player, ClientLevel world, Vec3 pos, boolean isRight, double distance) {
+    private void spawnPrint(LivingEntity entity, ClientLevel world, Vec3 pos, boolean isRight, double distance) {
         // Use the horizontal facing (yaw) for the offset/yaw: getLookAngle() includes
         // pitch, so looking down (e.g. when landing) collapsed the left/right offset
         // to ~0 and the landing pair overlapped.
-        final float yaw = player.getYRot();
+        final float yaw = entity.getYRot();
         final double yawRad = Math.toRadians(yaw);
         final double dx = -Math.sin(yawRad); // horizontal look X
         final double dz = Math.cos(yawRad);  // horizontal look Z
@@ -141,9 +208,9 @@ public class FootprintHandler {
         final double x = pos.x - dz * offset;
         final double z = pos.z + dx * offset;
 
-        // The print is offset sideways from the player, so probe the block under the
-        // print's own x/z (not the player's foot) - a print on a block edge would
-        // otherwise hang over the adjacent air and float in mid-air. Use the player's
+        // The print is offset sideways from the entity, so probe the block under the
+        // print's own x/z (not the entity's foot) - a print on a block edge would
+        // otherwise hang over the adjacent air and float in mid-air. Use the entity's
         // foot level as the reference height. The foot rests on the topmost surface at
         // or just below it; the ±0.5 window means only the foot level and the level
         // below can qualify, and descending from the foot level the first hit is the
@@ -157,7 +224,7 @@ public class FootprintHandler {
         for (int py = Mth.floor(referenceY); py > Mth.floor(referenceY) - 2; py--) {
             probe.set(px, py, pz);
             var probeState = world.getBlockState(probe);
-            // Vegetation the player walks straight through (grass, flowers, saplings) is
+            // Vegetation the entity walks straight through (grass, flowers, saplings) is
             // not ground - keep looking down so prints still land on the dirt beneath it.
             // This is the only case that may skip a block; see the note below.
             if (FootstepGenerator.isVegetationBlock(probeState))
@@ -183,7 +250,7 @@ public class FootprintHandler {
             if (!TAG_LIBRARY.is(FOOTPRINTABLE, probeState))
                 return;
             // Sit the print on the block's visible surface (snow layer top), not the
-            // player's foot which sinks slightly into the snow.
+            // entity's foot which sinks slightly into the snow.
             var y = surfaceY;
             var particle = new FootprintParticle(this.config.entityEffects.footprintStyle, isRight, (float) yawRad, world, x, y, z);
             GameUtils.getParticleManager().add(particle);

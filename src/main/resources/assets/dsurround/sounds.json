@@ -1,7 +1,9 @@
 {
   "dust": {
     "category": "weather",
-    "sounds": ["dsurround:ambient/weather/dust"]
+    "sounds": [
+      "dsurround:ambient/weather/dust"
+    ]
   },
   "thunder": {
     "subtitle": "dsurround.sound.caption.thunder",
@@ -1503,7 +1505,8 @@
       "dsurround:footsteps/bone/step3",
       "dsurround:footsteps/bone/step4",
       "dsurround:footsteps/bone/step5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.bone"
   },
   "footsteps.sculk": {
     "ds_category": "player",
@@ -1514,7 +1517,8 @@
       "dsurround:footsteps/sculk/step4",
       "dsurround:footsteps/sculk/step5",
       "dsurround:footsteps/sculk/step6"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.sculk"
   },
   "footsteps.sculk_vein": {
     "ds_category": "player",
@@ -1524,7 +1528,8 @@
       "dsurround:footsteps/sculk_vein/step3",
       "dsurround:footsteps/sculk_vein/step4",
       "dsurround:footsteps/sculk_vein/step5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.sculk_vein"
   },
   "footsteps.moss": {
     "ds_category": "player",
@@ -1535,7 +1540,8 @@
       "dsurround:footsteps/moss/step4",
       "dsurround:footsteps/moss/step5",
       "dsurround:footsteps/moss/step6"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.moss"
   },
   "footsteps.tuff": {
     "ds_category": "player",
@@ -1546,7 +1552,8 @@
       "dsurround:footsteps/tuff/step4",
       "dsurround:footsteps/tuff/step5",
       "dsurround:footsteps/tuff/step6"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.tuff"
   },
   "footsteps.copper": {
     "ds_category": "player",
@@ -1557,7 +1564,8 @@
       "dsurround:footsteps/copper/step4",
       "dsurround:footsteps/copper/step5",
       "dsurround:footsteps/copper/step6"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.copper"
   },
   "footsteps.bamboo": {
     "ds_category": "player",
@@ -1568,7 +1576,8 @@
       "dsurround:footsteps/bamboo/step4",
       "dsurround:footsteps/bamboo/step5",
       "dsurround:footsteps/bamboo/step6"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.bamboo"
   },
   "footsteps.honey": {
     "ds_category": "player",
@@ -1578,7 +1587,8 @@
       "dsurround:footsteps/honey/step3",
       "dsurround:footsteps/honey/step4",
       "dsurround:footsteps/honey/step5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.honey"
   },
   "footsteps.froglight": {
     "ds_category": "player",
@@ -1589,7 +1599,8 @@
       "dsurround:footsteps/froglight/step4",
       "dsurround:footsteps/froglight/step5",
       "dsurround:footsteps/froglight/step6"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.froglight"
   },
   "footsteps.slime": {
     "ds_category": "player",
@@ -1598,7 +1609,8 @@
       "dsurround:footsteps/slime/step2",
       "dsurround:footsteps/slime/step3",
       "dsurround:footsteps/slime/step4"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.slime"
   },
   "footsteps.bone_land": {
     "ds_category": "player",
@@ -1608,7 +1620,8 @@
       "dsurround:footsteps/bone_land/step3",
       "dsurround:footsteps/bone_land/step4",
       "dsurround:footsteps/bone_land/step5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.bone"
   },
   "footsteps.sculk_land": {
     "ds_category": "player",
@@ -1627,7 +1640,8 @@
       "dsurround:footsteps/sculk_land/step12",
       "dsurround:footsteps/sculk_land/step13",
       "dsurround:footsteps/sculk_land/step14"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.sculk"
   },
   "footsteps.sculk_vein_land": {
     "ds_category": "player",
@@ -1637,7 +1651,8 @@
       "dsurround:footsteps/sculk_vein_land/step3",
       "dsurround:footsteps/sculk_vein_land/step4",
       "dsurround:footsteps/sculk_vein_land/step5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.sculk_vein_land"
   },
   "footsteps.moss_land": {
     "ds_category": "player",
@@ -1647,7 +1662,8 @@
       "dsurround:footsteps/moss_land/step3",
       "dsurround:footsteps/moss_land/step4",
       "dsurround:footsteps/moss_land/step5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.moss"
   },
   "footsteps.tuff_land": {
     "ds_category": "player",
@@ -1657,7 +1673,8 @@
       "dsurround:footsteps/tuff_land/step3",
       "dsurround:footsteps/tuff_land/step4",
       "dsurround:footsteps/tuff_land/step5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.tuff"
   },
   "footsteps.copper_land": {
     "ds_category": "player",
@@ -1666,7 +1683,8 @@
       "dsurround:footsteps/copper_land/step2",
       "dsurround:footsteps/copper_land/step3",
       "dsurround:footsteps/copper_land/step4"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.copper"
   },
   "footsteps.froglight_land": {
     "ds_category": "player",
@@ -1675,7 +1693,8 @@
       "dsurround:footsteps/froglight_land/step2",
       "dsurround:footsteps/froglight_land/step3",
       "dsurround:footsteps/froglight_land/step4"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.froglight"
   },
   "footsteps.honey_land": {
     "ds_category": "player",
@@ -1685,7 +1704,8 @@
       "dsurround:footsteps/honey_land/step3",
       "dsurround:footsteps/honey_land/step4",
       "dsurround:footsteps/honey_land/step5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.honey"
   },
   "footsteps.bamboo_land": {
     "ds_category": "player",
@@ -1702,7 +1722,8 @@
       "dsurround:footsteps/bamboo_land/step10",
       "dsurround:footsteps/bamboo_land/step11",
       "dsurround:footsteps/bamboo_land/step12"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.bamboo"
   },
   "footsteps.slime_land": {
     "ds_category": "player",
@@ -1711,7 +1732,8 @@
       "dsurround:footsteps/slime_land/step2",
       "dsurround:footsteps/slime_land/step3",
       "dsurround:footsteps/slime_land/step4"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.slime"
   },
   "footsteps.shroomlight": {
     "ds_category": "player",
@@ -1722,7 +1744,8 @@
       "dsurround:footsteps/shroomlight/step4",
       "dsurround:footsteps/shroomlight/step5",
       "dsurround:footsteps/shroomlight/step6"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.shroomlight"
   },
   "footsteps.shroomlight_land": {
     "ds_category": "player",
@@ -1732,7 +1755,8 @@
       "dsurround:footsteps/shroomlight_land/step3",
       "dsurround:footsteps/shroomlight_land/step4",
       "dsurround:footsteps/shroomlight_land/step5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.shroomlight"
   },
   "footsteps.stone_wander": {
     "ds_category": "player",
@@ -1742,7 +1766,8 @@
       "dsurround:footsteps/stone/stone_wander3",
       "dsurround:footsteps/stone/stone_wander4",
       "dsurround:footsteps/stone/stone_wander5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.stone"
   },
   "footsteps.concrete_wander": {
     "ds_category": "player",
@@ -1752,7 +1777,8 @@
       "dsurround:footsteps/concrete/concrete_wander3",
       "dsurround:footsteps/concrete/concrete_wander4",
       "dsurround:footsteps/concrete/concrete_wander5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.concrete"
   },
   "footsteps.dirt_wander": {
     "ds_category": "player",
@@ -1762,7 +1788,8 @@
       "dsurround:footsteps/dirt/dirt_wander3",
       "dsurround:footsteps/dirt/dirt_wander4",
       "dsurround:footsteps/dirt/dirt_wander5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.dirt"
   },
   "footsteps.grass_wander": {
     "ds_category": "player",
@@ -1773,7 +1800,8 @@
       "dsurround:footsteps/grass/grass_wander4",
       "dsurround:footsteps/grass/grass_wander5",
       "dsurround:footsteps/grass/grass_wander6"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.grass"
   },
   "footsteps.gravel_wander": {
     "ds_category": "player",
@@ -1781,7 +1809,8 @@
       "dsurround:footsteps/gravel/gravel_wander1",
       "dsurround:footsteps/gravel/gravel_wander2",
       "dsurround:footsteps/gravel/gravel_wander3"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.gravel"
   },
   "footsteps.marble_wander": {
     "ds_category": "player",
@@ -1793,7 +1822,8 @@
       "dsurround:footsteps/marble/marble_wander5",
       "dsurround:footsteps/marble/marble_wander6",
       "dsurround:footsteps/marble/marble_wander7"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.marble"
   },
   "footsteps.metalbar_wander": {
     "ds_category": "player",
@@ -1804,7 +1834,8 @@
       "dsurround:footsteps/metalbar/metalbar_wander4",
       "dsurround:footsteps/metalbar/metalbar_wander5",
       "dsurround:footsteps/metalbar/metalbar_wander6"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.metalbar"
   },
   "footsteps.metalbox_wander": {
     "ds_category": "player",
@@ -1813,7 +1844,8 @@
       "dsurround:footsteps/metalbox/metalbox_wander2",
       "dsurround:footsteps/metalbox/metalbox_wander3",
       "dsurround:footsteps/metalbox/metalbox_wander4"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.metalbox"
   },
   "footsteps.mud_wander": {
     "ds_category": "player",
@@ -1822,7 +1854,8 @@
       "dsurround:footsteps/mud/mud_wander2",
       "dsurround:footsteps/mud/mud_wander3",
       "dsurround:footsteps/mud/mud_wander4"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.mud"
   },
   "footsteps.snow_wander": {
     "ds_category": "player",
@@ -1832,7 +1865,8 @@
       "dsurround:footsteps/snow/snow_wander3",
       "dsurround:footsteps/snow/snow_wander4",
       "dsurround:footsteps/snow/snow_wander5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.snow"
   },
   "footsteps.squeakywood_wander": {
     "ds_category": "player",
@@ -1844,7 +1878,8 @@
       "dsurround:footsteps/squeakywood/squeakywood_wander5",
       "dsurround:footsteps/squeakywood/squeakywood_wander6",
       "dsurround:footsteps/squeakywood/squeakywood_wander7"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.squeakywood"
   },
   "footsteps.bluntwood_wander": {
     "ds_category": "player",
@@ -1854,7 +1889,8 @@
       "dsurround:footsteps/bluntwood/bluntwood_wander3",
       "dsurround:footsteps/bluntwood/bluntwood_wander4",
       "dsurround:footsteps/bluntwood/bluntwood_wander5"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.footsteps.bluntwood"
   },
   "footsteps.sand": {
     "ds_category": "player",
@@ -2670,11 +2706,13 @@
   "biome.grasshopper": {
     "sounds": [
       "dsurround:ambient/insects/grasshopper1"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.biome.grasshopper"
   },
   "biome.gnatt": {
     "sounds": [
       "dsurround:ambient/insects/gnatt1"
-    ]
+    ],
+    "subtitle": "dsurround.sound.caption.biome.gnatt"
   }
 }

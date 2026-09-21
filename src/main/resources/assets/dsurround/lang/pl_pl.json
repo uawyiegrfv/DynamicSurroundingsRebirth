@@ -460,5 +460,19 @@
   "dsurround.config.entityEffects.enableCreatureFootprints": "Ślady stóp istot",
   "dsurround.config.entityEffects.enableCreatureFootprints.tooltip": "Włącz/wyłącz ślady stóp istot (wieśniaków, zwierząt, potworów). Oryginał z wersji 1.12.2 nadawał ślady stóp każdej żywej istocie; ta wersja tworzyła je tylko dla gracza, więc ta opcja przywraca tamto zachowanie i można ją wyłączyć, jeśli dodatkowe cząsteczki są niepożądane",
   "dsurround.config.popoffNumbers.tooltip": "Ustawienia tekstu obrażeń, leczenia i ciosów krytycznych wyskakującego z istoty",
-  "dsurround.config.speechBubbles.tooltip": "Ustawienia dymków rysowanych nad głowami graczy i istot"
+  "dsurround.config.speechBubbles.tooltip": "Ustawienia dymków rysowanych nad głowami graczy i istot",
+  "dsurround.sound.caption.biome.gnatt": "Brzęczenie komarów",
+  "dsurround.sound.caption.biome.grasshopper": "Cykanie koników polnych",
+  "dsurround.sound.caption.footsteps.bone": "Kroki po kościach",
+  "dsurround.sound.caption.footsteps.sculk": "Kroki po sculku",
+  "dsurround.sound.caption.footsteps.sculk_vein": "Kroki po żyłach sculku",
+  "dsurround.sound.caption.footsteps.moss": "Kroki po mchu",
+  "dsurround.sound.caption.footsteps.tuff": "Kroki po tufie",
+  "dsurround.sound.caption.footsteps.copper": "Kroki po miedzi",
+  "dsurround.sound.caption.footsteps.bamboo": "Kroki po bambusie",
+  "dsurround.sound.caption.footsteps.honey": "Kroki po miodzie",
+  "dsurround.sound.caption.footsteps.froglight": "Kroki po żabiej lampie",
+  "dsurround.sound.caption.footsteps.slime": "Kroki po szlamie",
+  "dsurround.sound.caption.footsteps.shroomlight": "Kroki po grzyboliście",
+  "dsurround.sound.caption.footsteps.sculk_vein_land": "Kroki po żyłach sculku (lądowanie)"
 }

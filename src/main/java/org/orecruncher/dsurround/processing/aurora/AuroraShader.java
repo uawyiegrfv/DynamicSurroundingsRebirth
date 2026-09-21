@@ -61,6 +61,16 @@ public final class AuroraShader extends AuroraBase {
         super(seed);
         this.renderType = this.band.length >= 128 ? AuroraRenderPipelines.TYPE_128 : AuroraRenderPipelines.TYPE_64;
 
+        // Fail HERE if the pipeline never registered, so AuroraFactory's documented fallback to the
+        // classic renderer actually runs.
+        //
+        // The types stay null when RegisterShadersEvent did not fire for this session, and the
+        // constructor did not check, so it returned a perfectly valid AuroraShader holding a null
+        // renderType - the render callback then NPE'd at getBuffer(null) instead of degrading, and
+        // the catch (Throwable) in AuroraFactory never saw anything to catch.
+        if (this.renderType == null)
+            throw new IllegalStateException("aurora shader pipeline is not registered");
+
         this.bandTints = new int[this.bandCount][3];
         final float phase = this.random.nextFloat() * Mth.TWO_PI;
         for (int b = 0; b < this.bandCount; b++) {

@@ -450,5 +450,13 @@
   "dsurround.config.popoffNumbers.tooltip": "伤害、治疗与暴击文字（从实体头顶弹出的数字）的相关设置",
   "dsurround.config.speechBubbles.tooltip": "玩家与实体头顶气泡字幕的相关设置",
   "dsurround.config.soundOptions.playBiomeMusicWhileCreative": "在创造模式下播放生物群系音乐",
-  "dsurround.config.soundOptions.playBiomeMusicWhileCreative.tooltip": "启用在创造模式下播放配置的生物群系背景音乐\n通常在创造模式下，Minecraft的情境音乐选择器会自动选择创作音乐而不是生物群系背景音乐"
+  "dsurround.config.soundOptions.playBiomeMusicWhileCreative.tooltip": "启用在创造模式下播放配置的生物群系背景音乐\n通常在创造模式下，Minecraft的情境音乐选择器会自动选择创作音乐而不是生物群系背景音乐",
+  "dsurround.command.dsmm.pause.failure": "无法暂停音乐管理器：%1$s",
+  "dsurround.command.dsmm.pause.success": "音乐管理器已暂停",
+  "dsurround.command.dsmm.unpause.failure": "无法恢复音乐管理器：%1$s",
+  "dsurround.command.dsmm.unpause.success": "音乐管理器已恢复",
+  "dsurround.command.dsmm.whatsplaying.failure": "无法确定音乐管理器正在播放什么：%1$s",
+  "dsurround.command.dsmm.whatsplaying.success": "§2正在播放§r：%1$s",
+  "dsurround.text.musicmanager.nothing": "当前没有播放音乐",
+  "dsurround.text.musicmanager.playing": "%1$s — %2$s（%3$s）"
 }

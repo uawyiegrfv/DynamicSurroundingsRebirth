@@ -193,8 +193,19 @@ public final class AudioTuning {
         }
     }
 
-    /** Restores every value from the config file. */
-    public static String reset() {
+    /**
+     * Re-reads every tunable from the config.
+     *
+     * <p>Called at class load, by {@code /dstune reset}, and on a config change. The last one is the
+     * point: these six values are cached in static fields at class initialisation - which happens on
+     * the first sound evaluation, seconds into a session - and NOTHING re-read them. So editing
+     * {@code evaluateOnSoundThread}, {@code realismWavelength}, {@code realismFrequencyHz},
+     * {@code logAudioTrace}, {@code bandWeights} or {@code bandFrequencies} in the config file or the
+     * GUI did nothing until a restart, even though none of them carries {@code @RestartRequired} and
+     * their tooltips explicitly invite editing ("exposed for testing"). Only {@code occlusionSegments}
+     * was annotated honestly.
+     */
+    public static void reloadFromConfig() {
         occlusionSegments = Math.max(1, CONFIG.occlusionSegments);
         evaluateOnSoundThread = CONFIG.evaluateOnSoundThread;
         realismWavelength = CONFIG.realismWavelength;
@@ -202,6 +213,11 @@ public final class AudioTuning {
         logAudioTrace = CONFIG.logAudioTrace;
         bandWeights = parseFloats(CONFIG.bandWeights, DEFAULT_BAND_WEIGHTS);
         bandFrequencies = parseFloats(CONFIG.bandFrequencies, DEFAULT_BAND_FREQUENCIES);
+    }
+
+    /** Restores every value from the config file. */
+    public static String reset() {
+        reloadFromConfig();
         return "Restored from config:\n" + describeAll();
     }
 

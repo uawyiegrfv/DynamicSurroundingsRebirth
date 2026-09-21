@@ -17,7 +17,15 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
 
     // Morning fog time window and density are configurable via FogOptions:
     //   morningFogStartHour (5.0), morningFogPeakHour (6.0), morningFogEndHour (8.0),
-    //   morningFogDensity (1.0 = default).
+    //   morningFogDensity (1.0 = full strength, 0 = off).
+    //
+    // The density is multiplied by this reference before use. The knob used to run 0-4 with a
+    // default of 4, and the code took the value at face value - so 1.0 already saturated at the peak
+    // and the top three quarters of the slider only shifted WHEN the mist reached full strength.
+    // The range is now 0-1 and the reference preserves the old default's shape exactly: a config
+    // still holding 4.0 is clamped to 1.0 on load, which lands on the same curve the old default
+    // produced, so nothing that was tuned against the default changes appearance.
+    private static final float MORNING_FOG_DENSITY_REFERENCE = 4.0F;
 
     // Near-plane reserve at peak dawn, per fog type (blocks). Mirrors the 1.12.2
     // FogType reserves: heavier mornings reach closer to the player (thicker
@@ -115,7 +123,15 @@ public class MorningFogRangeCalculator extends VanillaFogRangeCalculator {
                 // gradient from a small reserve distance all the way to the vanilla far
                 // plane - distance reads as progressively thicker mist while nearby
                 // terrain keeps a subtle morning haze.
-                final float density = (float) Math.max(0D, this.fogOptions.morningFogDensity);
+                // The config value is normalised so that 1.0 reproduces the peak strength the old
+                // 4.0 default produced. The knob's range used to be 0-4 with a default of 4, but at
+                // the dawn peak (strength == 1) any value >= 1 already yields newStart == reserve -
+                // the near plane pulled as far in as the formula can pull it - so three quarters of
+                // the slider did nothing except make the mist saturate earlier in the window. The
+                // range is now 0-1, and this reference keeps the shape identical for the old default,
+                // so an existing config's look is unchanged rather than quietly weaker.
+                final float density = (float) Math.max(0D, this.fogOptions.morningFogDensity)
+                        * MORNING_FOG_DENSITY_REFERENCE;
                 final float reserve = reserveOf(this.type);
                 // Some fog passes report a zero/tiny near plane (the 1.20.1 sky pass does);
                 // pulling the start there is a no-op at best and pushes it outward at worst,

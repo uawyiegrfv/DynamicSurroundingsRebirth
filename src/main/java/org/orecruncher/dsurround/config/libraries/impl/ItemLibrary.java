@@ -180,7 +180,15 @@ public class ItemLibrary implements IItemLibrary {
         // The foot-specific accent (e.g. heavy_foot), falling back to the walk accent for
         // materials without a dedicated foot sound (leather).
         var foot = getArmorAccentSound(stack, "_foot");
-        return foot != null ? foot : getEquipableSoundEvent(stack);
+        // The fallback used to test `foot != null`, which could never be true: getArmorSound()
+        // always returns a non-null SoundEvent built from a location, so the check was dead code.
+        // Only 13 of the 15 armor accent events are shipped - `armor.light_foot` and
+        // `armor.slimey_foot` are absent - so leather and slimey BOOTS asked for an event that does
+        // not exist and played nothing at all. Legs and chest still worked, because those variants
+        // exist. The test is now whether the event is actually registered.
+        if (foot != null && this.soundLibrary.isSoundRegistered(foot.location()))
+            return foot;
+        return getEquipableSoundEvent(stack);
     }
 
     @Nullable

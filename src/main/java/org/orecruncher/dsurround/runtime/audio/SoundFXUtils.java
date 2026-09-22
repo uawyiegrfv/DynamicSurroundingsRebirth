@@ -304,7 +304,8 @@ public final class SoundFXUtils {
     /** Submerged share (0..1) of the direct path, for the reflection-tap speed of sound. */
     private float lastSubmergedShare;
     /**
-     * Farthest reflection of any bounce, in blocks, measured from the source.
+     * Farthest reflection of any bounce, in blocks, measured FROM THE LISTENER (a reflection reaches the
+     * ear after travelling from the surface).
      *
      * <p>Needed because the FIRST reflection cannot tell a room from a valley: a listener standing on the
      * ground hits the ground first, so the first bounce is a few blocks away in both cases (measured: median
@@ -471,15 +472,14 @@ public final class SoundFXUtils {
         // Snap flag read once at the top for all smoothing (occlusion + water factor).
         final boolean snap = this.source.isImmediateUpdate();
 
-        // Fabric original value: GLOBAL_BLOCK_ABSORPTION * 3.0. Temporarily raised to 4.0
-        // to make a single wool wall more obvious, but the user asked for the original back.
-        final float absorptionCoeff = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
         final float airAbsorptionFactor = calculateWeatherAbsorption(ctx, soundPos, ctx.playerEyePosition);
         // Real ray-traced occlusion, time-smoothed so a geometric boundary (a ray starting
         // to clip the ground a few blocks away) fades instead of snapping the muffling.
         final float occlusionAccumulation = this.source.smoothOcclusion(
                 calculateOcclusion(ctx, soundPos, ctx.playerEyePosition), snap);
-        final float sendCoeff = -occlusionAccumulation * absorptionCoeff;
+        // The occlusion measurement IS a decibel loss (see calculateOcclusion), so the exponent is its
+        // negation directly - see the note on the removed round trip there.
+        final float sendCoeff = -occlusionAccumulation;
 
         // Broadband restore value: drives the level through pow(x, 0.1) and, unless diffraction
         // damps it, the high-frequency gain as well.
@@ -762,9 +762,17 @@ public final class SoundFXUtils {
                     }
                     facingSum += returned;
 
-                    // Farthest reflection of any bounce, from the source. This is where a valley's far wall
-                    // shows up; the first bounce is the ground under the listener in every scene.
-                    farthest = Math.max(farthest, (float) soundPos.distanceTo(lastHitPos));
+                    // Farthest reflection of any bounce, measured FROM THE LISTENER. A reflection reaches
+                    // the ear after travelling from the surface, so what matters is how far the surface is
+                    // from the EAR, not from the source.
+                    //
+                    // Measured from the SOURCE it was useless, and the probe showed it: `far` read 1-16 m in
+                    // scenes whose `rv` (first-reflection distance) was 23-76 m. Rays leave the source in every
+                    // direction, so they strike whatever nearby terrain is in the way, while a distant valley
+                    // wall subtends a tiny solid angle and is almost never sampled. A valley therefore looked
+                    // like it had a wall a few blocks away, while a narrow stone gorge, where the walls really
+                    // ARE close to the listener, reported the strongest reflection.
+                    farthest = Math.max(farthest, (float) ctx.playerEyePosition.distanceTo(lastHitPos));
                 }
 
                 assert totalRayDistance >= 0;
@@ -1041,9 +1049,10 @@ public final class SoundFXUtils {
      * goes from "all of it" to "none of it" within a block or two, while the bent path measures air the whole
      * way and changes gradually as the opening moves across the line.
      *
-     * <p>Both terms are returned in dB and then divided by the absorption coefficient, because the caller
-     * applies {@code exp(-occlusion * absorption)} to get the amplitude back. The two conversions therefore
-     * cancel; they are kept because the probe reports dB, which is the readable form.
+     * <p>Both terms are returned in dB. The caller negates them straight into {@code exp(-x)}, which is
+     * what a decibel loss is. An earlier revision divided by the absorption coefficient here and multiplied
+     * by the same constant at the call site; the two cancelled exactly, so the round trip changed no value
+     * and only obscured the units. It has been removed.
      */
     private float calculateOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target) {
 
@@ -1075,7 +1084,6 @@ public final class SoundFXUtils {
                 : null;
         this.lastEdgeFound = edgeAmplitude != null;
 
-        final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
         // The material walk's loss is used AS MEASURED. It used to be scaled by an "open share" read from the
         // LISTENER's sky light, on the reasoning that only energy arriving along a blocked direction has to
         // cross rock. That reasoning is right for a listener at a cave mouth, but sky light is a VERTICAL
@@ -1121,7 +1129,7 @@ public final class SoundFXUtils {
         }
         final float lossDb = weightTotal > 0F ? weightedDb / weightTotal : 0F;
 
-        // The occlusion value drives the direct low-pass as exp(-occlusion * absorption), and the engine also
+        // The level loss drives the direct low-pass as exp(-loss), and the engine also
         // derives the direct LEVEL from it as pow(that, 0.1). Feeding it the full transmission loss applied
         // that loss TWICE - once as a filter, once as level - and drove directCutoff to ~1e-26 behind rock,
         // which is silence, not muffling. The filter gets the full loss (that is what muffling is); the level
@@ -1129,7 +1137,11 @@ public final class SoundFXUtils {
         final float levelLossDb = lossDb * MATERIAL_LEVEL_RESTORE;
 
         this.lastZoneLossDb = lossDb;
-        return levelLossDb / Math.max(1.0E-6F, absorption);
+        // The level loss in dB, which is exactly what the caller needs for exp(-x). The division by
+        // `absorption` that used to be here cancelled exactly against the multiplication by the same
+        // constant at the call site; removing the round trip changes no value, it only stops the units
+        // from being obscured.
+        return levelLossDb;
     }
 
     /**
@@ -1265,11 +1277,17 @@ public final class SoundFXUtils {
      * How much of the material absorption applies at {@code frequencyHz}, relative to
      * {@link #MATERIAL_REFERENCE_HZ}.
      *
-     * <p>A wall's transmission falls with frequency - the mass law, where a partition's transmission loss
-     * grows about 6 dB per octave above its coincidence frequency, so the amplitude exponent goes as
-     * sqrt(f). Before this the material term used ONE coefficient for every band, which is the one place the
-     * model was still frequency-blind: it made a wall equally transparent to a 2 kHz clink and a 125 Hz
-     * rumble, when the rumble is precisely the part that gets through.
+     * <p>A wall's transmission falls with frequency. The mass law puts a partition's transmission loss about
+     * 6 dB per octave above its coincidence frequency, and that is ADDITIVE in dB:
+     * {@code loss(f) = loss_ref + 6 * log2(f / f_ref)}. What this method actually applies is a MULTIPLIER of
+     * {@code sqrt(f / f_ref)} on the dB loss, which is NOT that law - 6 dB per octave on intensity gives a
+     * transmission falling as 1/f, and sqrt(f) corresponds to roughly 3 dB per octave. The form is kept
+     * deliberately: it is a usable fit with the right shape (monotonic, steeper for higher bands, and exactly
+     * 1 at the reference so every earlier measurement stays valid), and a true mass law would need a
+     * per-material coincidence frequency this model does not have. Before this the material term used ONE
+     * coefficient for every band, which is the one place the model was still frequency-blind: it made a wall
+     * equally transparent to a 2 kHz clink and a 125 Hz rumble, when the rumble is precisely the part that
+     * gets through.
      *
      * <p>This is a power-law approximation, not a per-material absorption spectrum: the block library stores
      * one occlusion value per block, not one per octave band, and adding that would mean a data change across

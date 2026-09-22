@@ -163,12 +163,12 @@ public class Configuration extends ConfigurationData {
         public boolean logAudioTrace = false;
 
         @Property
-        @Comment("Occlusion only: relative weight of each octave band (lowest first) when the per-band attenuations are combined. The defaults (0.50 low, 0.35 mid, 0.15 high) follow the principle that low frequencies are the ones that reach the listener around an obstacle; they are a judgement call rather than a measured spectrum, so they are exposed for testing. '/dstune bandWeights 0.7,0.25,0.05' makes a hill even more transparent")
-        public String bandWeights = "0.50,0.35,0.15";
+        @Comment("Occlusion only: relative weight of each octave band (lowest first) when the per-band attenuations are combined. Low frequencies are the ones that reach the listener around an obstacle, so the set is tilted low; the exact values are a judgement call rather than a measured spectrum, so they are exposed for testing. 8 bands are used because that is what the reference acoustic model uses. '/dstune bandWeights 0.7,0.25,0.05' makes a hill even more transparent")
+        public String bandWeights = "0.21,0.17,0.15,0.13,0.11,0.09,0.08,0.06";
 
         @Property
-        @Comment("Occlusion only: the octave bands in Hz the Fresnel zone is measured in, lowest first. The zone radius scales as 1/sqrt(frequency), so the lowest band decides whether a large obstacle (a hill) is a wall or a nuisance. '/dstune bandFrequencies 63,250,1000' shifts the whole model down an octave")
-        public String bandFrequencies = "125,500,2000";
+        @Comment("Occlusion only: the octave bands in Hz the Fresnel zone is measured in, lowest first. The zone radius scales as 1/sqrt(frequency), so the lowest band decides whether a large obstacle (a hill) is a wall or a nuisance. The default is the 8 standard octave centres covering the audible range; the clearance search runs once regardless, so extra bands cost only a tanh and a few multiplies each. '/dstune bandFrequencies 63,250,1000' shifts the whole model down an octave")
+        public String bandFrequencies = "63,125,250,500,1000,2000,4000,8000";
 
         @Property
         @IntegerRange(min = 16, max = 64)

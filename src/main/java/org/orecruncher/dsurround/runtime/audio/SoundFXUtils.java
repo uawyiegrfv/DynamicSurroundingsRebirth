@@ -56,12 +56,6 @@ public final class SoundFXUtils {
      */
     private static final float SPEED_OF_SOUND = 343F;
     /**
-     * Gain of the knife-edge diffraction loss. The knife-edge amplitude is 0.5 at the shadow boundary and
-     * rises towards 1 as the detour clears; this scales how much of that loss is applied, so the model stays
-     * tunable against the game's own reverb rather than being taken on faith.
-     */
-    private static final float EDGE_DIFFRACTION_LOSS = 0.75F;
-    /**
      * Smallest path-length detour (blocks) the knife-edge formula is evaluated at. Zero detour means the wave
      * grazes the edge exactly, which is the 0.5 amplitude case, not an infinite one.
      */
@@ -1506,8 +1500,12 @@ public final class SoundFXUtils {
         final double lambda = SPEED_OF_SOUND / Math.max(1F, frequencyHz);
         final double n = Math.sqrt(Math.max(0.0D, 2.0D * delta / lambda));
         final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
-        final float fresnel = 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
-        return fresnel * MathStuff.clamp1(spread);
+        // STANDARD knife-edge amplitude: 0.5 (-6 dB) at the shadow boundary, rising to 1 in the lit
+        // region. This used to be 1 - 0.75*(1 - loss), a fitted form that put the boundary at 0.625
+        // (-4.1 dB) instead. The fitted constant existed to make the model tunable against the game's
+        // reverb, but it had no physical basis and the standard value is the one the reference acoustic
+        // model uses. Dropping it makes the edge term weaker, which is the intended direction.
+        return loss * MathStuff.clamp1(spread);
     }
 
     /**

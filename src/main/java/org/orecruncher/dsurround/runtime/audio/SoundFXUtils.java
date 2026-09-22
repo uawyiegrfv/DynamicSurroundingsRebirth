@@ -427,6 +427,14 @@ public final class SoundFXUtils {
          * being darkened by the very rock the reflections travelled around.
          */
         float directCutoffFloor;
+        /**
+         * Raw count of bounces whose reflection point sits in the ear's airspace, scaled by the ray budget and
+         * by 64 (see {@code openAirspace} in traceReverb). A SPACE-CONNECTIVITY measure: it says how much of
+         * the reflecting surface around the source can reach the listener at all, rather than whether the
+         * straight line between them is clear. It already drives the send cutoffs; the send GAINS use it too
+         * now, so a reverberant field still arrives through an opening the direct path cannot use.
+         */
+        float openAirspace;
         /** Mean reflectivity of the first bounce: soft ground absorbs, stone returns. */
         float reflectivity;
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
@@ -576,8 +584,20 @@ public final class SoundFXUtils {
         // afterwards to all four sends, which worked for sends 0-2 but was silently discarded for send 3:
         // finalizeSendGains used to assign sendGain3 outright, so anything multiplied in beforehand was
         // thrown away. It now weights send 3 like the other zones, so all four take the occlusion.
+        // The sends are the reverb AMOUNT, accumulated from the SOURCE's rays, and they are gated by how much
+        // of the reflecting surface can reach the listener at all - NOT by whether the straight line from the
+        // source happens to be clear. Gating by the line alone conflated "can I hear the direct sound" with
+        // "is there a reverberant field here": in a mine with a one-block hole between two levels, standing
+        // next to the hole made the line clear and the reverb loud, while standing away from it drove the
+        // whole tail to zero - even though the source's own cavity is fully excited and the field leaks
+        // through the hole regardless.
+        //
+        // max() of the two is deliberate: strictly additive, so this can only ADD reverb where the space is
+        // connected but the line is blocked. A sealed room with the listener outside still reads ~0 on both
+        // terms, so the village-hut fix the floor was set to 0 for survives.
+        final float spaceShare = MathStuff.clamp1(reverb.openAirspace / 20.0F);
         final float sendOcclusionGain = SEND_OCCLUSION_FLOOR
-                + (1F - SEND_OCCLUSION_FLOOR) * MathStuff.clamp1(directHfCutoff);
+                + (1F - SEND_OCCLUSION_FLOOR) * Math.max(MathStuff.clamp1(directHfCutoff), spaceShare);
 
         finalizeSendGains(reverb, sendOcclusionGain, this.lastReverbMeanFreePath);
 
@@ -624,12 +644,12 @@ public final class SoundFXUtils {
         if (AudioTuning.shouldTrace()) {
             AudioTuning.recordTrace(String.format(
                                                                                     "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                        + "level=%.4f send=%.3f material=%.3f lossdb=%.1f edge=%b edgedb0=%.1f edgedb1=%.1f "
+                        + "level=%.4f send=%.3f space=%.3f material=%.3f lossdb=%.1f edge=%b edgedb0=%.1f edgedb1=%.1f "
                         + "edgedb2=%.1f clear=%.2f walk=%d walkm=%.1f rv=%.1f rvhit=%.2f rvrefl=%.2f far=%.0f mfp=%.1f "
                         + "shared=%d ret=%d face=%.3f g0=%.3f g1=%.3f g2=%.3f g3=%.3f rays=%d cost=%.0f ",
                     this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                     MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
-                    sendOcclusionGain, this.lastMaterialSum, this.lastZoneLossDb,
+                    sendOcclusionGain, spaceShare, this.lastMaterialSum, this.lastZoneLossDb,
                     this.lastEdgeFound,
                     this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
                     this.lastWalkSegments, this.lastWalkDistance,
@@ -848,6 +868,7 @@ public final class SoundFXUtils {
         // `returnedBounces` is no longer converted here: it was only ever used to fill a field nothing
         // read. It is still counted, because the probe reports it as `ret=`.
         final float openAirspace = openBounces * RECIP_TOTAL_RAYS * 64F;
+        out.openAirspace = openAirspace;
 
         // Observation point. `shared` is the raw count of bounces sitting in open air (clear sky above), and
         // `ret` is the raw count of bounces that came back off a surface facing the source - a valley scores

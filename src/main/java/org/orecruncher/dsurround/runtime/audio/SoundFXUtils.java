@@ -414,6 +414,12 @@ public final class SoundFXUtils {
         float earlyReflection;
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
         float earlyReflectionCutoff;
+        /**
+         * Lower bound for the DIRECT path's brightness, from the share of reflections that come back through
+         * the listener's own airspace. Zero in the open; in an enclosed space it stops the direct sound from
+         * being darkened by the very rock the reflections travelled around.
+         */
+        float directCutoffFloor;
     }
 
     public void calculate(final @NotNull WorldContext ctx) {
@@ -485,6 +491,15 @@ public final class SoundFXUtils {
 
         final ReverbTrace reverb = new ReverbTrace();
         traceReverb(ctx, soundPos, sendCoeff, reverb);
+
+        // The direct path gets a brightness floor from the reflections, after the trace has measured how many
+        // of them come back through the listener's own airspace. This is the original mod's rule, restored:
+        // an enclosed space darkens the direct sound hard, and without the floor nothing puts the brightness
+        // back, which is what made a cave sound thin rather than reverberant.
+        //
+        // It can only RAISE the cutoff, so an open scene (where the floor is zero) is unaffected.
+        directCutoff = Math.max(directCutoff, reverb.directCutoffFloor);
+        directHfCutoff = Math.max(directHfCutoff, reverb.directCutoffFloor);
 
         // The edge path is already part of the occlusion (see calculateOcclusion), so there is nothing to
         // restore here. This used to run a second, ring-based diffraction probe over the top of it, which
@@ -584,6 +599,9 @@ public final class SoundFXUtils {
         // Bounces in open air, i.e. with clear sky above. Feeds the send-cutoff weights, which is what it
         // has always fed; it is a different quantity from the one above and must stay separate.
         float openBounces = 0F;
+        // Whether any bounce point of this ray so far has a clear straight line to the ear. See the
+        // two-test note at the openBounces increment: the line test is the one that works INDOORS.
+        boolean earVisible = false;
         // Observation-point accumulators. See the lastReverb* fields for why they exist.
         float firstDistanceSum = 0F;
         float firstReflectivitySum = 0F;
@@ -701,7 +719,31 @@ public final class SoundFXUtils {
                     if (returned > 0F) {
                         returnedBounces += 1.0F;
                     }
-                    if (openAir(ctx, lastHitPos)) {
+                    // A bounce counts towards the send cutoffs - which is what makes a tail BRIGHT and long -
+                    // when the reflection point is in the same airspace as the ear. TWO tests, and both are
+                    // needed because each one is blind exactly where the other works:
+                    //
+                    //   * a clear straight line to the ear. This is the original mod's test and it is the one
+                    //     that works INDOORS: a cave's walls are a few blocks away, so their reflection points
+                    //     can see the listener. It reads zero outdoors, because the ear sits ~1.6 blocks above
+                    //     the ground and a grazing line is blocked by any terrain rise.
+                    //   * open sky above. This works OUTDOORS, where the line test fails, and reads zero
+                    //     underground.
+                    //
+                    // Replacing the line test with the sky test alone - which an earlier revision did, to fix
+                    // the outdoor case - silently removed the indoor case with it, and a cave lost its long
+                    // bright tail because sendCutoff collapsed to exp(sendCoeff) there.
+                    // `openBounces` is a COUNT, so this only has to be established once per RAY: if the
+                    // ear was visible from an earlier bounce point of this same ray, the count is already
+                    // decided and no later bounce can change it. Re-casting it on every bounce was 96 wasted
+                    // raycasts per evaluation on defaults - about a third of the budget - for no effect on
+                    // the result.
+                    if (!earVisible) {
+                        final Vec3 bounceAirStart = MathStuff.addScaled(lastHitPos, lastHitNormal, 0.01F);
+                        if (isMiss(traceContext.trace(bounceAirStart, ctx.playerEyePosition)))
+                            earVisible = true;
+                    }
+                    if (earVisible || openAir(ctx, lastHitPos)) {
                         openBounces += 1.0F;
                     }
                     facingSum += returned;
@@ -768,6 +810,14 @@ public final class SoundFXUtils {
         out.sendCutoff1 = exp1 * (1.0F - sharedAirspaceWeight1) + sharedAirspaceWeight1;
         out.sendCutoff2 = exp2 * (1.0F - sharedAirspaceWeight2) + sharedAirspaceWeight2;
         out.sendCutoff3 = exp2 * (1.0F - sharedAirspaceWeight3) + sharedAirspaceWeight3;
+
+        // The physical reading is that a reflection arriving through open air has crossed no rock, so the
+        // direct path's material darkening is the wrong filter for it - the same argument already made for
+        // the early-reflection cutoffs below. Reported to the caller through the trace so the direct filter
+        // can use it.
+        final float averageSharedAirspace = (sharedAirspaceWeight0 + sharedAirspaceWeight1
+                + sharedAirspaceWeight2 + sharedAirspaceWeight3) * 0.25F;
+        out.directCutoffFloor = Math.max((float) Math.sqrt(averageSharedAirspace) * 0.2F, 0F);
 
         // ------------------------------------------------------- returned energy (open space)
         //

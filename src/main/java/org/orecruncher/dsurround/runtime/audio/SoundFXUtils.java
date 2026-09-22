@@ -56,12 +56,6 @@ public final class SoundFXUtils {
      */
     private static final float SPEED_OF_SOUND = 343F;
     /**
-     * Gain of the knife-edge diffraction loss. The knife-edge amplitude is 0.5 at the shadow boundary and
-     * rises towards 1 as the detour clears; this scales how much of that loss is applied, so the model stays
-     * tunable against the game's own reverb rather than being taken on faith.
-     */
-    private static final float EDGE_DIFFRACTION_LOSS = 0.75F;
-    /**
      * Smallest path-length detour (blocks) the knife-edge formula is evaluated at. Zero detour means the wave
      * grazes the edge exactly, which is the 0.5 amplitude case, not an infinite one.
      */
@@ -1274,11 +1268,24 @@ public final class SoundFXUtils {
      * clears. Without the wavelength term every frequency diffracted alike, which is wrong in the one way
      * that matters: a low frequency bends around an obstacle that stops a high one outright.
      */
-    private static float edgeAmplitude(final float delta, final float frequencyHz) {
+    private static float edgeAmplitude(final float delta, final float frequencyHz, final float spread) {
         final double lambda = SPEED_OF_SOUND / Math.max(1F, frequencyHz);
         final double n = Math.sqrt(Math.max(0.0D, 2.0D * delta / lambda));
         final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
-        return 1F - EDGE_DIFFRACTION_LOSS * (1F - loss);
+        // STANDARD knife-edge amplitude: 0.5 (-6 dB) at the shadow boundary, rising to 1 in the lit
+        // region. This used to be 1 - 0.75*(1 - loss), a fitted form that put the boundary at 0.625
+        // (-4.1 dB) instead. The fitted constant had no physical basis and the standard value is the one
+        // the reference acoustic model uses. Dropping it makes the edge term weaker, which is intended.
+        //
+        // The result is then scaled by how much the bent path spreads. Without that term the amplitude
+        // saturated almost immediately - measured, even a 5 cm detour returned 70-87% of the energy and a
+        // 1 m detour returned 89-100% - and it did not depend on distance or on the size of the opening
+        // AT ALL, so a single small opening anywhere within the search range let most of the sound
+        // through. That is the model behind "a sound fifteen blocks above a mine is still fully audible".
+        // A wave that goes around an edge has travelled further than one that goes straight, and its
+        // energy is spread over the larger wavefront: for AMPLITUDE that is the ratio of the straight
+        // distance to the bent path length.
+        return loss * MathStuff.clamp1(spread);
     }
 
     /**
@@ -1379,10 +1386,17 @@ public final class SoundFXUtils {
         this.lastEdgeDelta = clearance;
         this.lastEdgeFound = true;
 
+        // How much the bent path spreads relative to the straight line. The wave travels d1 + h and
+        // h + d2 instead of the direct line, so its amplitude is diluted by the ratio of the two path
+        // lengths. This is the distance/aperture dependence the edge term used to be missing.
+        final double bentPath = Math.sqrt(d1 * d1 + (double) clearance * clearance)
+                + Math.sqrt(d2 * d2 + (double) clearance * clearance);
+        final float spread = (float) (directLen / Math.max(1.0E-6D, bentPath));
+
         final int bands = bandCount();
         final float[] amplitudes = new float[bands];
         for (int band = 0; band < bands; band++) {
-            amplitudes[band] = edgeAmplitude((float) Math.max(MIN_EDGE_DETOUR, detour), bandFrequency(band));
+            amplitudes[band] = edgeAmplitude((float) Math.max(MIN_EDGE_DETOUR, detour), bandFrequency(band), spread);
             if (band < this.lastEdgeDb.length)
                 this.lastEdgeDb[band] = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, amplitudes[band])));
         }

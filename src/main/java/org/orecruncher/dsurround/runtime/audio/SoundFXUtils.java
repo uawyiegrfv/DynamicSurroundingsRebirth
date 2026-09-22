@@ -545,26 +545,28 @@ public final class SoundFXUtils {
         // computed: if these numbers do not move when standing behind a wall, the path is not
         // running for the sound being listened to; if they do move and nothing is heard, the
         // problem is the filter or the audibility of the band, not the model.
-        AudioTuning.recordTrace(String.format(
-                "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                        + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
-                        + "clear=%.2f walk=%d/%.1fm "
-                        + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%d ret=%d face=%.3f erf=%.4f "
-                        + "g=%.3f,%.3f,%.3f,%.3f "
-                        + "rays=%d cost=%.0fus",
-                this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
-                MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
-                sendOcclusionGain, this.lastMaterialSum, this.lastOpenness, this.lastZoneLossDb,
-                this.lastEdgeFound,
-                this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
-                this.lastWalkSegments, this.lastWalkDistance,
-                this.lastReverbFirstDistance, this.lastReverbHitFraction,
-                this.lastReverbReflectivity, this.lastReverbFarthest,
-                this.lastReverbMeanFreePath, this.lastReverbShared, this.lastReturnedBounces, this.lastFacingShare,
-                this.lastEarlyReflectionGain,
-                reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
-                ReusableRaycastContext.raycastCount(),
-                (System.nanoTime() - evaluationStart) / 1000.0D));
+        if (AudioTuning.logAudioTrace()) {
+            AudioTuning.recordTrace(String.format(
+                    "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
+                            + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
+                            + "clear=%.2f walk=%d/%.1fm "
+                            + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%d ret=%d face=%.3f erf=%.4f "
+                            + "g=%.3f,%.3f,%.3f,%.3f "
+                            + "rays=%d cost=%.0fus",
+                    this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
+                    MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
+                    sendOcclusionGain, this.lastMaterialSum, this.lastOpenness, this.lastZoneLossDb,
+                    this.lastEdgeFound,
+                    this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
+                    this.lastWalkSegments, this.lastWalkDistance,
+                    this.lastReverbFirstDistance, this.lastReverbHitFraction,
+                    this.lastReverbReflectivity, this.lastReverbFarthest,
+                    this.lastReverbMeanFreePath, this.lastReverbShared, this.lastReturnedBounces, this.lastFacingShare,
+                    this.lastEarlyReflectionGain,
+                    reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
+                    ReusableRaycastContext.raycastCount(),
+                    (System.nanoTime() - evaluationStart) / 1000.0D));
+        }
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
     }
@@ -1041,8 +1043,15 @@ public final class SoundFXUtils {
             // wall sounds. See materialAbsorptionScale.
             final float bandLossDb = materialLossDb * materialAbsorptionScale(bandFrequency(band));
             float amplitude = amplitudeFromDb(bandLossDb);
-            if (edgeAmplitude != null && band < edgeAmplitude.length)
-                amplitude += edgeAmplitude[band];
+            // Transmission through the material and diffraction around its edge are two INDEPENDENT
+            // paths, so their POWERS add: combining amplitudes means the square root of the sum of
+            // squares. Adding the amplitudes let the total exceed the incident energy - a linear sum
+            // of two terms each up to 1 reaches 2 - and the clamp below only hid that. This form is
+            // bounded by 1 by construction, so the clamp is a safety net rather than part of the model.
+            if (edgeAmplitude != null && band < edgeAmplitude.length) {
+                final float edge = edgeAmplitude[band];
+                amplitude = (float) Math.sqrt(amplitude * amplitude + edge * edge);
+            }
             amplitude = MathStuff.clamp1(amplitude);
             final float db = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, amplitude)));
             final float weight = bandWeight(band);

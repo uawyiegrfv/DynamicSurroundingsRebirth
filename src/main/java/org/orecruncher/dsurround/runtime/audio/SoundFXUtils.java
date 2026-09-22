@@ -133,7 +133,13 @@ public final class SoundFXUtils {
      * DELAY OpenAL wants for AL_EAXREVERB_REFLECTIONS_DELAY. The constant was already used inside the
      * per-ray delay estimate below; naming it keeps the two in step.
      */
-    private static final float SECONDS_PER_BLOCK = 1.0F / 343.0F;
+    /**
+     * Speed of sound in water, m/s. Air is {@link #SPEED_OF_SOUND} (343), so water is about 4.3x
+     * faster and an underwater reflection arrives about 4.3x sooner. The reflection delay
+     * interpolates between the two by how much of the path is actually submerged; using the air
+     * constant everywhere put underwater reflections at air-timed delays.
+     */
+    private static final float WATER_SPEED_OF_SOUND = 1480F;
     /** Skylight at a position that can see the sky in full. */
     /**
      * Reference gain of the early reflection, applied to the returned-energy share AFTER the physical
@@ -310,6 +316,8 @@ public final class SoundFXUtils {
      */
     /** Mean distance to the first reflection, in blocks. Small = a room, large = a valley wall. */
     private float lastReverbFirstDistance;
+    /** Submerged share (0..1) of the direct path, for the reflection-tap speed of sound. */
+    private float lastSubmergedShare;
     /**
      * Farthest reflection of any bounce, in blocks, measured from the source.
      *
@@ -602,6 +610,13 @@ public final class SoundFXUtils {
         // (propagation path + ear submerged).
         final Vec3 rawSourcePos = this.source.getPosition();
         final float waterLength = calculateWaterPathLength(ctx, rawSourcePos, ctx.playerEyePosition);
+        // Submerged SHARE of the direct path, kept for the reflection-tap delay, which is computed in a
+        // different method. Water carries sound ~4.3x faster than air, so a reflection that travels
+        // underwater must arrive sooner; see the tap site.
+        final float straightDistance = (float) rawSourcePos.distanceTo(ctx.playerEyePosition);
+        this.lastSubmergedShare = straightDistance > 0.01F
+                ? MathStuff.clamp1(waterLength / straightDistance)
+                : 0F;
         // The low-pass (muffling) and the volume use separate per-block factors. Muffling
         // is kept strong so underwater sound is clearly muffled in every direction and
         // masks the reverb system's cut-off jitter in deep water; the volume uses a gentler
@@ -950,10 +965,27 @@ public final class SoundFXUtils {
                 (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
                         * facingShare * EARLY_REFLECTION_GAIN * reflectionDistanceScale,
                 this.source.isImmediateUpdate());
-        Effects.reflectionTapGain = reflectionTap;
         // Delay from the first-reflection distance: a near wall fuses with the direct sound, a distant
         // one arrives as a separate event. OpenAL clamps the value to its own 0..0.3 s range.
-        Effects.reflectionTapDelay = this.lastReverbFirstDistance * SECONDS_PER_BLOCK;
+        //
+        // The speed of sound follows the path: water is ~1480 m/s against air's 343, so a reflection
+        // that travels underwater arrives ~4.3x sooner. lastSubmergedShare is measured alongside the
+        // water damping (the submerged share of the direct path) and is the right proxy here, because
+        // the reflection and the direct sound cross the same body of water.
+        final float speedOfSound = SPEED_OF_SOUND
+                + (WATER_SPEED_OF_SOUND - SPEED_OF_SOUND) * this.lastSubmergedShare;
+        final float reflectionTapDelay = this.lastReverbFirstDistance / speedOfSound;
+
+        // The tap is a property of the effect SLOT, so it is GLOBAL - one value for every sound in the
+        // zone. Writing it straight from each source evaluation meant the value was decided by whichever
+        // source happened to be evaluated last, so it depended on evaluation order rather than on the
+        // space. Keeping the strongest reflection seen in this pass makes it order independent and still
+        // says the true thing ("a reflection this strong exists in this space"). Reset by beginPass().
+        if (reflectionTap >= passTapGain) {
+            passTapGain = reflectionTap;
+            Effects.reflectionTapGain = reflectionTap;
+            Effects.reflectionTapDelay = reflectionTapDelay;
+        }
         // Consumed by finalizeSendGains: it feeds the tail, not the reflection tap.
         out.earlyReflection = reflectionTap;
         // The early-reflection zones are kept BRIGHT. A reflection off a distant wall travels through AIR,
@@ -1319,7 +1351,17 @@ public final class SoundFXUtils {
      */
     public static void beginPass() {
         currentPass++;
+        // The reflection tap is global (per effect slot), so it is decided per PASS, not per source:
+        // see the tap site. Reset here so each pass keeps its own strongest reflection.
+        passTapGain = 0F;
     }
+
+    /**
+     * Strongest discrete-reflection tap seen in the current pass. The tap lives on the effect slot, so
+     * it is one global value; without this it was overwritten by every source evaluation and ended up
+     * being whatever the last-evaluated source computed, which made it order dependent.
+     */
+    private static float passTapGain;
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target,
                                  final Vec3[] firstOccluder) {

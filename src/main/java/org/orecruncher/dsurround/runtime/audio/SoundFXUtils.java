@@ -307,7 +307,8 @@ public final class SoundFXUtils {
     /** Submerged share (0..1) of the direct path, for the reflection-tap speed of sound. */
     private float lastSubmergedShare;
     /**
-     * Farthest reflection of any bounce, in blocks, measured from the source.
+     * Farthest reflection of any bounce, in blocks, measured FROM THE LISTENER (a reflection reaches the
+     * ear after travelling from the surface).
      *
      * <p>Needed because the FIRST reflection cannot tell a room from a valley: a listener standing on the
      * ground hits the ground first, so the first bounce is a few blocks away in both cases (measured: median
@@ -1425,11 +1426,17 @@ public final class SoundFXUtils {
      * How much of the material absorption applies at {@code frequencyHz}, relative to
      * {@link #MATERIAL_REFERENCE_HZ}.
      *
-     * <p>A wall's transmission falls with frequency - the mass law, where a partition's transmission loss
-     * grows about 6 dB per octave above its coincidence frequency, so the amplitude exponent goes as
-     * sqrt(f). Before this the material term used ONE coefficient for every band, which is the one place the
-     * model was still frequency-blind: it made a wall equally transparent to a 2 kHz clink and a 125 Hz
-     * rumble, when the rumble is precisely the part that gets through.
+     * <p>A wall's transmission falls with frequency. The mass law puts a partition's transmission loss about
+     * 6 dB per octave above its coincidence frequency, and that is ADDITIVE in dB:
+     * {@code loss(f) = loss_ref + 6 * log2(f / f_ref)}. What this method actually applies is a MULTIPLIER of
+     * {@code sqrt(f / f_ref)} on the dB loss, which is NOT that law - 6 dB per octave on intensity gives a
+     * transmission falling as 1/f, and sqrt(f) corresponds to roughly 3 dB per octave. The form is kept
+     * deliberately: it is a usable fit with the right shape (monotonic, steeper for higher bands, and exactly
+     * 1 at the reference so every earlier measurement stays valid), and a true mass law would need a
+     * per-material coincidence frequency this model does not have. Before this the material term used ONE
+     * coefficient for every band, which is the one place the model was still frequency-blind: it made a wall
+     * equally transparent to a 2 kHz clink and a 125 Hz rumble, when the rumble is precisely the part that
+     * gets through.
      *
      * <p>This is a power-law approximation, not a per-material absorption spectrum: the block library stores
      * one occlusion value per block, not one per octave band, and adding that would mean a data change across

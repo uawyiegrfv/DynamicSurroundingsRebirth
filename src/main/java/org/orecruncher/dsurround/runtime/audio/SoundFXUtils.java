@@ -38,9 +38,11 @@ public final class SoundFXUtils {
      * How far the clearance search reaches, and the size of each successive step.
      *
      * <p>The offsets grow GEOMETRICALLY: fine near the line, where an opening is close enough for its position
-     * to matter, and coarse far out. This drives the EDGE term only - a distant opening is carried by
-     * {@link #listenerOpenness} instead, because a knife edge cannot carry it (a large detour means negligible
-     * diffraction). An earlier revision stretched this to 47 blocks on the theory that finding a distant
+     * to matter, and coarse far out. This drives the EDGE term only. A distant opening used to be carried by a
+     * separate listener-openness term on the theory that a knife edge cannot carry it; that term is gone - it
+     * was direction blind and cancelled the material walk's loss (see the note at materialLossDb). An opening
+     * now contributes through the edge term plus whatever the walk measures along the line.
+     * An earlier revision stretched this to 47 blocks on the theory that finding a distant
      * opening would help; measured, it did not - it pulled in unrelated airspace and cost rays for nothing.
      *
      * <p>Max offset = START * GROWTH^(STEPS-1) = 0.75 * 1.3^11, about 13 blocks.
@@ -145,15 +147,9 @@ public final class SoundFXUtils {
      */
     private static final float WATER_SPEED_OF_SOUND = 1480F;
     /** Skylight at a position that can see the sky in full. */
+    /** Sky light level at which a position counts as open air; also the top of the 0-15 range. */
     private static final int MAX_SKY_LIGHT = 15;
-    /** How far the listener may drift before the cached openness is recomputed within one pass. */
-    private static final double OPENNESS_CACHE_TOLERANCE_SQR = 0.25D;
-
-    /** Listener openness, cached per processing pass: it depends only on the listener's position. */
     private static volatile long currentPass;
-    private static long cachedOpennessPass = Long.MIN_VALUE;
-    private static Vec3 cachedOpennessEye = Vec3.ZERO;
-    private static float cachedOpenness = 1F;
 
     private static final IBlockLibrary BLOCK_LIBRARY = ContainerManager.resolve(IBlockLibrary.class);
     private static final ISeasonalInformation SEASONAL_INFORMATION = ContainerManager.resolve(ISeasonalInformation.class);
@@ -288,13 +284,11 @@ public final class SoundFXUtils {
     private Vec3 lastOccluderPos;
     /**
      * The point the wave escapes through beside the first obstacle, or null when the search found no opening.
-     * Used for diagnostics only now - the material term measures the straight line and the openness term
-     * carries the opening.
+     * Used for diagnostics only now - the material term measures the straight line, and the edge term carries
+     * what an opening contributes.
      */
     @Nullable
     private Vec3 lastEdgePoint;
-    /** Listener openness from the most recent measurement, reported by the probe. */
-    private float lastOpenness = 1F;
     /**
      * Reverb geometry from the most recent measurement, reported by the probe as {@code rv=}.
      *
@@ -568,14 +562,14 @@ public final class SoundFXUtils {
         if (AudioTuning.logAudioTrace()) {
             AudioTuning.recordTrace(String.format(
                     "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                            + "level=%.4f send=%.3f material=%.3f open=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
+                            + "level=%.4f send=%.3f material=%.3f lossdb=%.1f edge=%b edgedb=%.1f/%.1f/%.1f "
                             + "clear=%.2f walk=%d/%.1fm "
                             + "rv=%.1fm/%.2f/%.2f/%.2f far=%.0fm mfp=%d ret=%d face=%.3f erf=%.4f "
                             + "g=%.3f,%.3f,%.3f,%.3f "
                             + "rays=%d cost=%.0fus",
                     this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                     MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
-                    sendOcclusionGain, this.lastMaterialSum, this.lastOpenness, this.lastZoneLossDb,
+                    sendOcclusionGain, this.lastMaterialSum, this.lastZoneLossDb,
                     this.lastEdgeFound,
                     this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
                     this.lastWalkSegments, this.lastWalkDistance,
@@ -1041,7 +1035,6 @@ public final class SoundFXUtils {
             this.lastOccluderPos = null;
             this.lastEdgePoint = null;
             this.lastCenterOcclusion = 0F;
-            this.lastOpenness = 1F;
             this.lastZoneLossDb = 0F;
             this.lastEdgeFound = false;
             this.lastEdgeDelta = 0F;
@@ -1066,25 +1059,22 @@ public final class SoundFXUtils {
                 : null;
         this.lastEdgeFound = edgeAmplitude != null;
 
-        // How much of the listener's surroundings is open air. See listenerOpenness: this is the term that
-        // carries a distant opening, and the one that makes the transition at a cave mouth continuous.
-        final float openness = listenerOpenness(ctx, target);
-        this.lastOpenness = openness;
-
         final float absorption = Effects.GLOBAL_BLOCK_ABSORPTION * 3.0F;
-        // The material loss is scaled by the SHARE OF DIRECTIONS THAT ARE NOT OPEN.
+        // The material walk's loss is used AS MEASURED. It used to be scaled by an "open share" read from the
+        // LISTENER's sky light, on the reasoning that only energy arriving along a blocked direction has to
+        // cross rock. That reasoning is right for a listener at a cave mouth, but sky light is a VERTICAL
+        // measurement and therefore direction blind: it cannot tell an opening toward the source from one on
+        // the far side. Two consequences, both wrong:
         //
-        // Only the energy arriving along a blocked direction has to cross the rock; everything arriving through
-        // the open share does not. So a listener in a cave with an opening above has most of its directions
-        // blocked and keeps the loss, while a listener at the mouth has most directions open and the loss
-        // falls away - continuously, because the open share changes continuously as the opening moves across
-        // the sky.
+        //   * a hole dug to the sky cancelled the loss for a sound coming from BELOW it - the listener's own
+        //     ceiling opening cleared a path through the floor;
+        //   * an open scene reads sky light 1, so transmitted became 1, and sqrt(t*t + e*e) then clamped to 1
+        //     - which pinned the EDGE term to 1 as well. Outdoor occlusion and outdoor diffraction were both
+        //     dead, so the edge model's entire tuning only ever applied indoors, the opposite of its intent.
         //
-        // Scaling the loss (rather than the occlusion value, or interpolating the cutoff) is what makes this
-        // work. Checked numerically in tools/design_openness2.py: scaling the occlusion runs BACKWARDS, and
-        // interpolating the cutoff concentrates the whole change at the very end because the sealed cutoff is
-        // five orders of magnitude below 1. Scaling the loss is monotonic and spread out for every material.
-        final float materialLossDb = MATERIAL_LOSS_DB_PER_UNIT * centerMaterial * (1F - openness);
+        // The walk already measures what is actually in the way, along the actual line. A quantity that cannot
+        // see direction must not be allowed to cancel it.
+        final float materialLossDb = MATERIAL_LOSS_DB_PER_UNIT * centerMaterial;
         // The probe keeps reporting a TRANSMISSION FACTOR, so the column stays comparable with every earlier
         // session. It is taken at the reference frequency, where the per-band scaling is 1.
         this.lastMaterialSum = amplitudeFromDb(materialLossDb);
@@ -1135,8 +1125,11 @@ public final class SoundFXUtils {
     }
 
     /**
-     * The listener's raw skylight level (0-15). Exposed so the sound processor can detect that the openness
-     * term is mid transition and re-evaluate immediately instead of waiting for the next scheduled update.
+     * The listener's raw skylight level (0-15). Exposed so the sound processor can force an immediate
+     * re-evaluation when the listener crosses a boundary - entering or leaving a cave mouth, or digging
+     * through to the sky - rather than waiting up to half a second for the next scheduled update. The
+     * openness term this was originally added for is gone, but the trigger still matters: it is what keeps
+     * the material walk's transition smooth instead of stepped.
      */
     public static int listenerSkyLight(final WorldContext ctx) {
         if (ctx == null || ctx.world == null || ctx.playerEyePosition == null)
@@ -1146,47 +1139,7 @@ public final class SoundFXUtils {
     }
 
     /**
-     * How much sky the listener's position can see, as a fraction: 1 outdoors, 0 deep inside rock.
-     *
-     * <p>This is the term that answers "how open is the space the listener is standing in", and it is what
-     * carries a distant opening. A knife-edge cannot: an opening far from the straight line has a large
-     * detour and therefore negligible diffraction, yet sound plainly does reach through it - not by bending
-     * around an edge, but because the air is CONNECTED. How much sky the position sees is the honest way to
-     * express that, and unlike "is there an opening on the line" it is a continuous quantity, so walking out
-     * of a cave mouth fades instead of snapping.
-     *
-     * <p>It is read from the SKY LIGHT at the ear, and that is not a shortcut - sky light IS a measurement of
-     * sky visibility. Minecraft's light engine propagates it downward and sideways, so a position at a cave
-     * mouth reads high (light spills in through the opening) and one deep inside reads 0, with a smooth
-     * gradient between them. That gradient is exactly the transition that was missing. It also costs one
-     * block lookup instead of a raycast.
-     *
-     * <p>An earlier revision cast rays and tested canSeeSky, which cannot work here: the test is VERTICAL
-     * (does this column see the sky), so from inside a mine the rays have to travel all the way up through
-     * the rock to find anything, and 24 blocks was nowhere near enough - measured, open= read 0.000 in the
-     * cave, so the term did nothing at all. Reading the light level gets the same information without the
-     * walk, and it accounts for openings that are horizontal rather than overhead, which is what a mine has.
-     *
-     * <p>LightLayer.SKY is the raw skylight, unaffected by the day/night curve, so the term does not drift
-     * between noon and midnight.
-     */
-    private static float listenerOpenness(final WorldContext ctx, final Vec3 eye) {
-        final long pass = currentPass;
-        if (pass == cachedOpennessPass) {
-            if (cachedOpennessEye.distanceToSqr(eye) < OPENNESS_CACHE_TOLERANCE_SQR)
-                return cachedOpenness;
-        }
-
-        final int sky = ctx.world.getBrightness(LightLayer.SKY, BlockPos.containing(eye.x(), eye.y(), eye.z()));
-        cachedOpenness = Math.max(0F, Math.min(1F, sky / (float) MAX_SKY_LIGHT));
-        cachedOpennessEye = eye;
-        cachedOpennessPass = pass;
-        return cachedOpenness;
-    }
-
-    /**
-     * Marks the start of a new processing pass, so the cached listener openness is recomputed once per pass
-     * rather than once per sound. Called by the sound processor before it evaluates its batch.
+     * Marks the start of a new processing pass. Called by the sound processor before it evaluates its batch.
      */
     public static void beginPass() {
         currentPass++;

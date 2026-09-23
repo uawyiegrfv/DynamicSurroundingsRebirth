@@ -10,10 +10,64 @@
 > 1.20.1 (Forge) · 1.21.1 (NeoForge) · 26.1 (NeoForge) — one guide, three ports. Version-only
 > differences are flagged **`[1.20.1]`** / **`[26.1]`**; everything unmarked works identically on all three.
 > 三版通用。仅版本差异处标注 **`[1.20.1]`** / **`[26.1]`**；未标注的写法三版完全一致。
+>
+> **First time here? / 第一次来？** Read only **Start here** (English) or **从这里开始**（中文）—
+> a 5-minute walkthrough needing no resource pack and no prior experience. Then jump straight to the
+> one section for your task; **you do not need to read this document front to back.**
+> 只读 **Start here**（英文）或 **从这里开始**（中文）—— 5 分钟走一遍，不需要资源包、不需要前置经验。
+> 然后直接跳到你要做的那一节；**不需要从头读到尾。**
 
 ---
 
 ## Part I — English
+
+### Start here — your first change in 5 minutes
+
+**You do not need a resource pack, a zip, or any tool.** A plain folder and one text file is enough,
+and this walkthrough proves it end to end. Do it once, and everything later in this guide becomes
+"the same five steps, a different filename".
+
+**Goal: red fog in the plains.** Chosen because it needs no tags, no sound events and no config
+change — every switch it uses is already on by default.
+
+1. **Open your game folder** — the one that contains `mods` and `config`.
+2. **Go into `config/dsurround/configs/`.** The mod creates this folder for you. Inside it, make a
+   new folder named **`dsurround`**.
+3. **Inside that, create `biomes.json`** containing exactly this:
+
+```json
+[
+  { "biomeSelector": "biome.id == 'minecraft:plains'",
+    "fogColor": "#FF0000", "fogDensity": "heavy" }
+]
+```
+
+4. **Start the game and stand in a plains biome.** You should be inside red fog.
+5. **Nothing happened?** Type `/dsreload` in chat. Still nothing? Check you are really in plains —
+   `/locate biome minecraft:plains`. Once it is red, the file was read, the rule matched, and you
+   have watched the whole mechanism work.
+
+> **The one rule that trips everybody:** the folder name in step 2 must be the id of a **mod you
+> actually have installed**. It is checked, and a folder that is not a mod id is **ignored with no
+> warning and no log line**. `dsurround` is always safe — use it whenever you are unsure.
+
+**What you just did, in the words used below:** you wrote a *data file* (form A) at *location 3*,
+and because the disk folder is read **after** the mod's own files, your rule won.
+
+> If a rule of yours is ever ignored for no visible reason, it is usually **priority** — rules apply
+> in ascending order and the mod's own highest is 100. See §3.1.
+
+#### Do I need a resource pack?
+
+| I want to… | Resource pack? |
+| --- | --- |
+| change **which existing sound** plays (footstep, swing, biome ambience…) | **No** — use the disk folder |
+| change fog, biome, block, dimension or item rules | **No** — use the disk folder |
+| reclassify things (which items count as swords, which blocks leave footprints) | **No** — the disk folder holds tags too |
+| **add a brand-new `.ogg` recording of my own** | **Yes** — the only part that needs one |
+| hand my changes to other people as a pack | **Yes** — that is simply what a pack is for |
+
+Everything except *shipping a new recording* is done with a folder and a text editor.
 
 ### 0. Decide the *form* first
 
@@ -412,6 +466,54 @@ Everything else — file names, fields, codecs, merge behaviour — is identical
 ---
 
 ## Part II — 中文说明
+
+### 从这里开始 —— 5 分钟做出第一个改动
+
+**不需要资源包，不需要打包，不需要任何工具。** 一个普通文件夹加一个文本文件就够了，
+下面这套流程从头到尾证明这件事。走通一遍之后，本指南后面的所有内容都只是
+"同样五步，换个文件名"。
+
+**目标：让平原的雾变成红色。** 选它是因为它不需要标签、不需要声音事件、也不用改任何配置 ——
+它用到的开关默认全都是开的。
+
+1. **打开你的游戏目录** —— 就是含有 `mods` 和 `config` 的那个目录。
+2. **进入 `config/dsurround/configs/`。** 这个文件夹是模组自动建好的。在它里面**新建一个名为
+   `dsurround` 的文件夹**。
+3. **在里面新建 `biomes.json`**，内容就是下面这些，一字不差：
+
+```json
+[
+  { "biomeSelector": "biome.id == 'minecraft:plains'",
+    "fogColor": "#FF0000", "fogDensity": "heavy" }
+]
+```
+
+4. **启动游戏，走进平原群系。** 你应该身处红色的雾里。
+5. **没反应？** 在聊天栏输入 `/dsreload`。还是没反应？先确认自己真在平原 ——
+   `/locate biome minecraft:plains`。**一旦雾变红，就说明文件被读到了、规则命中了，
+   整套机制你已经完整看到了一遍。**
+
+> **最容易踩的那一条：** 第 2 步的文件夹名**必须是你在游戏里真实装了的模组的 id**。
+> 这个名字会被校验，**不是模组 id 的文件夹会被直接忽略，没有警告、没有日志**。
+> `dsurround` 永远是安全的 —— 拿不准就用它。
+
+**用下文的话说，你刚刚做的事是：** 在第 3 号位置写了一个*数据文件*（形式 A）；
+因为磁盘目录是在模组自带文件**之后**读取的，所以你这条规则赢了。
+
+> 如果你写的规则莫名其妙不生效，多半是**优先级**的问题 —— 规则按 `priority` 升序应用，
+> 模组自己的最高是 100。见 §3.1。
+
+#### 我需要资源包吗？
+
+| 我想做的事 | 要资源包吗 |
+| --- | --- |
+| 改**已有音效**用哪个（脚步、挥舞、群系氛围……） | **不要** —— 用磁盘目录 |
+| 改雾、群系、方块、维度、物品的规则 | **不要** —— 用磁盘目录 |
+| 改分类（哪些物品算剑、哪些方块留脚印） | **不要** —— 磁盘目录一样能放 tag |
+| **加入一个全新的 `.ogg` 音频文件** | **要** —— 这是唯一需要资源包的部分 |
+| 把你的改动打包发给别人 | **要** —— 资源包本来就是干这个的 |
+
+也就是说：**除了"发布一个新录音"，其它全部用一个文件夹加一个文本编辑器就能做完。**
 
 ### 0. 先决定"改的形式"
 

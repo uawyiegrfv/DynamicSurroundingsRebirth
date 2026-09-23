@@ -36,6 +36,41 @@ public final class SourceContext implements Callable<Void> {
     private static final int UPDATE_FREQUENCY_TICKS_FAR = 30;
     private static final double NEAR_BLOCKS = 16.0D;
     private static final double MID_BLOCKS = 32.0D;
+
+    /**
+     * The evaluation cadence the smoothing constants defined below were tuned against, in ticks.
+     *
+     * <p>NOT the nominal near band (10). exec() re-staggers the modulo phase after every evaluation,
+     * so the real gap is uniform over [1, interval] and the near band's true mean gap is
+     * (10 + 1) / 2 = 5.5 ticks. The alphas were picked against that real cadence, so that is what the
+     * reference has to be: using the nominal 10 would make the near band - the one the player notices
+     * most - settle about 50% slower than it does today, which is the opposite of what this change is
+     * for.
+     *
+     * <p>Those alphas are expressed per-UPDATE, so with the interval varying 10/20/30 ticks by
+     * distance the same alpha gives a three-fold different response time in seconds. smoothAlpha()
+     * re-bases them on the time that actually passed, using this as the reference, which keeps the
+     * near band exactly as responsive as it is now and speeds the distant bands up to match it.
+     *
+     * <p>Derived from the constant rather than hard-coded, so it follows if the near band changes.
+     */
+    private static final double SMOOTH_REFERENCE_TICKS = (UPDATE_FREQUENCY_TICKS_NEAR + 1) / 2.0D;
+
+    /**
+     * How far the listener may travel before a source's cached geometry counts as stale enough to
+     * re-evaluate early, in blocks (squared for the comparison). The distance bands decide how OFTEN
+     * a source is evaluated - that is the cost control and it stays; this bounds how far the player
+     * can move BETWEEN those evaluations, which is what fast movement needs.
+     */
+    private static final double LISTENER_MOVE_TRIGGER_SQ = 2.0D * 2.0D;
+
+    /**
+     * Floor on the displacement trigger's rate. Without it, fast travel (elytra, creative flight)
+     * would make every source due almost every tick and multiply the raycast cost by an order of
+     * magnitude. Three ticks caps the extra work at 3x the near rate while still cutting the lag.
+     */
+    private static final long MIN_DISPLACEMENT_INTERVAL_PASSES = 3L;
+
     // Time-smoothing for the water damping factor. The sampled underwater path length can jump
     // by a block when an entity bobs at the water surface (or the player wades). Alpha picks a
     // ~0.8 second settle time: fast enough that a change is not laggy, slow enough to smooth
@@ -93,6 +128,14 @@ public final class SourceContext implements Callable<Void> {
 
     private boolean isEnabled;
     private int updateCount;
+
+    // How many passes actually elapsed before this evaluation, so the smoothing can hold a constant
+    // response time in seconds. volatile: written by the evaluation on the pool, read on the worker.
+    private volatile double ticksSinceLastEvaluation = SMOOTH_REFERENCE_TICKS;
+    private volatile long lastEvalPass;
+    private volatile boolean lastEvalRecorded;
+    private volatile Vec3 lastEvalListenerPos;
+    private volatile boolean lastEvalListenerValid;
     private float smoothedWaterFactor = 1.0F;
     private boolean waterFactorInitialized;
     private float smoothedOcclusion = 0F;
@@ -200,6 +243,27 @@ public final class SourceContext implements Callable<Void> {
     }
 
     /**
+     * Re-bases a per-update smoothing constant on the time that actually passed, so the response
+     * time stays constant in SECONDS no matter which distance band the source is in.
+     *
+     * <p>This is the counterpart to keeping the distance bands: the bands are the performance
+     * mechanism and stay as they are, so the gap between evaluations legitimately varies from about
+     * one tick to a second and a half. A fixed alpha then means the same sound settles in ~0.3 s
+     * near and ~1.5 s far, and after a long gap a single 0.85 step is a large audible jump. Solving
+     * a0 per reference interval and rescaling by dt gives the continuous-time equivalent: at
+     * dt == reference it is exactly the original alpha, longer gaps approach 1 (which is where a
+     * continuous filter with the same time constant already would be), shorter ones shrink so the
+     * fade cannot outrun real time.
+     */
+    private float smoothAlpha(final float alpha0) {
+        final double dt = this.ticksSinceLastEvaluation;
+        final double ratio = dt / SMOOTH_REFERENCE_TICKS;
+        if (ratio == 1.0D)
+            return alpha0;
+        return (float) (1.0D - Math.pow(1.0D - alpha0, ratio));
+    }
+
+    /**
      * Time-smooths the water damping factor. The sampled underwater path length can jump
      * by a block when an entity bobs at the water surface (or the player wades); smoothing
      * turns the jump into a fade. When {@code snap} is true (the player just entered/left
@@ -210,7 +274,7 @@ public final class SourceContext implements Callable<Void> {
             this.waterFactorInitialized = true;
             this.smoothedWaterFactor = target;
         } else {
-            this.smoothedWaterFactor = ease(this.smoothedWaterFactor, target, WATER_SMOOTH_ALPHA);
+            this.smoothedWaterFactor = ease(this.smoothedWaterFactor, target, smoothAlpha(WATER_SMOOTH_ALPHA));
         }
         return this.smoothedWaterFactor;
     }
@@ -226,7 +290,7 @@ public final class SourceContext implements Callable<Void> {
             this.occlusionInitialized = true;
             this.smoothedOcclusion = target;
         } else {
-            this.smoothedOcclusion = ease(this.smoothedOcclusion, target, OCCLUSION_SMOOTH_ALPHA);
+            this.smoothedOcclusion = ease(this.smoothedOcclusion, target, smoothAlpha(OCCLUSION_SMOOTH_ALPHA));
         }
         return this.smoothedOcclusion;
     }
@@ -247,7 +311,7 @@ public final class SourceContext implements Callable<Void> {
             this.earlyReflectionInitialized = true;
             this.smoothedEarlyReflection = target;
         } else {
-            this.smoothedEarlyReflection = ease(this.smoothedEarlyReflection, target, EARLY_REFLECTION_SMOOTH_ALPHA);
+            this.smoothedEarlyReflection = ease(this.smoothedEarlyReflection, target, smoothAlpha(EARLY_REFLECTION_SMOOTH_ALPHA));
         }
         return this.smoothedEarlyReflection;
     }
@@ -267,7 +331,7 @@ public final class SourceContext implements Callable<Void> {
             System.arraycopy(gains, 0, this.smoothedSendGains, 0, this.smoothedSendGains.length);
         } else {
             for (int i = 0; i < this.smoothedSendGains.length; i++)
-                this.smoothedSendGains[i] = ease(this.smoothedSendGains[i], gains[i], SEND_GAIN_SMOOTH_ALPHA);
+                this.smoothedSendGains[i] = ease(this.smoothedSendGains[i], gains[i], smoothAlpha(SEND_GAIN_SMOOTH_ALPHA));
         }
         System.arraycopy(this.smoothedSendGains, 0, gains, 0, this.smoothedSendGains.length);
     }
@@ -284,7 +348,7 @@ public final class SourceContext implements Callable<Void> {
             this.diffractionInitialized = true;
             this.smoothedDiffraction = target;
         } else {
-            this.smoothedDiffraction = ease(this.smoothedDiffraction, target, DIFFRACTION_SMOOTH_ALPHA);
+            this.smoothedDiffraction = ease(this.smoothedDiffraction, target, smoothAlpha(DIFFRACTION_SMOOTH_ALPHA));
         }
         return this.smoothedDiffraction;
     }
@@ -360,7 +424,33 @@ public final class SourceContext implements Callable<Void> {
      * @return true the work item should be scheduled; false otherwise
      */
     public boolean shouldExecute() {
-        return (this.updateCount++ % updateIntervalTicks()) == 0;
+        if ((this.updateCount++ % updateIntervalTicks()) == 0)
+            return true;
+        return this.listenerMovedSinceLastEvaluation();
+    }
+
+    /**
+     * True when the listener has travelled far enough since this source was last evaluated that its
+     * cached occlusion/water geometry is worth recomputing.
+     *
+     * <p>The distance bands say nothing about how far the player moves in between two scheduled
+     * updates: sprinting from far to near crosses several blocks, so the muffling arrives late and
+     * then has to cover the whole change in one step. This closes that hole the same way the water
+     * and skylight triggers in SoundFXProcessor already do - "the next scheduled evaluation is up to
+     * half a second away, force it now" - but deliberately WITHOUT snapping, because here the
+     * geometry changed gradually and should be eased into rather than jumped to.
+     *
+     * <p>Cost: one squared-distance compare against a snapshot, so a stationary player pays nothing.
+     */
+    private boolean listenerMovedSinceLastEvaluation() {
+        if (!this.lastEvalListenerValid)
+            return false;
+        if (SoundFXProcessor.passCounter() - this.lastEvalPass < MIN_DISPLACEMENT_INTERVAL_PASSES)
+            return false;
+        final WorldContext ctx = SoundFXProcessor.getWorldContext();
+        if (ctx == null)
+            return false;
+        return this.lastEvalListenerPos.distanceToSqr(ctx.playerEyePosition) > LISTENER_MOVE_TRIGGER_SQ;
     }
 
     /**
@@ -401,14 +491,30 @@ public final class SourceContext implements Callable<Void> {
     }
 
     private void updateImpl() {
+        // Measure how long it really was since this source was last evaluated. The interval is
+        // distance-banded and re-staggered, so the real gap ranges from about one tick to a second
+        // and a half; the smoothing needs the real figure to keep its response time constant.
+        final WorldContext ctx = SoundFXProcessor.getWorldContext();
+        final long pass = SoundFXProcessor.passCounter();
+        this.ticksSinceLastEvaluation = this.lastEvalRecorded
+                ? Math.max(1L, pass - this.lastEvalPass)
+                : SMOOTH_REFERENCE_TICKS;
         try {
-            this.fxProcessor.calculate(SoundFXProcessor.getWorldContext());
+            this.fxProcessor.calculate(ctx);
         } catch (final Throwable t) {
             // Suppress to keep a failing source from killing the processing thread, but
             // leave an error breadcrumb: this catch previously hid real defects (e.g. an
             // unregistered accessor mixin throwing ClassCastException on every evaluation,
             // silently disabling reverb for every sound).
             LOGGER.error(t, "REVERB_CALCFAIL sound=%s", AudioUtilities.debugString(this.sound));
+        }
+        this.lastEvalPass = pass;
+        this.lastEvalRecorded = true;
+        // Remember where the listener was for this evaluation so the next scheduling pass can tell
+        // whether the geometry has moved enough to be worth an early re-evaluation (shouldExecute).
+        if (ctx != null) {
+            this.lastEvalListenerPos = ctx.playerEyePosition;
+            this.lastEvalListenerValid = true;
         }
     }
 

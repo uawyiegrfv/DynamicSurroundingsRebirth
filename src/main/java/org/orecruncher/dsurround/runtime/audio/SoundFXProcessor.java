@@ -106,6 +106,15 @@ public final class SoundFXProcessor {
     private static volatile WorldContext worldContext = new WorldContext();
 
     /**
+     * Monotonic count of sound-processing passes, incremented once per processSounds() iteration
+     * (20 a second - the worker runs at the client tick rate). SourceContext reads it to measure how
+     * many ticks actually elapsed between two evaluations of the same source, which is what lets the
+     * smoothing hold a constant response time in SECONDS while the evaluation interval still varies
+     * with distance.
+     */
+    private static volatile long passCounter;
+
+    /**
      * The evaluations submitted by the most recent pass, so teardown can wait for them.
      *
      * <p>Without this there is a use-after-free window. {@code processSounds} submits each evaluation to
@@ -129,6 +138,11 @@ public final class SoundFXProcessor {
 
     public static WorldContext getWorldContext() {
         return worldContext;
+    }
+
+    /** Passes completed since startup; see {@link #passCounter}. */
+    public static long passCounter() {
+        return passCounter;
     }
 
     /**
@@ -449,6 +463,8 @@ public final class SoundFXProcessor {
         // sources array - bail out quietly.
         if (snapshot == null)
             return;
+        // One pass = one worker iteration = one client tick (SOUND_PROCESS_ITERATION).
+        passCounter++;
         try {
             final ExecutorService pool = threadPool.get();
             assert pool != null;

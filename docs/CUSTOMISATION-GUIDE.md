@@ -68,6 +68,7 @@ and because the disk folder is read **after** the mod's own files, your rule won
 | hand my changes to other people as a pack | **Yes** — that is simply what a pack is for |
 
 Everything except *shipping a new recording* is done with a folder and a text editor.
+For the pack format itself, see **§8**.
 
 ### 0. Decide the *form* first
 
@@ -465,6 +466,95 @@ Everything else — file names, fields, codecs, merge behaviour — is identical
 
 ---
 
+### 8. Packaging it all as a resource pack
+
+**One pack can carry your audio, your textures and your DS data at the same time**, because all
+three live under the same `assets/` tree. This is the format to use when you want to *give* your
+changes to someone, or when you are adding your own `.ogg` files.
+
+```
+MyPack/                      ← a folder, or zip it; both work
+├── pack.mcmeta              ← required, or Minecraft will not load it
+├── pack.png                 ← optional icon
+└── assets/
+    └── mypack/              ← the namespace: you choose the name
+        ├── sounds.json      ← registers your .ogg files as sound events
+        ├── sounds/          ← your .ogg files
+        ├── textures/        ← your textures
+        ├── lang/            ← optional
+        └── dsconfigs/       ← DS data: sound_factories.json, biomes.json, tags/**, …
+```
+
+`pack.mcmeta` — one line changes per version:
+
+```json
+{ "pack": { "pack_format": 15, "description": "My Dynamic Surroundings pack" } }
+```
+
+| Port | `pack_format` |
+| --- | --- |
+| 1.20.1 | **15** |
+| 1.21.1 | **34** |
+| 26.1 | **84** |
+
+> A wrong number is not fatal — Minecraft still loads the pack after a confirmation prompt. Ship one
+> pack per version, or declare a range.
+
+#### The namespace rule is different here — and better
+
+On the disk folder the namespace **must be a loaded mod id**, or the folder is silently ignored.
+**In a resource pack any namespace works**, including one that is no mod at all (`mypack`, or
+upstream's own `dsurround_ex`). So a pack is the safer of the two places to put your data.
+
+#### Adding your own sound — the complete chain
+
+Three files, and the middle one is the one people forget:
+
+```jsonc
+// 1. assets/mypack/sounds.json  — register the event (vanilla format)
+{ "my_swing": { "sounds": ["mypack:swing/my_swing"] } }   // file: assets/mypack/sounds/swing/my_swing.ogg
+
+// 2. assets/mypack/dsconfigs/sound_factories.json  — turn it into a DS factory
+[ { "location": "mypack:swing", "soundEvent": "mypack:my_swing",
+    "category": "PLAYER", "volume": 0.8, "pitch": { "min": 0.9, "max": 1.1 } } ]
+
+// 3. point something at the factory — e.g. your weapon
+//    assets/mypack/dsconfigs/item_sounds.json
+[ { "items": ["mymod:katana"], "swing": "mypack:swing" } ]
+```
+
+- **`sounds.json` keys are namespaced by the folder they sit in.** A key `my_swing` inside
+  `assets/mypack/sounds.json` becomes the event **`mypack:my_swing`**. That is why step 2 says
+  `mypack:my_swing` and not `my_swing`.
+- ⚠️ **Always write the namespace in `soundEvent`.** A name with no `:` is not rejected — it is
+  silently read as **`dsurround:`**. So `"soundEvent": "my_swing"` looks for `dsurround:my_swing`,
+  which is not your file, and you get silence with no error. (`"@name"` is the shorthand for
+  `minecraft:name`.)
+- **No Java and no registry entry is needed.** DS resolves a factory's `soundEvent` by *creating* the
+  event from its name and letting the vanilla sound engine look it up in the loaded packs — so a pack
+  can introduce an event that does not exist in the base game.
+- The `.ogg` must be **Vorbis**, mono for positional sounds.
+
+#### Testing it
+
+1. Put the folder (or zip) in `.minecraft/resourcepacks/`.
+2. Options → Resource Packs → enable it. **Order matters**: a pack lower in the list is overridden by
+   the ones above it.
+3. `/dsreload`, then check with `/dsdump items` / `/dsdump sounds`.
+
+#### When to use a pack vs the disk folder
+
+| | Disk folder | Resource pack |
+| --- | --- | --- |
+| Namespace must be a mod id | **yes** — else silently ignored | **no** |
+| Can add `.ogg` / textures | no | **yes** |
+| Can hand to other people | no | **yes** |
+| Quickest to iterate on | **yes** | needs a reload of packs |
+
+Rule of thumb: **iterate in the disk folder, ship as a pack.**
+
+---
+
 ## Part II — 中文说明
 
 ### 从这里开始 —— 5 分钟做出第一个改动
@@ -514,6 +604,7 @@ Everything else — file names, fields, codecs, merge behaviour — is identical
 | 把你的改动打包发给别人 | **要** —— 资源包本来就是干这个的 |
 
 也就是说：**除了"发布一个新录音"，其它全部用一个文件夹加一个文本编辑器就能做完。**
+资源包本身怎么建，见 **§8**。
 
 ### 0. 先决定"改的形式"
 
@@ -884,3 +975,87 @@ tag 驱动，不需要工厂：把方块加进 `tags/block/effects/footprintable
 | `grass` / `tall_flowers` / `suspicious_gravel` | 方块 id 在版本间被改名或拆分 |
 
 除此之外 —— 文件名、字段、codec、合并行为 —— **三版完全一致**。
+
+---
+
+### 8. 把这一切打包成资源包
+
+**一个资源包可以同时装下你的音频、纹理和 DS 数据**，因为三者都在同一棵 `assets/` 树下。
+想把改动**交给别人**，或者要**加入自己的 `.ogg`**，就用这个格式。
+
+```
+MyPack/                      ← 文件夹即可，也可以压成 zip，两种都行
+├── pack.mcmeta              ← 必需，否则 Minecraft 不会加载它
+├── pack.png                 ← 可选图标
+└── assets/
+    └── mypack/              ← 命名空间：名字随你取
+        ├── sounds.json      ← 把你的 .ogg 注册成声音事件
+        ├── sounds/          ← 你的 .ogg 文件
+        ├── textures/        ← 你的纹理
+        ├── lang/            ← 可选
+        └── dsconfigs/       ← DS 数据：sound_factories.json、biomes.json、tags/** …
+```
+
+`pack.mcmeta` —— 只有一行随版本变：
+
+```json
+{ "pack": { "pack_format": 15, "description": "我的 Dynamic Surroundings 资源包" } }
+```
+
+| 移植版 | `pack_format` |
+| --- | --- |
+| 1.20.1 | **15** |
+| 1.21.1 | **34** |
+| 26.1 | **84** |
+
+> 写错这个数字**不会致命** —— Minecraft 会弹一句提示，确认后照样加载。可以每版发一个包，
+> 也可以用范围声明一个包。
+
+#### 命名空间规则在这里不一样 —— 而且更宽松
+
+磁盘目录的命名空间**必须是已加载模组的 id**，否则整个文件夹被**静默忽略**。
+**资源包里任何命名空间都可以**，包括完全不是模组的名字（`mypack`，或者上游自己的 `dsurround_ex`）。
+所以放数据的话，资源包是两者中更安全的位置。
+
+#### 加入自己的音效 —— 完整的三步链
+
+三个文件，中间那个是大家最容易漏的：
+
+```jsonc
+// 1. assets/mypack/sounds.json —— 注册事件（原版格式）
+{ "my_swing": { "sounds": ["mypack:swing/my_swing"] } }   // 文件：assets/mypack/sounds/swing/my_swing.ogg
+
+// 2. assets/mypack/dsconfigs/sound_factories.json —— 变成 DS 工厂
+[ { "location": "mypack:swing", "soundEvent": "mypack:my_swing",
+    "category": "PLAYER", "volume": 0.8, "pitch": { "min": 0.9, "max": 1.1 } } ]
+
+// 3. 让某个东西指向这个工厂 —— 比如你的武器
+//    assets/mypack/dsconfigs/item_sounds.json
+[ { "items": ["mymod:katana"], "swing": "mypack:swing" } ]
+```
+
+- **`sounds.json` 的键会被它所在文件夹的命名空间加前缀。** `assets/mypack/sounds.json` 里一个叫
+  `my_swing` 的键，就是事件 **`mypack:my_swing`** —— 所以第 2 步写的是 `mypack:my_swing` 而不是 `my_swing`。
+- ⚠️ **`soundEvent` 一定要写全命名空间。** 不含 `:` 的名字**不会报错**，而是被**静默当成
+  `dsurround:`**。所以 `"soundEvent": "my_swing"` 实际去找 `dsurround:my_swing`，那不是你的文件 ——
+  结果是**静音，且没有任何报错**。（`"@name"` 是 `minecraft:name` 的简写。）
+- **不需要改 Java，也不需要注册表条目。** DS 解析工厂的 `soundEvent` 时是**按名字创建**这个事件，
+  再让原版声音引擎去已加载的资源包里查找 —— 所以资源包可以引入一个原版根本没有的事件。
+- `.ogg` 必须是 **Vorbis**；有方位的声音用**单声道**。
+
+#### 怎么测
+
+1. 把文件夹（或 zip）放进 `.minecraft/resourcepacks/`。
+2. 选项 → 资源包 → 启用它。**顺序有意义**：列表越靠下的包越会被上面的覆盖。
+3. `/dsreload`，然后用 `/dsdump items` / `/dsdump sounds` 检查。
+
+#### 什么时候用资源包、什么时候用磁盘目录
+
+| | 磁盘目录 | 资源包 |
+| --- | --- | --- |
+| 命名空间必须是模组 id | **是** —— 否则静默忽略 | **否** |
+| 能加 `.ogg` / 纹理 | 不能 | **能** |
+| 能发给别人 | 不能 | **能** |
+| 迭代最快 | **是** | 需要重载资源包 |
+
+一句话：**在磁盘目录里调，用资源包发布。**

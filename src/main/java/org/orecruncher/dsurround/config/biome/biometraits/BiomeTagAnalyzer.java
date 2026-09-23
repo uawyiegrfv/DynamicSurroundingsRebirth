@@ -72,31 +72,34 @@ public class BiomeTagAnalyzer implements IBiomeTraitAnalyzer {
     }
 
     @Override
-    public Collection<BiomeTrait> evaluate(ResourceLocation id, Biome biome) {
-        Set<BiomeTrait> results = new HashSet<>();
+    public String name() {
+        return "BiomeTagAnalyzer";
+    }
+
+    @Override
+    public void analyze(ResourceLocation id, Biome biome, Set<BiomeTrait> resultCollection) {
 
         // Have to do it this way so that the client side tagging has a chance.  When connecting to
         // vanilla servers, they will ONLY have the Minecraft tags, not the Fabric ones.
         for (var tagEntry : tagToTraitMap.entrySet())
             if (TAG_LIBRARY.is(tagEntry.getKey(), biome))
-                results.add(tagEntry.getValue());
+                resultCollection.add(tagEntry.getValue());
 
         // Check for compounds
         if (TAG_LIBRARY.is(BiomeTags.IS_AQUATIC_ICY, biome)) {
-            results.add(BiomeTrait.WATER);
-            results.add(BiomeTrait.COLD);
+            resultCollection.add(BiomeTrait.WATER);
+            resultCollection.add(BiomeTrait.COLD);
         }
 
         if (TAG_LIBRARY.is(BiomeTags.IS_DEEP_OCEAN, biome)) {
-            results.add(BiomeTrait.OCEAN);
-            results.add(BiomeTrait.DEEP);
+            resultCollection.add(BiomeTrait.OCEAN);
+            resultCollection.add(BiomeTrait.DEEP);
         }
 
         if (TAG_LIBRARY.is(BiomeTags.IS_FLOWER_FOREST, biome)) {
-            results.add(BiomeTrait.FLORAL);
-            results.add(BiomeTrait.FOREST);
+            resultCollection.add(BiomeTrait.FLORAL);
+            resultCollection.add(BiomeTrait.FOREST);
         }
 
-        return results;
     }
 }

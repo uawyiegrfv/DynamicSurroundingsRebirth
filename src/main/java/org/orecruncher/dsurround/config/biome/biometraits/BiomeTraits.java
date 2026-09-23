@@ -15,7 +15,10 @@ public final class BiomeTraits {
 
     static {
         traitAnalyzer.add(new BiomeTagAnalyzer());
-        traitAnalyzer.add(new BiomeMysticalAnalyzer());
+        traitAnalyzer.add(new BiomeNameFallbackAnalyzer());
+        traitAnalyzer.add(new BiomeTraitAnalyzer());
+        // Must be last: it removes contradictions the others introduced.
+        traitAnalyzer.add(new BiomeTraitCleanup());
     }
 
     private final Set<BiomeTrait> traits;
@@ -26,12 +29,12 @@ public final class BiomeTraits {
     }
 
     public static BiomeTraits createFrom(ResourceLocation id, Biome biome) {
-        var traits = traitAnalyzer
-                .stream()
-                .map(analyzer -> analyzer.evaluate(id, biome))
-                .flatMap(Collection::stream)
-                .distinct()
-                .collect(Collectors.toList());
+        // One shared mutable set: the analyzers chain (each reads what the previous produced) and
+        // the cleanup pass has to be able to REMOVE, which a collection-returning analyzer cannot
+        // express. Order is fixed - see the registration above.
+        final Set<BiomeTrait> traits = EnumSet.noneOf(BiomeTrait.class);
+        for (var analyzer : traitAnalyzer)
+            analyzer.analyze(id, biome, traits);
         return new BiomeTraits(traits);
     }
 

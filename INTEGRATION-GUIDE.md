@@ -6,12 +6,13 @@
 ## 1. 配置文件放在哪里（三处加载来源，优先级从低到高）
 
 1. **模组 jar 内**：`assets/<命名空间>/dsconfigs/*.json`（mod 自带默认）。
-2. **磁盘配置目录**（推荐整合包用）：`.minecraft/dsurround/configs/<命名空间>/*.json`
+2. **磁盘配置目录**（推荐整合包用）：`.minecraft/config/dsurround/configs/<命名空间>/*.json`
    —— 直接丢文件即可，不用改 jar，会**叠加/覆盖** jar 内同名配置。
-3. **资源包**：tags 定义（`data/<命名空间>/tags/**`）与资源（`assets/<命名空间>/...`）。
+3. **资源包**：资源与 tags 定义（`assets/<命名空间>/dsconfigs/tags/**`）。
+   ⚠ `data/<命名空间>/tags/**` **只能由已加载的模组 jar 提供**，资源包无效。
 
 > 命名空间用 `minecraft` 或你自己的 mod id。磁盘目录示例：
-> `.minecraft/dsurround/configs/mypack/biomes.json`
+> `.minecraft/config/dsurround/configs/mypack/biomes.json`
 
 ## 2. 数据驱动文件一览
 
@@ -83,7 +84,7 @@
 
 在磁盘 `tags/item/effects/` 下放同名 tag 文件（会与 jar 内合并）。例如让 `mypack:katana` 像剑一样响：
 ```json
-// .minecraft/dsurround/configs/mypack/tags/item/effects/swords.json
+// .minecraft/config/dsurround/configs/mypack/tags/item/effects/swords.json
 { "values": ["mypack:katana", "#minecraft:swords"] }
 ```
 类别有：`swords/axes/tools/bows/crossbows/shields/potions/books`，以及盔甲材质

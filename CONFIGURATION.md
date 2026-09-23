@@ -226,7 +226,23 @@ An array of per-sound-event entries (edited via the in-game sound config screen,
 
 ### 4. Data files — `assets/dsurround/...` (resource-pack overridable)
 
-All of these live in `assets/dsurround/` inside the jar. **A resource pack can replace any of them** by providing the same path (e.g. `assets/dsurround/dsconfigs/sound_factories.json`). Vanilla-format tag files follow standard tag merge semantics; the other JSON files are replaced whole. After changing them in-game, run `/dsreload` to reload without restarting.
+All of these live in `assets/dsurround/` inside the jar.
+
+**Another pack's copy is MERGED with ours, not substituted for it.** The loader reads every copy it can
+see, so a resource pack adds to the shipped data:
+
+| File type | How copies combine |
+| --- | --- |
+| `tags/**` | pure union - entries merge, `replace` is ignored |
+| `sound_factories.json`, `variators.json` | same key later in the load order wins |
+| `sound_mappings.json` | rules merge, and a specific rule is inserted ahead of the catch-all default |
+| `biomes.json`, `blocks.json`, `dimensions.json` | appended; later entries win per scalar field, lists accumulate |
+
+The **disk config folder is read after the jar and after resource packs**, which makes it the reliable
+place to override a shipped value (see 4.0). No pack can *remove* a shipped entry - the way to silence
+one is a more specific rule, e.g. pointing a block at `dsurround:footsteps.none`.
+
+After changing anything, run `/dsreload` to reload without restarting.
 
 | Path | Purpose |
 | --- | --- |
@@ -360,6 +376,10 @@ Standard tag format (`replace`, `values` with `#`-refs and `required`). Namespac
 - `fluid/effects/*` — waterfall sources / ripples
 - `item/effects/*`, `item/*` — item classes (axes, tools, bows, shields…) and bucket types
 - `worldgen/biome/*` — biome tag lists used by `biomes.json` selectors
+
+**Where a tag file may live.** `assets/<namespace>/dsconfigs/tags/**` works from a mod jar *and* from a
+resource pack. A real data pack path, `data/<namespace>/tags/**`, is only read from **loaded mod jars** -
+`ServerResourceFinder` walks the mod list, not the world's data packs, so a resource pack cannot supply it.
 
 #### 4.8 `chat/<lang>.lang` — entity speech bubbles
 Format (documented in the file header): `chat.<entity>.<index>=weight,text`. `villager.flee` is a special flee-line table; `$MINECRAFT$` plays a random vanilla splash text. The file name follows the client language (`en_us.lang`, `zh_cn.lang`).
@@ -518,6 +538,60 @@ localise it — see §4.10 of the Chinese part for a Chinese example.
 > tick, initial velocity normalised to a total magnitude of `0.12`, and gravity `0.8`. The three
 > editions render through different pipelines (a 3D particle pass in 1.12.2, a projected 2D GUI
 > overlay here) but use the same numbers, so the on-screen result matches.
+
+#### 4.11 `item_sounds.json` — per-item swing and equip sounds
+
+The hotbar-select ("equip") and swing sounds are chosen in four steps, and this
+file is consulted first:
+
+| # | Step | Granularity |
+| --- | --- | --- |
+| 1 | **this file** — item id or tag to a factory | one item, or one tag |
+| 2 | override `dsurround:toolbar.<class>.swing` in `sound_factories.json` | a whole class |
+| 3 | add the item to `tags/item/effects/<class>.json` | join an existing class |
+| 4 | a brand-new class | needs a code change — the class list is a Java enum |
+
+Step 1 is why an item that no tag covers can still have its own sound without
+touching the mod. It is an array of rules; **first match wins**, `items` is
+required, and every id must be fully qualified — a bare name without `:` is
+rejected.
+
+```jsonc
+// assets/<your-namespace>/dsconfigs/item_sounds.json
+[
+  { "items": ["mymod:katana"],   "swing": "mypack:katana.swing" },
+  { "items": ["#mymod:katanas"], "equip": "mypack:katana.equip" }
+]
+```
+
+`swing` and `equip` are both optional; omit one to leave that action alone.
+
+**The factory has to exist first.** Unlike `biomes.json` and `blocks.json`, this
+file does **not** fall back to "treat the location as a sound event" — a `swing`
+naming an undefined factory is treated as absent and the item silently keeps its
+class default. So define it in `sound_factories.json`:
+
+```jsonc
+// assets/<your-namespace>/dsconfigs/sound_factories.json
+[
+  { "location": "mypack:katana.swing", "soundEvent": "mypack:item.katana.swing",
+    "category": "PLAYER", "volume": 0.5, "pitch": { "min": 0.8, "max": 1.2 } }
+]
+```
+
+and register the event itself in the usual vanilla place, `sounds.json`:
+
+```json
+{ "item.katana.swing": { "sounds": ["mypack:katana_swing"] } }
+```
+
+Start the event name with `item.` if you want it to follow the in-game player
+sound volume slider — that check is made on the event path prefix (`item.`,
+`toolbar.`, `player.`), not on the sound category.
+
+**Worked example — a modded katana.** Put those three files in one resource pack,
+run `/dsreload`, and the katana swings with your sound while every other sword
+keeps the stock one. Nothing in the mod changes.
 
 ### 5. Commands
 
@@ -756,7 +830,22 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 
 ### 4. 数据文件 — `assets/dsurround/...`（可被资源包覆盖）
 
-这些都在 jar 内 `assets/dsurround/` 下。**资源包提供相同路径即可覆盖**（例如 `assets/dsurround/dsconfigs/sound_factories.json`）。原版 tag 格式文件遵循标准 tag 合并语义，其它 JSON 整体替换。改完游戏内 `/dsreload` 热重载。
+这些都在 jar 内 `assets/dsurround/` 下。
+
+**别的包提供同名文件时，与我们的数据是「合并」而不是「替换」** —— 加载器会把能看到的每一份都读进来：
+
+| 文件类型 | 合并方式 |
+| --- | --- |
+| `tags/**` | **纯并集**，`replace` 字段被忽略 |
+| `sound_factories.json`、`variators.json` | 同 key 后读到的覆盖先读到的 |
+| `sound_mappings.json` | 规则级合并，具体规则被插到兜底规则之前 |
+| `biomes.json`、`blocks.json`、`dimensions.json` | 追加；标量字段后者覆盖，列表累加 |
+
+**磁盘配置目录在 jar 与资源包之后读取**，所以它才是覆盖出厂值的可靠位置（见 §4.0）。
+**任何包都无法删除我们自带的条目** —— 让某个方块静音的办法是写一条更具体的规则，
+把它指向 `dsurround:footsteps.none`。
+
+改完游戏内 `/dsreload` 热重载。
 
 | 路径 | 用途 |
 | --- | --- |
@@ -876,6 +965,10 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 - `fluid/effects/*` —— 瀑布源/涟漪
 - `item/effects/*`、`item/*` —— 物品类别（斧、工具、弓、盾…）与桶类型
 - `worldgen/biome/*` —— `biomes.json` 选择器使用的群系 tag 列表
+
+**tag 文件可以放哪里。** `assets/<命名空间>/dsconfigs/tags/**` 模组 jar 与资源包都行；
+而真正的数据包路径 `data/<命名空间>/tags/**` **只从已加载的模组 jar 读取** ——
+`ServerResourceFinder` 遍历的是模组列表，不是世界的数据包，资源包无法提供它。
 
 #### 4.8 `chat/<lang>.lang` —— 生物气泡台词
 格式（文件头已注明）：`chat.<实体>.<序号>=权重,文本`。`villager.flee` 是特殊的逃跑台词表；`$MINECRAFT$` 播放随机原版闪烁标语。文件名跟随客户端语言（`en_us.lang`、`zh_cn.lang`）。
@@ -1020,6 +1113,54 @@ assets/<namespace>/dsconfigs/dsurround.json          （模组 jar 内的等价�
 > 文本高度 `0.024` 世界单位/字体像素、每 tick `×1.08`、初速度归一化到总长 `0.12`、重力 `0.8`。
 > 三个版本的渲染管线不同（1.12.2 是三维粒子通道，这里是投影到二维 GUI 层），但**用的是同一组
 > 数值**，所以屏幕上的效果是一致的。
+
+#### 4.11 `item_sounds.json` —— 逐物品的挥动与切换音
+
+快捷栏切换（equip）与挥动（swing）音按四步选，**本文件最先被查**：
+
+| # | 步骤 | 粒度 |
+| --- | --- | --- |
+| 1 | **本文件** —— 物品 id 或 tag → 一个工厂 | 单件物品，或一个 tag |
+| 2 | 覆写 `sound_factories.json` 里的 `dsurround:toolbar.<类>.swing` | 整个类别 |
+| 3 | 把物品加进 `tags/item/effects/<类>.json` | 归入已有类别 |
+| 4 | 新建类别 | 需改代码 —— 类别表是 Java 枚举 |
+
+第 1 步就是"没被任何 tag 覆盖的物品也能有自己的音色"的原因，**不需要改模组**。
+它是规则数组，**先匹配先赢**；`items` 必填，且 id 必须全限定 —— 不含 `:` 的裸名会直接报错。
+
+```jsonc
+// assets/<你的命名空间>/dsconfigs/item_sounds.json
+[
+  { "items": ["mymod:katana"],   "swing": "mypack:katana.swing" },
+  { "items": ["#mymod:katanas"], "equip": "mypack:katana.equip" }
+]
+```
+
+`swing` 与 `equip` 都可选，省略即不覆盖该动作。
+
+**工厂必须先存在。** 与 `biomes.json` / `blocks.json` 不同，本文件**不会**回退成
+"把 location 当声音事件用" —— 指向未定义工厂的 `swing` 会被当成"没写"，
+物品**静默**保留类别默认音。所以先在 `sound_factories.json` 里定义它：
+
+```jsonc
+// assets/<你的命名空间>/dsconfigs/sound_factories.json
+[
+  { "location": "mypack:katana.swing", "soundEvent": "mypack:item.katana.swing",
+    "category": "PLAYER", "volume": 0.5, "pitch": { "min": 0.8, "max": 1.2 } }
+]
+```
+
+再把事件本身注册到原版位置 `sounds.json`：
+
+```json
+{ "item.katana.swing": { "sounds": ["mypack:katana_swing"] } }
+```
+
+事件名**建议以 `item.` 开头**，这样会跟随游戏内"玩家音效"音量滑块 ——
+该判断看的是事件路径前缀（`item.` / `toolbar.` / `player.`），不是声音类别。
+
+**完整例子 —— 给模组武士刀配专属挥动音。** 把上面三个文件放进同一个资源包，
+执行 `/dsreload`，武士刀就用你的音色，其它剑不变。**模组本身一行都不用改。**
 
 ### 5. 指令
 

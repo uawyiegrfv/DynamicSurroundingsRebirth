@@ -39,6 +39,16 @@ public final class BiomeTraits {
         return new BiomeTraits(List.of(traits));
     }
 
+    /**
+     * Drops every trait so a rule carrying {@code clearTraits} can take over from the auto-detected
+     * set. Also sets the merge marker: the resulting set is a product of configuration, and
+     * diagnostics should not present it as whatever the analyzers detected.
+     */
+    public void clear() {
+        this.traits.clear();
+        this.updatedByMerge = true;
+    }
+
     public void mergeTraits(Collection<BiomeTrait> traits) {
         int count = this.traits.size();
         this.traits.addAll(traits);

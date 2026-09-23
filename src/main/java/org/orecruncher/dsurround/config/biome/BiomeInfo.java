@@ -156,6 +156,11 @@ public final class BiomeInfo implements Comparable<BiomeInfo>, IBiomeSoundProvid
     }
 
     public void mergeTraits(BiomeConfigRule configRule) {
+        // clearTraits lets a rule discard everything the analyzers inferred and declare the trait set
+        // itself. The tag and name analyzers run before any rule, so without this a pack could only
+        // ever add to their output, never correct it.
+        if (configRule.clearTraits())
+            this.traits.clear();
         this.traits.mergeTraits(configRule.traits());
         configRule.comment().ifPresent(this::addComment);
     }
@@ -212,6 +217,14 @@ public final class BiomeInfo implements Comparable<BiomeInfo>, IBiomeSoundProvid
     }
 
     public void update(final BiomeConfigRule entry) {
+
+        // resetFogColor clears a fog color set by an earlier rule (ours or another pack's), handing
+        // the biome back to plain vanilla fog. Only DS's own fog color is cleared - a data pack's
+        // biome fog color is untouched. dustColor is a separate field and is deliberately NOT reset.
+        if (entry.resetFogColor()) {
+            addComment("> Reset Fog");
+            this.setFogColor(null);
+        }
 
         entry.comment().ifPresent(this::addComment);
         entry.fogColor().ifPresent(this::setFogColor);

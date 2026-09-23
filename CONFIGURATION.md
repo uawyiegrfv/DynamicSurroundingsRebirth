@@ -346,8 +346,42 @@ copy of a vanilla block would otherwise take the wrong material.
 | category | string | MC sound category (AMBIENT, PLAYER, …) — routes volume sliders |
 | volume | number | Base volume multiplier |
 | pitch | object | Optional `{"min":0.8,"max":1.2}` random pitch range |
+| land | object | Optional landing composition (see below) |
+| wander | string | Optional stop-scuff recording override |
+| jump | string | Optional take-off recording override |
 
 > `location` ≠ `soundEvent` by design: the factory name is stable, the sound it plays can be re-targeted.
+
+**`land` — how a material lands.** A landing is not one sound: it is a primary layer, an optional
+quieter layer, and an optional echo a couple of ticks later, played once per foot so the layers
+sum in the mixer. That summation is the only way a landing can read heavier than a footstep,
+because a single voice's gain is clamped.
+
+```jsonc
+"land": {
+  "primary":   "dsurround:footsteps.concrete_run",   // required for the block to do anything
+  "secondary": "dsurround:footsteps.stone",          // optional, default scale 0.5
+  "echo":      "dsurround:footsteps.stone_run",      // optional
+  "secondaryScale": 0.5,                             // optional
+  "echoVolume": 1.0,                                 // optional
+  "echoDelayMinTicks": 1, "echoDelayMaxTicks": 2     // optional
+}
+```
+
+A material with no `land` block falls back to its own land/run thud per foot plus a delayed
+echo — 1.12.2 `playMultifoot` without a configured composition. The primary is often a
+*different* material's run recording rather than the material's own: stone lands with
+`concrete_run`, marble with its own `_run`.
+
+**`wander` and `jump` — the cross-references.** In the original data several materials scuff or
+take off with a *different* material's recording: metal box and metal bar scuff with a marble
+scrape, wood / sand / glass / quicksand / leaf litter with dirt, rugs and grass paths with
+grass. A material's own `_wander` recording is used only when no override is given. `jump`
+falls back to `wander`, which is what 1.12.2's `EventType.JUMP(WANDER)` declaration meant, so
+`jump` is only needed where the two differ.
+
+All three are read from the *material's* factory entry, and the material is whatever
+`sound_mappings.json` resolved for the block — so retuning a landing means editing one entry.
 
 #### 4.2 `sound_mappings.json` (array)
 Remaps an incoming vanilla sound event to a DS factory:
@@ -961,8 +995,38 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 | category | 字符串 | MC 声音类别（AMBIENT、PLAYER…），决定走哪个音量滑块 |
 | volume | 数值 | 基础音量倍率 |
 | pitch | 对象 | 可选 `{"min":0.8,"max":1.2}` 随机音调区间 |
+| land | 对象 | 可选的落地合成（见下） |
+| wander | 字符串 | 可选的急停擦地音覆盖 |
+| jump | 字符串 | 可选的起跳音覆盖 |
 
 > 设计上 `location` ≠ `soundEvent`：工厂名稳定，实际播放的声音可重定向。
+
+**`land` —— 一个材质怎么落地。** 落地不是一个声音：它是主层 + 可选的轻一点的副层
++ 可选的延迟回声，每只脚各播一次，在混音器里相加。**这种相加是落地能比脚步「厚重」的唯一途径**，
+因为单个声音的增益是有上限的。
+
+```jsonc
+"land": {
+  "primary":   "dsurround:footsteps.concrete_run",   // 必填，否则整块无效
+  "secondary": "dsurround:footsteps.stone",          // 可选，默认倍率 0.5
+  "echo":      "dsurround:footsteps.stone_run",      // 可选
+  "secondaryScale": 0.5,                             // 可选
+  "echoVolume": 1.0,                                 // 可选
+  "echoDelayMinTicks": 1, "echoDelayMaxTicks": 2     // 可选
+}
+```
+
+没有 `land` 块的材质回退到：它自己的 land/run 声每只脚一次 + 延迟回声（即
+1.12.2 的 `playMultifoot` 而无配置合成）。主层往往是**另一个材质**的 run 录音而不是自己的：
+石头落地用 `concrete_run`，大理石用它自己的 `_run`。
+
+**`wander` 与 `jump` —— 跨材质引用。** 原始数据里有好几个材质的急停/起跳用的是**另一个材质**的录音：
+金属箱与金属条擦出大理石刮擦声，木/沙/玻璃/流沙/落叶用泥土，地毯与草径用草地。
+只有没有覆盖时才用材质自己的 `_wander`。`jump` 回退到 `wander`，这正是 1.12.2
+`EventType.JUMP(WANDER)` 的含义 —— 所以只有两者不同时才需要写 `jump`。
+
+三者都读取**材质自己的**工厂条目，而材质就是 `sound_mappings.json` 为那个方块解析出的东西 ——
+所以重调一个材质的落地只需改那一条。
 
 #### 4.2 `sound_mappings.json`（数组）
 把传入的原版声音事件重映射到 DS 工厂：
@@ -1143,9 +1207,7 @@ assets/<namespace>/dsconfigs/dsurround.json          （模组 jar 内的等价�
 抛起并逐渐变大。
 
 ```json
-{
-  "values": ["哐", "砰", "咚", "啪"]
-}
+["哐", "砰", "咚", "啪"]
 ```
 
 **怎么加自己的词。** 放一个同名文件即可，它会与内置词表**合并**（不会替换默认值）。文件可放在

@@ -51,13 +51,15 @@ either place.
 | 2 | **resource pack** → `assets/<any namespace>/dsconfigs/<file>.json` | modpack / resource-pack authors |
 | 3 | **disk** → `config/dsurround/configs/<namespace>/<file>.json` | players, modpack authors |
 | 4 | aggregate `dsurround.json` in any of the above, as a section | modpack authors |
-| 5 | real datapack `data/<namespace>/tags/**` | **loaded mod jars only** — a resource pack cannot supply it |
+| 5 | real datapack `data/<namespace>/tags/**` | **loaded mod jars only** — any other `data/…/tags` file is ignored |
 
 - ⚠️ **In form 3 the directory name must be a loaded mod id.** `<namespace>` is the only part of the
   path checked, and a folder that is not a mod id is **silently ignored** — no warning, no log line.
   This is the single most common reason a disk override "does nothing".
-- Tags also have a pack-friendly path: `assets/<namespace>/dsconfigs/tags/<registry>/<tag>.json`
-  (works from a resource pack, unlike form 5).
+- **Every tag this mod reads lives at `assets/<namespace>/dsconfigs/tags/<registry>/<path>.json`** —
+  so `tags/block/effects/footprintable.json`, `tags/item/effects/armor/iron.json`, and so on. This is
+  a **DS path, not the vanilla `data/<ns>/tags/…` path**, and it works from a resource pack (form 5
+  does not). Only `block/occlusion/*` has a copy under `data/dsurround/tags/` as well.
 - **Load order**: jars and resource packs first, the disk folder **last** — so disk is the reliable
   place to override a shipped value.
 
@@ -72,8 +74,11 @@ either place.
 | `critwords.json` | concatenated |
 | `item_sounds.json` | **first match wins** |
 
-> ⚠️ **No pack can remove a shipped entry.** To silence something, write a *more specific* rule —
-> e.g. point a block at the reserved silent factory `dsurround:footsteps.none`.
+> ⚠️ **No pack can remove a shipped entry.** To silence something, write a *more specific* rule that
+> points the block at `dsurround:footsteps.none` — the mod's **reserved silent factory**, the modern
+> equivalent of the 1.12.2 `NOT_EMITTER` sentinel. Both footstep generators test for it *before*
+> resolving any factory, so it works on a single block or on a whole block tag (the shipped data uses
+> it for `#minecraft:buttons`).
 
 **Prefer tags over block/item id lists.** A tag keeps working when a mod adds blocks later; a list of
 ids does not.
@@ -140,7 +145,7 @@ run/land thud plus an echo.
 #### 1.3 Volume, pitch and muting
 
 `volume` and `pitch` live on the **factory**, so they are per-material, not per-block. To mute one
-block without touching its material, point that block's rule at the silent factory:
+block without touching its material, point that block's rule at the reserved silent factory:
 
 ```jsonc
 { "blocks": ["yourmod:silent_tiles"], "factory": "dsurround:footsteps.none" }
@@ -151,7 +156,9 @@ the vanilla footstep sounds**.
 
 #### 1.4 Footprints
 
-Tag-driven, no factory needed: add a block to `tags/block/effects/footprintable.json`.
+Tag-driven, no factory needed: add a block to `tags/block/effects/footprintable.json`
+(meaning `assets/<your-ns>/dsconfigs/tags/block/effects/footprintable.json` — same for every tag path
+in this guide).
 
 ```jsonc
 // assets/<your-ns>/dsconfigs/tags/block/effects/footprintable.json
@@ -179,29 +186,32 @@ Each armour **material** is a tag listing the four vanilla pieces:
              "yourmod:steel_leggings", "yourmod:steel_boots"] }
 ```
 
-| Material | DS sound |
+| Tag | DS sound |
 | --- | --- |
-| `leather` | soft leather |
-| `chain` | chain rattle |
-| `iron` | iron clink |
-| `gold` | soft metallic |
-| `diamond` | hard metallic |
-| `netherite` | heavy metallic |
-| **`slimey`** | **shipped empty — your extension point** |
+| `slimey` | slimey — **checked first, and shipped empty on purpose** |
+| `leather` | `armor.light` |
+| `chain` | `armor.medium` |
+| `iron`, `gold`, `netherite` | `armor.heavy` |
+| `diamond` | `armor.crystal` |
+
+**Note that six tags map onto only four sounds.** So an armour piece in `armor/gold.json` does *not*
+get its own recording — it gets the heavy metallic one, the same as iron. The tags exist to
+**classify**, not to give each material a distinct sound, and `slimey` is tested before all of them.
 
 Rules that surprise people:
 
 - The sound comes from the **leggings**; if the entity wears no leggings it falls back to the
-  **chestplate**. Boots use a separate accent.
-- Sprinting takes a `_run` variant of the same accent.
-- `slimey` is a real, empty tag of its own. Put slime-like armour there — do not overload `leather`.
+  **chestplate**. **Boots** use a separate `_foot` accent, and the helmet is not consulted.
+- Sprinting takes a `_run` variant of the same accent, walking `_walk`.
+- `slimey` is a real, empty tag of its own — the only class a mod can opt into by itself. Put
+  slime-like armour there rather than overloading `leather`.
 - The accent is per **material tag**, so a modded armour that is "iron-ish" must be added to
-  `armor/iron.json`. Alternatively switch on `footstepAccents.inferArmorClass` to let DS guess the
-  material from the item's defence values — convenient, but a guess.
+  `armor/iron.json`. Alternatively switch on `footstepAccents.inferArmorClass` to let DS guess from
+  the item's own defence/toughness/knockback numbers — convenient, but a guess.
 - Master switch: `footstepAccents.enableArmorAccents`.
-- **`[1.20.1]` / `[1.21.1]` / `[26.1]`** the *guess* uses three different formulas with three
-  different thresholds, so the same modded armour can be classified differently on different ports.
-  **Tagging it explicitly is the portable answer.**
+- **`[1.20.1]` / `[1.21.1]` / `[26.1]`** the *guess* uses three different ladders, so the same modded
+  armour can be classified differently on different ports. **Tagging it explicitly is the portable
+  answer** — tags are checked before the guess, on every port.
 
 ---
 
@@ -215,6 +225,9 @@ Rules that surprise people:
 | 2 | override `dsurround:toolbar.<class>.swing` / `.equip` in `sound_factories.json` | a whole class |
 | 3 | add the item to `tags/item/effects/<class>.json` | join an existing class |
 | 4 | a brand-new class | **needs Java** — the class list is an enum |
+
+The eight classes are `sword` `axe` `tool` `bow` `crossbow` `shield` `potion` `book` (plus `none`).
+Each one owns a `dsurround:toolbar.<class>.equip` and `...swing` factory; `none` ships `equip` only.
 
 **"My weapon's swing sound is wrong" almost always means step 1, and step 1 exists precisely so you
 never have to touch the mod.** Nothing in the item's tags needs to change.
@@ -273,7 +286,10 @@ timing are config.**
 - `fogColor`: `#RRGGBB`. 5 biomes ship with a colour.
 - `biomeSelector` is a small expression language over **biome tag names** (`SWAMP`, `FOREST`,
   `COLD`, `SNOWY`, `LUSH`, … — full list in `tags/worldgen/biome/*`) combined with `&&` `||` `!` and
-  parentheses. It also reads `biome.id`, `biome.temperature`, `biome.getRainfall()`.
+  parentheses. It also reads `biome.id`, `biome.temperature`, `biome.getRainfall()`,
+  `biome.getName()`, `biome.getModId()`, and `weather.*`. A `lib.` helper set is available —
+  `lib.isBetween(biome.temperature, 0.2, 1.0)` and `lib.oneof(biome.id, 'a:b', 'c:d')` are both used
+  by the shipped data.
 - Rules apply in ascending `priority`; later wins per field. DS's own highest priority is **100**, so
   use a higher number to make your rule stick.
 - `dustColor` tints the dust effect (independent of fog).
@@ -312,10 +328,12 @@ traits.
 
 | `type` | Behaviour |
 | --- | --- |
-| `loop` | **default** — the background bed, picked by `weight` |
-| `mood` | occasional, individual calls |
-| `addition` | extra layered ambience |
-| `music` | biome music |
+| `loop` | **default** — plays without attenuation, loops while the conditions hold. The background bed, picked by `weight` |
+| `mood` | plays randomly around the player, similar to vanilla's own mood sound |
+| `addition` | random one-shot, no attenuation, does not loop |
+| `music` | **reserved — not currently used.** Handled by the codec, but nothing consumes it |
+
+These **add to** what Minecraft does on its own; they do not replace it.
 
 - `conditions` is a script expression (`weather.isRaining()`, `biome.temperature`…). Omit it and the
   sound is always eligible.
@@ -360,20 +378,22 @@ Work down this list — these are ordered by how often they are the cause.
 | --- | --- | --- |
 | 1 | Disk folder name is **not a loaded mod id** → whole folder ignored | rename it to a real mod id |
 | 2 | Rule added under the **wrong vanilla step event** | `/dsdump blocks` shows each block's actual event |
-| 3 | Rule sits **after the catch-all**, or after a broader rule that already matches | `/dsdump steps` prints the full decision chain, branch by branch |
+| 3 | Rule sits **after the catch-all**, or after a broader rule that already matches | `/dsdump steps` prints the whole surface-resolution chain at your position, branch by branch |
 | 4 | Block/item id wrong, or **does not exist in this MC version** → rule becomes inert (warn only) | `/dsdump validate` |
 | 5 | `#c:*` / `#forge:*` namespace **not present on this version** — `required:false` makes the empty set pass **silently** | `/dsdump tags` |
 | 6 | Checked the wrong declaration — one event can have **2–4 top-level entries** | `/dsdump blocks` |
 | 7 | `item_sounds.json` points at a **factory that does not exist** → silent fallback to the class default | `/dsdump items` |
 | 8 | Forgot `/dsreload` after editing the disk folder | — |
 
-Tools: **`/dsreload`** (hot reload), **`/dsdump blocks`** (per-block step event + material DS resolved),
-**`/dsdump steps`** (the whole footprint decision chain at your position, every branch),
-`/dsdump items`, `/dsdump tags`, `/dsdump biomes`, `/dsdump brush`, `/dsdump sounds`,
-`/dsdump validate` (self-check report). All of them are described in
-[`FOOTSTEPS.md`](FOOTSTEPS.md) §4.
+Tools: **`/dsreload`** (hot reload), **`/dsdump steps`** (the whole surface-resolution decision chain
+at your position — the one to reach for first), **`/dsdump blocks`** (per-block step event + the
+material DS resolved), **`/dsdump brush`** (the grass/crop decision chain), and
+`/dsdump validate` (self-check report). Also `blockstates`, `blockconfigrules`, `blocksbytag`,
+`items`, `tags`, `biomes`, `sounds`, `dimensions`, `diregistrations`. `/dstune` overrides
+enhance-sound values for the session only. Full descriptions in [`FOOTSTEPS.md`](FOOTSTEPS.md) §4.
 
-Realistic loop: **edit → `/dsreload` → `/dsdump steps` standing on the block → read which branch won.**
+Realistic loop: **edit → `/dsreload` → `/dsdump steps` where you are standing → read which branch
+won.**
 
 ---
 
@@ -426,11 +446,15 @@ Everything else — file names, fields, codecs, merge behaviour — is identical
 | 2 | **资源包** → `assets/<任意命名空间>/dsconfigs/<文件>.json` | 整合包 / 资源包作者 |
 | 3 | **磁盘** → `config/dsurround/configs/<命名空间>/<文件>.json` | 玩家、整合包作者 |
 | 4 | 以上任一位置的聚合 `dsurround.json` 的对应段 | 整合包作者 |
-| 5 | 真数据包 `data/<命名空间>/tags/**` | **仅已加载的模组 jar** —— 资源包无效 |
+| 5 | 真数据包 `data/<命名空间>/tags/**` | **仅已加载的模组 jar** —— 其它 `data/…/tags` 一律不读 |
 
 - ⚠️ **第 3 种的目录名必须是已加载模组的 id。** 路径里被检查的只有这一段，**不是模组 id 的
   文件夹会被静默忽略** —— 没有警告、没有日志。这是"磁盘覆盖不生效"最常见的原因，没有之一。
 - tag 另有一条资源包可用的路径：`assets/<命名空间>/dsconfigs/tags/<registry>/<tag>.json`。
+  **本模组读取的所有 tag 都在 `assets/<命名空间>/dsconfigs/tags/<registry>/<路径>.json`** ——
+  例如 `tags/block/effects/footprintable.json`、`tags/item/effects/armor/iron.json`。
+  这是 **DS 自己的路径，不是原版的 `data/<命名空间>/tags/…`**，而且资源包可用（第 5 种不行）。
+  只有 `block/occlusion/*` 在 `data/dsurround/tags/` 下另有一份。
 - **加载顺序**：jar 与资源包在前，磁盘目录**最后** —— 所以磁盘是覆盖出厂值最可靠的地方。
 
 #### 合并规则 —— 以及唯一做不到的事
@@ -444,8 +468,10 @@ Everything else — file names, fields, codecs, merge behaviour — is identical
 | `critwords.json` | 拼接 |
 | `item_sounds.json` | **先匹配先赢** |
 
-> ⚠️ **任何包都删不掉出厂条目。** 想让某个东西静音，要写一条**更具体**的规则 ——
-> 例如把方块指向保留的静音工厂 `dsurround:footsteps.none`。
+> ⚠️ **任何包都删不掉出厂条目。** 想让某个东西静音，要写一条**更具体**的规则，把方块指向
+> `dsurround:footsteps.none` —— 本模组**保留的静音工厂**，等价于 1.12.2 的 `NOT_EMITTER` 哨兵。
+> 两个脚步生成器都会在**解析任何工厂之前**先判定它，所以可以用于单个方块，也可以用于整个方块 tag
+> （出厂数据就是这样静音 `#minecraft:buttons` 的）。
 
 **优先用 tag，而不是方块/物品 id 列表。** 模组以后新增方块时 tag 自动跟上，id 列表不会。
 
@@ -517,7 +543,9 @@ Everything else — file names, fields, codecs, merge behaviour — is identical
 
 #### 1.4 脚印
 
-tag 驱动，不需要工厂：把方块加进 `tags/block/effects/footprintable.json`。
+tag 驱动，不需要工厂：把方块加进 `tags/block/effects/footprintable.json`
+（完整路径 `assets/<你的命名空间>/dsconfigs/tags/block/effects/footprintable.json` ——
+本指南中所有 tag 路径同理）。
 
 ```jsonc
 // assets/<你的命名空间>/dsconfigs/tags/block/effects/footprintable.json
@@ -544,26 +572,30 @@ tag 驱动，不需要工厂：把方块加进 `tags/block/effects/footprintable
              "yourmod:steel_leggings", "yourmod:steel_boots"] }
 ```
 
-| 材质 | DS 音色 |
+| tag | DS 音色 |
 | --- | --- |
-| `leather` | 柔软皮革 |
-| `chain` | 锁甲摩擦 |
-| `iron` | 铁器轻碰 |
-| `gold` | 柔和金属 |
-| `diamond` | 硬质金属 |
-| `netherite` | 厚重金属 |
-| **`slimey`** | **出厂为空 —— 这是留给你的扩展位** |
+| `slimey` | 粘液 —— **最先检查，出厂刻意留空** |
+| `leather` | `armor.light` |
+| `chain` | `armor.medium` |
+| `iron`、`gold`、`netherite` | `armor.heavy` |
+| `diamond` | `armor.crystal` |
+
+**注意：六个 tag 只对应四个音色。** 放进 `armor/gold.json` 的盔甲**不会**有自己的录音 ——
+它和铁一样是"厚重金属"。这些 tag 的作用是**分类**，不是给每种材质一个独立音色；
+而且 `slimey` 排在其他所有 tag **之前**。
 
 几个容易踩的点：
 
-- 音色取自**护腿**；没穿护腿则回退到**胸甲**。靴子是另一套重音。
-- 疾跑时取同一重音的 `_run` 变体。
-- `slimey` 是一个真实存在但为空的 tag。粘液类盔甲放这里，**不要硬塞进 `leather`**。
+- 音色取自**护腿**；没穿护腿则回退到**胸甲**。**靴子**用另一套 `_foot` 重音，头盔不参与。
+- 疾跑取同一重音的 `_run` 变体，走路取 `_walk`。
+- `slimey` 是一个真实存在但刻意留空的 tag —— 也是**模组唯一能自行接入**的类别。
+  粘液类盔甲放这里，不要硬塞进 `leather`。
 - 重音是**按材质 tag** 走的，所以"铁质手感"的模组盔甲必须自己加进 `armor/iron.json`。
-  另一条路是打开 `footstepAccents.inferArmorClass`，让 DS 按防御值猜材质 —— 方便，但那是猜。
+  另一条路是打开 `footstepAccents.inferArmorClass`，让 DS 按物品自身的防御/韧性/击退抗性去猜 ——
+  方便，但那是猜。
 - 总开关：`footstepAccents.enableArmorAccents`。
-- **`[1.20.1]` / `[1.21.1]` / `[26.1]`** 这套"猜"用的是**三套不同公式、三个不同阈值**，
-  所以同一件模组盔甲在三版可能被分到不同档位。**显式打 tag 才是可移植的答案。**
+- **`[1.20.1]` / `[1.21.1]` / `[26.1]`** 这套"猜"用的是**三套不同的阶梯**，所以同一件模组盔甲
+  在三版可能被分到不同档位。**显式打 tag 才是可移植的答案** —— 三版都是先查 tag、再猜。
 
 ---
 
@@ -633,7 +665,10 @@ tag 驱动，不需要工厂：把方块加进 `tags/block/effects/footprintable
 - `fogColor`：`#RRGGBB`。出厂有 5 个群系带颜色。
 - `biomeSelector` 是一门小表达式语言，操作的是**群系 tag 名**（`SWAMP`、`FOREST`、`COLD`、
   `SNOWY`、`LUSH`…，完整表在 `tags/worldgen/biome/*`），可用 `&&` `||` `!` 和括号组合；
-  也能读 `biome.id`、`biome.temperature`、`biome.getRainfall()`。
+  也能读 `biome.id`、`biome.temperature`、`biome.getRainfall()`、`biome.getName()`、
+  `biome.getModId()` 与 `weather.*`。另有一组 `lib.` 辅助函数 ——
+  `lib.isBetween(biome.temperature, 0.2, 1.0)` 与 `lib.oneof(biome.id, 'a:b', 'c:d')`
+  出厂数据里都在用。
 - 规则按 `priority` 升序应用，同字段后者覆盖。DS 自己的最高优先级是 **100**，
   要让自己这条压过它就用更大的数。
 - `dustColor` 给沙尘效果染色（与雾无关）。
@@ -671,10 +706,12 @@ tag 驱动，不需要工厂：把方块加进 `tags/block/effects/footprintable
 
 | `type` | 行为 |
 | --- | --- |
-| `loop` | **默认** —— 背景底噪，按 `weight` 挑选 |
-| `mood` | 偶发的单声（鸟叫、狼嚎之类） |
-| `addition` | 额外叠加的氛围层 |
-| `music` | 群系音乐 |
+| `loop` | **默认** —— 无衰减、条件成立就持续循环。背景底噪，按 `weight` 挑选 |
+| `mood` | 在玩家周围随机播放，类似原版自己的 mood 音 |
+| `addition` | 随机单次，无衰减、不循环 |
+| `music` | **保留值 —— 当前未使用。** codec 认它，但没有任何代码消费它 |
+
+这些音**叠加在**原版行为之上，**不替代**原版。
 
 - `conditions` 是脚本表达式（`weather.isRaining()`、`biome.temperature`…）。不写就是永远可播。
 - `traits`（普通列表，不是 `acoustics`）挂的是 DS 自己的特征词汇：`FOREST` `SWAMP` `COLD`
@@ -717,19 +754,20 @@ tag 驱动，不需要工厂：把方块加进 `tags/block/effects/footprintable
 | --- | --- | --- |
 | 1 | 磁盘目录名**不是已加载模组 id** → 整个目录被忽略 | 改成真实模组 id |
 | 2 | 规则挂到了**错误的原版脚步事件**下 | `/dsdump blocks` 会列出每个方块真实的事件 |
-| 3 | 规则排在**兜底规则之后**，或排在一条已能命中的宽规则之后 | `/dsdump steps` 会逐分支打印完整判定链 |
+| 3 | 规则排在**兜底规则之后**，或排在一条已能命中的宽规则之后 | `/dsdump steps` 会逐分支打印你所站位置的完整取面判定链 |
 | 4 | 方块/物品 id 写错，或**该版本根本没有这个 id** → 规则变惰性（只 warn） | `/dsdump validate` |
 | 5 | `#c:*` / `#forge:*` 命名空间**在这个版本不存在** —— `required:false` 让空集**静默通过** | `/dsdump tags` |
 | 6 | 检查错了声明处 —— 同一事件可能有 **2–4 条顶层条目** | `/dsdump blocks` |
 | 7 | `item_sounds.json` 指向**不存在的工厂** → 静默回退成类别默认音 | `/dsdump items` |
 | 8 | 改完磁盘目录忘了 `/dsreload` | — |
 
-工具：**`/dsreload`**（热重载）、**`/dsdump blocks`**（每方块的脚步事件 + DS 解析出的材质）、
-**`/dsdump steps`**（你当前位置的完整脚印判定链，逐分支）、`/dsdump items`、`/dsdump tags`、
-`/dsdump biomes`、`/dsdump brush`、`/dsdump sounds`、`/dsdump validate`（自检报告）。
-全部说明见 [`FOOTSTEPS.md`](FOOTSTEPS.md) §4。
+工具：**`/dsreload`**（热重载）、**`/dsdump steps`**（你所站位置的完整取面判定链 —— 第一个就该用它）、
+**`/dsdump blocks`**（每方块的脚步事件 + DS 解析出的材质）、**`/dsdump brush`**（穿草丛/作物的判定链）、
+**`/dsdump validate`**（自检报告）。另有 `blockstates`、`blockconfigrules`、`blocksbytag`、
+`items`、`tags`、`biomes`、`sounds`、`dimensions`、`diregistrations`。`/dstune` 只在本次会话内
+覆盖增强音效参数（不落盘）。完整说明见 [`FOOTSTEPS.md`](FOOTSTEPS.md) §4。
 
-实际循环：**改文件 → `/dsreload` → 站到那块方块上 `/dsdump steps` → 看是哪条分支赢了。**
+实际循环：**改文件 → `/dsreload` → 站原地 `/dsdump steps` → 看是哪条分支赢了。**
 
 ---
 

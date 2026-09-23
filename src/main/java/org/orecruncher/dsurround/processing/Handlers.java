@@ -33,6 +33,12 @@ public class Handlers {
     private final ITickCount tickCount;
     private final ISoundLibrary soundLibrary;
     private final IAudioPlayer audioPlayer;
+    /**
+     * A handler that throws on every tick would otherwise emit 20 stack traces a second.
+     * Log the first failure in full, then one line every this-many ticks.
+     */
+    private static final int FAILURE_LOG_EVERY = 200;
+
     private final ObjectArray<AbstractClientHandler> effectHandlers = new ObjectArray<>();
     private final LoggingTimerEMA handlerTimer = new LoggingTimerEMA("Handlers");
     private boolean isConnected = false;
@@ -163,8 +169,27 @@ public class Handlers {
 
         for (final AbstractClientHandler handler : this.effectHandlers) {
             final long mark = System.nanoTime();
-            if (handler.doTick(tick))
-                handler.process(getPlayer());
+            try {
+                if (handler.doTick(tick))
+                    handler.process(getPlayer());
+                handler.clearFailure();
+            } catch (final Throwable t) {
+                // One handler must not take out the rest of the tick. Uncaught, the
+                // exception unwinds this loop - every handler after it is skipped for
+                // that tick - and then propagates out through ClientState.TICK_END,
+                // which also skips the other tick-end subscribers (crit words,
+                // footprints, speech bubbles).
+                //
+                // This does NOT swallow the failure: the first one is logged with its
+                // stack trace and later ones are throttled, so the defect stays visible
+                // without burying the log. The handler keeps being invoked so it can
+                // recover if the cause was transient.
+                final int failures = handler.noteFailure();
+                if (failures == 1 || failures % FAILURE_LOG_EVERY == 0)
+                    this.logger.error(t,
+                            "[%s] threw during tick (%d consecutive); isolated so remaining handlers still tick",
+                            handler.getHandlerName(), failures);
+            }
             handler.updateTimer(System.nanoTime() - mark);
         }
         this.handlerTimer.end();

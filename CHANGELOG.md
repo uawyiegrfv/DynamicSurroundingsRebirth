@@ -19,133 +19,101 @@
 
 ### Fixes
 
-**Reverb and acoustics**
+**Sounds and acoustics**
 
-* A **valley no longer reverberates.** Early reflections were being added to the *diffuse* reverb
-  sends, which is not a closed space — the tail was being invented rather than measured. They now
-  travel on the reflection channel, which is where a discrete arrival belongs.
-* A **cave no longer produces a "double slap".** OpenAL reflection parameters are properties of the
-  *effect slot*, not of the source, so setting them on all four reverb zones produced four copies of
-  one arrival beating against each other. The reflection tap is now set on a single zone and the
-  others are explicitly zeroed (the OpenAL default is 0.05, not 0).
-* **A small stone room no longer rings for five times too long** (0.944 s → 0.184 s). The diffuse
-  sends were blind to room size; they now scale with it.
+* A **cave no longer produces a double slap** where one reflection arrived twice.
+* A **small stone room no longer rings several times too long.**
+* **Valleys no longer reverberate** — the tail was being invented rather than measured.
+* Sounds **around a corner** now fade the way they should. The old curve was far too loud in
+  shadow, by up to 31 dB deep behind an obstacle.
+* Sounds **through solid rock** now lose their brightness at a believable rate.
+* **1.21.1 was missing 16 footstep sounds** — bamboo, copper, honey, slime, tuff, sculk, moss,
+  bone and froglight blocks were **silent** underfoot.
+* **A waterfall pouring into water is heard again.** It produced no sound and no splash at all,
+  which is the most common shape a waterfall has.
+* **The End's outer islands** got their ambience back, and the temperate climate tag was empty on
+  1.20.1, so temperate biomes had no climate ambience.
+* Fixed a **crash on world exit, resource reload, or toggling reverb or occlusion**: sound work
+  could outlive the audio engine it was writing to.
+* The mod **no longer plays into an audio engine that has gone away**, so switching output device
+  or reloading resources cannot leave the sound system in a bad state.
 
-**Configuration**
+**Muffling while moving**
 
-* A **parse failure could empty your config file.** Invalid input is now ignored and the previous
-  file preserved.
-* An **unknown enum value became `null`** and could crash later. It now falls back to the default.
-* A **`null` section could crash the config screen.**
-* Added range clamping so out-of-range values cannot be written.
-* Removed **24 overstated `@RestartRequired`** annotations — those options apply live.
-* Removed 2 saturated and 2 dead config keys, and the orphaned `occlusionFocusDistance` knob
-  (it had a slider and a `/dstune` key but nothing had read its value for several releases).
+* **Moving quickly no longer makes the muffling lag and then jump.** Distant sounds are still
+  updated less often than near ones — that is what keeps the cost down — but the fade is now timed
+  to the seconds that actually passed, so it is smooth at every distance.
+* **Standing still while water rises over your eyes** now switches you underwater properly. It
+  previously waited for you to move.
+
+**Damage, healing and crit words**
+
+* Fixed the **bright flash** just before a number disappears.
+* **Numbers no longer grow while sprinting.**
+* The **size slider now scales the whole animation**, instead of only its start and end.
+* **Damage and heal numbers show the health actually lost** after armour and absorption, work in
+  multiplayer without a server install, and agree across all three builds.
+* Numbers are now **hidden by entities standing in front of them**, as in the original.
+* The number animation was retuned so it **ends at exactly the size it started**, and it now runs
+  smoothly instead of stepping at 20 times a second.
 
 **Particles and effects**
 
-* **Breath bubbles were removed on the first tick** while still ascending, so they never surfaced.
-* **Footprints were generated for every creature** instead of only the configured ones.
-* Restored the **glazed terracotta** fallback — vanilla content was being altered.
-* The **aurora's documented fallback was unreachable**: the shader constructor could not fail, so a
-  missing pipeline produced a "valid" shader holding `null` and crashed on render instead of
-  degrading. The constructor now throws, which makes the fallback real.
-* Aurora is now **gated on dimension and skylight**, matching 1.12.2's `canAuroraStay`.
+* **Breath bubbles sank and vanished on the first tick** instead of rising to the surface.
+* **Footprints were left by every creature** instead of only the configured ones.
+* Restored the **glazed terracotta** fallback — vanilla blocks were being altered.
+* The **aurora could crash instead of falling back** when its shader was unavailable. It now
+  degrades gracefully, and it only appears where and when it should.
 
-**Sound**
+**Configuration**
 
-* **1.21.1 was missing 16 footstep sound events** — bamboo, copper, honey, slime, tuff, sculk,
-  sculk vein, froglight, moss and bone blocks were **silent** underfoot.
-* **Fixed a teardown crash.** Sound evaluations run on a thread pool separate from the worker that
-  submitted them, so stopping the worker did not wait for them — they could still be uploading to
-  OpenAL objects that were about to be deleted. A rare crash or a silent OpenAL error, on world
-  exit, resource reload, or a reverb/occlusion toggle.
-* The **End's outer islands** never received the End ambience trait: the biome tag reference was
-  missing its leading `#`, which made it a (non-existent) biome id rather than a tag.
-* The **temperate climate** biome tag was empty on 1.20.1.
+* A **typo in a config file could wipe it.** Invalid values are now ignored and the previous file
+  kept.
+* An **unrecognised option value could crash later**; it now falls back to the default, and a
+  missing section no longer breaks the config screen.
+* Values outside the allowed range can no longer be written.
+* **24 options wrongly claimed they needed a restart** — they apply immediately.
+* Removed dead and duplicated options, including one that still had a slider but had not been read
+  for several releases.
 
-**Animation**
+**Stability**
 
-* The **damage / heal / critical-word curve was recomputed** so its peak matches 1.12.2's maximum
-  with a symmetric curve: the text now ends at exactly the size it started.
-* Damage and heal numbers **animated at 20 Hz on a 60+ fps display**; they now interpolate.
-
-**Localisation**
-
-* **Polish (`pl_pl`) completed** — was missing 264 keys, now complete, using the official
-  terminology (*istota*, *biom*, *pogłos*, *cios krytyczny*, *Kres*).
-* **Chinese (`zh_cn`) completed** — the last 8 keys were `/dsmm` music-manager feedback text.
-
-**Sound**
-
-* **A sound's own reflections no longer inherit the direct path's occlusion.** The per-source
-  occlusion was multiplied into the four reverb sends as well as into the direct path, and since the
-  wet level is `x^1.1` against a dry `x^0.1`, that applied occlusion to the reverb two and a half
-  times — the opposite of what the send floor's own comment claimed it did.
-* **`facingShare` was divided by four too much.** The sum accumulates over 128 bounces but was
-  divided by 32. The comment defended this as deliberate, and that reasoning only holds in the open;
-  in the cave it was measured in, the sum is nearly full, so the value ran out of range on every
-  probe line.
-* **`earVisible` was declared outside the ray loop**, so one reflection point seeing the ear made
-  every later bounce count as well and saturated the send weights. 1.20.1 was already per-ray, so
-  this was a port regression rather than a design choice.
-* **Diffraction now uses the ITU-R P.526 knife-edge form.** The previous shape was up to **+9.6 dB**
-  broadband and **+31 dB** deep in shadow.
-* **The material frequency response is now additive**, cutting its spectral tilt from **92 dB to
-  26 dB** across 63 Hz–8 kHz through ten blocks of rock.
-* **Sky light no longer feeds any calculation.** It is a vertical measurement and cannot see
-  direction, so a single hole to the surface used to clear an obstruction that was still there. It
-  now only feeds the diagnostic probe.
-* **Walking into a cave now gives outside sounds the cave's reverb.** Room size blends the source's
-  and the listener's mean free path by how connected the two spaces are; when they are the same
-  space the result is mathematically identical to before.
-* Fixed a stale submerged-share read (the reflection delay used the previous evaluation's value), an
-  early-reflection gain that was never assigned, an out-of-range band weight that could inflate the
-  high bands 6.7×, and two comments describing an implementation that had been rolled back.
-
-**Damage / heal / crit-word text**
-
-* **Fixed the bright flash just before a number disappears.** The cause is inside vanilla: an alpha
-  below 4 is forced fully opaque, so the last frames of the fade drew at full brightness.
-* **Text size no longer jumps while sprinting.** The field of view came from the options slider
-  while the depth came from the actual projection matrix, so the sprint FOV modifier (107.8° against
-  a 98° slider) made numbers 19% larger mid-sprint. Field of view is now measured from the
-  projection matrix itself.
-* **The size slider now scales the whole animation.** The per-frame clamp was flattening the peak on
-  18–29% of frames, so only the start and end could change. The peak is clamped now and the curve is
-  scaled as a whole.
-* **Default text size is now 60**, which puts the peak on the value 1.12.2 actually reached.
-* **Damage and heal numbers are read from the client's own health**, so they show the health actually
-  lost after armour and absorption instead of the pre-mitigation raw amount, they work in
-  multiplayer without a server install, and all three builds agree on the same hit.
-* **Text is now hidden by entities standing between it and the camera**, as in 1.12.2, which got this
-  for free from its render order.
+* **One effect failing no longer silences all the others** for that tick. Previously a single
+  problem could skip every effect registered after it, and hide its own diagnostics while doing so.
+* The two builds that ship a **version check** no longer let it hang if the server does not answer.
 
 ### Changes
 
-* **Biome music is now off by default.**
-* Three-version sync: particle double-enqueue, `#c:ladders`, waterfall closed interval, magma
-  rounding, boot sounds, `soundconfig`, `enableAccents`, `AudioTuning`, `playBiomeSounds`, waterfall
-  snapshot, sound-screen save, jumping into water, and respawn reset.
+* **Biome music is off by default.**
+* **Modded biomes are properly supported.** A biome from a mod that ships no Dynamic Surroundings
+  data used to get **no ambience at all** — now its traits are worked out from its name and its
+  climate, so an unadapted modded forest still sounds like a forest.
+* Modpack authors can **retune landing, stopping and take-off sounds in the data files**, instead
+  of needing a code change.
+* A number of smaller differences between the three builds were synced up.
 
 ### New
 
-* **Biome music on 1.20.1** (including the mixin port).
-* A `CRIT_WORD` debug trace (`traceMask` bit `8`) that reports the crit-word size inputs, the
-  animation curve and glitch detection. Off unless `enableDebugLogging` is on **and** the bit is set,
-  so it costs nothing in normal play.
+* **Dedicated sounds for the trident, maces and spears** — their own swing and hotbar sounds.
+  Tridents previously fell back to a generic one.
+* **Biome music on 1.20.1.**
+* **A bilingual Customisation Guide** (`docs/CUSTOMISATION-GUIDE.md`), written for players and pack
+  authors: where the files go, how to change a footstep, a swing sound, fog or biome ambience, and
+  what to check when a change has no effect. It replaces the older integration guide.
+* **Polish and Chinese translations completed** — 264 missing Polish keys, and the last 8 Chinese
+  ones.
+* A **crit-word debug trace** for reporting oddities. Off unless explicitly enabled.
 
 ### Known issues
 
 * A damage number and a critical word for the same hit **can overlap**, which makes both harder to
   read. Recorded, not yet addressed.
-* **Speech bubbles are hidden by entities rather than greyed out** the way 1.12.2's depth-disabled
-  underlayer showed them; matching that needs the render path rewritten to world-space billboards.
-* In very large spaces the room-size reference **saturates**, which can understate reverb there. Left
-  as is, because the current balance is the one that was tuned by ear.
-* The aurora's **fallback path** — which only runs when the shader pipeline fails to register — uses
-  a translucent blend where 1.12.2 used additive. Deliberate: the path is very rarely taken.
-
+* **Speech bubbles are hidden by entities** rather than greyed out the way the original showed
+  them.
+* In very large spaces the reverb **reference saturates**, which can understate the tail there.
+  Left as is: the current balance is the one that was tuned by ear.
+* The aurora's **fallback path** — only used when its shader fails to load — blends differently
+  from the original. Deliberate: the path is very rarely taken.
 ---
 
 > ### DynamicSurroundings-1.21.1-0.4.2

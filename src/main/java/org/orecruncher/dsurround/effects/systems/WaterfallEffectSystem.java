@@ -309,7 +309,13 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
             return false;
         if (isUnboundedLiquid(world, pos)) {
             var downPos = pos.below();
-            if (world.getBlockState(downPos).isFaceSturdy(world, downPos, Direction.UP, SupportType.FULL))
+            var downState = world.getBlockState(downPos);
+            // A waterfall pouring into standing water is still a waterfall. The block below being a
+            // fluid SOURCE - not merely a fluid - is what upstream checks; without it the very common
+            // "waterfall into a pool or the sea" shape never registers, so it gets no sound and no
+            // splash particles.
+            if (downState.getFluidState().isSource()
+                    || downState.isFaceSturdy(world, downPos, Direction.UP, SupportType.FULL))
                 return true;
             return isBoundedLiquid(world, pos);
         }

@@ -1,8 +1,15 @@
 # Configuration & Data Files Reference · 配置与数据文件参考
 
-Dynamic Surroundings Rebirth **1.3.1** — Minecraft 1.20.1 (Forge) · 1.21.1 (NeoForge) · 26.1 (NeoForge)
+Dynamic Surroundings Rebirth **1.3.2** — Minecraft 1.20.1 (Forge) · 1.21.1 (NeoForge) · 26.1 (NeoForge)
 
 [English](#part-i--english) · [中文说明](#part-ii--中文说明)
+
+> **Looking for "how do I change X"?** → [`docs/CUSTOMISATION-GUIDE.md`](docs/CUSTOMISATION-GUIDE.md)
+> is the task-oriented companion to this reference: where data files may live, how copies merge,
+> and a recipe per feature (footsteps, armour accents, swing sounds, fog, biome ambience).
+> **想知道"X 要怎么改"？** → [`docs/CUSTOMISATION-GUIDE.md`](docs/CUSTOMISATION-GUIDE.md)
+> 是本参考的任务导向版：数据文件能放哪里、多份如何合并，以及每个功能（脚步、盔甲重音、
+> 挥舞音、雾、群系氛围）的具体改法。本文档是**逐字段参考**。
 
 ---
 

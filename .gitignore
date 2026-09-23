@@ -73,4 +73,5 @@ fix_26.1_api.py
 
 docs/*
 !docs/FOOTSTEPS.md
+!docs/CUSTOMISATION-GUIDE.md
 MIGRATION_STATUS.md

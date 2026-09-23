@@ -30,7 +30,6 @@ public final class Effects {
      * affected the result. Removed from the calculation; kept so the constant's history is not lost.
      */
     @Deprecated
-    public static final float GLOBAL_BLOCK_ABSORPTION = 1F;
     public static final float SNOW_AIR_ABSORPTION_FACTOR = 5F;
     public static final float RAIN_AIR_ABSORPTION_FACTOR = 2F;
 
@@ -59,7 +58,6 @@ public final class Effects {
     private static final ReverbEffectSlot[] REVERB_SLOTS = { reverb0, reverb1, reverb2, reverb3 };
     private static final ReverbData[] REVERB_DATA = new ReverbData[4];
     private static int activeSends = 0;
-    private static long applyCounter = 0;
     // Last reverb intensity applied to the OpenAL effect slots; tracks config changes so
     // the intensity slider takes effect live without a restart.
     private static float lastReverbIntensity = Float.NaN;
@@ -132,8 +130,15 @@ public final class Effects {
      * reflection they were never meant to have.
      */
     private static void applyReflectionTapIfChanged() {
-        final float tapGain = reflectionTapGain;
-        final float tapDelay = reflectionTapDelay;
+        final float tapGain;
+        final float tapDelay;
+        // Read as a PAIR under the writer's lock: two independent volatile reads can otherwise be
+        // satisfied by two different evaluations, which pairs one reflection's loudness with another's
+        // distance.
+        synchronized (TAP_LOCK) {
+            tapGain = reflectionTapGain;
+            tapDelay = reflectionTapDelay;
+        }
         if (tapGain == lastReflectionTapGain && tapDelay == lastReflectionTapDelay)
             return;
         lastReflectionTapGain = tapGain;
@@ -173,6 +178,13 @@ public final class Effects {
      */
     public static volatile float reflectionTapGain = 0F;
     public static volatile float reflectionTapDelay = 0F;
+
+    /**
+     * Guards the tap pair. Gain and delay are two separate volatile fields, so without this the reader
+     * can take the gain from one evaluation and the delay from another and end up placing a reflection
+     * at a distance that was never measured. The writer takes the same lock.
+     */
+    public static final Object TAP_LOCK = new Object();
 
     /**
      * Recomputes each reverb zone's wet gain from the configurable intensity. Called on
@@ -218,8 +230,6 @@ public final class Effects {
             s.deinitialize();
 
         activeSends = Math.min(4, AudioUtilities.getMaxAuxSends());
-        // DIAG(1.20.1): reverb slots
-        org.orecruncher.dsurround.lib.Library.LOGGER.debug("REVERB_INIT activeSends=%d", getActiveSends());
         if (activeSends <= 0)
             return;
 
@@ -251,9 +261,6 @@ public final class Effects {
             // Fixed binding: send i always carries zone i. The reverb effect parameters
             // are static per zone, so the binding never needs to change afterwards.
             REVERB_SLOTS[i].apply(REVERB_DATA[i], AUX_SLOTS[i]);
-            // DIAG(1.20.1): confirm the OpenAL objects are real (non-zero handles)
-            org.orecruncher.dsurround.lib.Library.LOGGER.debug("REVERB_SLOT[%d] aux=%d effect=%d effectGain=%.3f decay=%.2f",
-                    i, AUX_SLOTS[i].getSlot(), REVERB_SLOTS[i].getSlot(), REVERB_DATA[i].gain, REVERB_DATA[i].decayTime);
         }
     }
 
@@ -285,24 +292,6 @@ public final class Effects {
 
         for (int zone = 0; zone < activeSends; zone++) {
             source.zoneFilter(zone).apply(sourceId, source.getLowPass(zone), zone, AUX_SLOTS[zone]);
-        }
-
-        // Diagnostic: steady-state zone mapping, one line per ~second of playtime.
-        // debug level - this runs on the sound engine thread and logging I/O here can
-        // perturb timing (Heisenbug lesson). Enable debug for reverb tracing.
-        if (++applyCounter % 140 == 0) {
-            var sound = source.getSound();
-            var soundId = sound == null ? "?" : sound.getLocation().toString();
-            LOGGER.debug("REVERB_STEADY src=%d sound=%s pos=%.1f,%.1f,%.1f sends=%d process=[%s,%s,%s,%s] gains=[%.3f,%.3f,%.3f,%.3f] cutoffs=[%.3f,%.3f,%.3f,%.3f] direct=[%.3f,%.3f/%s] filters=[%d,%d,%d,%d]/%d",
-                    sourceId, soundId, source.getPosition().x, source.getPosition().y, source.getPosition().z, activeSends,
-                    source.getLowPass(0).doProcess(), source.getLowPass(1).doProcess(),
-                    source.getLowPass(2).doProcess(), source.getLowPass(3).doProcess(),
-                    source.getLowPass(0).gain, source.getLowPass(1).gain, source.getLowPass(2).gain, source.getLowPass(3).gain,
-                    source.getLowPass(0).gainHF, source.getLowPass(1).gainHF, source.getLowPass(2).gainHF, source.getLowPass(3).gainHF,
-                    source.getDirect().gain, source.getDirect().gainHF, source.getDirect().doProcess(),
-                    source.zoneFilter(0).getSlot(), source.zoneFilter(1).getSlot(),
-                    source.zoneFilter(2).getSlot(), source.zoneFilter(3).getSlot(),
-                    source.directFilter().getSlot());
         }
 
         // Occlusion / direct path filter and air absorption are independent of the aux sends

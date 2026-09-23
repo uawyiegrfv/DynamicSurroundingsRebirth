@@ -38,8 +38,7 @@
     "core.MixinEntityRemoved",
     "core.MixinFallingBlockEntity",
     "core.MixinClothAbstractConfigEntry",
-    "core.MixinEnchantingTableBook",
-    "core.MixinClientPacketListener"
+    "core.MixinEnchantingTableBook"
   ],
   "injectors": {
     "defaultRequire": 1

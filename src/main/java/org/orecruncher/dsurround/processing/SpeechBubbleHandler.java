@@ -573,6 +573,27 @@ public class SpeechBubbleHandler {
         return lines;
     }
 
+    /**
+     * Entity occlusion: true when some entity's bounding box lies on the camera-to-bubble segment.
+     * The bubble's owner and the local player are excluded - the owner would otherwise hide its own
+     * bubble, and in first person the camera sits inside the player's own box. Invisible and removed
+     * entities don't render, so they cannot block (1.12.2 got the same behaviour for free from the
+     * depth buffer). The cheap AABB distance check skips anything whose nearest point is already
+     * farther than the bubble itself.
+     */
+    private static boolean isEntityBlocking(Minecraft mc, Vec3 camPos, Vec3 target, int ownerId) {
+        final double sqDist = camPos.distanceToSqr(target);
+        for (final var entity : mc.level.entitiesForRendering()) {
+            if (entity.getId() == ownerId || entity == mc.player || entity.isInvisible() || entity.isRemoved())
+                continue;
+            if (entity.getBoundingBox().distanceToSqr(camPos) >= sqDist)
+                continue;
+            if (entity.getBoundingBox().clip(camPos, target).isPresent())
+                return true;
+        }
+        return false;
+    }
+
     private void renderBubble(GuiGraphics graphics, Minecraft mc, Font font, float width, float height,
             Vec3 camPos, Entity entity, List<String> lines, float partialTick, boolean command) {
 
@@ -599,6 +620,8 @@ public class SpeechBubbleHandler {
         final var hit = mc.level.clip(new ClipContext(
                 camPos, new Vec3(bx, by, bz), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
         if (hit.getType() != HitResult.Type.MISS)
+            return;
+        if (isEntityBlocking(mc, camPos, new Vec3(bx, by, bz), entity.getId()))
             return;
 
         final float depth = this.clip.w;

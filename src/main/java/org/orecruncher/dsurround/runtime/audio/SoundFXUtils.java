@@ -71,9 +71,18 @@ public final class SoundFXUtils {
     /**
      * Transmission loss in dB per unit of accumulated block occlusion-distance, at the reference frequency.
      *
-     * <p>Calibration: one block of stone has occlusion 0.5, so one block costs 2 dB and a four-block wall
-     * about 8 dB. That is the range a real partition occupies, and it is the range the ear reads as "there is
-     * something in the way" rather than as silence.
+     * <p>Calibration: one block of stone has occlusion 0.5, so one block costs 2.5 dB and a four-block wall
+     * about 10 dB. That is the range a real partition occupies, and it is the range the ear reads as "there
+     * is something in the way" rather than as silence.
+     *
+     * <p><b>Why 5.0 and not the 4.0 this used to be.</b> The per-unit figure is not a property of stone, it
+     * is a property of stone AS SEEN THROUGH the rest of the model - and two of those pieces changed. The
+     * bands are now combined as an ENERGY average rather than an average of dB (a geometric mean, which is
+     * dragged toward the most attenuated band), and the spectral term is additive rather than multiplicative.
+     * Both make the same barrier come out lighter, so the constant has to rise to put the result back where
+     * it was. Measured across the standard scenes in tools/audio_regression.py, 5.0 lands every scene within
+     * about 1.4 dB of the 4.0 figures under the old combination - thin walls and thick barriers alike.
+     * Raising it is not a re-tune of the target, it is keeping the target while fixing the arithmetic.
      *
      * <p>This replaced an exponential transmission model, {@code exp(-centerMaterial * 3)}, which applied the
      * loss as an AMPLITUDE rather than in dB: 15 blocks of rock gave {@code exp(-22.5)} = 1e-10, i.e. -200 dB.
@@ -81,7 +90,7 @@ public final class SoundFXUtils {
      * over-attenuated thick barriers by roughly 90 dB and pinned them at the 1e-6 amplitude clamp - measured
      * as {@code lossdb=120} (the ceiling) in 26 rows of one session, which is silence, not muffling.
      */
-    private static final float MATERIAL_LOSS_DB_PER_UNIT = 4.0F;
+    private static final float MATERIAL_LOSS_DB_PER_UNIT = 5.0F;
     /**
      * Hard ceiling on the material transmission loss. Keeps the term meaningful instead of collapsing into
      * the 1e-6 amplitude clamp, where it stops carrying information and simply zeroes the result.
@@ -136,20 +145,21 @@ public final class SoundFXUtils {
      * constant everywhere put underwater reflections at air-timed delays.
      */
     private static final float WATER_SPEED_OF_SOUND = 1480F;
-    /** Skylight at a position that can see the sky in full. */
     /**
-     * Reference gain of the early reflection, applied to the returned-energy share AFTER the physical
-     * spreading and material terms. Sets the overall level of the reflection, not its shape: the shape
-     * comes from the geometry, so this only needs to be right once. At 1.0 a grassy valley lands near
-     * -18 dB and a narrow stone gorge near -4 dB, both of which are levels real reflections reach.
+     * Gain of the returned-energy term, applied to the early reverb zones.
      *
-     * <p>It feeds the DISCRETE reflection tap (AL_EAXREVERB_REFLECTIONS_GAIN), not the diffuse sends.
-     * A previous revision had a second constant, {@code EARLY_REFLECTION_GAIN}, documented as the tap's
-     * gain while this one was documented as the tail's - but nothing referenced the former, so the tap
-     * carried OpenAL's default and this value went into the sends. The two constants are now one, and
-     * it goes where its javadoc always said.
+     * <p>The term it scales is {@code sqrt(reflectivity) * returnedShare}. Measured offline against synthetic
+     * terrain (tools/sim_calibrate.py), the returned share is 0.015 on a plain, 0.085 in forest, 0.12 in a wide
+     * valley, 0.27 on a hillside into a bowl and 0.35 in a steep valley - a 23x spread that comes entirely from
+     * geometry. At 1.0 those become -45 dB on a plain and -17 dB in a valley, so the valley is 27 dB above the
+     * plain and level with a cave's tail (-21 dB). There is nothing to tune: the separation is the geometry's.
+     *
+     * <p>Note what this can and cannot buy. OpenAL applies its reverb tail from the instant the sound starts,
+     * so a louder tail is MORE REVERB, never an echo: a real valley echo is direct, then a GAP, then the
+     * reflection, and the gap is what makes it read as an echo. Producing a gap needs discrete delayed taps,
+     * which this architecture does not have.
      */
-    private static final float EARLY_REFLECTION_GAIN = 1.0F;
+    private static final float REFLECTION_DENSITY_GAIN = 1.0F;
     /** Sky light level at which a position counts as open air; also the top of the 0-15 range. */
     private static final int MAX_SKY_LIGHT = 15;
     private static volatile long currentPass;
@@ -179,26 +189,31 @@ public final class SoundFXUtils {
     /** Fallback band weights: low frequencies dominate because they are the ones that get around. */
     private static final float[] DEFAULT_BAND_WEIGHTS = {0.50F, 0.35F, 0.15F};
     /**
-     * How much of the reverb sends survives a fully occluded path.
+     * How the reverb sends respond to an occluded path.
      *
-     * <p>ZERO, and that is a correction rather than a tuning choice. This was 0.35, introduced when the
-     * sends first became occluded at all, with the reasoning that "a sealed room still has a tail, it is
-     * simply the tail of the muffled sound". The reasoning is right about the room and wrong about the
-     * listener: that tail belongs INSIDE the room. A listener standing outside it hears the tail only
-     * after it has crossed the same wall the direct sound crossed, so it must take the same loss.
+     * <p>There is no constant here because the answer is not a floor: the wet path takes the direct
+     * path's transmission through the send CUTOFFS, which are the wet path's filters, and through
+     * {@code pow(sendCutoff, 0.1)} in {@link #finalizeSendGains}, which is the same "the level gets a
+     * damped share of the loss" convention the direct path uses via {@link #MATERIAL_LEVEL_RESTORE}.
+     * That makes the wet-to-direct ratio independent of how occluded the source is, which is the point:
+     * a tail heard from outside a room has crossed the same wall the direct sound crossed, so it must
+     * take the same loss - no more and no less.
      *
-     * <p>At 0.35 the wet path kept -9 dB while the direct path through the same wall lost 6-20 dB, so
-     * walking outside a village hut RAISED the wet-to-direct ratio - measured 1.35x through two blocks of
-     * wood, 1.64x through a wall with framing, 4.15x through a wall and a hill (tools/sim_wet_ratio.py).
-     * The reverb therefore grew relatively louder the more the sound was blocked, which the ear reports
-     * as "the villager inside is reverberant". This is the regression the user identified.
+     * <p>A floor of 0.35 was tried first and removed. At 0.35 the wet path kept -9 dB while the direct
+     * path through the same wall lost 6-20 dB, so walking outside a village hut RAISED the wet-to-direct
+     * ratio - measured 1.35x through two blocks of wood, 1.64x through a wall with framing, 4.15x
+     * through a wall and a hill (tools/sim_wet_ratio.py). The reverb therefore grew relatively louder
+     * the more the sound was blocked, which the ear reports as "the villager inside is reverberant".
      *
-     * <p>At 0 the wet path inherits the direct path's transmission exactly, so the ratio stays at 1.0
-     * however the source is occluded. A cave is unaffected: with the listener inside it there is almost
-     * no occlusion to inherit (measured loss 0.5-1 dB, giving 0.94-0.96 against 0.96-0.93 at 0.35), so
-     * the long tail the ear reads as "a cave" is preserved.
+     * <p>A SEPARATE gain factor was then multiplied into the send gains on top of the cutoffs, and that
+     * was worse: it applied the loss to the wet LEVEL a second time, so the wet level carried 110% of
+     * the loss dB against the direct path's 20% and the ratio fell as exp(sendCoeff) instead of holding
+     * at 1.0. That is what made reverb vanish outright a couple of blocks from an opening even though
+     * the source's own cavity was fully excited. See the note at the send site in {@link #calculate}.
+     *
+     * <p>The reasoning holds for a cave: with the listener inside it there is almost no occlusion to
+     * inherit (measured loss 0.5-1 dB), so the long tail the ear reads as "a cave" is preserved.
      */
-    private static final float SEND_OCCLUSION_FLOOR = 0.0F;
     /**
      * Number of rays to project when doing reverb calculations.
      */
@@ -407,46 +422,29 @@ public final class SoundFXUtils {
         float sendCutoff3;
         final float[] bounceRatio = new float[REVERB_RAY_BOUNCES];
         /**
-         * Smoothed early-reflection gain, consumed by finalizeSendGains.
-         *
-         * <p>A {@code returnedShare} field used to sit here, holding the same number. It was assigned
-         * and never read - the trace's caller uses its own local {@code facingShare} - so it is gone
-         * rather than left to look like a second consumer.
-         */
-        float earlyReflection;
-        /**
-         * Farthest reflection of any bounce, from the source. The EARLY REFLECTION's distance is measured
-         * from this rather than from the mean first-reflection distance: the mean only counts rays that hit
-         * something, and in a large valley most rays leave for the sky, so it is biased towards the few near
-         * hits and comes out far too short. The farthest hit is dominated by the far wall, which is the
-         * surface the reflection actually returns from.
-         */
-        float farthest;
-        /**
-         * Lower bound for the DIRECT path's brightness, from the share of reflections that come back through
-         * the listener's own airspace. Zero in the open; in an enclosed space it stops the direct sound from
-         * being darkened by the very rock the reflections travelled around.
+         * Lower bound for the DIRECT path's brightness, from the share of reflections that can reach the
+         * listener. Zero in the open; in an enclosed space it stops the direct sound from being darkened by
+         * the very rock the reflections travelled around.
          */
         float directCutoffFloor;
         /**
-         * Raw count of bounces whose reflection point sits in the ear's airspace, scaled by the ray budget and
-         * by 64 (see {@code openAirspace} in traceReverb). A SPACE-CONNECTIVITY measure: it says how much of
-         * the reflecting surface around the source can reach the listener at all, rather than whether the
-         * straight line between them is clear. It already drives the send cutoffs; the send GAINS use it too
-         * now, so a reverberant field still arrives through an opening the direct path cannot use.
+         * Share of bounces whose reflection point has a clear straight line to the ear, scaled by the ray
+         * budget and by 64 (see {@code connectedAirspace} in traceReverb). A CONNECTIVITY measure: it says
+         * how much of the reflecting surface around the source can reach the listener at all, rather than
+         * whether the straight line between them is clear.
+         *
+         * <p>Measured by line of sight ALONE. It used to be ORed with a "sky visible above" test, which is
+         * vertical and therefore direction blind: a shaft dug upward to the surface lit a whole column and
+         * marked every bounce under it as connected. See the note in traceReverb.
          */
-        float openAirspace;
-        /** Mean reflectivity of the first bounce: soft ground absorbs, stone returns. */
-        float reflectivity;
+        float connectedAirspace;
+        /**
+         * Share of bounces sitting under open sky. Observation point only - the probe reports it as
+         * {@code sky=} so the skylight's behaviour can be watched without letting it gate anything.
+         */
+        float outdoorShare;
         /** Brightness to impose on the early-reflection zones; see the comment in traceReverb. */
         float earlyReflectionCutoff;
-        /**
-         * Mean distance from the source to its FIRST reflection, in blocks. This is what separates a room
-         * from an open space: a short first-reflection distance means the reflection arrives almost with the
-         * direct sound and is heard as the space itself, a long one means it arrives as a separate event.
-         * That boundary is the Haas fusion window. See the note in {@code calculate}.
-         */
-        float firstDistance;
     }
 
 
@@ -517,6 +515,25 @@ public final class SoundFXUtils {
         // Handle any dampening effects from the player, like head in water
         directCutoff *= 1F - ctx.auralDampening;
 
+        // Damping when the path between the sound and the listener passes through water.
+        // Water strongly absorbs high frequencies and reduces the perceived volume, so a
+        // sound heard across a body of water (e.g. underwater -> shore, or the reverse)
+        // should sound muffled and quieter.
+        //
+        // Measured BEFORE the reverb trace on purpose. The trace's reflection-tap delay reads the
+        // submerged share (see the tap site in traceReverb) to interpolate the speed of sound between
+        // air (343 m/s) and water (1480 m/s); reading it after the trace meant the tap always used the
+        // PREVIOUS evaluation's water state, so a reflection that had just gone underwater arrived on an
+        // air-timed delay for one update, and the first evaluation of any sound always used air.
+        final Vec3 rawSourcePos = this.source.getPosition();
+        final float waterLength = calculateWaterPathLength(ctx, rawSourcePos, ctx.playerEyePosition);
+        // Submerged SHARE of the direct path. Water carries sound ~4.3x faster than air, so a reflection
+        // that travels underwater must arrive sooner; see the tap site.
+        final float straightDistance = (float) rawSourcePos.distanceTo(ctx.playerEyePosition);
+        this.lastSubmergedShare = straightDistance > 0.01F
+                ? MathStuff.clamp1(waterLength / straightDistance)
+                : 0F;
+
         final ReverbTrace reverb = new ReverbTrace();
         traceReverb(ctx, soundPos, sendCoeff, reverb);
 
@@ -575,32 +592,61 @@ public final class SoundFXUtils {
 
         float directGain = (float) MathStuff.pow(directCutoff, 0.1);
 
-        // The occlusion has to reach the reverb tail, not just the direct filter. Behind a wall the
-        // energy that would have fed the room is blocked too, so the tail must get quieter as well
-        // as darker. Only the DARKENING was reaching it before (the send cutoffs were lifted, never
-        // lowered, and sendGain never saw the occlusion at all), which left a heavily muffled direct
-        // sound sitting under a bright, undiminished reverb - heard as "occlusion does not work".
+        // The occlusion reaches the reverb tail through the send CUTOFFS, which finalizeSendGains applies
+        // as the wet path's filter and again as pow(sendCutoff, 0.1). It is deliberately NOT multiplied
+        // into the send GAINS as well.
         //
-        // Computed BEFORE finalizeSendGains and applied inside it, in one place. It used to be applied
-        // afterwards to all four sends, which worked for sends 0-2 but was silently discarded for send 3:
-        // finalizeSendGains used to assign sendGain3 outright, so anything multiplied in beforehand was
-        // thrown away. It now weights send 3 like the other zones, so all four take the occlusion.
-        // The sends are the reverb AMOUNT, accumulated from the SOURCE's rays, and they are gated by how much
-        // of the reflecting surface can reach the listener at all - NOT by whether the straight line from the
-        // source happens to be clear. Gating by the line alone conflated "can I hear the direct sound" with
-        // "is there a reverberant field here": in a mine with a one-block hole between two levels, standing
-        // next to the hole made the line clear and the reverb loud, while standing away from it drove the
-        // whole tail to zero - even though the source's own cavity is fully excited and the field leaks
-        // through the hole regardless.
+        // It used to be, as `sendGainN *= sendOcclusionGain`, which put the loss on the wet LEVEL a second
+        // time. The sends already take pow(sendCutoffN, 0.1) - the same "the level gets a damped share of
+        // the loss" convention the direct path uses through MATERIAL_LEVEL_RESTORE - and the extra factor
+        // applied the remaining 100% on top. The wet level therefore carried 110% of the loss dB against
+        // the direct path's 20%, so the wet-to-direct ratio fell as exp(sendCoeff) instead of holding at
+        // 1.0. That is what made reverb disappear entirely a couple of blocks away from an opening, even
+        // though the source's own cavity was fully excited and its field leaks through regardless.
         //
-        // max() of the two is deliberate: strictly additive, so this can only ADD reverb where the space is
-        // connected but the line is blocked. A sealed room with the listener outside still reads ~0 on both
-        // terms, so the village-hut fix the floor was set to 0 for survives.
-        final float spaceShare = MathStuff.clamp1(reverb.openAirspace / 20.0F);
-        final float sendOcclusionGain = SEND_OCCLUSION_FLOOR
-                + (1F - SEND_OCCLUSION_FLOOR) * Math.max(MathStuff.clamp1(directHfCutoff), spaceShare);
+        // The form that factor took - max(direct transmission, a space-connectivity share) - was also how
+        // the skylight contamination reached the reverb amount: the connectivity share came from a count
+        // that ORed a line-of-sight test with a "sky visible above" test, and the sky test is vertical
+        // and therefore direction blind. Removing the gate removes that path with it. Connectivity still
+        // drives the send cutoffs, where it belongs, and is now measured by line of sight alone.
+        // ROOM SIZE, BLENDED ACROSS THE TWO SPACES. finalizeSendGains scales the diffuse sends by a mean
+        // free path, and that used to be the SOURCE's alone - so how reverberant a sound arrived depended
+        // on where the sound was and never on where the listener was. Standing in a cave could not make
+        // the world sound reverberant, because nothing in the system measured the listener's room.
+        //
+        // The blend is weighted by how CONNECTED the two spaces are, and that is what keeps it from
+        // double-counting: room size has to be applied ONCE. When the source's reflections can reach the
+        // listener (connectedShare -> 1) the sound arrives through the source's space, so that space sets
+        // the scale; when they cannot, the listener hears it only through their own room, so that room
+        // sets it. At connectedShare = 1 the blend is exactly the source's mean free path.
+        //
+        // Measured on a real session (608 probe rows): the rows with connectedShare >= 0.8 - the same
+        // space, which is 52% of them - come out bit-for-bit unchanged, and every change lands on the
+        // cross-space rows, which is the case this exists to fix.
+        //
+        // The reference is the same 20 the probe's `conn=` uses and the same one that gates the send
+        // cutoffs in traceReverb; there is deliberately only one notion of "connected" in the model.
+        final float connectedShare = MathStuff.clamp1(reverb.connectedAirspace / 20.0F);
+        // The listener's own space is only measured when it can still change the answer. At
+        // connectedShare 1 the blend collapses onto the source's mean free path, so casting the fan
+        // would be pure cost - and that is 39% of measured evaluations. The short-circuit is EXACT,
+        // not an approximation: the term it skips would be multiplied by exactly zero.
+        final float effectiveMeanFreePath = connectedShare >= 1.0F
+                ? this.lastReverbMeanFreePath
+                : connectedShare * this.lastReverbMeanFreePath
+                        + (1F - connectedShare) * cachedListenerMeanFreePath(ctx);
+        finalizeSendGains(reverb, effectiveMeanFreePath);
 
-        finalizeSendGains(reverb, sendOcclusionGain, this.lastReverbMeanFreePath);
+        // The send gains are the reverb AMOUNT, and they are the only quantity the trace produces that
+        // nothing else smooths - see SourceContext.smoothSendGains for why they need it. Placed right
+        // after finalizeSendGains so it runs on the finished gains (bounce weighting, room size, clamps,
+        // cutoff) and not on an intermediate sum.
+        final float[] sendGains = {reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3};
+        this.source.smoothSendGains(sendGains, snap);
+        reverb.sendGain0 = sendGains[0];
+        reverb.sendGain1 = sendGains[1];
+        reverb.sendGain2 = sendGains[2];
+        reverb.sendGain3 = sendGains[3];
 
         if (ctx.player.isUnderWater()) {
             reverb.sendCutoff0 *= 0.4F;
@@ -609,27 +655,13 @@ public final class SoundFXUtils {
             reverb.sendCutoff3 *= 0.4F;
         }
 
-        // Damping when the path between the sound and the listener passes through water.
-        // Water strongly absorbs high frequencies and reduces the perceived volume, so a
-        // sound heard across a body of water (e.g. underwater -> shore, or the reverse)
-        // should sound muffled and quieter. The volume uses the square root of the low-pass
-        // factor (plus a floor) so a shallow crossing is clearly audible while a long
-        // underwater path never goes fully silent - just heavily muffled. Stacks with the
-        // player-underwater damping above, which mirrors the real double damping
-        // (propagation path + ear submerged).
-        final Vec3 rawSourcePos = this.source.getPosition();
-        final float waterLength = calculateWaterPathLength(ctx, rawSourcePos, ctx.playerEyePosition);
-        // Submerged SHARE of the direct path, kept for the reflection-tap delay, which is computed in a
-        // different method. Water carries sound ~4.3x faster than air, so a reflection that travels
-        // underwater must arrive sooner; see the tap site.
-        final float straightDistance = (float) rawSourcePos.distanceTo(ctx.playerEyePosition);
-        this.lastSubmergedShare = straightDistance > 0.01F
-                ? MathStuff.clamp1(waterLength / straightDistance)
-                : 0F;
-        // The low-pass (muffling) and the volume use separate per-block factors. Muffling
-        // is kept strong so underwater sound is clearly muffled in every direction and
-        // masks the reverb system's cut-off jitter in deep water; the volume uses a gentler
-        // curve (with a floor) so distant sounds stay audible instead of vanishing.
+        // The low-pass (muffling) and the volume use separate per-block factors, both driven by the
+        // submerged path length measured above. Muffling is kept strong so underwater sound is clearly
+        // muffled in every direction and masks the reverb system's cut-off jitter in deep water; the
+        // volume uses the square root of that factor (plus a floor) so a shallow crossing stays clearly
+        // audible while a long underwater path never goes fully silent - just heavily muffled. Stacks
+        // with the player-underwater damping above, which mirrors the real double damping (propagation
+        // path + ear submerged).
         final float muffleFactor = (float) Math.pow(CONFIG.waterSoundMuffle, waterLength);
         final float gainFactor = (float) Math.pow(CONFIG.waterSoundDamping, waterLength);
         // Smooth toward the target so an entity bobbing at the water surface (or the player
@@ -645,22 +677,26 @@ public final class SoundFXUtils {
         if (AudioTuning.shouldTrace()) {
             AudioTuning.recordTrace(String.format(
                                                                                     "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
-                        + "level=%.4f send=%.3f space=%.3f material=%.3f lossdb=%.1f edge=%b edgedb0=%.1f edgedb1=%.1f "
+                        + "level=%.4f conn=%.3f sky=%.3f material=%.3f lossdb=%.1f edge=%b edgedb0=%.1f edgedb1=%.1f "
                         + "edgedb2=%.1f clear=%.2f walk=%d walkm=%.1f rv=%.1f rvhit=%.2f rvrefl=%.2f far=%.0f mfp=%.1f "
-                        + "shared=%d ret=%d face=%.3f g0=%.3f g1=%.3f g2=%.3f g3=%.3f rays=%d cost=%.0f ",
+                        + "shared=%d ret=%d face=%.3f erf=%.4f g0=%.3f g1=%.3f g2=%.3f g3=%.3f rays=%d cost=%.0f lmfp=%.2f",
                     this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                     MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
-                    sendOcclusionGain, spaceShare, this.lastMaterialSum, this.lastZoneLossDb,
+                    MathStuff.clamp1(reverb.connectedAirspace / 20.0F), reverb.outdoorShare,
+                    this.lastMaterialSum, this.lastZoneLossDb,
                     this.lastEdgeFound,
                     this.lastEdgeDb[0], this.lastEdgeDb[1], this.lastEdgeDb[2], this.lastEdgeDelta,
                     this.lastWalkSegments, this.lastWalkDistance,
                     this.lastReverbFirstDistance, this.lastReverbHitFraction,
                     this.lastReverbReflectivity, this.lastReverbFarthest,
                     this.lastReverbMeanFreePath, this.lastReverbShared, this.lastReturnedBounces,
-                    this.lastFacingShare,
+                    this.lastFacingShare, this.lastEarlyReflectionGain,
                     reverb.sendGain0, reverb.sendGain1, reverb.sendGain2, reverb.sendGain3,
                                         ReusableRaycastContext.raycastCount(),
-                    (System.nanoTime() - evaluationStart) / 1000.0D));
+                    (System.nanoTime() - evaluationStart) / 1000.0D,
+                    // The same value the sends used, read back out of the cache rather than cast again -
+                    // the probe should report what was applied, not a second measurement.
+                    cachedListenerMeanFreePath(ctx)));
         }
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);
@@ -676,9 +712,17 @@ public final class SoundFXUtils {
         // Used for the early-reflection term. A second condition used to be applied - an unobstructed line
         // to the ear - and it read zero outdoors; see the long note in the bounce loop.
         float returnedBounces = 0F;
-        // Bounces in open air, i.e. with clear sky above. Feeds the send-cutoff weights, which is what it
-        // has always fed; it is a different quantity from the one above and must stay separate.
-        float openBounces = 0F;
+        // Bounces whose reflection point can REACH the listener: a clear straight line from the reflection
+        // point to the ear. This is a CONNECTIVITY measure and it is the only thing that feeds the send
+        // cutoffs and the direct-path floor.
+        float connectedBounces = 0F;
+        // Bounces with clear sky above. Observation point only - the probe reports it as `sky=`. It is
+        // deliberately kept out of every calculation; see the note at the increment below.
+        float outdoorBounces = 0F;
+        // Read ONCE. The skylight count feeds the probe's `sky=` field and nothing else, so with the probe
+        // off there is no reason to pay for a light lookup on every bounce - up to 128 per evaluation,
+        // each one a chunk-level brightness query.
+        final boolean traceProbe = AudioTuning.shouldTrace();
         // Observation-point accumulators. See the lastReverb* fields for why they exist.
         float firstDistanceSum = 0F;
         float firstReflectivitySum = 0F;
@@ -702,7 +746,10 @@ public final class SoundFXUtils {
 
         for (int i = 0; i < REVERB_RAYS; i++) {
 
-            // See the openBounces note below: whether this ray can see the ear is settled once.
+            // See the connectedBounces note below: whether this ray can see the ear is settled once per
+            // RAY. It must be declared here, inside the ray loop - declaring it outside the loop makes it
+            // per TRACE, so one visible bounce point marks every later ray's every bounce as connected and
+            // saturates the weights built from the count.
             boolean earVisible = false;
 
             Vec3 origin = soundPos;
@@ -799,20 +846,29 @@ public final class SoundFXUtils {
                         returnedBounces += 1.0F;
                     }
                     // A bounce counts towards the send cutoffs - which is what makes a tail BRIGHT and long -
-                    // when the reflection point is in the same airspace as the ear. TWO tests, and both are
-                    // needed because each one is blind exactly where the other works:
+                    // when the reflection point can REACH the listener. ONE test now: a clear straight line
+                    // from the reflection point to the ear.
                     //
-                    //   * a clear straight line to the ear. This is the original mod's test and it is the one
-                    //     that works INDOORS: a cave's walls are a few blocks away, so their reflection points
-                    //     can see the listener. It reads zero outdoors, because the ear sits ~1.6 blocks above
-                    //     the ground and a grazing line is blocked by any terrain rise.
-                    //   * open sky above. This works OUTDOORS, where the line test fails, and reads zero
-                    //     underground.
+                    // There used to be a second test ORed into the same count - open sky above the
+                    // reflection point - on the reasoning that the two are blind in opposite places: the
+                    // line test reads zero outdoors (the ear sits ~1.6 blocks above the ground, so a
+                    // grazing line is blocked by any terrain rise) while the sky test reads zero
+                    // underground. The union is not safe, for two reasons:
                     //
-                    // Replacing the line test with the sky test alone - which an earlier revision did, to fix
-                    // the outdoor case - silently removed the indoor case with it, and a cave lost its long
-                    // bright tail because sendCutoff collapsed to exp(sendCoeff) there.
-                    // `openBounces` is a COUNT, so this only has to be established once per RAY: if the
+                    //   * the sky test is a VERTICAL measurement and therefore direction blind. A shaft dug
+                    //     upward to the surface lights a whole column and marks every bounce under it as
+                    //     connected, including bounces that face away from the listener entirely. That is
+                    //     the same class of defect as the removed listener-openness term: a quantity that
+                    //     cannot see direction was being allowed to raise a transmission. Digging a hole
+                    //     to the sky made a source three levels below suddenly audible and reverberant.
+                    //   * the outdoor case the sky test was added to rescue does not need rescuing.
+                    //     Outdoors the direct path is barely occluded, so sendCoeff is about 0 and the
+                    //     send cutoffs are already about 1; neither the floor nor the cutoff has anything
+                    //     left to add there.
+                    //
+                    // So the sky count is kept, but only as an observation point. It gates nothing.
+                    //
+                    // `connectedBounces` is a COUNT, so this only has to be established once per RAY: if the
                     // ear was visible from an earlier bounce point of this same ray, the count is already
                     // decided and no later bounce can change it. Re-casting it on every bounce was 96 wasted
                     // raycasts per evaluation on defaults - about a third of the budget - for no effect on
@@ -822,8 +878,11 @@ public final class SoundFXUtils {
                         if (isMiss(traceContext.trace(bounceAirStart, ctx.playerEyePosition)))
                             earVisible = true;
                     }
-                    if (earVisible || openAir(ctx, lastHitPos)) {
-                        openBounces += 1.0F;
+                    if (earVisible) {
+                        connectedBounces += 1.0F;
+                    }
+                    if (traceProbe && openAir(ctx, lastHitPos)) {
+                        outdoorBounces += 1.0F;
                     }
                     facingSum += returned;
 
@@ -866,23 +925,19 @@ public final class SoundFXUtils {
         out.bounceRatio[3] = out.bounceRatio[3] / REVERB_RAYS;
 
         // The cutoff weights below want a normalised 0..1 share; the raw counts are kept for the probe.
-        // `returnedBounces` is no longer converted here: it was only ever used to fill a field nothing
-        // read. It is still counted, because the probe reports it as `ret=`.
-        final float openAirspace = openBounces * RECIP_TOTAL_RAYS * 64F;
-        out.openAirspace = openAirspace;
+        final float connectedAirspace = connectedBounces * RECIP_TOTAL_RAYS * 64F;
+        out.connectedAirspace = connectedAirspace;
+        out.outdoorShare = MathStuff.clamp1(outdoorBounces * RECIP_TOTAL_RAYS * 64F / 20.0F);
 
         // Observation point. `shared` is the raw count of bounces sitting in open air (clear sky above), and
         // `ret` is the raw count of bounces that came back off a surface facing the source - a valley scores
         // far above a plain on the second and not much on the first.
         this.lastReverbFirstDistance = firstHits > 0 ? firstDistanceSum / firstHits : 0F;
-        out.firstDistance = this.lastReverbFirstDistance;
         this.lastReverbReflectivity = firstHits > 0 ? firstReflectivitySum / firstHits : 0F;
-        out.reflectivity = this.lastReverbReflectivity;
         this.lastReverbHitFraction = firstHits / (float) REVERB_RAYS;
-        this.lastReverbShared = (int) openBounces;
+        this.lastReverbShared = (int) connectedBounces;
         this.lastReturnedBounces = (int) returnedBounces;
         this.lastReverbFarthest = farthest;
-        out.farthest = farthest;
         // Mean free path, normalised by rays x bounces rather than by the bounces that happened.
         //
         // As a mean over hits it was inflated by escapes: in a plain most rays leave for the sky and never
@@ -892,10 +947,10 @@ public final class SoundFXUtils {
         // space is open and there is nothing to reflect off.
         this.lastReverbMeanFreePath = (float) (pathSum / (double) (REVERB_RAYS * REVERB_RAY_BOUNCES));
 
-        final float sharedAirspaceWeight0 = MathStuff.clamp1(openAirspace / 20.0F);
-        final float sharedAirspaceWeight1 = MathStuff.clamp1(openAirspace / 15.0F);
-        final float sharedAirspaceWeight2 = MathStuff.clamp1(openAirspace / 10.0F);
-        final float sharedAirspaceWeight3 = MathStuff.clamp1(openAirspace / 10.0F);
+        final float sharedAirspaceWeight0 = MathStuff.clamp1(connectedAirspace / 20.0F);
+        final float sharedAirspaceWeight1 = MathStuff.clamp1(connectedAirspace / 15.0F);
+        final float sharedAirspaceWeight2 = MathStuff.clamp1(connectedAirspace / 10.0F);
+        final float sharedAirspaceWeight3 = MathStuff.clamp1(connectedAirspace / 10.0F);
 
         final float exp1 = (float) MathStuff.exp(sendCoeff);
         final float exp2 = (float) MathStuff.exp(sendCoeff * 1.5F);
@@ -930,7 +985,17 @@ public final class SoundFXUtils {
         // far larger than the number of terms because most rays escape to the sky) and then by a "reference"
         // rays x 8, which starved the term 8x and left every scene at 0.00-0.01 - the reason a valley was
         // silent. There is no threshold and no proxy: the number IS the geometry.
-        final float facingShare = facingSum / (float) REVERB_RAYS;
+        // Divided by rays x bounces - the number of terms actually summed - so the result really is the
+        // SHARE its name claims, in 0..1.
+        //
+        // It used to be divided by the number of RAYS alone, on the reasoning that "most rays escape to
+        // the sky, so the divisor is far larger than the number of terms" and the term was being starved.
+        // That reasoning holds OUTDOORS and fails everywhere else - which is the same mistake as the
+        // skylight gate: a conclusion drawn in one kind of scene and applied to all of them. Measured in
+        // a cave/mine session (291 probe rows, 1.20.1), face was over 1.0 in 290 of 290 rows, median 2.36
+        // and max 3.28, because underground almost every ray keeps bouncing and the 128 terms really are
+        // all there. A share that can reach 4 is not a share.
+        final float facingShare = facingSum * RECIP_TOTAL_RAYS;
         this.lastFacingShare = facingShare;
         // This share drives the reverb TAIL's brightness and loudness (finalizeSendGains). It is the measure
         // of how much of the space returns energy: a plain collapses to ~0.015 because its reflections are
@@ -965,15 +1030,15 @@ public final class SoundFXUtils {
         //
         // facingShare measures the second - the share of rays that come back off a surface facing the
         // source - and it is independent of how open the space is, so feeding it into a send with a
-        // 0.55 s or 1.68 s decay gave a valley the tail of a room. The code's own comment on
-        // EARLY_REFLECTION_GAIN has always described the correct routing; nothing implemented it.
+        // 0.55 s or 1.68 s decay gave a valley the tail of a room. The tap is where the returned-energy
+        // term belongs; see REFLECTION_DENSITY_GAIN.
         //
         // The measurement itself is real, and worth keeping in this form: a valley wall really does
         // return energy, and at 0.35 reflectivity the reflection lands near -18 dB while a narrow stone
         // gorge reaches about -4 dB, both levels real reflections reach.
         final float reflectionTap = this.source.smoothEarlyReflection(
                 (float) Math.sqrt(MathStuff.clamp1(this.lastReverbReflectivity))
-                        * facingShare * EARLY_REFLECTION_GAIN * reflectionDistanceScale,
+                        * facingShare * REFLECTION_DENSITY_GAIN * reflectionDistanceScale,
                 this.source.isImmediateUpdate());
         // Delay from the first-reflection distance: a near wall fuses with the direct sound, a distant
         // one arrives as a separate event. OpenAL clamps the value to its own 0..0.3 s range.
@@ -993,11 +1058,17 @@ public final class SoundFXUtils {
         // says the true thing ("a reflection this strong exists in this space"). Reset by beginPass().
         if (reflectionTap >= passTapGain) {
             passTapGain = reflectionTap;
-            Effects.reflectionTapGain = reflectionTap;
-            Effects.reflectionTapDelay = reflectionTapDelay;
+            // Published as a PAIR under the reader's lock, so the gain and the delay always describe
+            // the same reflection.
+            synchronized (Effects.TAP_LOCK) {
+                Effects.reflectionTapGain = reflectionTap;
+                Effects.reflectionTapDelay = reflectionTapDelay;
+            }
         }
-        // Consumed by finalizeSendGains: it feeds the tail, not the reflection tap.
-        out.earlyReflection = reflectionTap;
+        // Reported by the probe as `erf=`. It used to be written into the trace as well, but nothing read
+        // it there - the discrete arrival goes to the slot's reflection tap, and the diffuse sends get
+        // nothing from it.
+        this.lastEarlyReflectionGain = reflectionTap;
         // The early-reflection zones are kept BRIGHT. A reflection off a distant wall travels through AIR,
         // so it never crosses the rock that darkens the direct path - the occlusion cutoff is the wrong
         // filter for it. Without this the tail inherited the direct path's darkening and a valley sounded
@@ -1016,9 +1087,16 @@ public final class SoundFXUtils {
         // Measured (tools/verify_brightness_fix.py): a 3x3x3 hut goes 1.000 -> 0.337, darker than every
         // direct path through its wall; a cavern and a stone hall are unchanged at 1.000; a wooden hall
         // keeps 0.883, so it still reads as a hall rather than as a hut.
+        // The 0.65 coefficient is now applied to facingShare DIRECTLY, with no multiplier. There used to
+        // be a *4.0 on it, which made sense only while facingShare was divided by the number of rays
+        // instead of by rays x bounces and so ran about 4x too large. With the divisor fixed, leaving the
+        // 4.0 in place saturates the whole expression: it reaches 1.0 at facingShare = 0.25, and since
+        // the measured median is about 0.59 the brightness floor was pinned at its maximum in essentially
+        // every scene - which lifted the send cutoffs to 1.0 and stopped occlusion reaching the wet path
+        // at all.
         final float reflectionScale = Math.min(1.0F, this.lastReverbMeanFreePath / ECHO_SCALE_REFERENCE_M);
         out.earlyReflectionCutoff = MathStuff.clamp1(
-                (0.35F + 0.65F * facingShare * 4.0F) * reflectionScale);
+                (0.35F + 0.65F * facingShare) * reflectionScale);
     }
 
     /** Applies the bounce-ratio scaling and clamps the send gains.
@@ -1026,8 +1104,7 @@ public final class SoundFXUtils {
      * @param meanFreePath the space's characteristic size, from the most recent trace. Passed in
      *                     because this method is static and the value lives on the instance.
      */
-    private static void finalizeSendGains(final ReverbTrace reverb, final float sendOcclusionGain,
-                                          final float meanFreePath) {
+    private static void finalizeSendGains(final ReverbTrace reverb, final float meanFreePath) {
         reverb.sendGain1 *= reverb.bounceRatio[1];
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.bounceRatio[2], 3.0);
 
@@ -1106,23 +1183,23 @@ public final class SoundFXUtils {
         reverb.sendGain2 = MathStuff.clamp1(reverb.sendGain2 * 1.05F - 0.05F);
         reverb.sendGain3 = MathStuff.clamp1(reverb.sendGain3 * 1.05F - 0.05F);
 
+        // Occlusion reaches the wet LEVEL here, once, through the same convention the direct path uses:
+        // the filter above gets the full loss and the level gets pow(cutoff, 0.1), a damped share of it.
+        // That keeps the wet-to-direct ratio independent of how occluded the source is, which is what
+        // makes a tail heard from outside a room behave like the direct sound from outside that room.
+        // See the note at the send site in calculate() for the two forms this used to take and why both
+        // were wrong.
         reverb.sendGain0 *= (float) MathStuff.pow(reverb.sendCutoff0, 0.1);
         reverb.sendGain1 *= (float) MathStuff.pow(reverb.sendCutoff1, 0.1);
         reverb.sendGain2 *= (float) MathStuff.pow(reverb.sendCutoff2, 0.1);
         reverb.sendGain3 *= (float) MathStuff.pow(reverb.sendCutoff3, 0.1);
 
-        // Occlusion, applied ONCE to every send. All four are reverb zones carrying energy from the same
-        // source, so a source heard through a wall is quieter on every path. The CUTOFFS (brightness) are
-        // handled separately below, because a reflection travels through open air and must not inherit the
-        // direct path's darkening.
-        reverb.sendGain0 *= sendOcclusionGain;
-        reverb.sendGain1 *= sendOcclusionGain;
-        reverb.sendGain2 *= sendOcclusionGain;
-        reverb.sendGain3 *= sendOcclusionGain;
-
         // The early-reflection zones are kept bright. A reflection off a distant wall crosses AIR, not rock,
         // so the direct path's occlusion cutoff is the wrong filter for it - inheriting that darkening is why
         // a valley read as "a weakened cave". Only raises: an enclosed space's own cutoff is already higher.
+        //
+        // Zone 3 (the 4.142 s tail) needs the same argument as the zones above it; leaving it out made the
+        // longest tail the darkest one, which is backwards.
         reverb.sendCutoff1 = Math.max(reverb.sendCutoff1, reverb.earlyReflectionCutoff);
         reverb.sendCutoff2 = Math.max(reverb.sendCutoff2, reverb.earlyReflectionCutoff);
         reverb.sendCutoff3 = Math.max(reverb.sendCutoff3, reverb.earlyReflectionCutoff);
@@ -1181,10 +1258,10 @@ public final class SoundFXUtils {
      *
      * <p>Each term is a measurement:
      * <ul>
-     *   <li><b>material</b> - what the block material along the path transmits. When the search has found an
-     *       opening, the path measured is the BENT one through it (source -> opening -> listener); otherwise it
-     *       is the straight line. This is the direct path, and it is what makes a wall's THICKNESS matter: one
-     *       block of stone (occlusion 0.5) transmits about 0.83, a four-block wall about 0.22.</li>
+     *   <li><b>material</b> - what the block material along the STRAIGHT path transmits. This is the direct
+     *       path, and it is what makes a wall's THICKNESS matter: one block of stone (occlusion 0.5)
+     *       transmits about 0.83, a four-block wall about 0.22. An opening found beside the line does not
+     *       change this measurement - the edge term below carries it.</li>
      *   <li><b>edge</b> - the diffracted path around the same opening, per octave band. It is <b>zero when
      *       there is no opening within reach</b>, because a barrier wider than the search reaches has no edge
      *       to bend around.</li>
@@ -1195,10 +1272,10 @@ public final class SoundFXUtils {
      * no separate treatment: its wall's material transmission is low, and the room's own contribution is the
      * reverb, which the reverb trace already measures.
      *
-     * <p>Measuring the bent path rather than the straight line is what lets an enclosed space with an opening
-     * sound open. It is also what removes the snap at the mouth of a cave: the straight line's rock content
-     * goes from "all of it" to "none of it" within a block or two, while the bent path measures air the whole
-     * way and changes gradually as the opening moves across the line.
+     * <p>The material walk measures the STRAIGHT source-to-listener line, always - even when the edge search
+     * has found an opening beside it. The opening is carried entirely by the edge term. Measuring the bent
+     * path through the opening instead was implemented once and reverted; this javadoc used to describe it
+     * anyway, which is exactly the trap that makes a later reader "fix" something that is not there.
      *
      * <p>Both terms are returned in dB and then divided by the absorption coefficient, because the caller
      * applies {@code exp(-occlusion * absorption)} to get the amplitude back. The two conversions therefore
@@ -1254,13 +1331,13 @@ public final class SoundFXUtils {
         this.lastMaterialSum = amplitudeFromDb(materialLossDb);
 
         final int bands = bandCount();
-        float weightedDb = 0F;
+        float powerSum = 0F;
         float weightTotal = 0F;
         for (int band = 0; band < bands; band++) {
             // The material term is per band: a wall is far less transparent to a high frequency than to a
             // low one (the mass law), so sharing one coefficient across the bands understated how dull a
-            // wall sounds. See materialAbsorptionScale.
-            final float bandLossDb = materialLossDb * materialAbsorptionScale(bandFrequency(band));
+            // wall sounds. See spectralTiltDb.
+            final float bandLossDb = materialLossDb + spectralTiltDb(materialLossDb, bandFrequency(band));
             final float transmitted = amplitudeFromDb(bandLossDb);
             // Transmission through the material and diffraction around its edge are two INDEPENDENT paths, so
             // their POWERS add: combining amplitudes means the square root of the sum of squares.
@@ -1274,12 +1351,17 @@ public final class SoundFXUtils {
                 amplitude = (float) Math.sqrt(transmitted * transmitted + edge * edge);
             }
             amplitude = MathStuff.clamp1(amplitude);
-            final float db = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, amplitude)));
+            // The broadband figure is an ENERGY average, not an average of dB. Averaging dB is a GEOMETRIC
+            // mean of the amplitudes, which is dragged toward whichever band is most attenuated - behind a
+            // wall that is always the top band - so it reported the model several dB darker than the energy
+            // actually arriving. Same power convention as the material/edge combination just above.
             final float weight = bandWeight(band);
-            weightedDb += weight * db;
+            powerSum += weight * amplitude * amplitude;
             weightTotal += weight;
         }
-        final float lossDb = weightTotal > 0F ? weightedDb / weightTotal : 0F;
+        final float lossDb = weightTotal > 0F
+                ? (float) (-20.0D * Math.log10(Math.max(1.0E-6F, (float) Math.sqrt(powerSum / weightTotal))))
+                : 0F;
 
         // The returned value drives the direct low-pass as exp(-x), and the engine also
         // derives the direct LEVEL from it as pow(that, 0.1). Feeding it the full transmission loss applied
@@ -1330,7 +1412,7 @@ public final class SoundFXUtils {
      * it is one global value; without this it was overwritten by every source evaluation and ended up
      * being whatever the last-evaluated source computed, which made it order dependent.
      */
-    private static float passTapGain;
+    private static volatile float passTapGain;
 
     private float traceOcclusion(final WorldContext ctx, final Vec3 origin, final Vec3 target,
                                  final Vec3[] firstOccluder) {
@@ -1417,8 +1499,13 @@ public final class SoundFXUtils {
     private static float bandWeight(final int index) {
         final float[] weights = AudioTuning.bandWeights();
         final float[] use = weights.length == 0 ? DEFAULT_BAND_WEIGHTS : weights;
+        // A band with no configured weight contributes NOTHING, not a default share. Returning
+        // 1/length here meant that shortening the weight list (as the config tooltip invites:
+        // '/dstune bandWeights 0.7,0.25,0.05') left every remaining band holding a third of the total
+        // weight each, so the high bands - the ones that weigh least in the intended low-tilted set -
+        // ended up dominating the combined result.
         if (index < 0 || index >= use.length)
-            return 1F / use.length;
+            return 0F;
         return use[index];
     }
 
@@ -1445,10 +1532,27 @@ public final class SoundFXUtils {
      * <p>With {@code realismWavelength} off there is a single band at {@link AudioTuning#realismFrequencyHz()},
      * and this returns exactly 1 for the default 500 Hz - so the frequency-blind behaviour is preserved.
      */
-    private static float materialAbsorptionScale(final float frequencyHz) {
-        final double ratio = Math.max(100.0D, frequencyHz) / MATERIAL_REFERENCE_HZ;
-        return (float) Math.sqrt(ratio);
+    private static float spectralTiltDb(final float lossDb500, final float frequencyHz) {
+        if (lossDb500 <= 0F)
+            return 0F;
+        final double octaves = Math.log(Math.max(100.0D, frequencyHz) / MATERIAL_REFERENCE_HZ) / LOG_2;
+        final float saturation = lossDb500 / (lossDb500 + SPECTRUM_SATURATION_DB);
+        return (float) (MATERIAL_SPECTRUM_DB_PER_OCTAVE * octaves * saturation);
     }
+
+    /**
+     * Extra transmission loss per octave of frequency, in dB. See {@link #spectralTiltDb}: this is the
+     * mass law's frequency term, which does not depend on how thick the barrier is.
+     */
+    private static final double MATERIAL_SPECTRUM_DB_PER_OCTAVE = 6.0D;
+
+    /**
+     * Loss at which the spectral tilt is half developed, in dB. See {@link #spectralTiltDb}: without
+     * this a barrier of zero thickness would still carry a spectrum.
+     */
+    private static final float SPECTRUM_SATURATION_DB = 12.0F;
+
+    private static final double LOG_2 = Math.log(2.0D);
 
     // A distance-weighted occlusion sum - material near either end counting for more than material far
     // along the line - lived here, with its own tuning knob. It was removed deliberately in 9390fe1, when
@@ -1479,13 +1583,29 @@ public final class SoundFXUtils {
      */
     private static float edgeAmplitude(final float delta, final float frequencyHz, final float spread) {
         final double lambda = SPEED_OF_SOUND / Math.max(1F, frequencyHz);
-        final double n = Math.sqrt(Math.max(0.0D, 2.0D * delta / lambda));
-        final float loss = 0.5F + (float) (0.5D * Math.tanh(n));
-        // STANDARD knife-edge amplitude: 0.5 (-6 dB) at the shadow boundary, rising to 1 in the lit
-        // region. This used to be 1 - 0.75*(1 - loss), a fitted form that put the boundary at 0.625
-        // (-4.1 dB) instead. The fitted constant existed to make the model tunable against the game's
-        // reverb, but it had no physical basis and the standard value is the one the reference acoustic
-        // model uses. Dropping it makes the edge term weaker, which is the intended direction.
+        // ITU-R P.526 knife-edge diffraction loss.
+        //
+        // v is the Fresnel parameter of the DETOUR: v = 2*sqrt(dL/lambda), i.e. sqrt(2) times the n the
+        // previous form used (n = sqrt(2*dL/lambda)).
+        //
+        //   J(v) = 6.9 + 20*log10( sqrt((v-0.1)^2 + 1) + v - 0.1 )      dB
+        //   A    = 10^(-J/20)
+        //
+        // At v = 0 this gives J = 6.03 dB, so A = 0.5 - the same -6 dB shadow boundary the model has
+        // always used. The difference from the previous form is the DIRECTION: a larger detour means the
+        // receiver is deeper in the shadow, so the loss must GROW, asymptoting at about 6 dB per unit of
+        // v. The previous form (0.5 + 0.5*tanh(n)) did the opposite - it rose towards 1 as the detour
+        // grew, so going farther around an obstacle made the sound LOUDER.
+        //
+        // That inversion is what made a distant opening nearly free: a detour of 13 blocks returned -4.3 dB
+        // when the correct figure is -35.8 dB.
+        final double v = 2.0D * Math.sqrt(Math.max(0.0D, delta / lambda));
+        final double shifted = v - 0.1D;
+        final double j = 6.9D + 20.0D * Math.log10(Math.sqrt(shifted * shifted + 1.0D) + shifted);
+        final float loss = (float) Math.pow(10.0D, -Math.max(0.0D, j) / 20.0D);
+        // Scaled by how much the bent path spreads. A wave that goes around an edge has travelled further
+        // than one that goes straight, and its energy is spread over the larger wavefront: for AMPLITUDE
+        // that is the ratio of the straight distance to the bent path length (1/r spreading).
         return loss * MathStuff.clamp1(spread);
     }
 
@@ -1501,19 +1621,17 @@ public final class SoundFXUtils {
      * that opening, not from the clearance height itself:
      * <pre>
      *   dL   = sqrt(d1^2 + h^2) + sqrt(d2^2 + h^2) - (d1 + d2)   the extra distance the bent path covers
-     *   n    = sqrt(2 * dL / lambda)                             the Fresnel parameter
-     *   loss = 0.5 + 0.5 * tanh(n)                               0.5 at grazing, 1 once clear
-     *   A    = 1 - 0.75 * (1 - loss)                             0.625 at grazing, 1 when clear
+     *   v    = 2 * sqrt(dL / lambda)                             the Fresnel parameter
+     *   J(v) = 6.9 + 20*log10( sqrt((v-0.1)^2 + 1) + v - 0.1 )   dB, the ITU-R P.526 knife-edge loss
+     *   A    = 10^(-J/20) * (d1+d2) / bentPath                   amplitude, including 1/r spreading
      * </pre>
      * with d1 and d2 the distances from the source and the listener to the obstacle.
      *
-     * <p>Using the detour rather than h is what makes the term vanish for a barrier the wave cannot get around.
-     * The previous form fed h straight into n, so a wide wall - where no opening is found at all and h was
-     * clamped to the search limit - produced a LARGE n and therefore loss 1 and amplitude 1: a wide wall read as
-     * fully transparent, and since the amplitudes add, the material term was masked by it. Measured over one
-     * session that made the edge contribute exactly 0.0 dB in 207 of 207 rows, 197 of them the clamped case.
-     * A wall wider than the search reaches now yields no edge contribution at all, which is the honest reading:
-     * what gets through it gets through by transmission, and the material term already measures that.
+     * <p>A barrier wider than the search reaches is NOT a hard zero. It is evaluated at the search's own
+     * reach, which under the loss above is a large attenuation on its own - a 13-block detour comes out
+     * around -36 dB, below the material term's transmission, so the power sum is carried by the material
+     * and the wall stays opaque. Returning null (a hard zero) instead made the edge term a BINARY switch:
+     * see the note at that branch for why that was audible as the muffling flipping on and off.
      *
      * @return array of amplitudes per band, or null when the anchor is missing.
      */
@@ -1569,14 +1687,24 @@ public final class SoundFXUtils {
             if (clearance > 0F)
                 break;
         }
-        // No opening within the search: the barrier is wider than the search reaches. There is no edge path to
-        // add, so the direct transmission through the material is all there is. Treating the search limit as a
-        // real clearance instead would read the widest walls as the most transparent ones.
+        // No opening within the search: the barrier is wider than the search reaches. That is NOT a hard
+        // zero. The wave still diffracts, just from farther out, and the search's own reach is the honest
+        // clearance to evaluate it at - under the knife-edge loss that yields a large attenuation by
+        // itself, so the material term carries the power sum and the wall stays opaque.
+        //
+        // Returning null here made the edge term a BINARY SWITCH, and that was audible. Whenever the
+        // material term is heavily attenuated - a thick barrier, which is exactly the case this branch
+        // describes - the edge term dominates the power sum: an opening found at 0.75 blocks gave about
+        // -3 dB, no opening gave the material term's -33 dB. Moving a few blocks moves the anchor
+        // (the midpoint of the first solid segment the walk finds) enough to cross between the two, so
+        // the muffling flipped on and off for loud, heavily occluded sources. Evaluating the far case
+        // instead of zeroing it turns a 30 dB cliff into a continuous ramp.
         if (clearance < 0F) {
+            clearance = offset;
             this.lastEdgePoint = null;
-            return null;
+        } else {
+            this.lastEdgePoint = opening;
         }
-        this.lastEdgePoint = opening;
 
         // The detour the bent path costs over the straight line. The anchor lies on the line, so
         // d1 + d2 = directLen and the detour is the two hypotenuses minus that.
@@ -1585,7 +1713,11 @@ public final class SoundFXUtils {
         final double detour = Math.sqrt(d1 * d1 + (double) clearance * clearance)
                 + Math.sqrt(d2 * d2 + (double) clearance * clearance) - (d1 + d2);
         this.lastEdgeDelta = clearance;
-        this.lastEdgeFound = true;
+        // True only when an opening was actually found. When it is false the clearance above is the search
+        // limit, which the probe reports in `clear=` - so `edge=false` together with `clear=13.44` reads as
+        // "no opening within reach", and the edge term is carrying the far-detour attenuation instead of
+        // nothing at all.
+        this.lastEdgeFound = opening != null;
 
         final int bands = bandCount();
         final float[] amplitudes = new float[bands];
@@ -1600,6 +1732,97 @@ public final class SoundFXUtils {
                 this.lastEdgeDb[band] = (float) (-20.0D * Math.log10(Math.max(1.0E-6F, amplitudes[band])));
         }
         return amplitudes;
+    }
+
+    private static float listenerMeanFreePath(final WorldContext ctx) {
+        final ReusableRaycastContext traceContext =
+                new ReusableRaycastContext(ctx.world, ClipContext.Block.COLLIDER, ClipContext.Fluid.ANY);
+        double pathSum = 0D;
+        for (int i = 0; i < REVERB_RAYS; i++) {
+            Vec3 origin = ctx.playerEyePosition;
+            Vec3 target = origin.add(REVERB_RAY_PROJECTED[i]);
+            var rayHit = traceContext.trace(origin, target);
+            if (isMiss(rayHit))
+                continue;
+            Vec3 lastHitPos = rayHit.getLocation();
+            Vec3 lastHitNormal = surfaceNormal(rayHit.getDirection());
+            Vec3 lastRayDir = REVERB_RAY_NORMALS[i];
+            for (int j = 0; j < REVERB_RAY_BOUNCES; j++) {
+                final Vec3 newRayDir = MathStuff.reflection(lastRayDir, lastHitNormal);
+                origin = MathStuff.addScaled(lastHitPos, newRayDir, 0.01F);
+                target = MathStuff.addScaled(origin, newRayDir, MAX_REVERB_DISTANCE);
+                rayHit = traceContext.trace(origin, target);
+                if (isMiss(rayHit))
+                    break;
+                pathSum += lastHitPos.distanceTo(rayHit.getLocation());
+                lastHitPos = rayHit.getLocation();
+                lastHitNormal = surfaceNormal(rayHit.getDirection());
+                lastRayDir = newRayDir;
+            }
+        }
+        return (float) (pathSum / (double) (REVERB_RAYS * REVERB_RAY_BOUNCES));
+    }
+
+    /**
+     * A cached listener-space measurement. Immutable and published through a volatile field, so two
+     * worker threads racing here can only cost one redundant ray fan - neither can observe a
+     * half-built result.
+     */
+    private static final class ListenerSpace {
+        final Vec3 earPosition;
+        final float meanFreePath;
+        final long stampNanos;
+
+        ListenerSpace(final Vec3 earPosition, final float meanFreePath, final long stampNanos) {
+            this.earPosition = earPosition;
+            this.meanFreePath = meanFreePath;
+            this.stampNanos = stampNanos;
+        }
+    }
+
+    /** Latest listener-space measurement. See {@link #cachedListenerMeanFreePath}. */
+    private static volatile ListenerSpace listenerSpace;
+
+    /**
+     * How far the ear may move before the listener's space is measured again, in blocks.
+     *
+     * <p>A room's mean free path does not meaningfully change within a block - it is a whole-space
+     * average, not a local one - and the value it feeds is time-smoothed on the way to the sends, so
+     * a step of this size is absorbed rather than heard. Measured: widening this from 0.5 to 1.0 and
+     * the TTL below from 250 ms to 500 ms roughly halves how often the fan is cast.
+     */
+    private static final float LISTENER_SPACE_MOVE_BLOCKS = 1.0F;
+
+    /**
+     * How long a listener-space measurement stays valid, in nanoseconds. Half a second.
+     *
+     * <p>At the measured evaluation rate (about 2.8 a second) a shorter TTL would let nearly every
+     * evaluation re-cast the same fan for the same room; this is what makes the cache actually bite.
+     */
+    private static final long LISTENER_SPACE_TTL_NANOS = 500_000_000L;
+
+    /**
+     * {@link #listenerMeanFreePath} with a cache.
+     *
+     * <p>The measurement costs a full ray fan and depends on NOTHING except where the ear is, so without
+     * this every source in a pass would cast the same fan and get the same number - the cost would scale
+     * with how many sounds are playing instead of with how fast the player is moving. Caching by ear
+     * position is what makes wiring it into the sends affordable: walking triggers a handful of fans a
+     * second no matter how much is playing, and standing still triggers none.
+     *
+     * <p>The TTL is a backstop rather than the primary term: standing still in a space that is being
+     * dug out would otherwise keep the old number forever.
+     */
+    private static float cachedListenerMeanFreePath(final WorldContext ctx) {
+        final ListenerSpace cached = listenerSpace;
+        final long now = System.nanoTime();
+        if (cached != null
+                && cached.earPosition.distanceTo(ctx.playerEyePosition) < LISTENER_SPACE_MOVE_BLOCKS
+                && now - cached.stampNanos < LISTENER_SPACE_TTL_NANOS)
+            return cached.meanFreePath;
+        final float meanFreePath = listenerMeanFreePath(ctx);
+        listenerSpace = new ListenerSpace(ctx.playerEyePosition, meanFreePath, now);
+        return meanFreePath;
     }
 
     private static float calculateWeatherAbsorption(final WorldContext ctx, final Vec3 pt1, final Vec3 pt2) {

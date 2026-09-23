@@ -18,11 +18,24 @@ import java.util.concurrent.Callable;
 
 public final class SourceContext implements Callable<Void> {
 
-    // Frequency of sound effect updates in thread schedule ticks. Twice a second (10 ticks):
-    // occlusion/reverb follow the player quickly enough that a wall crossing or terrain
-    // boundary does not feel laggy, while the background ray-trace load stays bounded by
-    // MAX_SOURCES_PER_PASS in SoundFXProcessor.
-    private static final int UPDATE_FREQUENCY_TICKS = 10;
+    // Frequency of sound effect updates in thread schedule ticks, by how FAR the source is.
+    //
+    // Near (within 16 blocks) is twice a second: occlusion and reverb follow the player quickly
+    // enough that a wall crossing or a terrain boundary does not feel laggy. Further out the
+    // source is quieter, its geometry changes more slowly in the player's frame, and an update
+    // that lands a second late is inaudible under the smoothing - so those pay for themselves
+    // less often.
+    //
+    // This is what scales. A flat interval meant every registered context was evaluated at the
+    // full rate no matter how far away or how quiet: measured with a swarm of magma cubes, 58
+    // contexts x 2/s x ~211 raycasts came to roughly 24k raycasts a second. MAX_SOURCES_PER_PASS
+    // does not protect against that - it only caps how many come due in ONE pass, and with the
+    // staggered start below only about six of 58 are due in any pass, so it never engages.
+    private static final int UPDATE_FREQUENCY_TICKS_NEAR = 10;
+    private static final int UPDATE_FREQUENCY_TICKS_MID = 20;
+    private static final int UPDATE_FREQUENCY_TICKS_FAR = 30;
+    private static final double NEAR_BLOCKS = 16.0D;
+    private static final double MID_BLOCKS = 32.0D;
     // Time-smoothing for the water damping factor. The sampled underwater path length can jump
     // by a block when an entity bobs at the water surface (or the player wades). Alpha picks a
     // ~0.8 second settle time: fast enough that a change is not laggy, slow enough to smooth
@@ -36,6 +49,24 @@ public final class SourceContext implements Callable<Void> {
     private static final float OCCLUSION_SMOOTH_ALPHA = 0.85F;
     /** Slower constant for the returned-energy term that feeds the reverb tail; see smoothEarlyReflection. */
     private static final float EARLY_REFLECTION_SMOOTH_ALPHA = 0.5F;
+    /**
+     * Time-smoothing for the four reverb send gains.
+     *
+     * <p>These were the ONE quantity the evaluation produced that nothing smoothed. Occlusion, water and
+     * the early reflection all ease toward their target; the send gains were written straight to OpenAL,
+     * so every 0.5 s the whole reverb amount jumped to a fresh sample.
+     *
+     * <p>That sample is noisy. The gains come from 32 rays x 4 bounces, and the mean free path alone was
+     * measured to swing by up to 53 blocks within a single second as the source moved - which matters
+     * because the room-size scale is {@code min(1, mfp/6)}, so that swing moves sendGain1 and sendGain2
+     * between zero and their full value. The audible result was reverb appearing and disappearing in
+     * scenes that should not change.
+     *
+     * <p>Slower than the occlusion constant (0.85) because there is more sampling noise to average out,
+     * faster than the early reflection's (0.5) because a reverb amount that lags too far behind the
+     * listener's movement reads as a fault in itself.
+     */
+    private static final float SEND_GAIN_SMOOTH_ALPHA = 0.7F;
 
     private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
 
@@ -71,6 +102,9 @@ public final class SourceContext implements Callable<Void> {
     /** Eased returned-energy term feeding the reverb tail; see smoothEarlyReflection. */
     private float smoothedEarlyReflection = 0F;
     private boolean earlyReflectionInitialized;
+    /** Smoothed reverb send gains, one per zone; see {@link #smoothSendGains}. */
+    private final float[] smoothedSendGains = new float[4];
+    private boolean sendGainsInitialized;
     // Set by the sound processor when the player just entered/left water. The next
     // evaluation snaps the smoothing state straight to its target instead of easing, so
     // entering/exiting water responds with no audible lag.
@@ -220,6 +254,25 @@ public final class SourceContext implements Callable<Void> {
 
 
     /**
+     * Time-smooths the four reverb send gains, in place.
+     *
+     * <p>Snaps on the first evaluation and whenever {@code snap} is set (the player just entered or left
+     * water), so a freshly played sound does not fade its reverb in and a water transition is immediate.
+     *
+     * @param gains the four zone gains, updated to their smoothed values on return
+     */
+    public void smoothSendGains(final float[] gains, final boolean snap) {
+        if (!this.sendGainsInitialized || snap) {
+            this.sendGainsInitialized = true;
+            System.arraycopy(gains, 0, this.smoothedSendGains, 0, this.smoothedSendGains.length);
+        } else {
+            for (int i = 0; i < this.smoothedSendGains.length; i++)
+                this.smoothedSendGains[i] = ease(this.smoothedSendGains[i], gains[i], SEND_GAIN_SMOOTH_ALPHA);
+        }
+        System.arraycopy(this.smoothedSendGains, 0, gains, 0, this.smoothedSendGains.length);
+    }
+
+    /**
      * Time-smooths the diffraction compensation toward the target. The compensation
      * jumps when the player crosses a room boundary - the openness and enclosure
      * probes change in a single step, so the direct restore would snap. Easing it
@@ -307,7 +360,27 @@ public final class SourceContext implements Callable<Void> {
      * @return true the work item should be scheduled; false otherwise
      */
     public boolean shouldExecute() {
-        return (this.updateCount++ % UPDATE_FREQUENCY_TICKS) == 0;
+        return (this.updateCount++ % updateIntervalTicks()) == 0;
+    }
+
+    /**
+     * How often this source is re-evaluated, by distance from the ear.
+     *
+     * <p>The interval is re-read every scheduling tick rather than cached, so a source the player
+     * walks towards starts updating at the near rate immediately. A changing interval shifts the
+     * modulo phase, which at worst costs one early or late update when crossing a threshold - and
+     * the send gains are time-smoothed, so that is not audible as a step.
+     */
+    private int updateIntervalTicks() {
+        final WorldContext ctx = SoundFXProcessor.getWorldContext();
+        if (ctx == null)
+            return UPDATE_FREQUENCY_TICKS_NEAR;
+        final double distance = this.getPosition().distanceTo(ctx.playerEyePosition);
+        if (distance <= NEAR_BLOCKS)
+            return UPDATE_FREQUENCY_TICKS_NEAR;
+        if (distance <= MID_BLOCKS)
+            return UPDATE_FREQUENCY_TICKS_MID;
+        return UPDATE_FREQUENCY_TICKS_FAR;
     }
 
     @Override
@@ -323,7 +396,7 @@ public final class SourceContext implements Callable<Void> {
     public void exec() {
         this.captureState();
         this.updateImpl();
-        this.updateCount = Randomizer.current().nextInt(UPDATE_FREQUENCY_TICKS);
+        this.updateCount = Randomizer.current().nextInt(updateIntervalTicks());
         this.tick();
     }
 

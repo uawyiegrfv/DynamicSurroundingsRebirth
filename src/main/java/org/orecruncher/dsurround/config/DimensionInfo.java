@@ -35,9 +35,13 @@ public class DimensionInfo {
         this.spaceHeight = this.skyHeight + SPACE_HEIGHT_OFFSET;
         this.isFlatWorld = WorldUtils.isSuperFlat(world);
 
-        // Force sea level based on known world types that give heartburn
+        // Force sea level based on known world types that give heartburn.
+        // Superflat generates at Y=-64 with the surface at Y=-60 since 1.18 (21w37a).
+        // seaLevel drives the underground test (BiomeScanner: y < seaLevel - 8), so a
+        // value of 0 put the threshold at -8 and classified the whole flat world as
+        // UNDERGROUND. -60 puts the threshold at -68, below the surface.
         if (this.isFlatWorld)
-            this.seaLevel = 0;
+            this.seaLevel = -60;
 
         this.compassWobble = !!world.dimensionType().hasFixedTime();
     }

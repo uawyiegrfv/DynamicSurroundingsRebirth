@@ -80,8 +80,17 @@ public class ItemSwingEffect extends EntityEffectBase {
      * only when a block is struck (the block dig sound covers that case).
      */
     protected static boolean freeSwing(LivingEntity entity) {
-        var result = rayTrace(entity);
-        return result.getType() != HitResult.Type.BLOCK;
+        // Defensive: rayTrace drives third-party entity code (getEyePosition,
+        // level().clip, level().getEntities). A modded mount can throw from any of
+        // those, and the exception would otherwise escape the entity effect tick and
+        // crash the client (upstream issue #170 - Cobblemon, using an item while
+        // mounted). Treat any failure as "not a free swing" and stay silent.
+        try {
+            var result = rayTrace(entity);
+            return result.getType() != HitResult.Type.BLOCK;
+        } catch (final Exception e) {
+            return false;
+        }
     }
 
     protected static double getReach(final LivingEntity entity) {

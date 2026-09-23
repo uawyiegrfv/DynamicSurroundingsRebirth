@@ -110,7 +110,9 @@ public final class ModLog implements IModLog {
     public void debug(final Throwable e, final String msg, @Nullable final Object... params) {
         if (isDebugging()) {
             outputLines(this.logger::info, msg, params);
-            this.logger.info(e.toString());
+            // e can be null, and e.toString() both NPEs and discards the stack.
+            if (e != null)
+                this.logger.info("EXCEPTION:", e);
         }
     }
 
@@ -122,7 +124,9 @@ public final class ModLog implements IModLog {
     @Override
     public void error(final Throwable e, final String msg, @Nullable final Object... params) {
         outputLines(this.logger::error, msg, params);
-        this.logger.error(e.toString());
+        // e can be null, and e.toString() both NPEs and discards the stack.
+        if (e != null)
+            this.logger.error("EXCEPTION:", e);
     }
 
     @Override

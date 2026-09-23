@@ -380,6 +380,7 @@
                   }
     },
     {
+        "_comment":  "Grass paths land like grass (1.12.2: minecraft:grass_path -> grass). NOTE: the dirt_path factory location uses a slash (footsteps/dirt_path), unlike most materials which use dots — the key must match the resolved material path exactly.",
         "location":  "dsurround:footsteps/dirt_path",
         "soundEvent":  "dsurround:footsteps.grass",
         "category":  "PLAYER",
@@ -390,7 +391,12 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.grass_run",
+            "echo":  "dsurround:footsteps.grass_run"
+        },
+        "wander":  "dsurround:footsteps.grass_wander"
     },
     {
         "_comment":  "【梯子沿用原版音效并放大】用户明确：其它模组爬梯子的声音要沿用原版游戏的梯子音效并且放大，这是很早以前对原版梯子就定下的做法。核查发现移植版把这个丢了 —— 原来的 soundEvent 指向 dsurround:footsteps.bluntwood（DS 自己的钝木录音），根本不是原版梯子声。1.12.2 的 ladder_default 就是 @block.ladder.step（pitch 95~105），所以这里直接引用原版事件并归一音量，pitch 用 0.95~1.05 保持原来的轻微变化。",
@@ -401,7 +407,12 @@
             "min":  0.95,
             "max":  1.05
         },
-        "volume":  1.0
+        "volume":  1.0,
+        "land":  {
+            "primary":  "dsurround:footsteps.bluntwood",
+            "secondary":  "dsurround:footsteps.bluntwood",
+            "echo":  "dsurround:footsteps.bluntwood"
+        }
     },
     {
         "_comment":  "【梯子 - 落地】1.12.2 的 ladder_default land = 同一段 @block.ladder.step 延迟 50ms 再放一次。这里给一个加响、略压调的落地 location，供 playLand 的命名回退取用（体积感更足，符合「落地比走路重」）。",
@@ -428,7 +439,12 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.concrete_run",
+            "secondary":  "dsurround:footsteps.stone",
+            "echo":  "dsurround:footsteps.stone_run"
+        }
     },
     {
         "_comment":  "【1.12.2 材质补齐 bedrock】1.12.2 的 bedrock = stone 录音【压低到 55~60】（walk/run 都是），land = concrete_run ⊕ stone_walk@50 ⊕ 延迟50 stone_run。移植版之前把基岩挂在默认的 stone（65~70）上，听感与普通石头几乎没区别；这里按 1.12.2 原值压到 0.55~0.60 —— 这就是它「更沉、更大块」的来源。land 复用 footprints.stone 的 LAND_COMPOSITIONS（构建方式逐字相同），无需改 Java。",
@@ -469,7 +485,12 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.dirt_land",
+            "secondary":  "dsurround:footsteps.dirt",
+            "echo":  "dsurround:footsteps.dirt_run"
+        }
     },
     {
         "location":  "dsurround:footsteps.grass",
@@ -479,7 +500,11 @@
                       "min":  0.8,
                       "max":  1.2
                   },
-        "volume":  0.5
+        "volume":  0.5,
+        "land":  {
+            "primary":  "dsurround:footsteps.grass_run",
+            "echo":  "dsurround:footsteps.grass_run"
+        }
     },
     {
         "location":  "dsurround:footsteps.gravel",
@@ -492,7 +517,12 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.gravel_run",
+            "secondary":  "dsurround:footsteps.gravel",
+            "echo":  "dsurround:footsteps.gravel_run"
+        }
     },
     {
         "location":  "dsurround:footsteps.sand",
@@ -502,7 +532,13 @@
                       "min":  0.8,
                       "max":  1.2
                   },
-        "volume":  0.5
+        "volume":  0.5,
+        "land":  {
+            "primary":  "dsurround:footsteps.sand_run",
+            "secondary":  "dsurround:footsteps.sand",
+            "echo":  "dsurround:footsteps.sand_run"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
     },
     {
         "location":  "dsurround:footsteps.snow",
@@ -515,7 +551,12 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.snow_run",
+            "secondary":  "dsurround:footsteps.snow",
+            "echo":  "dsurround:footsteps.snow_run"
+        }
     },
     {
         "location":  "dsurround:footsteps.wood",
@@ -528,7 +569,12 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.wood",
+            "echo":  "dsurround:footsteps.wood"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
     },
     {
         "_comment":  "【木 - 书架/置物架】架板是薄木板，比整块木板轻一点（26.1 新增方块）。",
@@ -615,7 +661,7 @@
         }
     },
     {
-        "_comment":  "【1.12.2 材质补齐 wood_sticky】黏性活塞头的 walk = wood_walk ⊕ mud_walk@50、land = wood_walk ⊕ mud_walk@50 ⊕ 延迟30 wood_walk。这里登记一个【独立路径】的工厂（录音与 footsteps.wood 完全相同），只为了让取面拿到唯一材质路径，从而在 FootstepGenerator.LAND_COMPOSITIONS 里给它一条专属落地合成（主体木 + 叠层泥），落地才不会丢掉那层「黏」。",
+        "_comment":  "【1.12.2 材质补齐 wood_sticky】黏性活塞头的 walk = wood_walk ⊕ mud_walk@50、land = wood_walk ⊕ mud_walk@50 ⊕ 延迟30 wood_walk。这里登记一个【独立路径】的工厂（录音与 footsteps.wood 完全相同），只为了让取面拿到唯一材质路径，从而在 本文件的 land 字段 里给它一条专属落地合成（主体木 + 叠层泥），落地才不会丢掉那层「黏」。",
         "location":  "dsurround:footsteps.wood_sticky",
         "soundEvent":  "dsurround:footsteps.wood",
         "category":  "PLAYER",
@@ -626,6 +672,11 @@
         "volume":  {
             "min":  0.9,
             "max":  1.0
+        },
+        "land":  {
+            "primary":  "dsurround:footsteps.wood",
+            "secondary":  "dsurround:footsteps.mud",
+            "echo":  "dsurround:footsteps.wood"
         }
     },
     {
@@ -639,7 +690,12 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.wood",
+            "echo":  "dsurround:footsteps.wood"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
     },
     {
         "_comment":  "【沿用原版特殊脚步声 - 落地】落地沿用同一段原版录音：音量抬到 1.2~1.35 做重落区分，pitch 压低 0.85~0.95。与 1.12.2「落地比走路更沉」的一贯取向一致（对照 log 的 0.55~0.60 与各材质的 land 层）。",
@@ -673,7 +729,11 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.bluntwood",
+            "echo":  "dsurround:footsteps.bluntwood"
+        }
     },
     {
         "location":  "dsurround:footsteps.organic",
@@ -686,7 +746,12 @@
         "volume":  {
                        "min":  0.4,
                        "max":  0.45
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.dirt_land",
+            "secondary":  "dsurround:footsteps.mud",
+            "echo":  "dsurround:footsteps.mud"
+        }
     },
     {
         "_comment":  "【有机质 - 蜂巢类】蜂箱与蜂巢是【蜡质蜂窝】，轻、空、带一点脆。同录音升调到 1.15~1.25、音量降到 0.55~0.65（蜡质不吸音但整体轻）。",
@@ -977,6 +1042,7 @@
         "volume":  1.0
     },
     {
+        "_comment":  "1.12.2 hardmetal land = metalbox_run + metalbox_walk@50 + delay50(metalbox_run): a heavy run thud (not the walk \"step\") with a subtle walk layer and a fused run echo.",
         "location":  "dsurround:footsteps.metalbox",
         "soundEvent":  "dsurround:footsteps.metalbox",
         "category":  "PLAYER",
@@ -987,7 +1053,13 @@
         "volume":  {
                        "min":  0.75,
                        "max":  0.85
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.metalbox_run",
+            "secondary":  "dsurround:footsteps.metalbox",
+            "echo":  "dsurround:footsteps.metalbox_run"
+        },
+        "wander":  "dsurround:footsteps.marble_wander"
     },
     {
         "location":  "dsurround:footsteps.metalbar",
@@ -1000,7 +1072,13 @@
         "volume":  {
                        "min":  0.75,
                        "max":  0.85
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.metalbar",
+            "echo":  "dsurround:footsteps.metalbar"
+        },
+        "wander":  "dsurround:footsteps.marble_wander",
+        "jump":  "dsurround:footsteps.metalbar_wander"
     },
     {
         "_comment":  "【薄金属件变调】锁链、铁栏杆这类【细杆/环扣】件比实心金属块更薄更轻，应该【更小更亮】，而原来的 metalbar 音量 0.90~1.00 比实心铁块（metalbox 0.75~0.85）还响，正好反了。这里用同录音升调 1.12~1.22 + 降到 0.55~0.65，做出「细薄、不压场」的读感。",
@@ -1024,7 +1102,12 @@
                       "min":  0.8,
                       "max":  1.2
                   },
-        "volume":  0.7
+        "volume":  0.7,
+        "land":  {
+            "primary":  "dsurround:footsteps.rug",
+            "echo":  "dsurround:footsteps.rug"
+        },
+        "wander":  "dsurround:footsteps.grass_wander"
     },
     {
         "location":  "dsurround:footsteps.mud",
@@ -1037,7 +1120,11 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.mud",
+            "echo":  "dsurround:footsteps.mud"
+        }
     },
     {
         "location":  "dsurround:footsteps.muffledice",
@@ -1050,7 +1137,12 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.concrete_run",
+            "secondary":  "dsurround:footsteps.stone",
+            "echo":  "dsurround:footsteps.stone_run"
+        }
     },
     {
         "location":  "dsurround:footsteps.quicksand",
@@ -1063,7 +1155,13 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.sand_run",
+            "secondary":  "dsurround:footsteps.quicksand",
+            "echo":  "dsurround:footsteps.quicksand"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
     },
     {
         "location":  "dsurround:footsteps.weakice",
@@ -1076,7 +1174,12 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.weakice",
+            "secondary":  "dsurround:footsteps.weakice",
+            "echo":  "dsurround:footsteps.weakice"
+        }
     },
     {
         "location":  "dsurround:footsteps.glass",
@@ -1089,9 +1192,16 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.wood",
+            "secondary":  "dsurround:footsteps.glass",
+            "echo":  "dsurround:footsteps.wood"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
     },
     {
+        "_comment":  "1.12.2 marble land = marble_run + delay50(marble_run): no walk secondary layer.",
         "location":  "dsurround:footsteps.marble",
         "soundEvent":  "dsurround:footsteps.marble",
         "category":  "PLAYER",
@@ -1102,7 +1212,11 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.marble_run",
+            "echo":  "dsurround:footsteps.marble_run"
+        }
     },
     {
         "_comment":  "【石英】石英是软的【粉质】矿物，比大理石更闷、更细。同录音 pitch 0.95~1.05（比大理石略低，避免和晶体一样脆），音量降到 0.85~0.95。",
@@ -1143,7 +1257,12 @@
         "volume":  {
                        "min":  0.75,
                        "max":  0.85
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.concrete_run",
+            "secondary":  "dsurround:footsteps.concrete",
+            "echo":  "dsurround:footsteps.concrete_run"
+        }
     },
     {
         "_comment":  "【岩浆块变调】岩浆块是【软的、会开裂的】热岩，不是实心石头（原本继承 stone）。取 concrete 录音（「开裂砖石」质地，与 1.12.2 用 concrete 做 brickstone 同理）压到 0.55~0.65，音量 0.80~0.90。",
@@ -1160,6 +1279,7 @@
                    }
     },
     {
+        "_comment":  "1.12.2 composite land = lino_run + delayed lino_run (the lino event pool carries both walk and run recordings), not the stone land layers.",
         "location":  "dsurround:footsteps.lino",
         "soundEvent":  "dsurround:footsteps.lino",
         "category":  "PLAYER",
@@ -1170,9 +1290,15 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.lino",
+            "echo":  "dsurround:footsteps.lino"
+        },
+        "wander":  "dsurround:footsteps.marble_wander"
     },
     {
+        "_comment":  "1.12.2 squeakywood land = squeakywood_walk + delay50(wood_walk): no walk secondary layer.",
         "location":  "dsurround:footsteps.squeakywood",
         "soundEvent":  "dsurround:footsteps.squeakywood",
         "category":  "PLAYER",
@@ -1183,7 +1309,11 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.squeakywood",
+            "echo":  "dsurround:footsteps.wood"
+        }
     },
     {
         "location":  "dsurround:footsteps.leaves_through",
@@ -1196,9 +1326,16 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.dirt_land",
+            "secondary":  "dsurround:footsteps.dirt",
+            "echo":  "dsurround:footsteps.dirt_run"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
     },
     {
+        "_comment":  "Leaf litter lands with a single heavier crunch - a dedicated landing recording for the primary, no secondary layer and no delayed echo.",
         "location":  "dsurround:footsteps.leaves_crunch",
         "soundEvent":  "dsurround:footsteps.leaves_crunch",
         "category":  "PLAYER",
@@ -1209,7 +1346,10 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.leaves_crunch_land"
+        }
     },
     {
         "location":  "dsurround:footsteps.leaves_crunch_land",
@@ -1296,6 +1436,7 @@
         "volume":  0.2
     },
     {
+        "_comment":  "Dry organic matter (pumpkins, mushroom blocks, cocoa, cake) lands with a grass-like thud in the original (organic_dry), not the muddy organic.",
         "location":  "dsurround:footsteps.organic_dry",
         "soundEvent":  "dsurround:footsteps.organic",
         "category":  "PLAYER",
@@ -1306,7 +1447,12 @@
         "volume":  {
                        "min":  0.9,
                        "max":  1.0
-                   }
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.grass_run",
+            "echo":  "dsurround:footsteps.grass_run"
+        },
+        "jump":  "dsurround:footsteps.grass_run"
     },
     {
         "location":  "dsurround:held_torch_burn",
@@ -1857,7 +2003,7 @@
                   }
     },
     {
-        "_comment":  "【1.12.2 材质补齐 obsidian】stone@vol0.8/pitch0.65~0.70 ⊕ lino@0.75~0.85。原来的实现只有 lino，丢了压低的石头主体。land 在 Java 侧用 STONE_LAND（见 FootstepGenerator.LAND_COMPOSITIONS 的 obsidian/stone 条目）。",
+        "_comment":  "【1.12.2 材质补齐 obsidian】stone@vol0.8/pitch0.65~0.70 ⊕ lino@0.75~0.85。原来的实现只有 lino，丢了压低的石头主体。land 在 Java 侧用 STONE_LAND（见 本文件的 land 字段 的 obsidian/stone 条目）。",
         "location":  "dsurround:obsidian/stone",
         "soundEvent":  "dsurround:footsteps.stone",
         "category":  "PLAYER",
@@ -1865,7 +2011,12 @@
         "pitch":  {
                       "min":  0.65,
                       "max":  0.7
-                  }
+                  },
+        "land":  {
+            "primary":  "dsurround:footsteps.concrete_run",
+            "secondary":  "dsurround:footsteps.stone",
+            "echo":  "dsurround:footsteps.stone_run"
+        }
     },
     {
         "location":  "dsurround:obsidian/stone_run",
@@ -1938,7 +2089,7 @@
                   }
     },
     {
-        "_comment":  "【1.12.2 材质补齐 metalsubparts】metalbar@0.5 ⊕ metalbox@0.5，两层等比；比纯 metalbox 更薄更「铁片」。0.5/0.45 是按 accent 不乘 variator 折算后等响（主体实际 0.9×0.5=0.45）。1.12.2 的 metalsubparts 没有 run，所以刻意不注册 _run：跑动时回退到 walk，与原始一致。",
+        "_comment":  "【1.12.2 材质补齐 metalsubparts】metalbar@0.5 ⊕ metalbox@0.5，两层等比；比纯 metalbox 更薄更「铁片」。0.5/0.45 是按 accent 不乘 variator 折算后等响（主体实际 0.9×0.5=0.45）。1.12.2 的 metalsubparts 没有 run，所以刻意不注册 _run：跑动时回退到 walk，与原始一致。 1.12.2 metalsubparts (iron door / iron trapdoor) land = metalbox_run + metalbar_walk + delay30(metalbar_walk) + delay50(metalbox_run): a heavy run thud with a thin bar layer, not the plain metal box walk.",
         "location":  "dsurround:metalsubparts/metalbox",
         "soundEvent":  "dsurround:footsteps.metalbox",
         "category":  "PLAYER",
@@ -1946,7 +2097,12 @@
         "pitch":  {
                       "min":  0.8,
                       "max":  1.2
-                  }
+                  },
+        "land":  {
+            "primary":  "dsurround:footsteps.metalbox_run",
+            "secondary":  "dsurround:footsteps.metalbar",
+            "echo":  "dsurround:footsteps.metalbox_run"
+        }
     },
     {
         "location":  "dsurround:metalsubparts/metalbar",

@@ -47,13 +47,6 @@ public final class ExecutionContext implements IVariableAccess {
         this.variables.forEach(s -> s.update(this));
     }
 
-    public boolean check(final Script script) {
-        final Optional<Object> result = this.eval(script);
-        if (result.isPresent())
-            return "true".equalsIgnoreCase(result.toString());
-        return false;
-    }
-
     public Optional<Object> eval(final Script script) {
         // Numeric/boolean literal scripts (block soundChance, default conditions) are
         // evaluated very frequently; resolve them directly instead of going through the

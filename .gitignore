@@ -71,5 +71,6 @@ armor_sounds_test/
 build_*.txt
 fix_26.1_api.py
 
-docs/
+docs/*
+!docs/FOOTSTEPS.md
 MIGRATION_STATUS.md

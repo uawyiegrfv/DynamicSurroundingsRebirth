@@ -169,8 +169,8 @@ any of the three locations listed in CONFIGURATION.md §4.0.
 | Player action | Handler | Sound |
 | --- | --- | --- |
 | Walking/running | `FootstepGenerator.playStep` | material (+ `_run` variant when sprinting), plus accents |
-| Leaving the ground | `playJump` | `player.jump` grunt + the material's `_wander` (or a `JUMP_OVERRIDES` entry) |
-| Landing | `playLand` | `LAND_COMPOSITIONS` or the `_land`/`_run`/base fallback, two feet + echo, plus armour |
+| Leaving the ground | `playJump` | `player.jump` grunt + the material's `_wander` (or its `jump` field) |
+| Landing | `playLand` | the material's `land` block, or the `_land`/`_run`/base fallback, two feet + echo, plus armour |
 | Climbing a ladder | `playStep` while `onClimbable` | the ladder material (vanilla `block.ladder.step` boosted) |
 | Stopping/turning sharply | stop-scuff | the material's `_wander` |
 | Any managed creature | `CreatureFootstepGenerator` | the creature's own variator + the surface material |
@@ -248,12 +248,17 @@ player's position.
 
 Landing is the only event that plays **two voices per foot** (the 1.12.2 `playMultifoot`): the
 engine clamps one voice at 2F gain, so channel summation is the only way a landing reads heavier
-than a step. The primary is the composition's first entry, the secondary plays at 50 %, and a
-delayed echo fires 1–2 ticks later. Volumes are multiplied by `LAND_GAIN_BOOST = 1.7`.
+than a step. The primary is the composition's first entry, the secondary plays at 50 % by default,
+and a delayed echo fires 1–2 ticks later by default. Volumes are multiplied by
+`LAND_GAIN_BOOST = 1.7`.
 
-`LAND_COMPOSITIONS` is keyed by the **material path**; anything not listed uses the naming
-fallback `<material>_land` → `<material>_run` → `<material>`, and `player.land` when there is no
-remap at all.
+The composition is the material's own **`land` block** in `sound_factories.json` — the material is
+the factory, so its landing lives with it, and the layer volumes and the echo delay are per-material
+fields rather than shared constants. A material with no `land` block uses the naming fallback
+`<material>_land` → `<material>_run` → `<material>`, and `player.land` when there is no remap at all.
+
+`wander` and `jump` sit on the same entry: several materials scuff or take off with a *different*
+material's recording, and `jump` falls back to `wander` when absent.
 
 #### 3.5 Variators
 
@@ -444,8 +449,8 @@ Ice is deliberately **excluded** (the player slides across it), a documented dev
 | 玩家动作 | 处理函数 | 播放内容 |
 | --- | --- | --- |
 | 走/跑 | `FootstepGenerator.playStep` | 材质（疾跑时用 `_run` 变体）+ 副音 |
-| 离地 | `playJump` | `player.jump` 闷哼 + 材质的 `_wander`（或 `JUMP_OVERRIDES` 指定） |
-| 落地 | `playLand` | `LAND_COMPOSITIONS` 或 `_land`/`_run`/基础回退，双脚 + 回声，外加盔甲 |
+| 离地 | `playJump` | `player.jump` 闷哼 + 材质的 `_wander`（或它的 `jump` 字段） |
+| 落地 | `playLand` | 材质自己的 `land` 块，或 `_land`/`_run`/基础回退，双脚 + 回声，外加盔甲 |
 | 爬梯子 | 攀爬时的 `playStep` | 梯子材质（沿用原版 `block.ladder.step` 并放大） |
 | 急停/急转 | 擦地音 | 材质的 `_wander` |
 | 受管生物 | `CreatureFootstepGenerator` | 该生物的 variator + 脚下方块材质 |
@@ -513,11 +518,16 @@ brush 沙沙声。任何模组把自己的作物加进 `#dsurround:effects/crop_
 #### 3.4 落地与回声
 
 落地是唯一**每只脚两个声部**的事件（对应 1.12.2 的 `playMultifoot`）：引擎对单个声部的增益
-上限为 2F，所以只有多声部相加才能让落地听起来比踏步更重。主音是合成表第一项，副层按 50% 播放，
-回声延后 1~2 tick。音量额外乘 `LAND_GAIN_BOOST = 1.7`。
+上限为 2F，所以只有多声部相加才能让落地听起来比踏步更重。主音是合成的第一项，副层默认按 50% 播放，
+回声默认延后 1~2 tick。音量额外乘 `LAND_GAIN_BOOST = 1.7`。
 
-`LAND_COMPOSITIONS` 以**材质路径**为键；表里没有的走命名回退
+合成就是材质自己在 `sound_factories.json` 里的 **`land` 块** —— 材质就是工厂，
+所以它的落地就跟着它；各层音量与回声延迟是**逐材质字段**，不再是全局常量。
+没有 `land` 块的材质走命名回退
 `<材质>_land` → `<材质>_run` → `<材质>`，完全没有映射时用 `player.land`。
+
+`wander` 与 `jump` 也在同一条目上：好几个材质的急停/起跳用的是**另一个材质**的录音，
+`jump` 缺省时回退到 `wander`。
 
 #### 3.5 Variator（步态参数）
 

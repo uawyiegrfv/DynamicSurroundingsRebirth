@@ -23,6 +23,7 @@ import org.orecruncher.dsurround.config.libraries.ITagLibrary;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
+import org.orecruncher.dsurround.sound.ISoundFactory;
 import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
 
 import java.util.ArrayDeque;
@@ -121,118 +122,15 @@ public class FootstepGenerator extends AbstractClientHandler {
     // Config-driven volume multiplier applied to every footstep sound (sound-options slider).
     private float dsFootstepVolume() { return (float) this.config.soundOptions.footstepVolume; }
 
-    // Per-material landing composition ported from the original 1.12.2 mcp.json land
-    // entries: primary "thud" + optional walk layer at 50% + delayed echo. Keyed on the
-    // resolved footstep material factory path. The primary is often a heavier material's
-    // run sound (e.g. concrete_run for stone), not the material's own.
-    record LandComposition(Identifier primary, Identifier secondary, Identifier echo) {}
-
-    private static Identifier fs(String path) {
-        return Identifier.fromNamespaceAndPath(Constants.MOD_ID, path);
-    }
-
-    // Shared compositions reused by multiple materials (identical land behaviour).
-    private static final LandComposition WOOD_LAND = new LandComposition(fs("footsteps.wood"), null, fs("footsteps.wood"));
-    private static final LandComposition STONE_LAND = new LandComposition(fs("footsteps.concrete_run"), fs("footsteps.stone"), fs("footsteps.stone_run"));
-    // 1.12.2 grass land = [grass_run, delayed(50ms) grass_run] - NO walk layer: the
-    // walk recording is literally a footstep, and embedding it in the landing made
-    // the landing read as "another footstep" (the grass step/land similarity).
-    private static final LandComposition GRASS_LAND = new LandComposition(fs("footsteps.grass_run"), null, fs("footsteps.grass_run"));
-    private static final LandComposition BLUNTWOOD_LAND = new LandComposition(fs("footsteps.bluntwood"), null, fs("footsteps.bluntwood"));
-
-    static final Map<String, LandComposition> LAND_COMPOSITIONS = Map.ofEntries(
-            Map.entry("footsteps.stone", new LandComposition(fs("footsteps.concrete_run"), fs("footsteps.stone"), fs("footsteps.stone_run"))),
-            Map.entry("footsteps.dirt", new LandComposition(fs("footsteps.dirt_land"), fs("footsteps.dirt"), fs("footsteps.dirt_run"))),
-            Map.entry("footsteps.grass", GRASS_LAND),
-            Map.entry("footsteps.gravel", new LandComposition(fs("footsteps.gravel_run"), fs("footsteps.gravel"), fs("footsteps.gravel_run"))),
-            Map.entry("footsteps.sand", new LandComposition(fs("footsteps.sand_run"), fs("footsteps.sand"), fs("footsteps.sand_run"))),
-            Map.entry("footsteps.snow", new LandComposition(fs("footsteps.snow_run"), fs("footsteps.snow"), fs("footsteps.snow_run"))),
-            Map.entry("footsteps.wood", WOOD_LAND),
-            Map.entry("footsteps.log", WOOD_LAND),
-            // 1.12.2 wood_sticky land = wood_walk + mud_walk@50 + delayed(30) wood_walk.
-            // The sticky piston head is the only user: its sticky face IS a slime ball, so the
-            // landing has to keep the mud layer that the WALK rule supplies as an accent (a rule
-            // accent is not replayed by playLand, so the material needs its own composition).
-            Map.entry("footsteps.wood_sticky", new LandComposition(fs("footsteps.wood"), fs("footsteps.mud"), fs("footsteps.wood"))),
-            Map.entry("footsteps.rug", new LandComposition(fs("footsteps.rug"), null, fs("footsteps.rug"))),
-            Map.entry("footsteps.metalbar", new LandComposition(fs("footsteps.metalbar"), null, fs("footsteps.metalbar"))),
-            // 1.12.2 hardmetal land = metalbox_run + metalbox_walk@50 + delay50(metalbox_run).
-            Map.entry("footsteps.metalbox", new LandComposition(fs("footsteps.metalbox_run"), fs("footsteps.metalbox"), fs("footsteps.metalbox_run"))),
-            // 1.12.2 squeakywood land = squeakywood_walk + delay50(wood_walk): no walk secondary layer.
-            Map.entry("footsteps.squeakywood", new LandComposition(fs("footsteps.squeakywood"), null, fs("footsteps.wood"))),
-            Map.entry("footsteps.weakice", new LandComposition(fs("footsteps.weakice"), fs("footsteps.weakice"), fs("footsteps.weakice"))),
-            Map.entry("footsteps.bluntwood", BLUNTWOOD_LAND),
-            Map.entry("footsteps/ladder", new LandComposition(fs("footsteps.bluntwood"), fs("footsteps.bluntwood"), fs("footsteps.bluntwood"))),
-            Map.entry("footsteps.mud", new LandComposition(fs("footsteps.mud"), null, fs("footsteps.mud"))),
-            Map.entry("footsteps.quicksand", new LandComposition(fs("footsteps.sand_run"), fs("footsteps.quicksand"), fs("footsteps.quicksand"))),
-            Map.entry("footsteps.muffledice", STONE_LAND),
-            Map.entry("footsteps.glass", new LandComposition(fs("footsteps.wood"), fs("footsteps.glass"), fs("footsteps.wood"))),
-            // 1.12.2 marble land = marble_run + delay50(marble_run): no walk secondary layer.
-            Map.entry("footsteps.marble", new LandComposition(fs("footsteps.marble_run"), null, fs("footsteps.marble_run"))),
-            Map.entry("footsteps.concrete", new LandComposition(fs("footsteps.concrete_run"), fs("footsteps.concrete"), fs("footsteps.concrete_run"))),
-            // 1.12.2 composite land = lino_run + delayed lino_run (the lino event pool
-            // carries both walk and run recordings), not the stone land layers.
-            Map.entry("footsteps.lino", new LandComposition(fs("footsteps.lino"), null, fs("footsteps.lino"))),
-            Map.entry("footsteps.organic", new LandComposition(fs("footsteps.dirt_land"), fs("footsteps.mud"), fs("footsteps.mud"))),
-            // Dry organic matter (pumpkins, mushroom blocks, cocoa, cake) lands with a
-            // grass-like thud in the original (organic_dry), not the muddy organic.
-            Map.entry("footsteps.organic_dry", GRASS_LAND),
-            // Grass paths land like grass (1.12.2: minecraft:grass_path -> grass).
-            // NOTE: the dirt_path factory location uses a slash (footsteps/dirt_path),
-            // unlike most materials which use dots — the key must match the resolved
-            // material path exactly.
-            Map.entry("footsteps/dirt_path", GRASS_LAND),
-            Map.entry("footsteps.leaves_through", new LandComposition(fs("footsteps.dirt_land"), fs("footsteps.dirt"), fs("footsteps.dirt_run"))),
-            // 1.12.2 obsidian land = concrete_run + stone_walk@0.5 + delay50(stone_run) -
-            // byte for byte the stone land composition, so it shares STONE_LAND. (The
-            // obsidian material's muffled 0.65-0.70 pitch applies to the WALK only; the
-            // original's landing deliberately used un-pitched stone/concrete.)
-            Map.entry("obsidian/stone", STONE_LAND),
-            // 1.12.2 metalsubparts (iron door / iron trapdoor) land = metalbox_run +
-            // metalbar_walk + delay30(metalbar_walk) + delay50(metalbox_run): a heavy run
-            // thud with a thin bar layer, not the plain metal box walk.
-            Map.entry("metalsubparts/metalbox", new LandComposition(fs("footsteps.metalbox_run"), fs("footsteps.metalbar"), fs("footsteps.metalbox_run"))),
-            // Leaf litter lands with a single heavier crunch - a dedicated landing recording
-            // for the primary, no secondary layer and no delayed echo.
-            Map.entry("footsteps.leaves_crunch", new LandComposition(fs("footsteps.leaves_crunch_land"), null, null)));
-
-    // Wander/jump (stop scuff / take-off scuff) cross-references from the original 1.12.2
-    // acoustics: several materials scuff with a DIFFERENT material's recording - the metal
-    // box and metal bar scuff with a marble scrape, wood/sand/glass/quicksand/leaf litter
-    // scuff with dirt, rugs and grass paths scuff with grass, and the composite (gem)
-    // blocks scuff with marble. A material's own _wander recording is used only when no
-    // override exists.
-    private static final Map<String, Identifier> WANDER_OVERRIDES = Map.ofEntries(
-            Map.entry("footsteps.metalbox", fs("footsteps.marble_wander")),
-            Map.entry("footsteps.metalbar", fs("footsteps.marble_wander")),
-            Map.entry("footsteps.wood", fs("footsteps.dirt_wander")),
-            Map.entry("footsteps.log", fs("footsteps.dirt_wander")),
-            Map.entry("footsteps.sand", fs("footsteps.dirt_wander")),
-            Map.entry("footsteps.rug", fs("footsteps.grass_wander")),
-            Map.entry("footsteps.glass", fs("footsteps.dirt_wander")),
-            Map.entry("footsteps.quicksand", fs("footsteps.dirt_wander")),
-            Map.entry("footsteps.leaves_through", fs("footsteps.dirt_wander")),
-            Map.entry("footsteps.lino", fs("footsteps.marble_wander")),
-            Map.entry("footsteps/dirt_path", fs("footsteps.grass_wander")));
-
-    // Take-off scuff (JUMP) cross-references. 1.12.2 declares EventType.JUMP(WANDER), i.e. a
-    // material without an explicit jump acoustic falls back to its wander one - which is
-    // exactly what resolveJumpSound() does when no entry is listed here. So this table holds
-    // ONLY the materials whose 1.12.2 jump differs from that fallback:
-    //   metalbar     - jump is the plain bar scrape, while its WANDER is the marble scrape
-    //                  (with a chance of the bar); reusing the wander table made jumping onto
-    //                  an iron bar play the marble scuff.
-    //   organic_dry  - jump is grass_run (the material's walk layer), wander is dirt.
-    // The materials whose 1.12.2 jump equals their wander need no entry - covers snow, ice,
-    // brickstone, armor_*. The materials whose jump is their wander plus a second
-    // simultaneous layer (leaves, organic, organic_solid) are deliberately left out too: the
-    // port's jump is a two-layer composition (generic grunt + material take-off) and has no
-    // slot for a third layer, and the primary layer of those jumps IS the fallback. Leaves in
-    // particular would be a no-op anyway: its jump primary (dirt_wander) is the same
-    // recording its _wander variant resolves to through WANDER_OVERRIDES.
-    private static final Map<String, Identifier> JUMP_OVERRIDES = Map.ofEntries(
-            Map.entry("footsteps.metalbar", fs("footsteps.metalbar_wander")),
-            Map.entry("footsteps.organic_dry", fs("footsteps.grass_run")));
+    // Landing / wander / jump compositions used to be the three tables that lived here. They are
+    // data now: each material's own entry in sound_factories.json carries an optional "land" block
+    // (primary + secondary + echo, with their scales and the echo delay) plus optional "wander" and
+    // "jump" cross-references. The material IS the factory, so its definition belongs with it, and a
+    // pack can retune a landing without touching the mod. The per-material rationale that used to be
+    // in the comments here was carried over into each entry's _comment.
+    //
+    // The fallback for a material with no "land" block is the block below in playLand: the material's
+    // own land/run thud per foot plus a delayed echo, i.e. 1.12.2 playMultifoot without a composition.
 
     private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);
 
@@ -646,8 +544,6 @@ public class FootstepGenerator extends AbstractClientHandler {
         // volume beyond that point is a silent no-op and multi-voice summation is what
         // buys the extra weight.
         final float scale = footstepVolume() * dsFootstepVolume() * LAND_GAIN_BOOST;
-        final int echoDelay = LAND_ECHO_DELAY_MIN_TICKS
-                + java.util.concurrent.ThreadLocalRandom.current().nextInt(LAND_ECHO_DELAY_MAX_TICKS - LAND_ECHO_DELAY_MIN_TICKS + 1);
         var feetPos = player.blockPosition();
         var material = resolveMaterial(player);
         if (this.logger.isDebugging())
@@ -663,24 +559,36 @@ public class FootstepGenerator extends AbstractClientHandler {
         var leftFoot = feetCenter.add(-rightX * FOOT_LATERAL_OFFSET, 0, -rightZ * FOOT_LATERAL_OFFSET);
         var rightFoot = feetCenter.add(rightX * FOOT_LATERAL_OFFSET, 0, rightZ * FOOT_LATERAL_OFFSET);
 
-        var comp = material.flatMap(m -> Optional.ofNullable(LAND_COMPOSITIONS.get(m.getPath()))).orElse(null);
-        if (comp != null) {
+        // The composition now lives on the material's own entry in sound_factories.json, because the
+        // material IS that factory. A material with no land block keeps the plain fallback below.
+        var comp = material
+                .flatMap(SOUND_LIBRARY::getSoundFactory)
+                .flatMap(ISoundFactory::getLandSettings)
+                .orElse(null);
+        // The echo delay is per-composition when the data gives one, otherwise the shared default.
+        final int echoDelay = comp != null
+                ? comp.echoDelayMinTicks() + java.util.concurrent.ThreadLocalRandom.current().nextInt(
+                        Math.max(1, comp.echoDelayMaxTicks() - comp.echoDelayMinTicks() + 1))
+                : LAND_ECHO_DELAY_MIN_TICKS
+                        + java.util.concurrent.ThreadLocalRandom.current().nextInt(
+                                LAND_ECHO_DELAY_MAX_TICKS - LAND_ECHO_DELAY_MIN_TICKS + 1);
+        if (comp != null && comp.primary().isPresent()) {
             // Per-foot playback of the material composition: primary thud x2 + walk@50
             // layer x2 + delayed echo x2, exactly like playMultifoot + the 1.12.2 land
             // entries in mcp.json.
-            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary());
+            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary().get());
             this.audioPlayer.play(primary.createAtLocationNoAttenuation(leftFoot, scale));
             this.audioPlayer.play(primary.createAtLocationNoAttenuation(rightFoot, scale));
-            if (comp.secondary() != null) {
-                var secondary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.secondary());
-                this.audioPlayer.play(secondary.createAtLocationNoAttenuation(leftFoot, 0.5F * scale));
-                this.audioPlayer.play(secondary.createAtLocationNoAttenuation(rightFoot, 0.5F * scale));
-            }
-            if (comp.echo() != null) {
-                var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.echo());
-                this.pendingEchoes.add(new PendingEcho(echo.createAtLocationNoAttenuation(leftFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
-                this.pendingEchoes.add(new PendingEcho(echo.createAtLocationNoAttenuation(rightFoot, LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
-            }
+            comp.secondary().ifPresent(loc -> {
+                var secondary = SOUND_LIBRARY.getSoundFactoryOrDefault(loc);
+                this.audioPlayer.play(secondary.createAtLocationNoAttenuation(leftFoot, comp.secondaryScale() * scale));
+                this.audioPlayer.play(secondary.createAtLocationNoAttenuation(rightFoot, comp.secondaryScale() * scale));
+            });
+            comp.echo().ifPresent(loc -> {
+                var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(loc);
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocationNoAttenuation(leftFoot, comp.echoVolume() * scale), this.tickCount + echoDelay));
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocationNoAttenuation(rightFoot, comp.echoVolume() * scale), this.tickCount + echoDelay));
+            });
         } else {
             // Fallback: material's own land/run thud per foot + delayed echo (1.12.2
             // playMultifoot semantics without a configured composition).
@@ -1072,19 +980,20 @@ public class FootstepGenerator extends AbstractClientHandler {
      */
     @Nullable
     static Identifier resolveWanderSound(Identifier material) {
-        var override = WANDER_OVERRIDES.get(material.getPath());
-        return override != null ? override : materialVariant(material, "_wander");
+        var override = SOUND_LIBRARY.getSoundFactory(material).flatMap(ISoundFactory::getWanderSound);
+        return override.isPresent() ? override.get() : materialVariant(material, "_wander");
     }
 
     /**
      * Resolves the take-off scuff (JUMP) sound for a footstep material. 1.12.2 declares
      * EventType.JUMP(WANDER), so a material without an explicit jump acoustic scuffs with its
-     * wander recording; JUMP_OVERRIDES holds the few materials that override that.
+     * wander recording; a material's own "jump" field in sound_factories.json is what
+     * overrides that for the few materials where the two differ.
      */
     @Nullable
     static Identifier resolveJumpSound(Identifier material) {
-        var override = JUMP_OVERRIDES.get(material.getPath());
-        return override != null ? override : resolveWanderSound(material);
+        var override = SOUND_LIBRARY.getSoundFactory(material).flatMap(ISoundFactory::getJumpSound);
+        return override.isPresent() ? override.get() : resolveWanderSound(material);
     }
 
     private void playJump(final Player player) {
@@ -1101,7 +1010,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // Material-specific take-off scuff (e.g. snow_wander on snow, stone_wander on
         // stone). resolveMaterial() gives the footstep material factory; the acoustic is
         // that material's JUMP recording, which 1.12.2 resolves to its wander recording
-        // unless the material overrides it (see JUMP_OVERRIDES). Not every material has a
+        // unless the material's "jump" field overrides it. Not every material has a
         // wander recording - those simply skip the extra layer.
         resolveMaterial(player).ifPresent(material -> {
             var jumpLoc = resolveJumpSound(material);

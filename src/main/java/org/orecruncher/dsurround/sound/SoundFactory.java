@@ -36,7 +36,10 @@ public record SoundFactory(
         int repeatDelay,
         boolean global,
         SoundInstance.Attenuation attenuation,
-        MusicSettings musicSettings) implements Comparable<ISoundFactory>, ISoundFactory {
+        MusicSettings musicSettings,
+        Optional<LandSettings> land,
+        Optional<Identifier> wander,
+        Optional<Identifier> jump) implements Comparable<ISoundFactory>, ISoundFactory {
 
     public static final Codec<SoundFactory> CODEC = RecordCodecBuilder.create((instance) ->
             instance.group(
@@ -49,10 +52,28 @@ public record SoundFactory(
                     Codec.INT.optionalFieldOf("repeatDelay", 0).forGetter(SoundFactory::repeatDelay),
                     Codec.BOOL.optionalFieldOf("global", false).forGetter(SoundFactory::global),
                     SoundCodecHelpers.ATTENUATION_CODEC.optionalFieldOf("attenuation", SoundInstance.Attenuation.LINEAR).forGetter(SoundFactory::attenuation),
-                    MusicSettings.CODEC.optionalFieldOf("music", MusicSettings.DEFAULT).forGetter(SoundFactory::musicSettings)
+                    MusicSettings.CODEC.optionalFieldOf("music", MusicSettings.DEFAULT).forGetter(SoundFactory::musicSettings),
+                    LandSettings.CODEC.optionalFieldOf("land").forGetter(SoundFactory::land),
+                    IdentityUtils.CODEC.optionalFieldOf("wander").forGetter(SoundFactory::wander),
+                    IdentityUtils.CODEC.optionalFieldOf("jump").forGetter(SoundFactory::jump)
             ).apply(instance, SoundFactory::new));
 
     private static final Map<SoundEvent, Music> MUSIC_MAP = new HashMap<>();
+
+    @Override
+    public Optional<LandSettings> getLandSettings() {
+        return this.land;
+    }
+
+    @Override
+    public Optional<Identifier> getWanderSound() {
+        return this.wander;
+    }
+
+    @Override
+    public Optional<Identifier> getJumpSound() {
+        return this.jump;
+    }
 
     @Override
     public Identifier getLocation() {
@@ -190,7 +211,9 @@ public record SoundFactory(
                 builder.repeatDelay,
                 builder.global,
                 builder.attenuation,
-                new MusicSettings(builder.musicMinDelay, builder.musicMaxDelay, builder.musicReplaceMusic));
+                new MusicSettings(builder.musicMinDelay, builder.musicMaxDelay, builder.musicReplaceMusic),
+                // Code-registered factories have no data-file entry, so no land/wander/jump.
+                Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     public record MusicSettings(int minDelay, int maxDelay, boolean replaceCurrentMusic) {

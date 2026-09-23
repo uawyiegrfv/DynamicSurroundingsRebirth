@@ -9,6 +9,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import org.orecruncher.dsurround.lib.math.MathStuff;
 
+import java.util.Optional;
+
 @SuppressWarnings("unused")
 public interface ISoundFactory {
 
@@ -16,6 +18,30 @@ public interface ISoundFactory {
      * Gets the resource location of this sound factory instance.
      */
     Identifier getLocation();
+
+    /**
+     * Landing composition for this material, if the data file gives one. A material without it
+     * lands with its own sound, no secondary layer and no echo.
+     */
+    default Optional<LandSettings> getLandSettings() {
+        return Optional.empty();
+    }
+
+    /**
+     * Recording to use for a stop-scuff, when the original data scuffs with a DIFFERENT
+     * material's recording. Absent means use this material's own _wander variant.
+     */
+    default Optional<Identifier> getWanderSound() {
+        return Optional.empty();
+    }
+
+    /**
+     * Recording to use for a take-off. Absent falls back to the wander sound, which is what the
+     * original EventType.JUMP(WANDER) declaration meant.
+     */
+    default Optional<Identifier> getJumpSound() {
+        return Optional.empty();
+    }
 
     /**
      * Creates an attenuated sound instance that is attached to the entity and will move as

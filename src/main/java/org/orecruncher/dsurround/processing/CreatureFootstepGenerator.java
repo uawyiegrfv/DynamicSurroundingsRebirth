@@ -22,6 +22,7 @@ import org.orecruncher.dsurround.lib.config.ConfigurationData;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
+import org.orecruncher.dsurround.sound.ISoundFactory;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
@@ -343,8 +344,6 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
 
     private void playLand(final LivingEntity entity, final Variator var) {
         final float scale = var.volumeScale() * dsVolume() * LAND_GAIN_BOOST;
-        final int echoDelay = FootstepGenerator.LAND_ECHO_DELAY_MIN_TICKS
-                + ThreadLocalRandom.current().nextInt(FootstepGenerator.LAND_ECHO_DELAY_MAX_TICKS - FootstepGenerator.LAND_ECHO_DELAY_MIN_TICKS + 1);
         final var feetPos = entity.blockPosition();
         final var material = FootstepGenerator.resolveMaterial(entity);
 
@@ -355,21 +354,32 @@ public class CreatureFootstepGenerator extends AbstractClientHandler {
         final var leftFoot = feetCenter.add(-rightX * FootstepGenerator.FOOT_LATERAL_OFFSET, 0, -rightZ * FootstepGenerator.FOOT_LATERAL_OFFSET);
         final var rightFoot = feetCenter.add(rightX * FootstepGenerator.FOOT_LATERAL_OFFSET, 0, rightZ * FootstepGenerator.FOOT_LATERAL_OFFSET);
 
-        var comp = material.flatMap(m -> Optional.ofNullable(FootstepGenerator.LAND_COMPOSITIONS.get(m.getPath()))).orElse(null);
-        if (comp != null) {
-            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary());
+        // Same composition the player uses - see FootstepGenerator.playLand. It lives on the
+        // material's own entry in sound_factories.json now.
+        var comp = material
+                .flatMap(SOUND_LIBRARY::getSoundFactory)
+                .flatMap(ISoundFactory::getLandSettings)
+                .orElse(null);
+        final int echoDelay = comp != null
+                ? comp.echoDelayMinTicks() + ThreadLocalRandom.current().nextInt(
+                        Math.max(1, comp.echoDelayMaxTicks() - comp.echoDelayMinTicks() + 1))
+                : FootstepGenerator.LAND_ECHO_DELAY_MIN_TICKS
+                        + ThreadLocalRandom.current().nextInt(
+                                FootstepGenerator.LAND_ECHO_DELAY_MAX_TICKS - FootstepGenerator.LAND_ECHO_DELAY_MIN_TICKS + 1);
+        if (comp != null && comp.primary().isPresent()) {
+            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary().get());
             this.audioPlayer.play(primary.createAtLocation(leftFoot, scale));
             this.audioPlayer.play(primary.createAtLocation(rightFoot, scale));
-            if (comp.secondary() != null) {
-                var secondary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.secondary());
-                this.audioPlayer.play(secondary.createAtLocation(leftFoot, 0.5F * scale));
-                this.audioPlayer.play(secondary.createAtLocation(rightFoot, 0.5F * scale));
-            }
-            if (comp.echo() != null) {
-                var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.echo());
-                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(leftFoot, FootstepGenerator.LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
-                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(rightFoot, FootstepGenerator.LAND_ECHO_VOLUME * scale), this.tickCount + echoDelay));
-            }
+            comp.secondary().ifPresent(loc -> {
+                var secondary = SOUND_LIBRARY.getSoundFactoryOrDefault(loc);
+                this.audioPlayer.play(secondary.createAtLocation(leftFoot, comp.secondaryScale() * scale));
+                this.audioPlayer.play(secondary.createAtLocation(rightFoot, comp.secondaryScale() * scale));
+            });
+            comp.echo().ifPresent(loc -> {
+                var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(loc);
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(leftFoot, comp.echoVolume() * scale), this.tickCount + echoDelay));
+                this.pendingEchoes.add(new PendingEcho(echo.createAtLocation(rightFoot, comp.echoVolume() * scale), this.tickCount + echoDelay));
+            });
         } else {
             // Fallback: material land/run thud per foot + delayed echo (1.12.2
             // playMultifoot semantics without a configured composition).

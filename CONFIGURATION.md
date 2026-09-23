@@ -228,6 +228,18 @@ An array of per-sound-event entries (edited via the in-game sound config screen,
 
 All of these live in `assets/dsurround/` inside the jar.
 
+**Two ways to write the same thing - pick by scope.** Every section below can be written either as
+its own file or as a section of one aggregate `dsurround.json`; both are decoded with the *same*
+codec, so an entry means exactly the same in either place.
+
+| You want to... | Write | Why |
+| --- | --- | --- |
+| patch one or two things (a biome's fog, one block's sound) | the per-type file, e.g. `biomes.json` with just your rules | smallest thing to read and review |
+| describe a whole mod (many blocks + biomes + sounds) | one `dsurround.json` with a section per type | the 1.12.2 workflow - one mod, one file - instead of spreading one mod's entries over half a dozen files |
+| keep it out of the mod jar entirely | either, under the disk config folder | see 4.0 |
+
+Nothing else in this section depends on which you choose.
+
 **Another pack's copy is MERGED with ours, not substituted for it.** The loader reads every copy it can
 see, so a resource pack adds to the shipped data:
 
@@ -847,6 +859,16 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 ### 4. 数据文件 — `assets/dsurround/...`（可被资源包覆盖）
 
 这些都在 jar 内 `assets/dsurround/` 下。
+
+**同一件事有两种写法 —— 按范围选。** 下面每一个段都可以写成独立文件，也可以写成聚合文件 `dsurround.json` 的一个段；两者用**同一个 codec** 解码，所以同一条内容在两处的含义完全相同。
+
+| 你想做的事 | 写成 | 为什么 |
+| --- | --- | --- |
+| 只改一两处（某群系的雾、某方块的音） | 按类型的文件，如 `biomes.json` 里只写你那几条 | 要读、要审的东西最少 |
+| 描述整个模组（大量方块 + 群系 + 声音） | 一份 `dsurround.json`，每类一段 | 即 1.12.2 的做法：一个模组一个文件，而不是把同一个模组的条目撞散到十几个文件里 |
+| 完全不放进 mod 的 jar | 两种都行，放到磁盘配置目录 | 见 §4.0 |
+
+本节其余内容与你选哪种无关。
 
 **别的包提供同名文件时，与我们的数据是「合并」而不是「替换」** —— 加载器会把能看到的每一份都读进来：
 

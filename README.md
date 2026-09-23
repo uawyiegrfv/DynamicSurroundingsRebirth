@@ -83,6 +83,11 @@ Open the mod config from the Mods screen (Cloth Config), or edit
 `config/dsurround/dsurround.json`. Options cover footsteps, biome sounds,
 aurora, fog, weather, particles, crit words and more.
 
+Want to **change** something rather than toggle it — a block's footstep, a
+weapon's swing sound, a biome's fog colour, armour accents? See the
+**[Customisation Guide](docs/CUSTOMISATION-GUIDE.md)** (English + 中文), with
+[`CONFIGURATION.md`](CONFIGURATION.md) as the full field reference.
+
 ---
 
 > # License

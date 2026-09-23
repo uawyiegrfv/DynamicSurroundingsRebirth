@@ -12,6 +12,7 @@ src/main/resources/assets/minecraft/
 docs/*
 !docs/FOOTSTEPS.md
 !docs/FOOTSTEP-SYSTEM.md
+!docs/CUSTOMISATION-GUIDE.md
 
 # Development / diagnostic documents (excluded from release)
 REVERB-*.md

@@ -1,2127 +1,2169 @@
-[
-    {
-        "location":  "dsurround:biome.wind.desert",
-        "soundEvent":  "dsurround:biome.wind.desert",
-        "category":  "AMBIENT",
-        "volume":  1.0
+[
+    {
+        "location":  "dsurround:biome.wind.desert",
+        "soundEvent":  "dsurround:biome.wind.desert",
+        "category":  "AMBIENT",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:biome.wind.desert.calm",
+        "soundEvent":  "dsurround:biome.wind.desert",
+        "category":  "AMBIENT",
+        "volume":  0.3
+    },
+    {
+        "location":  "dsurround:toolbar.none.equip",
+        "soundEvent":  "dsurround:item.utility.equip",
+        "category":  "PLAYER",
+        "volume":  0.3
+    },
+    {
+        "location":  "dsurround:toolbar.tool.equip",
+        "soundEvent":  "dsurround:item.tool.equip",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.tool.swing",
+        "soundEvent":  "dsurround:item.tool.swing",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.sword.equip",
+        "soundEvent":  "dsurround:item.sword.equip",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.sword.swing",
+        "soundEvent":  "dsurround:item.sword.swing",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.shield.equip",
+        "soundEvent":  "dsurround:item.shield.equip",
+        "category":  "PLAYER",
+        "volume":  0.3,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.shield.swing",
+        "soundEvent":  "dsurround:item.shield.equip",
+        "category":  "PLAYER",
+        "volume":  0.3,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.axe.equip",
+        "soundEvent":  "dsurround:item.blunt.equip",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.axe.swing",
+        "soundEvent":  "dsurround:item.blunt.swing",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.bow.equip",
+        "soundEvent":  "dsurround:item.bow.equip",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.bow.swing",
+        "soundEvent":  "dsurround:item.tool.swing",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.crossbow.equip",
+        "soundEvent":  "dsurround:item.bow.equip",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.crossbow.swing",
+        "soundEvent":  "dsurround:item.blunt.swing",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.potion.equip",
+        "soundEvent":  "dsurround:item.potion.equip",
+        "category":  "PLAYER",
+        "volume":  0.8,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.potion.swing",
+        "soundEvent":  "dsurround:item.potion.equip",
+        "category":  "PLAYER",
+        "volume":  1.0,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.book.equip",
+        "soundEvent":  "dsurround:pageflip",
+        "category":  "PLAYER",
+        "volume":  1.0,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:toolbar.book.swing",
+        "soundEvent":  "dsurround:pageflipheavy",
+        "category":  "PLAYER",
+        "volume":  1.0,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:fire_ambient",
+        "soundEvent":  "minecraft:block.fire.ambient"
+    },
+    {
+        "location":  "dsurround:brush_step/brush",
+        "soundEvent":  "dsurround:footsteps.brush_through",
+        "category":  "PLAYER",
+        "volume":  0.65,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:brush_step/straw",
+        "soundEvent":  "dsurround:footsteps.leaves_through",
+        "category":  "PLAYER",
+        "volume":  1.0,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footstep_accent/brush",
+        "soundEvent":  "dsurround:footsteps.brush_through",
+        "category":  "PLAYER",
+        "volume":  0.3,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footstep/floorsqueak",
+        "soundEvent":  "dsurround:footsteps.floor_squeak",
+        "category":  "PLAYER",
+        "volume":  0.3,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footstep/leaves",
+        "soundEvent":  "dsurround:footsteps.leaves_through",
+        "category":  "PLAYER",
+        "volume":  0.3,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footstep/wetsurface",
+        "soundEvent":  "dsurround:footsteps.water_through",
+        "volume":  0.45,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footstep_accent/amethyst",
+        "soundEvent":  "minecraft:block.amethyst_block.break",
+        "category":  "PLAYER",
+        "volume":  0.3,
+        "pitch":  {
+                      "min":  0.9,
+                      "max":  1.1
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 音高还原】mcp.json 的 glass acoustic 要求玻璃副音（glass_hit）用 pitch 0.95~1.05，但 dsurround:footsteps.glass 这个 location 同时兼作蜡烛/饰纹陶罐的主材质、音高是 0.8~1.2。给副音单独一个 location，改副音就不会连带改到主材质。",
+        "location":  "dsurround:footstep_accent/glass",
+        "soundEvent":  "dsurround:footsteps.glass",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.95,
+                      "max":  1.05
+                  }
+    },
+    {
+        "location":  "dsurround:thunder",
+        "soundEvent":  "dsurround:thunder",
+        "category":  "WEATHER",
+        "volume":  10000
+    },
+    {
+        "location":  "dsurround:bow_pull",
+        "soundEvent":  "dsurround:item.bow.pull",
+        "pitch":  {
+                      "min":  0.9,
+                      "max":  1.1
+                  }
+    },
+    {
+        "location":  "dsurround:shield.use",
+        "soundEvent":  "dsurround:item.shield.use",
+        "category":  "PLAYER",
+        "volume":  0.3,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:waterfalls/0",
+        "soundEvent":  "dsurround:waterfall.0",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:waterfalls/1",
+        "soundEvent":  "dsurround:waterfall.1",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:waterfalls/2",
+        "soundEvent":  "dsurround:waterfall.2",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:waterfalls/3",
+        "soundEvent":  "dsurround:waterfall.3",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:waterfalls/4",
+        "soundEvent":  "dsurround:waterfall.4",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:waterfalls/5",
+        "soundEvent":  "dsurround:waterfall.5",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:soulsand.laughter",
+        "soundEvent":  "dsurround:soulsand.laughter",
+        "pitch":  {
+                      "min":  0.6,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:netherbrick.breathing",
+        "soundEvent":  "dsurround:netherbrick.breathing",
+        "pitch":  {
+                      "min":  0.6,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:redstone/electricarc/high",
+        "soundEvent":  "dsurround:electricarc",
+        "volume":  0.15,
+        "pitch":  {
+                      "min":  1.0,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:redstone/electricarc/medium",
+        "soundEvent":  "dsurround:electricarc",
+        "volume":  0.1,
+        "pitch":  {
+                      "min":  1.0,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:redstone/electricarc/low",
+        "soundEvent":  "dsurround:electricarc",
+        "volume":  0.05,
+        "pitch":  {
+                      "min":  1.0,
+                      "max":  1.2
+                  }
+    },
+    {
+        "_comment":  "Grass paths land like grass (1.12.2: minecraft:grass_path -> grass). NOTE: the dirt_path factory location uses a slash (footsteps/dirt_path), unlike most materials which use dots — the key must match the resolved material path exactly.",
+        "location":  "dsurround:footsteps/dirt_path",
+        "soundEvent":  "dsurround:footsteps.grass",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  1.0,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.grass_run",
+            "echo":  "dsurround:footsteps.grass_run"
+        },
+        "wander":  "dsurround:footsteps.grass_wander"
+    },
+    {
+        "_comment":  "【梯子沿用原版音效并放大】用户明确：其它模组爬梯子的声音要沿用原版游戏的梯子音效并且放大，这是很早以前对原版梯子就定下的做法。核查发现移植版把这个丢了 —— 原来的 soundEvent 指向 dsurround:footsteps.bluntwood（DS 自己的钝木录音），根本不是原版梯子声。1.12.2 的 ladder_default 就是 @block.ladder.step（pitch 95~105），所以这里直接引用原版事件并归一音量，pitch 用 0.95~1.05 保持原来的轻微变化。",
+        "location":  "dsurround:footsteps/ladder",
+        "soundEvent":  "minecraft:block.ladder.step",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.95,
+            "max":  1.05
+        },
+        "volume":  1.0,
+        "land":  {
+            "primary":  "dsurround:footsteps.bluntwood",
+            "secondary":  "dsurround:footsteps.bluntwood",
+            "echo":  "dsurround:footsteps.bluntwood"
+        }
+    },
+    {
+        "_comment":  "【梯子 - 落地】1.12.2 的 ladder_default land = 同一段 @block.ladder.step 延迟 50ms 再放一次。这里给一个加响、略压调的落地 location，供 playLand 的命名回退取用（体积感更足，符合「落地比走路重」）。",
+        "location":  "dsurround:footsteps/ladder_land",
+        "soundEvent":  "minecraft:block.ladder.step",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.90,
+            "max":  1.00
+        },
+        "volume":  {
+            "min":  1.20,
+            "max":  1.30
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.stone",
+        "soundEvent":  "dsurround:footsteps.stone",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.65,
+                      "max":  0.7
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.concrete_run",
+            "secondary":  "dsurround:footsteps.stone",
+            "echo":  "dsurround:footsteps.stone_run"
+        }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 bedrock】1.12.2 的 bedrock = stone 录音【压低到 55~60】（walk/run 都是），land = concrete_run ⊕ stone_walk@50 ⊕ 延迟50 stone_run。移植版之前把基岩挂在默认的 stone（65~70）上，听感与普通石头几乎没区别；这里按 1.12.2 原值压到 0.55~0.60 —— 这就是它「更沉、更大块」的来源。land 复用 footprints.stone 的 LAND_COMPOSITIONS（构建方式逐字相同），无需改 Java。",
+        "location":  "dsurround:footsteps.bedrock",
+        "soundEvent":  "dsurround:footsteps.stone",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.55,
+                      "max":  0.6
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "_comment":  "【滴水石变调】滴水石是【可溶石灰岩】，多孔、比实心石头软。同一段 stone 录音再压低一档到 0.60~0.70、音量降到 0.80~0.90（stone 本身已是 0.65~0.70）。",
+        "location":  "dsurround:footsteps.dripstone",
+        "soundEvent":  "dsurround:footsteps.stone",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.6,
+                      "max":  0.7
+                  },
+        "volume":  {
+                       "min":  0.8,
+                       "max":  0.9
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.dirt",
+        "soundEvent":  "dsurround:footsteps.dirt",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.dirt_land",
+            "secondary":  "dsurround:footsteps.dirt",
+            "echo":  "dsurround:footsteps.dirt_run"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.grass",
+        "soundEvent":  "dsurround:footsteps.grass",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  0.5,
+        "land":  {
+            "primary":  "dsurround:footsteps.grass_run",
+            "echo":  "dsurround:footsteps.grass_run"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.gravel",
+        "soundEvent":  "dsurround:footsteps.gravel",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.gravel_run",
+            "secondary":  "dsurround:footsteps.gravel",
+            "echo":  "dsurround:footsteps.gravel_run"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.sand",
+        "soundEvent":  "dsurround:footsteps.sand",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  0.5,
+        "land":  {
+            "primary":  "dsurround:footsteps.sand_run",
+            "secondary":  "dsurround:footsteps.sand",
+            "echo":  "dsurround:footsteps.sand_run"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
+    },
+    {
+        "location":  "dsurround:footsteps.snow",
+        "soundEvent":  "dsurround:footsteps.snow",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.snow_run",
+            "secondary":  "dsurround:footsteps.snow",
+            "echo":  "dsurround:footsteps.snow_run"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.wood",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.wood",
+            "echo":  "dsurround:footsteps.wood"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
+    },
+    {
+        "_comment":  "【木 - 书架/置物架】架板是薄木板，比整块木板轻一点（26.1 新增方块）。",
+        "location":  "dsurround:footsteps.wood_shelf",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.05,
+            "max":  1.15
+        },
+        "volume":  {
+            "min":  0.75,
+            "max":  0.85
+        }
+    },
+    {
+        "_comment":  "【木 - 活板门/栅栏门/脚手架】都是【薄板或细构件】，比整块木板轻。同录音小幅升调。",
+        "location":  "dsurround:footsteps.wood_thin",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.08,
+            "max":  1.18
+        },
+        "volume":  {
+            "min":  0.7,
+            "max":  0.8
+        }
+    },
+    {
+        "_comment":  "【木 - 告示牌】牌面是【悬空的薄板】，比木板轻、带一点空腔共鸣。同录音升调。",
+        "location":  "dsurround:footsteps.wood_sign",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.18,
+            "max":  1.28
+        },
+        "volume":  {
+            "min":  0.7,
+            "max":  0.8
+        }
+    },
+    {
+        "_comment":  "【木 - 按钮/压力板】这两个是【极小的机构件】，踩上去应该是一声【很轻很脆的嗒】。同录音大幅升调到 1.35~1.50、音量降到 0.45~0.55。",
+        "location":  "dsurround:footsteps.wood_click",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.35,
+            "max":  1.5
+        },
+        "volume":  {
+            "min":  0.45,
+            "max":  0.55
+        }
+    },
+    {
+        "_comment":  "【木 - 栅栏/栏杆】栅栏是【细杆件】，不完整方块应当比整块木板小声。同录音升调 + 降到 0.60~0.70。",
+        "location":  "dsurround:footsteps.wood_fence",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.12,
+            "max":  1.22
+        },
+        "volume":  {
+            "min":  0.6,
+            "max":  0.7
+        }
+    },
+    {
+        "_comment":  "【木 - 门/活板门】门板是【薄板 + 中空】，敲起来比实心木板更空、更亮、更小。1.12.2 的 BlockDoor 本来就单列为 bluntwood；这里再用「同录音 + 升调 + 降音量」把门类从整块木板里分出来。",
+        "location":  "dsurround:footsteps.wood_door",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.1,
+            "max":  1.2
+        },
+        "volume":  {
+            "min":  0.7,
+            "max":  0.8
+        }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 wood_sticky】黏性活塞头的 walk = wood_walk ⊕ mud_walk@50、land = wood_walk ⊕ mud_walk@50 ⊕ 延迟30 wood_walk。这里登记一个【独立路径】的工厂（录音与 footsteps.wood 完全相同），只为了让取面拿到唯一材质路径，从而在 本文件的 land 字段 里给它一条专属落地合成（主体木 + 叠层泥），落地才不会丢掉那层「黏」。",
+        "location":  "dsurround:footsteps.wood_sticky",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.8,
+            "max":  1.2
+        },
+        "volume":  {
+            "min":  0.9,
+            "max":  1.0
+        },
+        "land":  {
+            "primary":  "dsurround:footsteps.wood",
+            "secondary":  "dsurround:footsteps.mud",
+            "echo":  "dsurround:footsteps.wood"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.log",
+        "soundEvent":  "dsurround:footsteps.log",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.55,
+                      "max":  0.65
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.wood",
+            "echo":  "dsurround:footsteps.wood"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
+    },
+    {
+        "_comment":  "【沿用原版特殊脚步声 - 落地】落地沿用同一段原版录音：音量抬到 1.2~1.35 做重落区分，pitch 压低 0.85~0.95。与 1.12.2「落地比走路更沉」的一贯取向一致（对照 log 的 0.55~0.60 与各材质的 land 层）。",
+        "location":  "dsurround:footsteps.mangrove_roots_land",
+        "soundEvent":  "minecraft:block.mangrove_roots.step",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.85,
+                      "max":  0.95
+                  },
+        "volume":  {
+                      "min":  1.2,
+                      "max":  1.35
+                  }
+    },
+    {
+        "_comment":  "【沿用原版特殊脚步声】1.12.2 的素材库里没有红树根这类方块，硬套任何一段都会跑味。做法同 footstep_accent/amethyst 借用 minecraft:block.amethyst_block.break：直接引用原版的 block.mangrove_roots.step，音量归一为 1.0（原版该音效本身偏轻，先归一再交由脚步总音量统一控制）。",
+        "location":  "dsurround:footsteps.mangrove_roots",
+        "soundEvent":  "minecraft:block.mangrove_roots.step",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.bluntwood",
+        "soundEvent":  "dsurround:footsteps.bluntwood",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.bluntwood",
+            "echo":  "dsurround:footsteps.bluntwood"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.organic",
+        "soundEvent":  "dsurround:footsteps.organic",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.4,
+                       "max":  0.45
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.dirt_land",
+            "secondary":  "dsurround:footsteps.mud",
+            "echo":  "dsurround:footsteps.mud"
+        }
+    },
+    {
+        "_comment":  "【有机质 - 蜂巢类】蜂箱与蜂巢是【蜡质蜂窝】，轻、空、带一点脆。同录音升调到 1.15~1.25、音量降到 0.55~0.65（蜡质不吸音但整体轻）。",
+        "location":  "dsurround:footsteps.organic_waxy",
+        "soundEvent":  "dsurround:footsteps.organic",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.15,
+            "max":  1.25
+        },
+        "volume":  {
+            "min":  0.55,
+            "max":  0.65
+        }
+    },
+    {
+        "_comment":  "【有机质 - 硬壳瓜类】南瓜/西瓜/可可的外皮是【干硬的壳】，敲上去比菌类实、比菌类响。同录音 pitch 0.90~1.00 保持实心感的厚度。",
+        "location":  "dsurround:footsteps.organic_shell",
+        "soundEvent":  "dsurround:footsteps.organic",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.9,
+            "max":  1.0
+        },
+        "volume":  {
+            "min":  0.9,
+            "max":  1.0
+        }
+    },
+    {
+        "_comment":  "【有机质 - 菌类】蘑菇块与菌柄是【松软多孔】的，比干壳类更软更闷一点。同录音升调到 1.08~1.18（升调听感更「轻软」），音量略降到 0.80~0.90。",
+        "location":  "dsurround:footsteps.organic_spongy",
+        "soundEvent":  "dsurround:footsteps.organic",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.08,
+            "max":  1.18
+        },
+        "volume":  {
+            "min":  0.8,
+            "max":  0.9
+        }
+    },
+    {
+        "_comment":  "【蜡质 - 干硬变调】蜡烛与蜂巢块是【干硬的蜡】，而 organic 本体（0.4~0.45，含泥副音）偏向湿润土质。这里给蜡质一个同录音的独立 location：pitch 0.95~1.05 保持干爽，音量 0.50~0.55（比 organic 本体略响，因为蜡是硬质、不吸音）。",
+        "location":  "dsurround:footsteps.wax_dry",
+        "soundEvent":  "dsurround:footsteps.organic",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.95,
+            "max":  1.05
+        },
+        "volume":  {
+            "min":  0.5,
+            "max":  0.55
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.bone",
+        "soundEvent":  "dsurround:footsteps.bone",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "_comment":  "【骨块 - 干空变调】骨块是【中空干骨】，比默认更闷更空。同录音压到 0.80~0.90。",
+        "location":  "dsurround:footsteps.bone_dry",
+        "soundEvent":  "dsurround:footsteps.bone",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.8,
+            "max":  0.9
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.sculk",
+        "soundEvent":  "dsurround:footsteps.sculk",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.sculk_vein",
+        "soundEvent":  "dsurround:footsteps.sculk_vein",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.moss",
+        "soundEvent":  "dsurround:footsteps.moss",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "_comment":  "【苍白苔藓 - 干闷变调】苍白苔藓更干、更贴地，同录音压到 0.85~0.95。",
+        "location":  "dsurround:footsteps.moss_dry",
+        "soundEvent":  "dsurround:footsteps.moss",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.85,
+            "max":  0.95
+        }
+    },
+    {
+        "_comment":  "【苔藓 - 松软变调】活苔藓松软有弹性，同录音升到 1.05~1.15，与干苔藓区分。",
+        "location":  "dsurround:footsteps.moss_soft",
+        "soundEvent":  "dsurround:footsteps.moss",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.05,
+            "max":  1.15
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.tuff",
+        "soundEvent":  "dsurround:footsteps.tuff",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "_comment":  "【凝灰岩变调】凝灰岩是【多孔】火山岩，比实心石头轻、闷。直接沿用原版录音会偏亮，所以取同一段录音压低到 0.80~0.90 并把音量降到 0.85~0.95 —— 与 1.12.2 用「同一段录音 + 变调」造材质的手法一致（对照 log = wood_walk 压到 0.55~0.60）。",
+        "location":  "dsurround:footsteps.tuff_soft",
+        "soundEvent":  "dsurround:footsteps.tuff",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  0.9
+                  },
+        "volume":  {
+                       "min":  0.85,
+                       "max":  0.95
+                   }
+    },
+    {
+        "_comment":  "【凝灰岩 - 薄件变调】台阶/半砖是薄件，敲起来比整块更亮。同录音升调到 0.90~1.00。",
+        "location":  "dsurround:footsteps.tuff_thin",
+        "soundEvent":  "dsurround:footsteps.tuff",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.9,
+            "max":  1.0
+        },
+        "volume":  {
+            "min":  0.8,
+            "max":  0.9
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.copper",
+        "soundEvent":  "dsurround:footsteps.copper",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "_comment":  "【铜 - 氧化变调】氧化/风化铜表面是【钝的铜绿】，不像新铜那样有金属清亮感。同一段录音压到 0.80~0.90 并降音量。",
+        "location":  "dsurround:footsteps.copper_dull",
+        "soundEvent":  "dsurround:footsteps.copper",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.8,
+            "max":  0.9
+        },
+        "volume":  {
+            "min":  0.8,
+            "max":  0.9
+        }
+    },
+    {
+        "_comment":  "【铜 - 薄壳件变调】铜门/活板门/格栅/锁链/提灯是【薄壳/镂空】件，敲上去比实心铜块更亮更薄。同一段 copper 录音升调到 1.15~1.25、音量略降 —— 与 1.12.2 用「同录音 + 变调」造材质同法。",
+        "location":  "dsurround:footsteps.copper_hollow",
+        "soundEvent":  "dsurround:footsteps.copper",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.15,
+            "max":  1.25
+        },
+        "volume":  {
+            "min":  0.85,
+            "max":  0.95
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.bamboo",
+        "soundEvent":  "dsurround:footsteps.bamboo",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.honey",
+        "soundEvent":  "dsurround:footsteps.honey",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.froglight",
+        "soundEvent":  "dsurround:footsteps.froglight",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "_comment":  "【蛙明灯】蛙明灯是【软的水润团块】，不是硬质发光体。同录音压到 0.85~0.95 并降音量，做出「闷、实、有点水感」的读感，与萤石/菌光体那种脆亮区分开。",
+        "location":  "dsurround:footsteps.froglight_soft",
+        "soundEvent":  "dsurround:footsteps.froglight",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.85,
+            "max":  0.95
+        },
+        "volume":  {
+            "min":  0.8,
+            "max":  0.9
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.slime",
+        "soundEvent":  "dsurround:footsteps.slime",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.bone_land",
+        "soundEvent":  "dsurround:footsteps.bone_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.sculk_land",
+        "soundEvent":  "dsurround:footsteps.sculk_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.sculk_vein_land",
+        "soundEvent":  "dsurround:footsteps.sculk_vein_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.moss_land",
+        "soundEvent":  "dsurround:footsteps.moss_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.tuff_land",
+        "soundEvent":  "dsurround:footsteps.tuff_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.copper_land",
+        "soundEvent":  "dsurround:footsteps.copper_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.froglight_land",
+        "soundEvent":  "dsurround:footsteps.froglight_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.honey_land",
+        "soundEvent":  "dsurround:footsteps.honey_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.bamboo_land",
+        "soundEvent":  "dsurround:footsteps.bamboo_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.slime_land",
+        "soundEvent":  "dsurround:footsteps.slime_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.shroomlight",
+        "soundEvent":  "dsurround:footsteps.shroomlight",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "location":  "dsurround:footsteps.shroomlight_land",
+        "soundEvent":  "dsurround:footsteps.shroomlight_land",
+        "category":  "PLAYER",
+        "volume":  1.0
+    },
+    {
+        "_comment":  "1.12.2 hardmetal land = metalbox_run + metalbox_walk@50 + delay50(metalbox_run): a heavy run thud (not the walk \"step\") with a subtle walk layer and a fused run echo.",
+        "location":  "dsurround:footsteps.metalbox",
+        "soundEvent":  "dsurround:footsteps.metalbox",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.metalbox_run",
+            "secondary":  "dsurround:footsteps.metalbox",
+            "echo":  "dsurround:footsteps.metalbox_run"
+        },
+        "wander":  "dsurround:footsteps.marble_wander"
+    },
+    {
+        "location":  "dsurround:footsteps.metalbar",
+        "soundEvent":  "dsurround:footsteps.metalbar",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.metalbar",
+            "echo":  "dsurround:footsteps.metalbar"
+        },
+        "wander":  "dsurround:footsteps.marble_wander",
+        "jump":  "dsurround:footsteps.metalbar_wander"
+    },
+    {
+        "_comment":  "【薄金属件变调】锁链、铁栏杆这类【细杆/环扣】件比实心金属块更薄更轻，应该【更小更亮】，而原来的 metalbar 音量 0.90~1.00 比实心铁块（metalbox 0.75~0.85）还响，正好反了。这里用同录音升调 1.12~1.22 + 降到 0.55~0.65，做出「细薄、不压场」的读感。",
+        "location":  "dsurround:footsteps.metalbar_thin",
+        "soundEvent":  "dsurround:footsteps.metalbar",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  1.12,
+            "max":  1.22
+        },
+        "volume":  {
+            "min":  0.55,
+            "max":  0.65
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.rug",
+        "soundEvent":  "dsurround:footsteps.rug",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  0.7,
+        "land":  {
+            "primary":  "dsurround:footsteps.rug",
+            "echo":  "dsurround:footsteps.rug"
+        },
+        "wander":  "dsurround:footsteps.grass_wander"
+    },
+    {
+        "location":  "dsurround:footsteps.mud",
+        "soundEvent":  "dsurround:footsteps.mud",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.mud",
+            "echo":  "dsurround:footsteps.mud"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.muffledice",
+        "soundEvent":  "dsurround:footsteps.muffledice",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.concrete_run",
+            "secondary":  "dsurround:footsteps.stone",
+            "echo":  "dsurround:footsteps.stone_run"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.quicksand",
+        "soundEvent":  "dsurround:footsteps.quicksand",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.sand_run",
+            "secondary":  "dsurround:footsteps.quicksand",
+            "echo":  "dsurround:footsteps.quicksand"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
+    },
+    {
+        "location":  "dsurround:footsteps.weakice",
+        "soundEvent":  "dsurround:footsteps.weakice",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.weakice",
+            "secondary":  "dsurround:footsteps.weakice",
+            "echo":  "dsurround:footsteps.weakice"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.glass",
+        "soundEvent":  "dsurround:footsteps.glass",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.wood",
+            "secondary":  "dsurround:footsteps.glass",
+            "echo":  "dsurround:footsteps.wood"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
+    },
+    {
+        "_comment":  "1.12.2 marble land = marble_run + delay50(marble_run): no walk secondary layer.",
+        "location":  "dsurround:footsteps.marble",
+        "soundEvent":  "dsurround:footsteps.marble",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.marble_run",
+            "echo":  "dsurround:footsteps.marble_run"
+        }
+    },
+    {
+        "_comment":  "【石英】石英是软的【粉质】矿物，比大理石更闷、更细。同录音 pitch 0.95~1.05（比大理石略低，避免和晶体一样脆），音量降到 0.85~0.95。",
+        "location":  "dsurround:footsteps.quartz_powdery",
+        "soundEvent":  "dsurround:footsteps.marble",
+        "category":  "PLAYER",
+        "pitch":  {
+            "min":  0.95,
+            "max":  1.05
+        },
+        "volume":  {
+            "min":  0.85,
+            "max":  0.95
+        }
+    },
+    {
+        "_comment":  "【方解石变调】方解石是软的、粉质的亮色矿物，比大理石更「脆而轻」。同一段 marble 录音升调到 0.90~1.00、音量降到 0.80~0.90。",
+        "location":  "dsurround:footsteps.calcite_soft",
+        "soundEvent":  "dsurround:footsteps.marble",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.9,
+                      "max":  1.0
+                  },
+        "volume":  {
+                       "min":  0.8,
+                       "max":  0.9
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.concrete",
+        "soundEvent":  "dsurround:footsteps.concrete",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.concrete_run",
+            "secondary":  "dsurround:footsteps.concrete",
+            "echo":  "dsurround:footsteps.concrete_run"
+        }
+    },
+    {
+        "_comment":  "【岩浆块变调】岩浆块是【软的、会开裂的】热岩，不是实心石头（原本继承 stone）。取 concrete 录音（「开裂砖石」质地，与 1.12.2 用 concrete 做 brickstone 同理）压到 0.55~0.65，音量 0.80~0.90。",
+        "location":  "dsurround:footsteps.magma_soft",
+        "soundEvent":  "dsurround:footsteps.concrete",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.55,
+                      "max":  0.65
+                  },
+        "volume":  {
+                       "min":  0.8,
+                       "max":  0.9
+                   }
+    },
+    {
+        "_comment":  "1.12.2 composite land = lino_run + delayed lino_run (the lino event pool carries both walk and run recordings), not the stone land layers.",
+        "location":  "dsurround:footsteps.lino",
+        "soundEvent":  "dsurround:footsteps.lino",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.lino",
+            "echo":  "dsurround:footsteps.lino"
+        },
+        "wander":  "dsurround:footsteps.marble_wander"
+    },
+    {
+        "_comment":  "1.12.2 squeakywood land = squeakywood_walk + delay50(wood_walk): no walk secondary layer.",
+        "location":  "dsurround:footsteps.squeakywood",
+        "soundEvent":  "dsurround:footsteps.squeakywood",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.squeakywood",
+            "echo":  "dsurround:footsteps.wood"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.leaves_through",
+        "soundEvent":  "dsurround:footsteps.leaves_through",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.dirt_land",
+            "secondary":  "dsurround:footsteps.dirt",
+            "echo":  "dsurround:footsteps.dirt_run"
+        },
+        "wander":  "dsurround:footsteps.dirt_wander"
+    },
+    {
+        "_comment":  "Leaf litter lands with a single heavier crunch - a dedicated landing recording for the primary, no secondary layer and no delayed echo.",
+        "location":  "dsurround:footsteps.leaves_crunch",
+        "soundEvent":  "dsurround:footsteps.leaves_crunch",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.leaves_crunch_land"
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.leaves_crunch_land",
+        "soundEvent":  "dsurround:footsteps.leaves_crunch_land",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.9,
+                      "max":  1.1
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.brush_through",
+        "soundEvent":  "dsurround:footsteps.brush_through",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.water_through",
+        "soundEvent":  "dsurround:footsteps.water_through",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footstep_accent/muffledice",
+        "soundEvent":  "dsurround:footsteps.muffledice",
+        "category":  "PLAYER",
+        "volume":  0.4
+    },
+    {
+        "location":  "dsurround:footstep_accent/weakice",
+        "soundEvent":  "dsurround:footsteps.weakice",
+        "category":  "PLAYER",
+        "volume":  0.1
+    },
+    {
+        "location":  "dsurround:footstep_accent/sand",
+        "soundEvent":  "dsurround:footsteps.sand",
+        "category":  "PLAYER",
+        "volume":  0.1
+    },
+    {
+        "_comment":  "【铁轨的木枕层】素材库里没有「金属轨踩在枕木上」这种声音，但铁轨现实里就是金属轨 + 木枕。用 wood 录音做一层轻木副音，压在 metalbar_run 主体下面：副音不乘玩家 variator，取 0.5 × 0.9 ≈ 0.45，形成「闷木打底 + 轻金属」的层次。",
+        "location":  "dsurround:footstep_accent/rail_plank",
+        "soundEvent":  "dsurround:footsteps.wood",
+        "category":  "PLAYER",
+        "volume":  0.45
+    },
+    {
+        "location":  "dsurround:footstep_accent/mud",
+        "soundEvent":  "dsurround:footsteps.mud",
+        "category":  "PLAYER",
+        "volume":  0.8
+    },
+    {
+        "_comment":  "【锁链的金属环扣副音】素材库里正好有一组链甲录音 （dsurround:footsteps/armor/medium_walk*，1.12.2 的 chain mail），本身就是「金属环扣互相碰撞」的声音 —— 拿它做锁链的副音最贴切。音量 0.28：副音不乘玩家 variator，取主体（0.55~0.65）的一半左右，形成「细杆主体 + 环扣细响」的层次。",
+        "location":  "dsurround:footstep_accent/chain_rattle",
+        "soundEvent":  "dsurround:armor.medium_walk",
+        "category":  "PLAYER",
+        "volume":  0.28
+    },
+    {
+        "_comment":  "【1.12.2 造法的 50/50 副音】1.12.2 的 organic 是 dirt 主体 ⊕ mud 副音，两层等额。副音走的是不乘玩家 variator 的路径，所以副音音量取主体的 0.5 倍；footsteps.organic 主体被有意归一到 0.4~0.45，故取 0.2，即 0.5 × 0.425 的 1.12.2 比例。",
+        "location":  "dsurround:footstep_accent/mud_quiet",
+        "soundEvent":  "dsurround:footsteps.mud",
+        "category":  "PLAYER",
+        "volume":  0.2
+    },
+    {
+        "_comment":  "Dry organic matter (pumpkins, mushroom blocks, cocoa, cake) lands with a grass-like thud in the original (organic_dry), not the muddy organic.",
+        "location":  "dsurround:footsteps.organic_dry",
+        "soundEvent":  "dsurround:footsteps.organic",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "land":  {
+            "primary":  "dsurround:footsteps.grass_run",
+            "echo":  "dsurround:footsteps.grass_run"
+        },
+        "jump":  "dsurround:footsteps.grass_run"
+    },
+    {
+        "location":  "dsurround:held_torch_burn",
+        "soundEvent":  "dsurround:block.torch_burn",
+        "category":  "AMBIENT",
+        "volume":  0.85
+    },
+    {
+        "location":  "dsurround:player.jump",
+        "soundEvent":  "dsurround:player.jump",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.7,
+                       "max":  0.8
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.bluntwood_wander",
+        "soundEvent":  "dsurround:footsteps.bluntwood_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.concrete_wander",
+        "soundEvent":  "dsurround:footsteps.concrete_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.dirt_wander",
+        "soundEvent":  "dsurround:footsteps.dirt_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.grass_wander",
+        "soundEvent":  "dsurround:footsteps.grass_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.gravel_wander",
+        "soundEvent":  "dsurround:footsteps.gravel_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.marble_wander",
+        "soundEvent":  "dsurround:footsteps.marble_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.metalbar_wander",
+        "soundEvent":  "dsurround:footsteps.metalbar_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.metalbox_wander",
+        "soundEvent":  "dsurround:footsteps.metalbox_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.mud_wander",
+        "soundEvent":  "dsurround:footsteps.mud_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.snow_wander",
+        "soundEvent":  "dsurround:footsteps.snow_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.squeakywood_wander",
+        "soundEvent":  "dsurround:footsteps.squeakywood_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.stone_wander",
+        "soundEvent":  "dsurround:footsteps.stone_wander",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.grass_run",
+        "soundEvent":  "dsurround:footsteps.grass_run",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footsteps.stone_run",
+        "soundEvent":  "dsurround:footsteps.stone_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.65,
+                      "max":  0.7
+                  }
+    },
+    {
+        "_comment":  "【bedrock 的 run 层】1.12.2 的 bedrock run 同样是 stone_run 压到 55~60。移植版的 _run 是从材质自身路径推导的，所以必须显式注册这个 location。",
+        "location":  "dsurround:footsteps.bedrock_run",
+        "soundEvent":  "dsurround:footsteps.stone_run",
+        "category":  "PLAYER",
+        "pitch":  {
+                      "min":  0.55,
+                      "max":  0.6
+                  },
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   }
+    },
+    {
+        "location":  "dsurround:footsteps.concrete_run",
+        "soundEvent":  "dsurround:footsteps.concrete_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footsteps.dirt_run",
+        "soundEvent":  "dsurround:footsteps.dirt_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footsteps.gravel_run",
+        "soundEvent":  "dsurround:footsteps.gravel_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footsteps.sand_run",
+        "soundEvent":  "dsurround:footsteps.sand_run",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footsteps.snow_run",
+        "soundEvent":  "dsurround:footsteps.snow_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footsteps.marble_run",
+        "soundEvent":  "dsurround:footsteps.marble_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footsteps.metalbar_run",
+        "soundEvent":  "dsurround:footsteps.metalbar_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.7,
+                       "max":  0.8
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 rails - 落地】1.12.2 的 rails 三个成员（walk/jump/land）都是 metalbar_run @【vol 20】。铁轨是极轻的薄金属，落地也必须压着。walk 已经走 footsteps.metalbar_run（该工厂本身音量正常），这里给落地单独一个 0.2 的 location —— playLand 会用命名回退取到它，再叠一层 metalbar_run@50 作为撞击层，与 1.12.2 的「轻落地」一致。",
+        "location":  "dsurround:footsteps.rails_land",
+        "soundEvent":  "dsurround:footsteps.metalbar_run",
+        "category":  "PLAYER",
+        "volume":  {
+            "min":  0.2,
+            "max":  0.2
+        }
+    },
+    {
+        "location":  "dsurround:footsteps.metalbox_run",
+        "soundEvent":  "dsurround:footsteps.metalbox_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:footsteps.dirt_land",
+        "soundEvent":  "dsurround:footsteps.dirt_land",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:furnace_ignite",
+        "soundEvent":  "dsurround:furnace_ignite",
+        "category":  "BLOCKS",
+        "volume":  0.85,
+        "pitch":  {
+                      "min":  0.9,
+                      "max":  1.1
+                  }
+    },
+    {
+        "location":  "dsurround:projectile/pearl",
+        "soundEvent":  "dsurround:projectile.pearl.break",
+        "category":  "NEUTRAL",
+        "volume":  0.9,
+        "pitch":  {
+                      "min":  0.95,
+                      "max":  1.05
+                  }
+    },
+    {
+        "location":  "dsurround:projectile/egg",
+        "soundEvent":  "dsurround:projectile.egg.break",
+        "category":  "NEUTRAL",
+        "volume":  1.0,
+        "pitch":  {
+                      "min":  0.92,
+                      "max":  1.08
+                  }
+    },
+    {
+        "location":  "dsurround:projectile/snowball",
+        "soundEvent":  "dsurround:projectile.snowball.break",
+        "category":  "NEUTRAL",
+        "volume":  0.9,
+        "pitch":  {
+                      "min":  0.92,
+                      "max":  1.08
+                  }
+    },
+    {
+        "location":  "dsurround:enchant/book_open",
+        "soundEvent":  "dsurround:pageflipheavy",
+        "category":  "NEUTRAL",
+        "volume":  0.8,
+        "pitch":  {
+                      "min":  0.95,
+                      "max":  1.05
+                  }
+    },
+    {
+        "location":  "dsurround:enchant/page_turn",
+        "soundEvent":  "minecraft:item.book.page_turn",
+        "category":  "NEUTRAL",
+        "volume":  0.3,
+        "pitch":  {
+                      "min":  0.9,
+                      "max":  1.1
+                  }
+    },
+    {
+        "location":  "dsurround:enchant/book_close",
+        "soundEvent":  "dsurround:bookclose",
+        "category":  "NEUTRAL",
+        "volume":  0.75,
+        "pitch":  {
+                      "min":  0.75,
+                      "max":  0.85
+                  }
+    },
+    {
+        "location":  "dsurround:biome.grasshopper",
+        "soundEvent":  "biome.grasshopper",
+        "category":  "AMBIENT",
+        "volume":  0.35
+    },
+    {
+        "location":  "dsurround:biome.gnatt",
+        "soundEvent":  "biome.gnatt",
+        "category":  "AMBIENT",
+        "volume":  0.5
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 brickstone】walk/run = concrete 原样。1.12.2 的 brickstone acoustic 就是 concrete_walk/concrete_run，无变调；land = concrete_run + concrete_walk@0.5 + delay50(concrete_run)，由 resolveLandSound 的 _run 回退自动推出。",
+        "location":  "dsurround:brickstone/concrete",
+        "soundEvent":  "dsurround:footsteps.concrete",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:brickstone/concrete_run",
+        "soundEvent":  "dsurround:footsteps.concrete_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:brickstone/concrete_wander",
+        "soundEvent":  "dsurround:footsteps.concrete_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 stonemachine】concrete 录音整体升调 1.10~1.20，听感比 brickstone 更「机械」。1.12.2 wander = concrete_wander（无变调）。",
+        "location":  "dsurround:stonemachine/concrete",
+        "soundEvent":  "dsurround:footsteps.concrete",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  1.1,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:stonemachine/concrete_run",
+        "soundEvent":  "dsurround:footsteps.concrete_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  1.1,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:stonemachine/concrete_wander",
+        "soundEvent":  "dsurround:footsteps.concrete_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 stoneutility】concrete@1.10~1.20 ⊕ lino@0.75~0.85 两层【同时】播放：一个升调的实心音加一个降调的薄音，这是红石器件类方块在 1.12.2 的辨识度来源。副音 lino 的 volume 取 0.72 = 0.9(玩家 variator) × 0.8(主 factory 音量中值)，因为 accent 走的是 dsFootstepVolume() 那条不乘 variator 的路径，只有这样才能和主体等响（1.12.2 两层都是默认 0.9）。",
+        "location":  "dsurround:stoneutility/concrete",
+        "soundEvent":  "dsurround:footsteps.concrete",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  1.1,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:stoneutility/concrete_run",
+        "soundEvent":  "dsurround:footsteps.concrete_run",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.75,
+                       "max":  0.85
+                   },
+        "pitch":  {
+                      "min":  1.1,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:stoneutility/concrete_wander",
+        "soundEvent":  "dsurround:footsteps.concrete_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:stoneutility/lino",
+        "soundEvent":  "dsurround:footsteps.lino",
+        "category":  "PLAYER",
+        "volume":  0.72,
+        "pitch":  {
+                      "min":  0.75,
+                      "max":  0.85
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 obsidian】stone@vol0.8/pitch0.65~0.70 ⊕ lino@0.75~0.85。原来的实现只有 lino，丢了压低的石头主体。land 在 Java 侧用 STONE_LAND（见 本文件的 land 字段 的 obsidian/stone 条目）。",
+        "location":  "dsurround:obsidian/stone",
+        "soundEvent":  "dsurround:footsteps.stone",
+        "category":  "PLAYER",
+        "volume":  0.8,
+        "pitch":  {
+                      "min":  0.65,
+                      "max":  0.7
+                  },
+        "land":  {
+            "primary":  "dsurround:footsteps.concrete_run",
+            "secondary":  "dsurround:footsteps.stone",
+            "echo":  "dsurround:footsteps.stone_run"
+        }
+    },
+    {
+        "location":  "dsurround:obsidian/stone_run",
+        "soundEvent":  "dsurround:footsteps.stone_run",
+        "category":  "PLAYER",
+        "volume":  0.8,
+        "pitch":  {
+                      "min":  0.65,
+                      "max":  0.7
+                  }
+    },
+    {
+        "location":  "dsurround:obsidian/stone_wander",
+        "soundEvent":  "dsurround:footsteps.stone_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:obsidian/lino",
+        "soundEvent":  "dsurround:footsteps.lino",
+        "category":  "PLAYER",
+        "volume":  0.72,
+        "pitch":  {
+                      "min":  0.75,
+                      "max":  0.85
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 woodutility】bluntwood ⊕ lino@0.75~0.85（唱片机/音符盒）。land = bluntwood_walk + delay50(bluntwood_walk)，正好是 resolveLandSound 无后缀时的默认回退。",
+        "location":  "dsurround:woodutility/bluntwood",
+        "soundEvent":  "dsurround:footsteps.bluntwood",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:woodutility/bluntwood_wander",
+        "soundEvent":  "dsurround:footsteps.bluntwood_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:woodutility/lino",
+        "soundEvent":  "dsurround:footsteps.lino",
+        "category":  "PLAYER",
+        "volume":  0.85,
+        "pitch":  {
+                      "min":  0.75,
+                      "max":  0.85
+                  }
+    },
+    {
+        "_comment":  "【1.12.2 材质补齐 metalsubparts】metalbar@0.5 ⊕ metalbox@0.5，两层等比；比纯 metalbox 更薄更「铁片」。0.5/0.45 是按 accent 不乘 variator 折算后等响（主体实际 0.9×0.5=0.45）。1.12.2 的 metalsubparts 没有 run，所以刻意不注册 _run：跑动时回退到 walk，与原始一致。 1.12.2 metalsubparts (iron door / iron trapdoor) land = metalbox_run + metalbar_walk + delay30(metalbar_walk) + delay50(metalbox_run): a heavy run thud with a thin bar layer, not the plain metal box walk.",
+        "location":  "dsurround:metalsubparts/metalbox",
+        "soundEvent":  "dsurround:footsteps.metalbox",
+        "category":  "PLAYER",
+        "volume":  0.5,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  },
+        "land":  {
+            "primary":  "dsurround:footsteps.metalbox_run",
+            "secondary":  "dsurround:footsteps.metalbar",
+            "echo":  "dsurround:footsteps.metalbox_run"
+        }
+    },
+    {
+        "location":  "dsurround:metalsubparts/metalbar",
+        "soundEvent":  "dsurround:footsteps.metalbar",
+        "category":  "PLAYER",
+        "volume":  0.45,
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
+    },
+    {
+        "location":  "dsurround:metalsubparts/metalbox_wander",
+        "soundEvent":  "dsurround:footsteps.marble_wander",
+        "category":  "PLAYER",
+        "volume":  {
+                       "min":  0.9,
+                       "max":  1.0
+                   },
+        "pitch":  {
+                      "min":  0.8,
+                      "max":  1.2
+                  }
     },
     {
-        "location":  "dsurround:biome.wind.desert.calm",
-        "soundEvent":  "dsurround:biome.wind.desert",
-        "category":  "AMBIENT",
-        "volume":  0.3
-    },
-    {
-        "location":  "dsurround:toolbar.none.equip",
-        "soundEvent":  "dsurround:item.utility.equip",
-        "category":  "PLAYER",
-        "volume":  0.3
-    },
-    {
-        "location":  "dsurround:toolbar.tool.equip",
-        "soundEvent":  "dsurround:item.tool.equip",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.tool.swing",
-        "soundEvent":  "dsurround:item.tool.swing",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.sword.equip",
-        "soundEvent":  "dsurround:item.sword.equip",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.sword.swing",
-        "soundEvent":  "dsurround:item.sword.swing",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.shield.equip",
+        "_comment":  "Spear / trident. Reuses the shield equip recording at a higher pitch, per upstream 0.4.4.",
+        "location":  "dsurround:toolbar.spear.equip",
         "soundEvent":  "dsurround:item.shield.equip",
         "category":  "PLAYER",
-        "volume":  0.3,
+        "volume":  0.25,
         "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
+                      "min":  1.6,
+                      "max":  2.0
                   }
     },
     {
-        "location":  "dsurround:toolbar.shield.swing",
+        "location":  "dsurround:toolbar.spear.swing",
         "soundEvent":  "dsurround:item.shield.equip",
         "category":  "PLAYER",
-        "volume":  0.3,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.axe.equip",
-        "soundEvent":  "dsurround:item.blunt.equip",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.axe.swing",
-        "soundEvent":  "dsurround:item.blunt.swing",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.bow.equip",
-        "soundEvent":  "dsurround:item.bow.equip",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.bow.swing",
-        "soundEvent":  "dsurround:item.tool.swing",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.crossbow.equip",
-        "soundEvent":  "dsurround:item.bow.equip",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.crossbow.swing",
-        "soundEvent":  "dsurround:item.blunt.swing",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.potion.equip",
-        "soundEvent":  "dsurround:item.potion.equip",
-        "category":  "PLAYER",
-        "volume":  0.8,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.potion.swing",
-        "soundEvent":  "dsurround:item.potion.equip",
-        "category":  "PLAYER",
-        "volume":  1.0,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.book.equip",
-        "soundEvent":  "dsurround:pageflip",
-        "category":  "PLAYER",
-        "volume":  1.0,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:toolbar.book.swing",
-        "soundEvent":  "dsurround:pageflipheavy",
-        "category":  "PLAYER",
-        "volume":  1.0,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:fire_ambient",
-        "soundEvent":  "minecraft:block.fire.ambient"
-    },
-    {
-        "location":  "dsurround:brush_step/brush",
-        "soundEvent":  "dsurround:footsteps.brush_through",
-        "category":  "PLAYER",
-        "volume":  0.65,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:brush_step/straw",
-        "soundEvent":  "dsurround:footsteps.leaves_through",
-        "category":  "PLAYER",
-        "volume":  1.0,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footstep_accent/brush",
-        "soundEvent":  "dsurround:footsteps.brush_through",
-        "category":  "PLAYER",
-        "volume":  0.3,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footstep/floorsqueak",
-        "soundEvent":  "dsurround:footsteps.floor_squeak",
-        "category":  "PLAYER",
-        "volume":  0.3,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footstep/leaves",
-        "soundEvent":  "dsurround:footsteps.leaves_through",
-        "category":  "PLAYER",
-        "volume":  0.3,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footstep/wetsurface",
-        "soundEvent":  "dsurround:footsteps.water_through",
-        "volume":  0.45,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footstep_accent/amethyst",
-        "soundEvent":  "minecraft:block.amethyst_block.break",
-        "category":  "PLAYER",
-        "volume":  0.3,
-        "pitch":  {
-                      "min":  0.9,
-                      "max":  1.1
-                  }
-    },
-    {
-        "_comment":  "【1.12.2 音高还原】mcp.json 的 glass acoustic 要求玻璃副音（glass_hit）用 pitch 0.95~1.05，但 dsurround:footsteps.glass 这个 location 同时兼作蜡烛/饰纹陶罐的主材质、音高是 0.8~1.2。给副音单独一个 location，改副音就不会连带改到主材质。",
-        "location":  "dsurround:footstep_accent/glass",
-        "soundEvent":  "dsurround:footsteps.glass",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.95,
-                      "max":  1.05
-                  }
-    },
-    {
-        "location":  "dsurround:thunder",
-        "soundEvent":  "dsurround:thunder",
-        "category":  "WEATHER",
-        "volume":  10000
-    },
-    {
-        "location":  "dsurround:bow_pull",
-        "soundEvent":  "dsurround:item.bow.pull",
-        "pitch":  {
-                      "min":  0.9,
-                      "max":  1.1
-                  }
-    },
-    {
-        "location":  "dsurround:shield.use",
-        "soundEvent":  "dsurround:item.shield.use",
-        "category":  "PLAYER",
-        "volume":  0.3,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:waterfalls/0",
-        "soundEvent":  "dsurround:waterfall.0",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:waterfalls/1",
-        "soundEvent":  "dsurround:waterfall.1",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:waterfalls/2",
-        "soundEvent":  "dsurround:waterfall.2",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:waterfalls/3",
-        "soundEvent":  "dsurround:waterfall.3",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:waterfalls/4",
-        "soundEvent":  "dsurround:waterfall.4",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:waterfalls/5",
-        "soundEvent":  "dsurround:waterfall.5",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:soulsand.laughter",
-        "soundEvent":  "dsurround:soulsand.laughter",
-        "pitch":  {
-                      "min":  0.6,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:netherbrick.breathing",
-        "soundEvent":  "dsurround:netherbrick.breathing",
-        "pitch":  {
-                      "min":  0.6,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:redstone/electricarc/high",
-        "soundEvent":  "dsurround:electricarc",
         "volume":  0.15,
         "pitch":  {
-                      "min":  1.0,
-                      "max":  1.2
+                      "min":  1.4,
+                      "max":  1.6
                   }
     },
     {
-        "location":  "dsurround:redstone/electricarc/medium",
-        "soundEvent":  "dsurround:electricarc",
-        "volume":  0.1,
-        "pitch":  {
-                      "min":  1.0,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:redstone/electricarc/low",
-        "soundEvent":  "dsurround:electricarc",
-        "volume":  0.05,
-        "pitch":  {
-                      "min":  1.0,
-                      "max":  1.2
-                  }
-    },
-    {
-        "_comment":  "Grass paths land like grass (1.12.2: minecraft:grass_path -> grass). NOTE: the dirt_path factory location uses a slash (footsteps/dirt_path), unlike most materials which use dots — the key must match the resolved material path exactly.",
-        "location":  "dsurround:footsteps/dirt_path",
-        "soundEvent":  "dsurround:footsteps.grass",
+        "_comment":  "Mace. Heavy equip, blunt swing. Per upstream 0.4.4.",
+        "location":  "dsurround:toolbar.mace.equip",
+        "soundEvent":  "dsurround:item.shield.equip",
         "category":  "PLAYER",
+        "volume":  0.5,
         "pitch":  {
-                      "min":  1.0,
+                      "min":  0.8,
                       "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.grass_run",
-            "echo":  "dsurround:footsteps.grass_run"
-        },
-        "wander":  "dsurround:footsteps.grass_wander"
+                  }
     },
     {
-        "_comment":  "【梯子沿用原版音效并放大】用户明确：其它模组爬梯子的声音要沿用原版游戏的梯子音效并且放大，这是很早以前对原版梯子就定下的做法。核查发现移植版把这个丢了 —— 原来的 soundEvent 指向 dsurround:footsteps.bluntwood（DS 自己的钝木录音），根本不是原版梯子声。1.12.2 的 ladder_default 就是 @block.ladder.step（pitch 95~105），所以这里直接引用原版事件并归一音量，pitch 用 0.95~1.05 保持原来的轻微变化。",
-        "location":  "dsurround:footsteps/ladder",
-        "soundEvent":  "minecraft:block.ladder.step",
+        "location":  "dsurround:toolbar.mace.swing",
+        "soundEvent":  "dsurround:item.blunt.swing",
         "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.95,
-            "max":  1.05
-        },
         "volume":  1.0,
-        "land":  {
-            "primary":  "dsurround:footsteps.bluntwood",
-            "secondary":  "dsurround:footsteps.bluntwood",
-            "echo":  "dsurround:footsteps.bluntwood"
-        }
-    },
-    {
-        "_comment":  "【梯子 - 落地】1.12.2 的 ladder_default land = 同一段 @block.ladder.step 延迟 50ms 再放一次。这里给一个加响、略压调的落地 location，供 playLand 的命名回退取用（体积感更足，符合「落地比走路重」）。",
-        "location":  "dsurround:footsteps/ladder_land",
-        "soundEvent":  "minecraft:block.ladder.step",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.90,
-            "max":  1.00
-        },
-        "volume":  {
-            "min":  1.20,
-            "max":  1.30
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.stone",
-        "soundEvent":  "dsurround:footsteps.stone",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.65,
-                      "max":  0.7
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.concrete_run",
-            "secondary":  "dsurround:footsteps.stone",
-            "echo":  "dsurround:footsteps.stone_run"
-        }
-    },
-    {
-        "_comment":  "【1.12.2 材质补齐 bedrock】1.12.2 的 bedrock = stone 录音【压低到 55~60】（walk/run 都是），land = concrete_run ⊕ stone_walk@50 ⊕ 延迟50 stone_run。移植版之前把基岩挂在默认的 stone（65~70）上，听感与普通石头几乎没区别；这里按 1.12.2 原值压到 0.55~0.60 —— 这就是它「更沉、更大块」的来源。land 复用 footprints.stone 的 LAND_COMPOSITIONS（构建方式逐字相同），无需改 Java。",
-        "location":  "dsurround:footsteps.bedrock",
-        "soundEvent":  "dsurround:footsteps.stone",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.55,
-                      "max":  0.6
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "_comment":  "【滴水石变调】滴水石是【可溶石灰岩】，多孔、比实心石头软。同一段 stone 录音再压低一档到 0.60~0.70、音量降到 0.80~0.90（stone 本身已是 0.65~0.70）。",
-        "location":  "dsurround:footsteps.dripstone",
-        "soundEvent":  "dsurround:footsteps.stone",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.6,
-                      "max":  0.7
-                  },
-        "volume":  {
-                       "min":  0.8,
-                       "max":  0.9
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.dirt",
-        "soundEvent":  "dsurround:footsteps.dirt",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.dirt_land",
-            "secondary":  "dsurround:footsteps.dirt",
-            "echo":  "dsurround:footsteps.dirt_run"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.grass",
-        "soundEvent":  "dsurround:footsteps.grass",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  0.5,
-        "land":  {
-            "primary":  "dsurround:footsteps.grass_run",
-            "echo":  "dsurround:footsteps.grass_run"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.gravel",
-        "soundEvent":  "dsurround:footsteps.gravel",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.gravel_run",
-            "secondary":  "dsurround:footsteps.gravel",
-            "echo":  "dsurround:footsteps.gravel_run"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.sand",
-        "soundEvent":  "dsurround:footsteps.sand",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  0.5,
-        "land":  {
-            "primary":  "dsurround:footsteps.sand_run",
-            "secondary":  "dsurround:footsteps.sand",
-            "echo":  "dsurround:footsteps.sand_run"
-        },
-        "wander":  "dsurround:footsteps.dirt_wander"
-    },
-    {
-        "location":  "dsurround:footsteps.snow",
-        "soundEvent":  "dsurround:footsteps.snow",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.snow_run",
-            "secondary":  "dsurround:footsteps.snow",
-            "echo":  "dsurround:footsteps.snow_run"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.wood",
-        "soundEvent":  "dsurround:footsteps.wood",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.wood",
-            "echo":  "dsurround:footsteps.wood"
-        },
-        "wander":  "dsurround:footsteps.dirt_wander"
-    },
-    {
-        "_comment":  "【木 - 书架/置物架】架板是薄木板，比整块木板轻一点（26.1 新增方块）。",
-        "location":  "dsurround:footsteps.wood_shelf",
-        "soundEvent":  "dsurround:footsteps.wood",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.05,
-            "max":  1.15
-        },
-        "volume":  {
-            "min":  0.75,
-            "max":  0.85
-        }
-    },
-    {
-        "_comment":  "【木 - 活板门/栅栏门/脚手架】都是【薄板或细构件】，比整块木板轻。同录音小幅升调。",
-        "location":  "dsurround:footsteps.wood_thin",
-        "soundEvent":  "dsurround:footsteps.wood",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.08,
-            "max":  1.18
-        },
-        "volume":  {
-            "min":  0.7,
-            "max":  0.8
-        }
-    },
-    {
-        "_comment":  "【木 - 告示牌】牌面是【悬空的薄板】，比木板轻、带一点空腔共鸣。同录音升调。",
-        "location":  "dsurround:footsteps.wood_sign",
-        "soundEvent":  "dsurround:footsteps.wood",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.18,
-            "max":  1.28
-        },
-        "volume":  {
-            "min":  0.7,
-            "max":  0.8
-        }
-    },
-    {
-        "_comment":  "【木 - 按钮/压力板】这两个是【极小的机构件】，踩上去应该是一声【很轻很脆的嗒】。同录音大幅升调到 1.35~1.50、音量降到 0.45~0.55。",
-        "location":  "dsurround:footsteps.wood_click",
-        "soundEvent":  "dsurround:footsteps.wood",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.35,
-            "max":  1.5
-        },
-        "volume":  {
-            "min":  0.45,
-            "max":  0.55
-        }
-    },
-    {
-        "_comment":  "【木 - 栅栏/栏杆】栅栏是【细杆件】，不完整方块应当比整块木板小声。同录音升调 + 降到 0.60~0.70。",
-        "location":  "dsurround:footsteps.wood_fence",
-        "soundEvent":  "dsurround:footsteps.wood",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.12,
-            "max":  1.22
-        },
-        "volume":  {
-            "min":  0.6,
-            "max":  0.7
-        }
-    },
-    {
-        "_comment":  "【木 - 门/活板门】门板是【薄板 + 中空】，敲起来比实心木板更空、更亮、更小。1.12.2 的 BlockDoor 本来就单列为 bluntwood；这里再用「同录音 + 升调 + 降音量」把门类从整块木板里分出来。",
-        "location":  "dsurround:footsteps.wood_door",
-        "soundEvent":  "dsurround:footsteps.wood",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.1,
-            "max":  1.2
-        },
-        "volume":  {
-            "min":  0.7,
-            "max":  0.8
-        }
-    },
-    {
-        "_comment":  "【1.12.2 材质补齐 wood_sticky】黏性活塞头的 walk = wood_walk ⊕ mud_walk@50、land = wood_walk ⊕ mud_walk@50 ⊕ 延迟30 wood_walk。这里登记一个【独立路径】的工厂（录音与 footsteps.wood 完全相同），只为了让取面拿到唯一材质路径，从而在 本文件的 land 字段 里给它一条专属落地合成（主体木 + 叠层泥），落地才不会丢掉那层「黏」。",
-        "location":  "dsurround:footsteps.wood_sticky",
-        "soundEvent":  "dsurround:footsteps.wood",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.8,
-            "max":  1.2
-        },
-        "volume":  {
-            "min":  0.9,
-            "max":  1.0
-        },
-        "land":  {
-            "primary":  "dsurround:footsteps.wood",
-            "secondary":  "dsurround:footsteps.mud",
-            "echo":  "dsurround:footsteps.wood"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.log",
-        "soundEvent":  "dsurround:footsteps.log",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.55,
-                      "max":  0.65
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.wood",
-            "echo":  "dsurround:footsteps.wood"
-        },
-        "wander":  "dsurround:footsteps.dirt_wander"
-    },
-    {
-        "_comment":  "【沿用原版特殊脚步声 - 落地】落地沿用同一段原版录音：音量抬到 1.2~1.35 做重落区分，pitch 压低 0.85~0.95。与 1.12.2「落地比走路更沉」的一贯取向一致（对照 log 的 0.55~0.60 与各材质的 land 层）。",
-        "location":  "dsurround:footsteps.mangrove_roots_land",
-        "soundEvent":  "minecraft:block.mangrove_roots.step",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.85,
-                      "max":  0.95
-                  },
-        "volume":  {
-                      "min":  1.2,
-                      "max":  1.35
-                  }
-    },
-    {
-        "_comment":  "【沿用原版特殊脚步声】1.12.2 的素材库里没有红树根这类方块，硬套任何一段都会跑味。做法同 footstep_accent/amethyst 借用 minecraft:block.amethyst_block.break：直接引用原版的 block.mangrove_roots.step，音量归一为 1.0（原版该音效本身偏轻，先归一再交由脚步总音量统一控制）。",
-        "location":  "dsurround:footsteps.mangrove_roots",
-        "soundEvent":  "minecraft:block.mangrove_roots.step",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.bluntwood",
-        "soundEvent":  "dsurround:footsteps.bluntwood",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.bluntwood",
-            "echo":  "dsurround:footsteps.bluntwood"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.organic",
-        "soundEvent":  "dsurround:footsteps.organic",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.4,
-                       "max":  0.45
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.dirt_land",
-            "secondary":  "dsurround:footsteps.mud",
-            "echo":  "dsurround:footsteps.mud"
-        }
-    },
-    {
-        "_comment":  "【有机质 - 蜂巢类】蜂箱与蜂巢是【蜡质蜂窝】，轻、空、带一点脆。同录音升调到 1.15~1.25、音量降到 0.55~0.65（蜡质不吸音但整体轻）。",
-        "location":  "dsurround:footsteps.organic_waxy",
-        "soundEvent":  "dsurround:footsteps.organic",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.15,
-            "max":  1.25
-        },
-        "volume":  {
-            "min":  0.55,
-            "max":  0.65
-        }
-    },
-    {
-        "_comment":  "【有机质 - 硬壳瓜类】南瓜/西瓜/可可的外皮是【干硬的壳】，敲上去比菌类实、比菌类响。同录音 pitch 0.90~1.00 保持实心感的厚度。",
-        "location":  "dsurround:footsteps.organic_shell",
-        "soundEvent":  "dsurround:footsteps.organic",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.9,
-            "max":  1.0
-        },
-        "volume":  {
-            "min":  0.9,
-            "max":  1.0
-        }
-    },
-    {
-        "_comment":  "【有机质 - 菌类】蘑菇块与菌柄是【松软多孔】的，比干壳类更软更闷一点。同录音升调到 1.08~1.18（升调听感更「轻软」），音量略降到 0.80~0.90。",
-        "location":  "dsurround:footsteps.organic_spongy",
-        "soundEvent":  "dsurround:footsteps.organic",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.08,
-            "max":  1.18
-        },
-        "volume":  {
-            "min":  0.8,
-            "max":  0.9
-        }
-    },
-    {
-        "_comment":  "【蜡质 - 干硬变调】蜡烛与蜂巢块是【干硬的蜡】，而 organic 本体（0.4~0.45，含泥副音）偏向湿润土质。这里给蜡质一个同录音的独立 location：pitch 0.95~1.05 保持干爽，音量 0.50~0.55（比 organic 本体略响，因为蜡是硬质、不吸音）。",
-        "location":  "dsurround:footsteps.wax_dry",
-        "soundEvent":  "dsurround:footsteps.organic",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.95,
-            "max":  1.05
-        },
-        "volume":  {
-            "min":  0.5,
-            "max":  0.55
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.bone",
-        "soundEvent":  "dsurround:footsteps.bone",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "_comment":  "【骨块 - 干空变调】骨块是【中空干骨】，比默认更闷更空。同录音压到 0.80~0.90。",
-        "location":  "dsurround:footsteps.bone_dry",
-        "soundEvent":  "dsurround:footsteps.bone",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.8,
-            "max":  0.9
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.sculk",
-        "soundEvent":  "dsurround:footsteps.sculk",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.sculk_vein",
-        "soundEvent":  "dsurround:footsteps.sculk_vein",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.moss",
-        "soundEvent":  "dsurround:footsteps.moss",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "_comment":  "【苍白苔藓 - 干闷变调】苍白苔藓更干、更贴地，同录音压到 0.85~0.95。",
-        "location":  "dsurround:footsteps.moss_dry",
-        "soundEvent":  "dsurround:footsteps.moss",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.85,
-            "max":  0.95
-        }
-    },
-    {
-        "_comment":  "【苔藓 - 松软变调】活苔藓松软有弹性，同录音升到 1.05~1.15，与干苔藓区分。",
-        "location":  "dsurround:footsteps.moss_soft",
-        "soundEvent":  "dsurround:footsteps.moss",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.05,
-            "max":  1.15
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.tuff",
-        "soundEvent":  "dsurround:footsteps.tuff",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "_comment":  "【凝灰岩变调】凝灰岩是【多孔】火山岩，比实心石头轻、闷。直接沿用原版录音会偏亮，所以取同一段录音压低到 0.80~0.90 并把音量降到 0.85~0.95 —— 与 1.12.2 用「同一段录音 + 变调」造材质的手法一致（对照 log = wood_walk 压到 0.55~0.60）。",
-        "location":  "dsurround:footsteps.tuff_soft",
-        "soundEvent":  "dsurround:footsteps.tuff",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  0.9
-                  },
-        "volume":  {
-                       "min":  0.85,
-                       "max":  0.95
-                   }
-    },
-    {
-        "_comment":  "【凝灰岩 - 薄件变调】台阶/半砖是薄件，敲起来比整块更亮。同录音升调到 0.90~1.00。",
-        "location":  "dsurround:footsteps.tuff_thin",
-        "soundEvent":  "dsurround:footsteps.tuff",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.9,
-            "max":  1.0
-        },
-        "volume":  {
-            "min":  0.8,
-            "max":  0.9
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.copper",
-        "soundEvent":  "dsurround:footsteps.copper",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "_comment":  "【铜 - 氧化变调】氧化/风化铜表面是【钝的铜绿】，不像新铜那样有金属清亮感。同一段录音压到 0.80~0.90 并降音量。",
-        "location":  "dsurround:footsteps.copper_dull",
-        "soundEvent":  "dsurround:footsteps.copper",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.8,
-            "max":  0.9
-        },
-        "volume":  {
-            "min":  0.8,
-            "max":  0.9
-        }
-    },
-    {
-        "_comment":  "【铜 - 薄壳件变调】铜门/活板门/格栅/锁链/提灯是【薄壳/镂空】件，敲上去比实心铜块更亮更薄。同一段 copper 录音升调到 1.15~1.25、音量略降 —— 与 1.12.2 用「同录音 + 变调」造材质同法。",
-        "location":  "dsurround:footsteps.copper_hollow",
-        "soundEvent":  "dsurround:footsteps.copper",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.15,
-            "max":  1.25
-        },
-        "volume":  {
-            "min":  0.85,
-            "max":  0.95
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.bamboo",
-        "soundEvent":  "dsurround:footsteps.bamboo",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.honey",
-        "soundEvent":  "dsurround:footsteps.honey",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.froglight",
-        "soundEvent":  "dsurround:footsteps.froglight",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "_comment":  "【蛙明灯】蛙明灯是【软的水润团块】，不是硬质发光体。同录音压到 0.85~0.95 并降音量，做出「闷、实、有点水感」的读感，与萤石/菌光体那种脆亮区分开。",
-        "location":  "dsurround:footsteps.froglight_soft",
-        "soundEvent":  "dsurround:footsteps.froglight",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.85,
-            "max":  0.95
-        },
-        "volume":  {
-            "min":  0.8,
-            "max":  0.9
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.slime",
-        "soundEvent":  "dsurround:footsteps.slime",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.bone_land",
-        "soundEvent":  "dsurround:footsteps.bone_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.sculk_land",
-        "soundEvent":  "dsurround:footsteps.sculk_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.sculk_vein_land",
-        "soundEvent":  "dsurround:footsteps.sculk_vein_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.moss_land",
-        "soundEvent":  "dsurround:footsteps.moss_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.tuff_land",
-        "soundEvent":  "dsurround:footsteps.tuff_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.copper_land",
-        "soundEvent":  "dsurround:footsteps.copper_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.froglight_land",
-        "soundEvent":  "dsurround:footsteps.froglight_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.honey_land",
-        "soundEvent":  "dsurround:footsteps.honey_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.bamboo_land",
-        "soundEvent":  "dsurround:footsteps.bamboo_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.slime_land",
-        "soundEvent":  "dsurround:footsteps.slime_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.shroomlight",
-        "soundEvent":  "dsurround:footsteps.shroomlight",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "location":  "dsurround:footsteps.shroomlight_land",
-        "soundEvent":  "dsurround:footsteps.shroomlight_land",
-        "category":  "PLAYER",
-        "volume":  1.0
-    },
-    {
-        "_comment":  "1.12.2 hardmetal land = metalbox_run + metalbox_walk@50 + delay50(metalbox_run): a heavy run thud (not the walk \"step\") with a subtle walk layer and a fused run echo.",
-        "location":  "dsurround:footsteps.metalbox",
-        "soundEvent":  "dsurround:footsteps.metalbox",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.metalbox_run",
-            "secondary":  "dsurround:footsteps.metalbox",
-            "echo":  "dsurround:footsteps.metalbox_run"
-        },
-        "wander":  "dsurround:footsteps.marble_wander"
-    },
-    {
-        "location":  "dsurround:footsteps.metalbar",
-        "soundEvent":  "dsurround:footsteps.metalbar",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.metalbar",
-            "echo":  "dsurround:footsteps.metalbar"
-        },
-        "wander":  "dsurround:footsteps.marble_wander",
-        "jump":  "dsurround:footsteps.metalbar_wander"
-    },
-    {
-        "_comment":  "【薄金属件变调】锁链、铁栏杆这类【细杆/环扣】件比实心金属块更薄更轻，应该【更小更亮】，而原来的 metalbar 音量 0.90~1.00 比实心铁块（metalbox 0.75~0.85）还响，正好反了。这里用同录音升调 1.12~1.22 + 降到 0.55~0.65，做出「细薄、不压场」的读感。",
-        "location":  "dsurround:footsteps.metalbar_thin",
-        "soundEvent":  "dsurround:footsteps.metalbar",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  1.12,
-            "max":  1.22
-        },
-        "volume":  {
-            "min":  0.55,
-            "max":  0.65
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.rug",
-        "soundEvent":  "dsurround:footsteps.rug",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  0.7,
-        "land":  {
-            "primary":  "dsurround:footsteps.rug",
-            "echo":  "dsurround:footsteps.rug"
-        },
-        "wander":  "dsurround:footsteps.grass_wander"
-    },
-    {
-        "location":  "dsurround:footsteps.mud",
-        "soundEvent":  "dsurround:footsteps.mud",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.mud",
-            "echo":  "dsurround:footsteps.mud"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.muffledice",
-        "soundEvent":  "dsurround:footsteps.muffledice",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.concrete_run",
-            "secondary":  "dsurround:footsteps.stone",
-            "echo":  "dsurround:footsteps.stone_run"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.quicksand",
-        "soundEvent":  "dsurround:footsteps.quicksand",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.sand_run",
-            "secondary":  "dsurround:footsteps.quicksand",
-            "echo":  "dsurround:footsteps.quicksand"
-        },
-        "wander":  "dsurround:footsteps.dirt_wander"
-    },
-    {
-        "location":  "dsurround:footsteps.weakice",
-        "soundEvent":  "dsurround:footsteps.weakice",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.weakice",
-            "secondary":  "dsurround:footsteps.weakice",
-            "echo":  "dsurround:footsteps.weakice"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.glass",
-        "soundEvent":  "dsurround:footsteps.glass",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.wood",
-            "secondary":  "dsurround:footsteps.glass",
-            "echo":  "dsurround:footsteps.wood"
-        },
-        "wander":  "dsurround:footsteps.dirt_wander"
-    },
-    {
-        "_comment":  "1.12.2 marble land = marble_run + delay50(marble_run): no walk secondary layer.",
-        "location":  "dsurround:footsteps.marble",
-        "soundEvent":  "dsurround:footsteps.marble",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.marble_run",
-            "echo":  "dsurround:footsteps.marble_run"
-        }
-    },
-    {
-        "_comment":  "【石英】石英是软的【粉质】矿物，比大理石更闷、更细。同录音 pitch 0.95~1.05（比大理石略低，避免和晶体一样脆），音量降到 0.85~0.95。",
-        "location":  "dsurround:footsteps.quartz_powdery",
-        "soundEvent":  "dsurround:footsteps.marble",
-        "category":  "PLAYER",
-        "pitch":  {
-            "min":  0.95,
-            "max":  1.05
-        },
-        "volume":  {
-            "min":  0.85,
-            "max":  0.95
-        }
-    },
-    {
-        "_comment":  "【方解石变调】方解石是软的、粉质的亮色矿物，比大理石更「脆而轻」。同一段 marble 录音升调到 0.90~1.00、音量降到 0.80~0.90。",
-        "location":  "dsurround:footsteps.calcite_soft",
-        "soundEvent":  "dsurround:footsteps.marble",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.9,
-                      "max":  1.0
-                  },
-        "volume":  {
-                       "min":  0.8,
-                       "max":  0.9
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.concrete",
-        "soundEvent":  "dsurround:footsteps.concrete",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.concrete_run",
-            "secondary":  "dsurround:footsteps.concrete",
-            "echo":  "dsurround:footsteps.concrete_run"
-        }
-    },
-    {
-        "_comment":  "【岩浆块变调】岩浆块是【软的、会开裂的】热岩，不是实心石头（原本继承 stone）。取 concrete 录音（「开裂砖石」质地，与 1.12.2 用 concrete 做 brickstone 同理）压到 0.55~0.65，音量 0.80~0.90。",
-        "location":  "dsurround:footsteps.magma_soft",
-        "soundEvent":  "dsurround:footsteps.concrete",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.55,
-                      "max":  0.65
-                  },
-        "volume":  {
-                       "min":  0.8,
-                       "max":  0.9
-                   }
-    },
-    {
-        "_comment":  "1.12.2 composite land = lino_run + delayed lino_run (the lino event pool carries both walk and run recordings), not the stone land layers.",
-        "location":  "dsurround:footsteps.lino",
-        "soundEvent":  "dsurround:footsteps.lino",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.lino",
-            "echo":  "dsurround:footsteps.lino"
-        },
-        "wander":  "dsurround:footsteps.marble_wander"
-    },
-    {
-        "_comment":  "1.12.2 squeakywood land = squeakywood_walk + delay50(wood_walk): no walk secondary layer.",
-        "location":  "dsurround:footsteps.squeakywood",
-        "soundEvent":  "dsurround:footsteps.squeakywood",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.squeakywood",
-            "echo":  "dsurround:footsteps.wood"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.leaves_through",
-        "soundEvent":  "dsurround:footsteps.leaves_through",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.dirt_land",
-            "secondary":  "dsurround:footsteps.dirt",
-            "echo":  "dsurround:footsteps.dirt_run"
-        },
-        "wander":  "dsurround:footsteps.dirt_wander"
-    },
-    {
-        "_comment":  "Leaf litter lands with a single heavier crunch - a dedicated landing recording for the primary, no secondary layer and no delayed echo.",
-        "location":  "dsurround:footsteps.leaves_crunch",
-        "soundEvent":  "dsurround:footsteps.leaves_crunch",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.leaves_crunch_land"
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.leaves_crunch_land",
-        "soundEvent":  "dsurround:footsteps.leaves_crunch_land",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.9,
-                      "max":  1.1
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.brush_through",
-        "soundEvent":  "dsurround:footsteps.brush_through",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.water_through",
-        "soundEvent":  "dsurround:footsteps.water_through",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footstep_accent/muffledice",
-        "soundEvent":  "dsurround:footsteps.muffledice",
-        "category":  "PLAYER",
-        "volume":  0.4
-    },
-    {
-        "location":  "dsurround:footstep_accent/weakice",
-        "soundEvent":  "dsurround:footsteps.weakice",
-        "category":  "PLAYER",
-        "volume":  0.1
-    },
-    {
-        "location":  "dsurround:footstep_accent/sand",
-        "soundEvent":  "dsurround:footsteps.sand",
-        "category":  "PLAYER",
-        "volume":  0.1
-    },
-    {
-        "_comment":  "【铁轨的木枕层】素材库里没有「金属轨踩在枕木上」这种声音，但铁轨现实里就是金属轨 + 木枕。用 wood 录音做一层轻木副音，压在 metalbar_run 主体下面：副音不乘玩家 variator，取 0.5 × 0.9 ≈ 0.45，形成「闷木打底 + 轻金属」的层次。",
-        "location":  "dsurround:footstep_accent/rail_plank",
-        "soundEvent":  "dsurround:footsteps.wood",
-        "category":  "PLAYER",
-        "volume":  0.45
-    },
-    {
-        "location":  "dsurround:footstep_accent/mud",
-        "soundEvent":  "dsurround:footsteps.mud",
-        "category":  "PLAYER",
-        "volume":  0.8
-    },
-    {
-        "_comment":  "【锁链的金属环扣副音】素材库里正好有一组链甲录音 （dsurround:footsteps/armor/medium_walk*，1.12.2 的 chain mail），本身就是「金属环扣互相碰撞」的声音 —— 拿它做锁链的副音最贴切。音量 0.28：副音不乘玩家 variator，取主体（0.55~0.65）的一半左右，形成「细杆主体 + 环扣细响」的层次。",
-        "location":  "dsurround:footstep_accent/chain_rattle",
-        "soundEvent":  "dsurround:armor.medium_walk",
-        "category":  "PLAYER",
-        "volume":  0.28
-    },
-    {
-        "_comment":  "【1.12.2 造法的 50/50 副音】1.12.2 的 organic 是 dirt 主体 ⊕ mud 副音，两层等额。副音走的是不乘玩家 variator 的路径，所以副音音量取主体的 0.5 倍；footsteps.organic 主体被有意归一到 0.4~0.45，故取 0.2，即 0.5 × 0.425 的 1.12.2 比例。",
-        "location":  "dsurround:footstep_accent/mud_quiet",
-        "soundEvent":  "dsurround:footsteps.mud",
-        "category":  "PLAYER",
-        "volume":  0.2
-    },
-    {
-        "_comment":  "Dry organic matter (pumpkins, mushroom blocks, cocoa, cake) lands with a grass-like thud in the original (organic_dry), not the muddy organic.",
-        "location":  "dsurround:footsteps.organic_dry",
-        "soundEvent":  "dsurround:footsteps.organic",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "land":  {
-            "primary":  "dsurround:footsteps.grass_run",
-            "echo":  "dsurround:footsteps.grass_run"
-        },
-        "jump":  "dsurround:footsteps.grass_run"
-    },
-    {
-        "location":  "dsurround:held_torch_burn",
-        "soundEvent":  "dsurround:block.torch_burn",
-        "category":  "AMBIENT",
-        "volume":  0.85
-    },
-    {
-        "location":  "dsurround:player.jump",
-        "soundEvent":  "dsurround:player.jump",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.7,
-                       "max":  0.8
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.bluntwood_wander",
-        "soundEvent":  "dsurround:footsteps.bluntwood_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.concrete_wander",
-        "soundEvent":  "dsurround:footsteps.concrete_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.dirt_wander",
-        "soundEvent":  "dsurround:footsteps.dirt_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.grass_wander",
-        "soundEvent":  "dsurround:footsteps.grass_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.gravel_wander",
-        "soundEvent":  "dsurround:footsteps.gravel_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.marble_wander",
-        "soundEvent":  "dsurround:footsteps.marble_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.metalbar_wander",
-        "soundEvent":  "dsurround:footsteps.metalbar_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.metalbox_wander",
-        "soundEvent":  "dsurround:footsteps.metalbox_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.mud_wander",
-        "soundEvent":  "dsurround:footsteps.mud_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.snow_wander",
-        "soundEvent":  "dsurround:footsteps.snow_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.squeakywood_wander",
-        "soundEvent":  "dsurround:footsteps.squeakywood_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.stone_wander",
-        "soundEvent":  "dsurround:footsteps.stone_wander",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.grass_run",
-        "soundEvent":  "dsurround:footsteps.grass_run",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footsteps.stone_run",
-        "soundEvent":  "dsurround:footsteps.stone_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.65,
-                      "max":  0.7
-                  }
-    },
-    {
-        "_comment":  "【bedrock 的 run 层】1.12.2 的 bedrock run 同样是 stone_run 压到 55~60。移植版的 _run 是从材质自身路径推导的，所以必须显式注册这个 location。",
-        "location":  "dsurround:footsteps.bedrock_run",
-        "soundEvent":  "dsurround:footsteps.stone_run",
-        "category":  "PLAYER",
-        "pitch":  {
-                      "min":  0.55,
-                      "max":  0.6
-                  },
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   }
-    },
-    {
-        "location":  "dsurround:footsteps.concrete_run",
-        "soundEvent":  "dsurround:footsteps.concrete_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footsteps.dirt_run",
-        "soundEvent":  "dsurround:footsteps.dirt_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footsteps.gravel_run",
-        "soundEvent":  "dsurround:footsteps.gravel_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footsteps.sand_run",
-        "soundEvent":  "dsurround:footsteps.sand_run",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footsteps.snow_run",
-        "soundEvent":  "dsurround:footsteps.snow_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footsteps.marble_run",
-        "soundEvent":  "dsurround:footsteps.marble_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footsteps.metalbar_run",
-        "soundEvent":  "dsurround:footsteps.metalbar_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.7,
-                       "max":  0.8
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "_comment":  "【1.12.2 材质补齐 rails - 落地】1.12.2 的 rails 三个成员（walk/jump/land）都是 metalbar_run @【vol 20】。铁轨是极轻的薄金属，落地也必须压着。walk 已经走 footsteps.metalbar_run（该工厂本身音量正常），这里给落地单独一个 0.2 的 location —— playLand 会用命名回退取到它，再叠一层 metalbar_run@50 作为撞击层，与 1.12.2 的「轻落地」一致。",
-        "location":  "dsurround:footsteps.rails_land",
-        "soundEvent":  "dsurround:footsteps.metalbar_run",
-        "category":  "PLAYER",
-        "volume":  {
-            "min":  0.2,
-            "max":  0.2
-        }
-    },
-    {
-        "location":  "dsurround:footsteps.metalbox_run",
-        "soundEvent":  "dsurround:footsteps.metalbox_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:footsteps.dirt_land",
-        "soundEvent":  "dsurround:footsteps.dirt_land",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:furnace_ignite",
-        "soundEvent":  "dsurround:furnace_ignite",
-        "category":  "BLOCKS",
-        "volume":  0.85,
-        "pitch":  {
-                      "min":  0.9,
-                      "max":  1.1
-                  }
-    },
-    {
-        "location":  "dsurround:projectile/pearl",
-        "soundEvent":  "dsurround:projectile.pearl.break",
-        "category":  "NEUTRAL",
-        "volume":  0.9,
-        "pitch":  {
-                      "min":  0.95,
-                      "max":  1.05
-                  }
-    },
-    {
-        "location":  "dsurround:projectile/egg",
-        "soundEvent":  "dsurround:projectile.egg.break",
-        "category":  "NEUTRAL",
-        "volume":  1.0,
-        "pitch":  {
-                      "min":  0.92,
-                      "max":  1.08
-                  }
-    },
-    {
-        "location":  "dsurround:projectile/snowball",
-        "soundEvent":  "dsurround:projectile.snowball.break",
-        "category":  "NEUTRAL",
-        "volume":  0.9,
-        "pitch":  {
-                      "min":  0.92,
-                      "max":  1.08
-                  }
-    },
-    {
-        "location":  "dsurround:enchant/book_open",
-        "soundEvent":  "dsurround:pageflipheavy",
-        "category":  "NEUTRAL",
-        "volume":  0.8,
-        "pitch":  {
-                      "min":  0.95,
-                      "max":  1.05
-                  }
-    },
-    {
-        "location":  "dsurround:enchant/page_turn",
-        "soundEvent":  "minecraft:item.book.page_turn",
-        "category":  "NEUTRAL",
-        "volume":  0.3,
-        "pitch":  {
-                      "min":  0.9,
-                      "max":  1.1
-                  }
-    },
-    {
-        "location":  "dsurround:enchant/book_close",
-        "soundEvent":  "dsurround:bookclose",
-        "category":  "NEUTRAL",
-        "volume":  0.75,
-        "pitch":  {
-                      "min":  0.75,
-                      "max":  0.85
-                  }
-    },
-    {
-        "location":  "dsurround:biome.grasshopper",
-        "soundEvent":  "biome.grasshopper",
-        "category":  "AMBIENT",
-        "volume":  0.35
-    },
-    {
-        "location":  "dsurround:biome.gnatt",
-        "soundEvent":  "biome.gnatt",
-        "category":  "AMBIENT",
-        "volume":  0.5
-    },
-    {
-        "_comment":  "【1.12.2 材质补齐 brickstone】walk/run = concrete 原样。1.12.2 的 brickstone acoustic 就是 concrete_walk/concrete_run，无变调；land = concrete_run + concrete_walk@0.5 + delay50(concrete_run)，由 resolveLandSound 的 _run 回退自动推出。",
-        "location":  "dsurround:brickstone/concrete",
-        "soundEvent":  "dsurround:footsteps.concrete",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:brickstone/concrete_run",
-        "soundEvent":  "dsurround:footsteps.concrete_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:brickstone/concrete_wander",
-        "soundEvent":  "dsurround:footsteps.concrete_wander",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "_comment":  "【1.12.2 材质补齐 stonemachine】concrete 录音整体升调 1.10~1.20，听感比 brickstone 更「机械」。1.12.2 wander = concrete_wander（无变调）。",
-        "location":  "dsurround:stonemachine/concrete",
-        "soundEvent":  "dsurround:footsteps.concrete",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "pitch":  {
-                      "min":  1.1,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:stonemachine/concrete_run",
-        "soundEvent":  "dsurround:footsteps.concrete_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "pitch":  {
-                      "min":  1.1,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:stonemachine/concrete_wander",
-        "soundEvent":  "dsurround:footsteps.concrete_wander",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "_comment":  "【1.12.2 材质补齐 stoneutility】concrete@1.10~1.20 ⊕ lino@0.75~0.85 两层【同时】播放：一个升调的实心音加一个降调的薄音，这是红石器件类方块在 1.12.2 的辨识度来源。副音 lino 的 volume 取 0.72 = 0.9(玩家 variator) × 0.8(主 factory 音量中值)，因为 accent 走的是 dsFootstepVolume() 那条不乘 variator 的路径，只有这样才能和主体等响（1.12.2 两层都是默认 0.9）。",
-        "location":  "dsurround:stoneutility/concrete",
-        "soundEvent":  "dsurround:footsteps.concrete",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "pitch":  {
-                      "min":  1.1,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:stoneutility/concrete_run",
-        "soundEvent":  "dsurround:footsteps.concrete_run",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.75,
-                       "max":  0.85
-                   },
-        "pitch":  {
-                      "min":  1.1,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:stoneutility/concrete_wander",
-        "soundEvent":  "dsurround:footsteps.concrete_wander",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:stoneutility/lino",
-        "soundEvent":  "dsurround:footsteps.lino",
-        "category":  "PLAYER",
-        "volume":  0.72,
-        "pitch":  {
-                      "min":  0.75,
-                      "max":  0.85
-                  }
-    },
-    {
-        "_comment":  "【1.12.2 材质补齐 obsidian】stone@vol0.8/pitch0.65~0.70 ⊕ lino@0.75~0.85。原来的实现只有 lino，丢了压低的石头主体。land 在 Java 侧用 STONE_LAND（见 本文件的 land 字段 的 obsidian/stone 条目）。",
-        "location":  "dsurround:obsidian/stone",
-        "soundEvent":  "dsurround:footsteps.stone",
-        "category":  "PLAYER",
-        "volume":  0.8,
-        "pitch":  {
-                      "min":  0.65,
-                      "max":  0.7
-                  },
-        "land":  {
-            "primary":  "dsurround:footsteps.concrete_run",
-            "secondary":  "dsurround:footsteps.stone",
-            "echo":  "dsurround:footsteps.stone_run"
-        }
-    },
-    {
-        "location":  "dsurround:obsidian/stone_run",
-        "soundEvent":  "dsurround:footsteps.stone_run",
-        "category":  "PLAYER",
-        "volume":  0.8,
-        "pitch":  {
-                      "min":  0.65,
-                      "max":  0.7
-                  }
-    },
-    {
-        "location":  "dsurround:obsidian/stone_wander",
-        "soundEvent":  "dsurround:footsteps.stone_wander",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:obsidian/lino",
-        "soundEvent":  "dsurround:footsteps.lino",
-        "category":  "PLAYER",
-        "volume":  0.72,
-        "pitch":  {
-                      "min":  0.75,
-                      "max":  0.85
-                  }
-    },
-    {
-        "_comment":  "【1.12.2 材质补齐 woodutility】bluntwood ⊕ lino@0.75~0.85（唱片机/音符盒）。land = bluntwood_walk + delay50(bluntwood_walk)，正好是 resolveLandSound 无后缀时的默认回退。",
-        "location":  "dsurround:woodutility/bluntwood",
-        "soundEvent":  "dsurround:footsteps.bluntwood",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:woodutility/bluntwood_wander",
-        "soundEvent":  "dsurround:footsteps.bluntwood_wander",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:woodutility/lino",
-        "soundEvent":  "dsurround:footsteps.lino",
-        "category":  "PLAYER",
-        "volume":  0.85,
-        "pitch":  {
-                      "min":  0.75,
-                      "max":  0.85
-                  }
-    },
-    {
-        "_comment":  "【1.12.2 材质补齐 metalsubparts】metalbar@0.5 ⊕ metalbox@0.5，两层等比；比纯 metalbox 更薄更「铁片」。0.5/0.45 是按 accent 不乘 variator 折算后等响（主体实际 0.9×0.5=0.45）。1.12.2 的 metalsubparts 没有 run，所以刻意不注册 _run：跑动时回退到 walk，与原始一致。 1.12.2 metalsubparts (iron door / iron trapdoor) land = metalbox_run + metalbar_walk + delay30(metalbar_walk) + delay50(metalbox_run): a heavy run thud with a thin bar layer, not the plain metal box walk.",
-        "location":  "dsurround:metalsubparts/metalbox",
-        "soundEvent":  "dsurround:footsteps.metalbox",
-        "category":  "PLAYER",
-        "volume":  0.5,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  },
-        "land":  {
-            "primary":  "dsurround:footsteps.metalbox_run",
-            "secondary":  "dsurround:footsteps.metalbar",
-            "echo":  "dsurround:footsteps.metalbox_run"
-        }
-    },
-    {
-        "location":  "dsurround:metalsubparts/metalbar",
-        "soundEvent":  "dsurround:footsteps.metalbar",
-        "category":  "PLAYER",
-        "volume":  0.45,
-        "pitch":  {
-                      "min":  0.8,
-                      "max":  1.2
-                  }
-    },
-    {
-        "location":  "dsurround:metalsubparts/metalbox_wander",
-        "soundEvent":  "dsurround:footsteps.marble_wander",
-        "category":  "PLAYER",
-        "volume":  {
-                       "min":  0.9,
-                       "max":  1.0
-                   },
         "pitch":  {
                       "min":  0.8,
                       "max":  1.2

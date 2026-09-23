@@ -1,0 +1,8 @@
+{
+  "_comment": "Spears and the vanilla trident. #c: refs are optional so a loader without them still loads this tag.",
+  "values": [
+    "minecraft:trident",
+    { "id": "#c:tools/spears", "required": false },
+    { "id": "#c:spears",       "required": false }
+  ]
+}

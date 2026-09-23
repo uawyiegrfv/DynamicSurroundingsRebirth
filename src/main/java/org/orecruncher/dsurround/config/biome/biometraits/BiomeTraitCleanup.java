@@ -58,4 +58,33 @@ public final class BiomeTraitCleanup implements IBiomeTraitAnalyzer {
         if (resultCollection.contains(DEEP))
             resultCollection.remove(WATER);
     }
+
+    /**
+     * Read-only counterpart of {@link #analyze}: true when the set holds a pair this
+     * analyzer would have resolved. It changes nothing - it exists to report trait sets
+     * the analyzer chain never got to see.
+     *
+     * <p>Why it is needed: config rules merge traits <em>after</em> the analyzers have run
+     * ({@code BiomeLibrary.applyTraits}), and {@code clearTraits} replaces the set outright,
+     * so a rule can leave behind a combination such as COLD + HOT that analyze() would never
+     * have allowed.
+     *
+     * <p>Why the cleanup is NOT simply moved after the rules: that would also strip traits a
+     * rule deliberately declares - a pack marking a desert COLD would silently lose it,
+     * because analyze() lets HOT win over COLD. Traits reach scripts as plain booleans, so a
+     * contradiction costs some ambience coherence; silently discarding a declared trait costs
+     * the pack its intent. Reporting is the smaller of the two evils.
+     *
+     * <p>Keep the pairs below in step with {@link #analyze} - this is the one place where the
+     * two are duplicated.
+     */
+    public static boolean hasContradiction(final BiomeTraits traits) {
+        return (traits.contains(NETHER) && (traits.contains(OVERWORLD) || traits.contains(THEEND)))
+                || (traits.contains(THEEND) && traits.contains(OVERWORLD))
+                || (traits.contains(DENSE) && traits.contains(SPARSE))
+                || (traits.contains(WET) && traits.contains(DRY))
+                || (traits.contains(COLD) && traits.contains(HOT))
+                || (traits.contains(RIVER) && (traits.contains(OCEAN) || traits.contains(DEEP)))
+                || (traits.contains(DEEP) && traits.contains(WATER));
+    }
 }

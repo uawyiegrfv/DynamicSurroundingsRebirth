@@ -8,6 +8,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.biome.Biome;
 import org.orecruncher.dsurround.config.SyntheticBiome;
 import org.orecruncher.dsurround.config.biome.BiomeInfo;
+import org.orecruncher.dsurround.config.biome.biometraits.BiomeTraitCleanup;
 import org.orecruncher.dsurround.config.biome.biometraits.BiomeTraits;
 import org.orecruncher.dsurround.config.data.BiomeConfigRule;
 import org.orecruncher.dsurround.config.libraries.IBiomeLibrary;
@@ -131,6 +132,13 @@ public final class BiomeLibrary implements IBiomeLibrary {
         // Collect any trait changes into the trait collection before applying
         // general rules as these traits can influence decisions.
         this.applyTraits(biome, result);
+
+        // Rules merge traits after the analyzer chain ran, so they can leave behind a
+        // combination BiomeTraitCleanup would have resolved (COLD + HOT, WET + DRY).
+        // Warn instead of cleaning: stripping one would drop a trait the pack declared on
+        // purpose. See BiomeTraitCleanup.hasContradiction for the reasoning.
+        if (BiomeTraitCleanup.hasContradiction(result.getTraits()))
+            this.logger.warn("Biome [%s] has contradictory traits after rules: %s", id, result.getTraits());
 
         // Apply rule configs
         Guard.execute(() -> applyRuleConfigs(biome, result));

@@ -495,9 +495,7 @@ A plain JSON array of strings. The word appears above the entity that took the c
 exclamation mark appended, thrown up and away from the attacker while growing.
 
 ```json
-{
-  "values": ["BONK", "WHACK", "ZOK", "SPLAT"]
-}
+["BONK", "WHACK", "ZOK", "SPLAT"]
 ```
 
 **Adding your own.** Ship a file with the same name and it is **merged with** the built-in list — you

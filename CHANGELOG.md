@@ -76,10 +76,54 @@
   terminology (*istota*, *biom*, *pogłos*, *cios krytyczny*, *Kres*).
 * **Chinese (`zh_cn`) completed** — the last 8 keys were `/dsmm` music-manager feedback text.
 
+**Sound**
+
+* **A sound's own reflections no longer inherit the direct path's occlusion.** The per-source
+  occlusion was multiplied into the four reverb sends as well as into the direct path, and since the
+  wet level is `x^1.1` against a dry `x^0.1`, that applied occlusion to the reverb two and a half
+  times — the opposite of what the send floor's own comment claimed it did.
+* **`facingShare` was divided by four too much.** The sum accumulates over 128 bounces but was
+  divided by 32. The comment defended this as deliberate, and that reasoning only holds in the open;
+  in the cave it was measured in, the sum is nearly full, so the value ran out of range on every
+  probe line.
+* **`earVisible` was declared outside the ray loop**, so one reflection point seeing the ear made
+  every later bounce count as well and saturated the send weights. 1.20.1 was already per-ray, so
+  this was a port regression rather than a design choice.
+* **Diffraction now uses the ITU-R P.526 knife-edge form.** The previous shape was up to **+9.6 dB**
+  broadband and **+31 dB** deep in shadow.
+* **The material frequency response is now additive**, cutting its spectral tilt from **92 dB to
+  26 dB** across 63 Hz–8 kHz through ten blocks of rock.
+* **Sky light no longer feeds any calculation.** It is a vertical measurement and cannot see
+  direction, so a single hole to the surface used to clear an obstruction that was still there. It
+  now only feeds the diagnostic probe.
+* **Walking into a cave now gives outside sounds the cave's reverb.** Room size blends the source's
+  and the listener's mean free path by how connected the two spaces are; when they are the same
+  space the result is mathematically identical to before.
+* Fixed a stale submerged-share read (the reflection delay used the previous evaluation's value), an
+  early-reflection gain that was never assigned, an out-of-range band weight that could inflate the
+  high bands 6.7×, and two comments describing an implementation that had been rolled back.
+
+**Damage / heal / crit-word text**
+
+* **Fixed the bright flash just before a number disappears.** The cause is inside vanilla: an alpha
+  below 4 is forced fully opaque, so the last frames of the fade drew at full brightness.
+* **Text size no longer jumps while sprinting.** The field of view came from the options slider
+  while the depth came from the actual projection matrix, so the sprint FOV modifier (107.8° against
+  a 98° slider) made numbers 19% larger mid-sprint. Field of view is now measured from the
+  projection matrix itself.
+* **The size slider now scales the whole animation.** The per-frame clamp was flattening the peak on
+  18–29% of frames, so only the start and end could change. The peak is clamped now and the curve is
+  scaled as a whole.
+* **Default text size is now 60**, which puts the peak on the value 1.12.2 actually reached.
+* **Damage and heal numbers are read from the client's own health**, so they show the health actually
+  lost after armour and absorption instead of the pre-mitigation raw amount, they work in
+  multiplayer without a server install, and all three builds agree on the same hit.
+* **Text is now hidden by entities standing between it and the camera**, as in 1.12.2, which got this
+  for free from its render order.
+
 ### Changes
 
 * **Biome music is now off by default.**
-* **Crit-word text size default is 100** — verified as the value that matches the intended size.
 * Three-version sync: particle double-enqueue, `#c:ladders`, waterfall closed interval, magma
   rounding, boot sounds, `soundconfig`, `enableAccents`, `AudioTuning`, `playBiomeSounds`, waterfall
   snapshot, sound-screen save, jumping into water, and respawn reset.
@@ -93,12 +137,14 @@
 
 ### Known issues
 
-* **Crit-word / damage-number text can render much larger than intended inside large modpacks**
-  (reported on ATM9/10/11), while a near-vanilla instance renders it *smaller* than the configured
-  size. The on-screen size depends only on `depth × tan(fov/2)`, so this points at the environment
-  rather than the port; diagnosis is in progress and the `CRIT_WORD` trace exists to measure it.
-* On 1.21.1 a number can occasionally **flash bright just before it disappears**. Under
-  investigation; the same trace reports it.
+* A damage number and a critical word for the same hit **can overlap**, which makes both harder to
+  read. Recorded, not yet addressed.
+* **Speech bubbles are hidden by entities rather than greyed out** the way 1.12.2's depth-disabled
+  underlayer showed them; matching that needs the render path rewritten to world-space billboards.
+* In very large spaces the room-size reference **saturates**, which can understate reverb there. Left
+  as is, because the current balance is the one that was tuned by ear.
+* The aurora's **fallback path** — which only runs when the shader pipeline fails to register — uses
+  a translucent blend where 1.12.2 used additive. Deliberate: the path is very rarely taken.
 
 ---
 

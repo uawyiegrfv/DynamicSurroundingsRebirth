@@ -4,6 +4,7 @@ import net.minecraft.ChatFormatting;
 import org.orecruncher.dsurround.lib.CodecExtensions;
 
 import java.io.InputStream;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
@@ -11,6 +12,15 @@ import org.orecruncher.dsurround.lib.platform.ModInformation;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 
 public class VersionChecker implements IVersionChecker {
+
+    /**
+     * Connect and read timeout for the update check, in milliseconds.
+     *
+     * <p>Without a timeout a host that accepts the connection and then never answers blocks the
+     * thread running the check indefinitely. This is an optional courtesy feature and it must never
+     * be able to stall anything, so it is bounded.
+     */
+    private static final int VERSION_CHECK_TIMEOUT_MS = 2500;
 
     private final IModLog logger;
     private final ModInformation modInfo;
@@ -32,9 +42,14 @@ public class VersionChecker implements IVersionChecker {
     private Optional<String> getVersionData() {
         return this.modInfo.getUpdateUrl()
                 .map(url -> {
-                    try (InputStream in = url.openStream()) {
-                        byte[] bytes = in.readAllBytes();
-                        return new String(bytes, StandardCharsets.UTF_8);
+                    try {
+                        final URLConnection connection = url.openConnection();
+                        connection.setConnectTimeout(VERSION_CHECK_TIMEOUT_MS);
+                        connection.setReadTimeout(VERSION_CHECK_TIMEOUT_MS);
+                        try (InputStream in = connection.getInputStream()) {
+                            byte[] bytes = in.readAllBytes();
+                            return new String(bytes, StandardCharsets.UTF_8);
+                        }
                     } catch (Throwable t) {
                         // Being offline, or behind a proxy that re-signs TLS, is normal - and a
                         // failed update check is nothing the player can act on. Logging it at

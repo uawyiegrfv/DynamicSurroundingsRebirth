@@ -70,9 +70,19 @@ public final class BiomeScanner extends AbstractScanner {
         var biomes = world.getBiomeManager();
         var playerBiome = biomes.getBiome(position);
 
+        // Sampled on every scan, not just when the player moved. A change here has to force
+        // the re-resolve below: the underwater branch swaps in a synthetic biome, so flipping
+        // isUnderWater on its own would leave it disagreeing with logicalBiomeInfo.
+        //
+        // Before this was part of the guard, a player standing still while water rose over
+        // their eyes never updated it - biome, dimension and position were all unchanged, so
+        // the whole block was skipped and the underwater state could stay stale indefinitely.
+        final boolean submerged = player.isEyeInFluid(FluidTags.WATER);
+
         if (this.surveyedBiome != playerBiome.value()
                 || !this.surveyedDimension.equals(this.dimensionInformation.name())
-                || !this.surveyedPosition.equals(position)) {
+                || !this.surveyedPosition.equals(position)
+                || submerged != this.isUnderWater) {
 
             this.surveyedBiome = playerBiome.value();
             this.surveyedPosition = position;
@@ -81,7 +91,7 @@ public final class BiomeScanner extends AbstractScanner {
             this.weights = new Reference2IntOpenHashMap<>(8);
 
             // If the player is underwater, underwater effects will rule over everything else
-            this.isUnderWater = player.isEyeInFluid(FluidTags.WATER);
+            this.isUnderWater = submerged;
             if (this.isUnderWater) {
                 SyntheticBiome internalBiome;
                 var playerBiomeInfo = this.biomeLibrary.getBiomeInfo(playerBiome.value());

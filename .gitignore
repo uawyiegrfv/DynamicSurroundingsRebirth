@@ -74,3 +74,4 @@ run_client_log*.txt
 
 docs/*
 !docs/FOOTSTEPS.md
+!docs/CUSTOMISATION-GUIDE.md

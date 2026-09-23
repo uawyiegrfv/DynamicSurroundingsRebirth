@@ -1,13 +1,22 @@
 {
+  "_comment": "温带群系。平台没有提供可用的等价标签：Forge 1.20.1 既没有 c: 命名空间也没有 forge:is_temperate，NeoForge 21.1 的 c: 里同样没有 is_temperate（只有 26.1 提供）。因此下面显式列出 26.1 平台 c:is_temperate/overworld 的 14 个原版群系，让三版行为一致。上面两条 #c: 引用保留作为可选扩展点（模组/整合包若定义了该约定标签会自动并入）。注意：删掉显式清单会让 1.20.1/1.21.1 的 TEMPERATE trait 永远无法获得（BiomeTagAnalyzer 有 CLIMATE_TEMPERATE → TEMPERATE 映射，但标签为空）。",
   "replace": false,
   "values": [
-    {
-      "id": "#c:is_temperate",
-      "required": false
-    },
-    {
-      "id": "#c:is_temperate/overworld",
-      "required": false
-    }
+    { "id": "#c:is_temperate", "required": false },
+    { "id": "#c:is_temperate/overworld", "required": false },
+    "minecraft:plains",
+    "minecraft:sunflower_plains",
+    "minecraft:forest",
+    "minecraft:flower_forest",
+    "minecraft:birch_forest",
+    "minecraft:old_growth_birch_forest",
+    "minecraft:dark_forest",
+    "minecraft:cherry_grove",
+    "minecraft:meadow",
+    "minecraft:swamp",
+    "minecraft:mangrove_swamp",
+    "minecraft:beach",
+    "minecraft:ocean",
+    "minecraft:deep_ocean"
   ]
 }

@@ -66,6 +66,16 @@ public class HolisticFogRangeCalculator implements IFogRangeCalculator {
                 if (result.start > result.end || result.start < 0 || result.end < 0) {
                     this.logger.warn("Fog calculator '%s' reporting invalid fog range (start %f, end %f); ignored", calc.getName(), result.start, result.end);
                 } else {
+                    // Both ends use min on purpose - do not "fix" this to max.
+                    // A calculator that has no opinion returns the incoming data unchanged,
+                    // so min is a no-op for it; a calculator that wants fog returns a
+                    // SHORTER distance, so min is "the most restrictive wins".
+                    //
+                    // The consequence is that Dynamic Surroundings can only ever thicken
+                    // fog, never thin it. That is deliberate: the baseline is whatever the
+                    // vanilla pass already set, so a calculator allowed to raise start/end
+                    // could cancel vanilla fog and let the player see through lava, water
+                    // or blindness. Upstream 0.4.4 composes the same way.
                     start = Math.min(start, result.start);
                     end = Math.min(end, result.end);
                 }

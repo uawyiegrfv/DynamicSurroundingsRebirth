@@ -1,5 +1,6 @@
 {
   "dust": {
+    "subtitle": "dsurround.sound.caption.dust",
     "category": "weather",
     "sounds": [
       "dsurround:ambient/weather/dust"

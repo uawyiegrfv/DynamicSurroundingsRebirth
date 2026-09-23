@@ -9,9 +9,17 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-// 26.1: Level.onBlockStateChange was removed. Level.setBlock now calls
-// this.setBlocksDirty(pos, oldState, newState) on actual block changes, and
-// ClientLevel overrides setBlocksDirty, so that is the client-side hook.
+// Mixing into ClientLevel means this hook can only ever run client side, so no
+// isClientSide() guard is needed (contrast the 1.21.1 sibling, which mixes into
+// Level.onBlockStateChange and does need one).
+//
+// NOTE: an earlier revision of this comment claimed "26.1: Level.onBlockStateChange
+// was removed". That is a 26.1-specific fact and is NOT true on 1.20.1 - the comment
+// was copied from the 26.1 sibling. Do not restate it here.
+//
+// NOT VERIFIED: whether ClientLevel.setBlocksDirty is in fact driven on every block
+// change on this version (no mapped MC 1.20.1 sources were available when this was
+// written). Do not retarget this injection without checking the MC sources first.
 @Mixin(ClientLevel.class)
 public class MixinWorld {
 

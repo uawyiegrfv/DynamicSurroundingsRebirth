@@ -9,7 +9,9 @@ run/
 eclipse/
 bin/
 src/main/resources/assets/minecraft/
-docs/
+docs/*
+!docs/FOOTSTEPS.md
+!docs/FOOTSTEP-SYSTEM.md
 
 # Development / diagnostic documents (excluded from release)
 REVERB-*.md

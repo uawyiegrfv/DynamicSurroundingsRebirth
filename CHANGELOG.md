@@ -17,103 +17,32 @@
 | `DynamicSurroundingsRebirth-1.21.1-1.3.2.jar` | 1.21.1 | NeoForge 21.1.84+ | 21 |
 | `DynamicSurroundingsRebirth-26.1.2-1.3.2.jar` | 26.1.2 | NeoForge 26.1.2.78+ | 25 |
 
-### Fixes
+What's new
+**Dynamic Surroundings Rebirth 1.3.2**
 
-**Sounds and acoustics**
+**Highlights**
+- Better Clouds compatibility: rain and thunder fog no longer flicker while you move.
+- Biome mods are properly supported now — a biome from a mod that ships no Dynamic Surroundings data used to get no ambience at all, and now works out its traits from the biome's name and its climate.
+- New sounds for tridents, maces and spears: their own swing and hotbar sounds. Tridents previously fell back to a generic one.
+- 1.21.1 gained 16 missing footstep sounds: bamboo, copper, honey, slime, tuff, sculk, moss, bone and froglight blocks were silent underfoot.
+- A waterfall pouring into water is heard again — it produced no sound and no splash at all.
+- Muffling no longer lags behind and then jumps when you move quickly.
+- Modpack authors can now retune landing, stopping and take-off sounds in the data files, instead of needing a code change.
 
-* A **cave no longer produces a double slap** where one reflection arrived twice.
-* A **small stone room no longer rings several times too long.**
-* **Valleys no longer reverberate** — the tail was being invented rather than measured.
-* Sounds **around a corner** now fade the way they should. The old curve was far too loud in
-  shadow, by up to 31 dB deep behind an obstacle.
-* Sounds **through solid rock** now lose their brightness at a believable rate.
-* **1.21.1 was missing 16 footstep sounds** — bamboo, copper, honey, slime, tuff, sculk, moss,
-  bone and froglight blocks were **silent** underfoot.
-* **A waterfall pouring into water is heard again.** It produced no sound and no splash at all,
-  which is the most common shape a waterfall has.
-* **The End's outer islands** got their ambience back, and the temperate climate tag was empty on
-  1.20.1, so temperate biomes had no climate ambience.
-* Fixed a **crash on world exit, resource reload, or toggling reverb or occlusion**: sound work
-  could outlive the audio engine it was writing to.
-* The mod **no longer plays into an audio engine that has gone away**, so switching output device
-  or reloading resources cannot leave the sound system in a bad state.
+**Bug Fixes**
+- Fixed flame jet and bubble column particles dying at half their intended age, and waterfall and steam particles being ticked and drawn twice.
+- Fixed one effect failing and silencing every effect registered after it, for that tick.
+- Fixed standing still while water rises over your eyes never switching you underwater.
+- Fixed the mod playing into an audio engine that had gone away, which could leave the sound system broken after an output-device change.
+- Fixed the End's outer islands never receiving End ambience, and the temperate climate tag being empty on 1.20.1.
+- Fixed the version check being able to hang if the update server does not answer.
 
-**Muffling while moving**
+**Other**
+- Biome music is off by default, and is now available on 1.20.1.
+- Polish completed (264 missing keys) and Chinese completed (the last 8).
+- A crit-word debug trace for reporting oddities, off unless explicitly enabled.
+- New bilingual Customisation Guide (`docs/CUSTOMISATION-GUIDE.md`), replacing the older integration guide.
 
-* **Moving quickly no longer makes the muffling lag and then jump.** Distant sounds are still
-  updated less often than near ones — that is what keeps the cost down — but the fade is now timed
-  to the seconds that actually passed, so it is smooth at every distance.
-* **Standing still while water rises over your eyes** now switches you underwater properly. It
-  previously waited for you to move.
-
-**Damage, healing and crit words**
-
-* Fixed the **bright flash** just before a number disappears.
-* **Numbers no longer grow while sprinting.**
-* The **size slider now scales the whole animation**, instead of only its start and end.
-* **Damage and heal numbers show the health actually lost** after armour and absorption, work in
-  multiplayer without a server install, and agree across all three builds.
-* Numbers are now **hidden by entities standing in front of them**, as in the original.
-* The number animation was retuned so it **ends at exactly the size it started**, and it now runs
-  smoothly instead of stepping at 20 times a second.
-
-**Particles and effects**
-
-* **Breath bubbles sank and vanished on the first tick** instead of rising to the surface.
-* **Footprints were left by every creature** instead of only the configured ones.
-* Restored the **glazed terracotta** fallback — vanilla blocks were being altered.
-* The **aurora could crash instead of falling back** when its shader was unavailable. It now
-  degrades gracefully, and it only appears where and when it should.
-
-**Configuration**
-
-* A **typo in a config file could wipe it.** Invalid values are now ignored and the previous file
-  kept.
-* An **unrecognised option value could crash later**; it now falls back to the default, and a
-  missing section no longer breaks the config screen.
-* Values outside the allowed range can no longer be written.
-* **24 options wrongly claimed they needed a restart** — they apply immediately.
-* Removed dead and duplicated options, including one that still had a slider but had not been read
-  for several releases.
-
-**Stability**
-
-* **One effect failing no longer silences all the others** for that tick. Previously a single
-  problem could skip every effect registered after it, and hide its own diagnostics while doing so.
-* The two builds that ship a **version check** no longer let it hang if the server does not answer.
-
-### Changes
-
-* **Biome music is off by default.**
-* **Modded biomes are properly supported.** A biome from a mod that ships no Dynamic Surroundings
-  data used to get **no ambience at all** — now its traits are worked out from its name and its
-  climate, so an unadapted modded forest still sounds like a forest.
-* Modpack authors can **retune landing, stopping and take-off sounds in the data files**, instead
-  of needing a code change.
-* A number of smaller differences between the three builds were synced up.
-
-### New
-
-* **Dedicated sounds for the trident, maces and spears** — their own swing and hotbar sounds.
-  Tridents previously fell back to a generic one.
-* **Biome music on 1.20.1.**
-* **A bilingual Customisation Guide** (`docs/CUSTOMISATION-GUIDE.md`), written for players and pack
-  authors: where the files go, how to change a footstep, a swing sound, fog or biome ambience, and
-  what to check when a change has no effect. It replaces the older integration guide.
-* **Polish and Chinese translations completed** — 264 missing Polish keys, and the last 8 Chinese
-  ones.
-* A **crit-word debug trace** for reporting oddities. Off unless explicitly enabled.
-
-### Known issues
-
-* A damage number and a critical word for the same hit **can overlap**, which makes both harder to
-  read. Recorded, not yet addressed.
-* **Speech bubbles are hidden by entities** rather than greyed out the way the original showed
-  them.
-* In very large spaces the reverb **reference saturates**, which can understate the tail there.
-  Left as is: the current balance is the one that was tuned by ear.
-* The aurora's **fallback path** — only used when its shader fails to load — blends differently
-  from the original. Deliberate: the path is very rarely taken.
 ---
 
 > ### DynamicSurroundings-1.21.1-0.4.2

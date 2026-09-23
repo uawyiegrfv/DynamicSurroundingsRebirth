@@ -84,6 +84,12 @@ public final class BiomeTraitCleanup implements IBiomeTraitAnalyzer {
                 || (traits.contains(DENSE) && traits.contains(SPARSE))
                 || (traits.contains(WET) && traits.contains(DRY))
                 || (traits.contains(COLD) && traits.contains(HOT))
+                // TEMPERATE is the weakest temperature claim, so analyze() drops it whenever an
+                // explicit COLD or HOT is present. That asymmetry is the mirror image of the
+                // COLD+HOT pair above and is reported for the same reason: it is a combination
+                // the analyzer chain would have resolved, so seeing it means a rule reintroduced
+                // it. Bounded cost - this runs once per biome at load, not per tick.
+                || (traits.contains(TEMPERATE) && (traits.contains(COLD) || traits.contains(HOT)))
                 || (traits.contains(RIVER) && (traits.contains(OCEAN) || traits.contains(DEEP)))
                 || (traits.contains(DEEP) && traits.contains(WATER));
     }

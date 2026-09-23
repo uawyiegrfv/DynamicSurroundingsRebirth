@@ -1,0 +1,4 @@
+{
+  "_comment": "Maces. Vanilla has no mace on 1.20.1 (added in 1.21), so this ships EMPTY on purpose - it exists so a mod or pack can classify a modded mace without this code learning a mod-specific rule. The toolbar.mace factories still ship so the class is not silent once something is tagged.",
+  "values": []
+}

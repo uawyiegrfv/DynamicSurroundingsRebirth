@@ -1,0 +1,7 @@
+{
+  "_comment": "Spears and the vanilla trident. Forge 1.20.1 uses the forge namespace, not c: - #forge:tools/tridents is the real convention tag here (shipped by Forge itself).",
+  "values": [
+    "minecraft:trident",
+    { "id": "#forge:tools/tridents", "required": false }
+  ]
+}

@@ -71,6 +71,7 @@ armor_sounds_test/
 ### Build/compile logs (porting diagnostics) ###
 build_*.txt
 run_client_log*.txt
+run_server_log*.txt
 
 docs/*
 !docs/FOOTSTEPS.md

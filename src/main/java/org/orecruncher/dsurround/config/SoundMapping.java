@@ -85,8 +85,20 @@ public record SoundMapping(Identifier soundEvent, ObjectArray<Mapping> rules) {
             } else {
                 // Need to add the rule. If the last rule in the collection is all matches, we need
                 // to insert prior. Otherwise, we append.
+                //
+                // The list can be EMPTY here: `rules` is a required field but Codec.list accepts an
+                // empty array, so a source that ships "rules": [] decodes to a Mapping with no rules.
+                // ObjectArray.getLast() returns null for an out-of-range index rather than throwing,
+                // so `last.isDefaultRule()` was a latent NPE - and the throw would escape
+                // SoundLibrary.reload into AssetLibraryEvent.RELOAD's callback loop, which has no
+                // try/catch, skipping every lower-priority library (tags, biomes, blocks, items,
+                // entity effects, dimensions, variators) on both /dsreload and world join.
+                if (this.rules.isEmpty()) {
+                    this.rules.add(mapped);
+                    continue;
+                }
                 var last = this.rules.getLast();
-                if (last.isDefaultRule()) {
+                if (last != null && last.isDefaultRule()) {
                     this.insertBeforeDefaultRule(mapped);
                 } else {
                     this.rules.add(mapped);
@@ -97,6 +109,11 @@ public record SoundMapping(Identifier soundEvent, ObjectArray<Mapping> rules) {
 
     private void insertBeforeDefaultRule(Mapping mapping) {
         var last = this.rules.getLast();
+        // getLast() returns null for an empty list, so this is a guard rather than a contract check.
+        if (last == null) {
+            this.rules.add(mapping);
+            return;
+        }
         if (!last.isDefaultRule())
             throw new RuntimeException("Last rule in sound mapping configuration is not default");
         this.rules.remove(last);

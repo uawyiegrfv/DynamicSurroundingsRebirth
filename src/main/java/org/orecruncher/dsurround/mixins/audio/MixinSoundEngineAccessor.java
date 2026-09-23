@@ -1,5 +1,6 @@
 package org.orecruncher.dsurround.mixins.audio;
 
+import com.mojang.blaze3d.audio.Library;
 import com.mojang.blaze3d.audio.Listener;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.sounds.ChannelAccess;
@@ -20,4 +21,12 @@ public interface MixinSoundEngineAccessor {
 
     @Accessor("listener")
     Listener dsurround_getListener();
+
+    /** Whether the engine finished loading. Used to avoid playing into a torn-down engine. */
+    @Accessor("loaded")
+    boolean dsurround_isLoaded();
+
+    /** The OpenAL library, so the device-disconnected state can be queried. */
+    @Accessor("library")
+    Library dsurround_getLibrary();
 }

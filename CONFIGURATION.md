@@ -346,12 +346,28 @@ Remaps an incoming vanilla sound event to a DS factory:
 ```
 
 #### 4.3 `biomes.json` (array)
-| Field | Type | Meaning |
-| --- | --- | --- |
-| biomeSelector | string | Expression over biome tags (see below) |
-| _comment | string | Optional label |
-| acoustics | array | `{"factory":"dsurround:biome.wind", "conditions":"weather.isRaining()"}` |
-| fogColor | color | Optional biome fog tint (see `weatherOptions.enableBiomeFogColor`) |
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| biomeSelector | string | - | Expression over biome tags (see below) |
+| _comment | string | - | Optional label |
+| priority | int | 0 | Rules apply in ascending order, so later rules win per field |
+| clearTraits | bool | false | Drop every auto-detected trait before applying `traits` |
+| traits | array | `[]` | Trait names to add, e.g. `["FOREST","COLD"]` |
+| clearSounds | bool | false | Drop the accumulated loop / mood / additional sounds |
+| resetFogColor | bool | false | Clear a fog color set by an earlier rule |
+| fogColor | color | - | Biome fog tint (see `weatherOptions.enableBiomeFogColor`) |
+| dustColor | color | - | Tint for the dust effect |
+| fogDensity | enum | - | `none` / `light` / `normal` / `medium` / `heavy` |
+| additionalSoundChance | string | 0.008 | Per-tick chance of an `addition` sound |
+| moodSoundChance | string | 0.008 | Per-tick chance of a `mood` sound |
+| acoustics | array | `[]` | `{"factory":"dsurround:biome.wind", "conditions":"weather.isRaining()", "weight":10, "type":"loop"}` |
+
+`clearTraits` and `resetFogColor` exist so a pack can **correct** rather than only add. The tag and
+name analyzers run before any rule, so without `clearTraits` their output can only be extended; and
+without `resetFogColor` a fog color set by one rule can only be swapped for another color, never
+handed back to vanilla. Give the rule a `priority` above ours (our highest is 100) to make either
+one stick. `resetFogColor` clears DS's own fog color only - a data pack's biome fog color is
+untouched - and does not affect `dustColor`.
 
 The selector combines **biome tag names** from `dsconfigs/tags/worldgen/biome/*.json` with `&&` `||` `!` and parentheses, e.g. `(DESERT || BADLANDS) && !(WINDSWEPT || MOUNTAIN || LUSH)`.
 
@@ -936,12 +952,27 @@ config/dsurround/soundconfig.json    单个声音事件的覆盖（屏蔽/剔除
 ```
 
 #### 4.3 `biomes.json`（数组）
-| 字段 | 类型 | 含义 |
-| --- | --- | --- |
-| biomeSelector | 字符串 | 基于群系 tag 的表达式（见下） |
-| _comment | 字符串 | 可选标签 |
-| acoustics | 数组 | `{"factory":"dsurround:biome.wind","conditions":"weather.isRaining()"}` |
-| fogColor | 颜色 | 可选群系雾色着色（见 `weatherOptions.enableBiomeFogColor`） |
+| 字段 | 类型 | 默认 | 含义 |
+| --- | --- | --- | --- |
+| biomeSelector | 字符串 | — | 基于群系 tag 的表达式（见下） |
+| _comment | 字符串 | — | 可选标签 |
+| priority | 整数 | 0 | 规则按升序应用，所以靠后的规则逐字段覆盖前面的 |
+| clearTraits | 布尔 | false | 先丢弃全部自动识别出的 trait，再应用 `traits` |
+| traits | 数组 | `[]` | 要添加的 trait 名，如 `["FOREST","COLD"]` |
+| clearSounds | 布尔 | false | 清空已累加的 loop / mood / addition 声音 |
+| resetFogColor | 布尔 | false | 清除更早规则设过的雾色 |
+| fogColor | 颜色 | — | 群系雾色着色（见 `weatherOptions.enableBiomeFogColor`） |
+| dustColor | 颜色 | — | 尘埃效果的着色 |
+| fogDensity | 枚举 | — | `none` / `light` / `normal` / `medium` / `heavy` |
+| additionalSoundChance | 字符串 | 0.008 | `addition` 类声音的每刻概率 |
+| moodSoundChance | 字符串 | 0.008 | `mood` 类声音的每刻概率 |
+| acoustics | 数组 | `[]` | `{"factory":"dsurround:biome.wind","conditions":"weather.isRaining()","weight":10,"type":"loop"}` |
+
+`clearTraits` 与 `resetFogColor` 存在的意义是让整合包能**纠正**而不只是追加：
+tag 与名称分析器在所有规则之前运行，没有 `clearTraits` 就只能往它们的输出上加；
+而没有 `resetFogColor`，一旦雾色被某条规则设过，就只能换成另一种颜色，**永远回不到原版**。
+给规则一个比我们更高的 `priority`（我们最高用到 100）就能确保生效。
+`resetFogColor` **只清除 DS 自己的雾色** —— 数据包给群系设的雾色不受影响 —— 也不动 `dustColor`。
 
 选择器用 `dsconfigs/tags/worldgen/biome/*.json` 里的**群系 tag 名**，配合 `&&` `||` `!` 和括号，例如 `(DESERT || BADLANDS) && !(WINDSWEPT || MOUNTAIN || LUSH)`。
 

@@ -23,11 +23,17 @@ import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.tags.BlockEffectTags;
 
 /**
- * Leaves footprints under the player while walking, ported from the original
- * 1.12.2 EntityFootprintEffect. Instead of depending on the vanilla step event
- * (which is gated on the brush-step entity tag and accent settings), this
- * accumulates horizontal movement each tick and drops a left/right alternating
- * footprint about every half block, matching the vanilla step cadence.
+ * Leaves footprints under entities while they walk, ported from the original 1.12.2
+ * EntityFootprintEffect. Instead of depending on the vanilla step event (which is gated on the
+ * brush-step entity tag and accent settings), this accumulates horizontal movement each tick and
+ * drops a left/right alternating footprint about every step, matching the vanilla step cadence.
+ *
+ * <p><b>Every living entity, not just the player.</b> 1.12.2 registered this effect for any
+ * EntityLivingBase and merely had a PlayerFootprintEffect subclass for the player's special
+ * cases. This port tracked only the player, so villagers, animals and mobs left nothing - which
+ * was a visible regression against the original. The player keeps its own path because its
+ * special cases differ (spectator, first person), and creatures are gated on their own config
+ * key (enableCreatureFootprints) so the extra particles can be turned off.
  */
 public class FootprintHandler {
 

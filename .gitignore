@@ -72,4 +72,5 @@ armor_sounds_test/
 build_*.txt
 run_client_log*.txt
 
-docs/
+docs/*
+!docs/FOOTSTEPS.md

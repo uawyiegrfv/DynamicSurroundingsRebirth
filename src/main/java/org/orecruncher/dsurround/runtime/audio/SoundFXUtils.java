@@ -679,7 +679,7 @@ public final class SoundFXUtils {
                                                                                     "cat=%s skipped=%b occlusion=%.3f cutoff(occl)=%.4f cutoff(final)=%.4f hf(final)=%.4f "
                         + "level=%.4f conn=%.3f sky=%.3f material=%.3f lossdb=%.1f edge=%b edgedb0=%.1f edgedb1=%.1f "
                         + "edgedb2=%.1f clear=%.2f walk=%d walkm=%.1f rv=%.1f rvhit=%.2f rvrefl=%.2f far=%.0f mfp=%.1f "
-                        + "shared=%d ret=%d face=%.3f erf=%.4f g0=%.3f g1=%.3f g2=%.3f g3=%.3f rays=%d cost=%.0f lmfp=%.2f",
+                        + "shared=%d ret=%d face=%.3f erf=%.4f g0=%.3f g1=%.3f g2=%.3f g3=%.3f rays=%d cost=%.0f lmfp=%.2f water=%.1fm sub=%.2f muffle=%.4f wf=%.4f wg=%.4f aural=%.2f hfApplied=%.4f gainApplied=%.4f",
                     this.source.getCategory(), skipOcclusion(this.source.getCategory()), occlusionAccumulation,
                     MathStuff.exp(sendCoeff), directCutoff, directHfCutoff, directGain,
                     MathStuff.clamp1(reverb.connectedAirspace / 20.0F), reverb.outdoorShare,
@@ -696,7 +696,16 @@ public final class SoundFXUtils {
                     (System.nanoTime() - evaluationStart) / 1000.0D,
                     // The same value the sends used, read back out of the cache rather than cast again -
                     // the probe should report what was applied, not a second measurement.
-                    cachedListenerMeanFreePath(ctx)));
+                    cachedListenerMeanFreePath(ctx),
+                    // Water values, added because this is the one subsystem the trace did not
+                    // report - and the one a "underwater sounds different between ports" report
+                    // needs. hfApplied is the decisive number: it is exactly what is handed to
+                    // OpenAL as AL_LOWPASS_GAINHF (direct.gainHF = directHfCutoff * waterFactor in
+                    // uploadSettings). If hfApplied matches on two ports but they sound different,
+                    // the difference is in the OpenAL driver, not in this mod.
+                    waterLength, this.lastSubmergedShare, muffleFactor, waterFactor, waterGainFactor,
+                    ctx.auralDampening,
+                    directHfCutoff * waterFactor, directGain * waterGainFactor));
         }
 
         uploadSettings(reverb, directHfCutoff, directGain, waterFactor, waterGainFactor, airAbsorptionFactor);

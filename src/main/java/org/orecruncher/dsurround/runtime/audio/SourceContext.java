@@ -65,11 +65,23 @@ public final class SourceContext implements Callable<Void> {
     private static final double LISTENER_MOVE_TRIGGER_SQ = 2.0D * 2.0D;
 
     /**
-     * Floor on the displacement trigger's rate. Without it, fast travel (elytra, creative flight)
-     * would make every source due almost every tick and multiply the raycast cost by an order of
-     * magnitude. Three ticks caps the extra work at 3x the near rate while still cutting the lag.
+     * Shortest gap, in passes, between two displacement-triggered re-evaluations of the SAME source.
+     *
+     * <p>Derived from the source's own distance band rather than fixed. The trigger exists to bound how
+     * far the listener travels between evaluations - NOT to raise the evaluation rate - so it must not
+     * outrun what the band was designed to cost. A flat floor does exactly that: at 3 passes every
+     * source runs at 20/3 = 6.7 evaluations a second no matter how far away it is, which is 1.83x the
+     * near band's real rate but 5.17x the far band's, and the bands would stop scaling - the one thing
+     * they exist to do.
+     *
+     * <p>A third of the band bounds each band by its own cadence: worst case 1.83x near, 1.75x mid,
+     * 1.55x far (measured against each band's REAL mean gap of (interval + 1) / 2, not the nominal
+     * interval), while still letting the trigger roughly double a source's rate when the geometry is
+     * genuinely moving.
      */
-    private static final long MIN_DISPLACEMENT_INTERVAL_PASSES = 3L;
+    private int displacementIntervalFloorPasses() {
+        return Math.max(2, updateIntervalTicks() / 3);
+    }
 
     // Time-smoothing for the water damping factor. The sampled underwater path length can jump
     // by a block when an entity bobs at the water surface (or the player wades). Alpha picks a
@@ -123,7 +135,10 @@ public final class SourceContext implements Callable<Void> {
     private final int sourceId;
 
     private SoundInstance sound;
-    private Vec3 pos;
+    // Written by the evaluation on the pool thread (captureState) and read by the worker when it
+    // sorts the due list by distance, so it is genuinely cross-thread. A stale read only mis-orders
+    // that sort, but the read should still be visible.
+    private volatile Vec3 pos;
     private SoundSource category = SoundSource.MASTER;
 
     private boolean isEnabled;
@@ -445,7 +460,7 @@ public final class SourceContext implements Callable<Void> {
     private boolean listenerMovedSinceLastEvaluation() {
         if (!this.lastEvalListenerValid)
             return false;
-        if (SoundFXProcessor.passCounter() - this.lastEvalPass < MIN_DISPLACEMENT_INTERVAL_PASSES)
+        if (SoundFXProcessor.passCounter() - this.lastEvalPass < this.displacementIntervalFloorPasses())
             return false;
         final WorldContext ctx = SoundFXProcessor.getWorldContext();
         if (ctx == null)

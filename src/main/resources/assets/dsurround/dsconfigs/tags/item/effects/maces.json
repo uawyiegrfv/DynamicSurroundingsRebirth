@@ -1,0 +1,8 @@
+{
+  "_comment": "Maces. Vanilla added the mace in 1.21; modded maces can be tagged here or via #c:.",
+  "values": [
+    "minecraft:mace",
+    { "id": "#c:tools/maces", "required": false },
+    { "id": "#c:maces",       "required": false }
+  ]
+}

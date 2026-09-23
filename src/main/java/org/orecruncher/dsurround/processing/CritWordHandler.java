@@ -12,8 +12,6 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
-import net.neoforged.neoforge.event.entity.living.LivingHealEvent;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
 import org.orecruncher.dsurround.Configuration;
@@ -22,6 +20,9 @@ import org.orecruncher.dsurround.lib.collections.ObjectArray;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.lib.random.IRandomizer;
 import org.orecruncher.dsurround.lib.random.Randomizer;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Shows a comic "power word" flying out of an entity when it takes a critical
@@ -94,6 +95,8 @@ public class CritWordHandler {
          * (see isOwnTextInFirstPerson).
          */
         final boolean ownedByLocalPlayer;
+        /** Entity whose word this is; excluded from the entity occlusion test so it never hides its own word. */
+        final int ownerId;
 
         // ---- CRITWORD diagnostics (Configuration.Flags.CRIT_WORD) -------------------------
         /** Alpha/scale/renderAge recorded on the previous frame, to catch a non-monotonic jump. */
@@ -103,6 +106,37 @@ public class CritWordHandler {
         /** Which render pass last drew this entry, and how many times within that pass. */
         int diagLastFrame = -1;
         int diagDrawsThisFrame;
+        /** Animation clock: last age seen and the fraction actually used for it. */
+        int lastAge = -1;
+        float lastPartial = -1F;
+        /** Consecutive frames this word read as blocked; see the occlusion test. */
+        int occluded;
+        /**
+         * Symmetric half of the occlusion hysteresis. Hiding takes two blocked frames; showing has
+         * to take two CLEAR ones as well, otherwise a word that is only blocked for a frame or two
+         * comes straight back and the pair of transitions reads as a blink.
+         */
+        int clearRun;
+        boolean hidden;
+        /** The renderAge implied by the clock above; kept only so the diagnostic can show it. */
+        float lastRenderAge = -1F;
+
+        // ---- per-frame rate limit + end-of-life audit -------------------------------------
+        /** Final textScale of the previous frame, and the renderAge that produced it. */
+        float lastScale = -1F;
+        float lastScaleAge = -1F;
+        /**
+         * Audit, reported once per word in [CRITWORD-LIFE] instead of once per frame. Per-frame
+         * logging floods and log4j drops lines under load, which is why a single-frame event kept
+         * escaping every instrumentation that sampled frames. One line per word cannot be dropped.
+         */
+        float auditMaxScaleRatio = 1F;
+        /** Last alpha actually handed to the draw call; the fade must never rise. See the clamp. */
+        int lastAlpha = -1;
+        int auditMaxAlphaUp;
+        int auditFrames;
+        int auditHidden;
+        float lastDrawPartial = -1F;
 
         /** true while growing; flips to false once the scale passes the configured peak. */
         boolean growing = true;
@@ -114,7 +148,7 @@ public class CritWordHandler {
         double vx0, vz0;
 
         CritWord(String text, int color, double x, double y, double z, double vx, double vy, double vz,
-                 float worldUnitsPerFontPx, boolean ownedByLocalPlayer) {
+                 float worldUnitsPerFontPx, boolean ownedByLocalPlayer, int ownerId) {
             this.text = text;
             this.color = color;
             this.x = this.prevX = x;
@@ -126,6 +160,7 @@ public class CritWordHandler {
 
             this.worldUnitsPerFontPx = worldUnitsPerFontPx;
             this.ownedByLocalPlayer = ownedByLocalPlayer;
+            this.ownerId = ownerId;
             this.vx0 = vx;
             this.vz0 = vz;
         }
@@ -195,10 +230,24 @@ public class CritWordHandler {
     private final IModLog logger;
     private final IRandomizer random = Randomizer.current();
     private final ObjectArray<CritWord> active = new ObjectArray<>(4);
+    private final Map<Integer, Float> lastHealth = new HashMap<>();
     private final Matrix4f viewProj = new Matrix4f();
     private final Vector4f clip = new Vector4f();
+    /** Scratch vector for the CRITWORD projection probe; see the block in renderGui. */
+    private final Vector4f clipUp = new Vector4f();
     /** Render-pass counter for the CRITWORD diagnostics. */
     private int diagFrame;
+    /**
+     * Real frame counter, advanced by the LEVEL render stage rather than by renderGui.
+     *
+     * <p>The duplicate-draw check has to know whether two draws happened in the same FRAME, and it
+     * previously used the interpolation fraction for that. It cannot: partialTick is quantised to
+     * 1/50 (measured in 1.20.1 - only 51 distinct values exist), so two different frames routinely
+     * carry the same value and the check reports false duplicates. It also previously used
+     * {@code diagFrame}, which is incremented INSIDE renderGui, so a second invocation in one frame
+     * would have advanced it too and the check could never fire at all.
+     */
+    private int frameId;
 
     // Animation values, refreshed from config on every spawn so a config edit applies without a
     // restart. 1.12.2's own numbers are the defaults: grow 1.08, shrink 0.96, peak 3x.
@@ -251,58 +300,19 @@ public class CritWordHandler {
     public CritWordHandler(Configuration config, IModLog logger) {
         this.config = config;
         this.logger = logger;
-        NeoForge.EVENT_BUS.addListener(this::onLivingDamage);
-        NeoForge.EVENT_BUS.addListener(this::onLivingHeal);
+        // 1.12.2 EntityHealthPopoffEffect parity: damage, heal and crit words all come from the
+        // client-side health poll in onTick - no damage/heal events (server-side only, and the
+        // amount semantics differ per version) and no packets (the client already knows every
+        // nearby entity's health). Identical behaviour single- and multiplayer, no server needed.
+        // Diagnostic only: advances frameId once per rendered frame so the duplicate-draw check in
+        // renderGui can tell "same frame" from "next frame". 26.1 does not need this event for the
+        // projection itself - it reads the camera matrix inside renderGui.
+        NeoForge.EVENT_BUS.addListener(this::countFrame);
         ClientState.TICK_END.register(this::onTick);
     }
 
-    public void onLivingDamage(LivingDamageEvent.Pre event) {
-        final boolean showNumbers = this.config.entityEffects.showDamageNumbers;
-        final boolean showCrits = this.config.entityEffects.showCritWords;
-        if (!showNumbers && !showCrits)
-            return;
-
-        final LivingEntity entity = event.getEntity();
-        if (entity.isRemoved() || !entity.isAlive())
-            return;
-
-        // Don't show for the local player in first-person view.
-        var mc = Minecraft.getInstance();
-        if (isOwnTextInFirstPerson(entity))
-            return;
-
-        final float damage = event.getNewDamage();
-        final int delta = Math.max(1, Math.round(Math.min(damage, entity.getHealth())));
-
-        // Launch direction: away from the attacker.
-        double dx = 0, dz = 0;
-        var attacker = event.getSource().getEntity();
-        if (attacker != null) {
-            var dir = entity.position().subtract(attacker.position());
-            final double len = Math.hypot(dir.x, dir.z);
-            if (len > 0.001) {
-                dx = dir.x / len;
-                dz = dir.z / len;
-            }
-        }
-
-        refreshAnimationSettings();
-
-        // Damage number above the entity (original used the top + 0.5).
-        if (showNumbers) {
-            this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
-                    entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
-                    launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
-        }
-
-        // Critical hit (>= 40% of max health): an extra comic word one block up.
-        if (showCrits && damage >= entity.getMaxHealth() / 2.5F) {
-            final String word = pickWord() + "!";
-            this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
-                    entity.getX(), entity.getY() + entity.getBbHeight() + 1.0D, entity.getZ(),
-                    launchX(dx, dz), launchY(), launchZ(dx, dz), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
-            this.logger.debug("Crit word [%s] at %s", word, entity.blockPosition());
-        }
+    private void countFrame(final net.neoforged.neoforge.client.event.RenderLevelStageEvent.AfterSky event) {
+        this.frameId++;
     }
 
     /**
@@ -315,30 +325,6 @@ public class CritWordHandler {
         if (!fromData.isEmpty())
             return fromData.get(this.random.nextInt(fromData.size()));
         return BUILT_IN_CRIT_WORDS[this.random.nextInt(BUILT_IN_CRIT_WORDS.length)];
-    }
-
-    private void onLivingHeal(LivingHealEvent event) {
-        if (!this.config.entityEffects.showDamageNumbers)
-            return;
-
-        final LivingEntity entity = event.getEntity();
-        if (entity.isRemoved() || !entity.isAlive())
-            return;
-
-        var mc = Minecraft.getInstance();
-        if (isOwnTextInFirstPerson(entity))
-            return;
-
-        // Show the actual health restored: clamped to how much the entity can heal
-        // (so a full-health mob shows nothing), no "+" prefix.
-        final int healable = Math.max(0, Math.round(entity.getMaxHealth() - entity.getHealth()));
-        final int actual = Math.min(Math.round(event.getAmount()), healable);
-        if (actual <= 0)
-            return;
-
-        this.active.add(new CritWord(String.valueOf(actual), HEAL_TEXT_COLOR,
-                    entity.getX(), entity.getY() + entity.getBbHeight() + 0.5D, entity.getZ(),
-                    launchX(0.0D, 0.0D), launchY(), launchZ(0.0D, 0.0D), ADDITION_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(entity)));
     }
 
     /**
@@ -376,16 +362,76 @@ public class CritWordHandler {
      * the two features is the world size (1.12.2: 0.024 for the crit word, 0.015 for a bubble).
      */
     private float computeTextScale(final CritWord entry, final float renderAge, final float depth,
-                                   final Minecraft mc, final float guiHeight) {
-        final float fov = mc.options.fov().get();
-        final float tanHalfFov = (float) Math.tan(Math.toRadians(fov) / 2.0D);
+                                   final Minecraft mc, final float guiHeight,
+                                   final float tanHalfActual) {
+        // Only a fallback for the frame where the measurement is unavailable (the offset point
+        // landed behind the camera). The measured value is the one actually in use.
+        final float tanHalfFov = Float.isNaN(tanHalfActual)
+                ? (float) Math.tan(Math.toRadians(mc.options.fov().get()) / 2.0D)
+                : tanHalfActual;
+
+        final float pixelsPerWorldUnit = (guiHeight / 2.0F) / (float) (depth * tanHalfFov);
+
+        // Cap the PEAK of the curve, not each frame's value. Clamping frame by frame flattened the
+        // top of the animation as soon as the text came close enough to reach the cap - measured,
+        // 29% of frames in ATM10 sat pinned at it. That is also why sizePercent looked like it only
+        // moved the START of the animation: the peak could not grow any further, so only the ends
+        // moved, and the visible size contrast collapsed.
+        float curveScale = 1.0F;
+        final float peakScale = entry.worldUnitsPerFontPx * sizeAtAge(this.peakTick)
+                * this.sizeScale * pixelsPerWorldUnit;
+        if (peakScale > MAX_TEXT_SCALE)
+            curveScale = MAX_TEXT_SCALE / peakScale;
 
         final float worldUnitsPerFontPx =
                 entry.worldUnitsPerFontPx * sizeAtAge(renderAge) * this.sizeScale;
-        float scale = worldUnitsPerFontPx * (guiHeight / 2.0F) / (float) (depth * tanHalfFov);
+        float scale = worldUnitsPerFontPx * pixelsPerWorldUnit * curveScale;
 
-        // guard rails only: never microscopic, never absurdly large on screen
-        return Mth.clamp(scale, 0.10F, 6.0F);
+        return Mth.clamp(scale, MIN_TEXT_SCALE, MAX_TEXT_SCALE);
+    }
+
+    /** Guard rails: never microscopic, never absurdly large on screen. */
+    private static final float MIN_TEXT_SCALE = 0.10F;
+    private static final float MAX_TEXT_SCALE = 6.0F;
+
+    /**
+     * Largest the drawn size may grow in ONE frame, as a multiple of what the animation curve itself
+     * asks for. Generous on purpose: at 20 fps the growth phase steps about 1.26x per frame.
+     */
+    private static final float MAX_SCALE_STEP_PER_FRAME = 1.35F;
+
+    /**
+     * The vertical half-FOV the projection matrix was ACTUALLY built with, recovered by measuring
+     * it rather than reading it.
+     *
+     * <p>One world unit of vertical offset at depth {@code d} covers {@code 1 / (2 * d * tanHalf)}
+     * of the viewport, so projecting a known one-block offset with the very same matrix that
+     * produced {@code depth} and reading back how many GUI pixels it spans gives {@code tanHalf}
+     * directly. Nothing about the projection has to be assumed: a perspective matrix, a modded
+     * one, or a non-perspective one all fall out of the same two points.
+     *
+     * <p>This replaces {@code tan(toRadians(options.fov()) / 2)}. The slider is only the base
+     * value; the matrix carries the sprint/speed/nausea terms, {@code fovEffectScale}, and
+     * anything a mod did through {@code ComputeFov}. Reading the slider while dividing by a depth
+     * from the matrix silently scaled every word by the ratio between the two.
+     *
+     * @return the measured tan(fov/2), or NaN when the offset point cannot be projected
+     */
+    private float measureTanHalf(final Camera camera, final Vec3 camPos,
+                                 final double px, final double py, final double pz,
+                                 final float depth, final float guiHeight) {
+        final var up = camera.upVector();
+        this.clipUp.set((float) (px - camPos.x) + up.x(), (float) (py - camPos.y) + up.y(),
+                (float) (pz - camPos.z) + up.z(), 1.0F);
+        this.viewProj.transform(this.clipUp);
+        if (this.clipUp.w <= 0.001F)
+            return Float.NaN;
+        final float pxPerBlock = Math.abs(
+                (1.0F - (this.clipUp.y / this.clipUp.w * 0.5F + 0.5F)) * guiHeight
+                        - (1.0F - (this.clip.y / depth * 0.5F + 0.5F)) * guiHeight);
+        if (pxPerBlock < 1.0E-4F)
+            return Float.NaN;
+        return (guiHeight / 2.0F) / (depth * pxPerBlock);
     }
 
     /**
@@ -434,7 +480,110 @@ public class CritWordHandler {
         return len < 1.0E-6D ? 0.0D : dz / len;
     }
 
+    /**
+     * Entity occlusion: true when some entity's bounding box lies on the camera-to-word segment.
+     * The word's owner and the local player are excluded - the owner would otherwise hide its own
+     * word, and in first person the camera sits inside the player's own box. Invisible and removed
+     * entities don't render, so they cannot block (1.12.2 got the same behaviour for free from the
+     * depth buffer). The cheap AABB distance check skips anything whose nearest point is already
+     * farther than the word itself.
+     */
+    private static boolean isEntityBlocking(Minecraft mc, Vec3 camPos, Vec3 target, int ownerId) {
+        final double sqDist = camPos.distanceToSqr(target);
+        for (final var entity : mc.level.entitiesForRendering()) {
+            if (entity.getId() == ownerId || entity == mc.player || entity.isInvisible() || entity.isRemoved())
+                continue;
+            if (entity.getBoundingBox().distanceToSqr(camPos) >= sqDist)
+                continue;
+            if (entity.getBoundingBox().clip(camPos, target).isPresent())
+                return true;
+        }
+        return false;
+    }
+
+    /** Spawn the damage number and, when the actual loss qualifies, a crit word above the entity. */
+    private void spawnDamageWords(LivingEntity living, int delta, boolean showNumbers, boolean showCrits) {
+        refreshAnimationSettings();
+        // Damage number above the entity (original used the top + 0.5).
+        if (showNumbers) {
+            this.active.add(new CritWord(String.valueOf(delta), DAMAGE_TEXT_COLOR,
+                    living.getX(), living.getY() + living.getBbHeight() + 0.5D, living.getZ(),
+                    launchX(0.0D, 0.0D), launchY(), launchZ(0.0D, 0.0D), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(living), living.getId()));
+        }
+        // Critical hit: the actual health loss reached 40% of max health (1.12.2's threshold) -
+        // an extra comic word one block up.
+        if (showCrits && delta >= (int) (living.getMaxHealth() / 2.5F)) {
+            final String word = pickWord() + "!";
+            this.active.add(new CritWord(word, CRITICAL_TEXT_COLOR,
+                    living.getX(), living.getY() + living.getBbHeight() + 1.0D, living.getZ(),
+                    launchX(0.0D, 0.0D), launchY(), launchZ(0.0D, 0.0D), CRIT_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(living), living.getId()));
+            this.logger.debug("Crit word [%s] at %s", word, living.blockPosition());
+        }
+    }
+
+    private void spawnHealWord(LivingEntity living, int amount) {
+        refreshAnimationSettings();
+        this.active.add(new CritWord(String.valueOf(amount), HEAL_TEXT_COLOR,
+                living.getX(), living.getY() + living.getBbHeight() + 0.5D, living.getZ(),
+                launchX(0.0D, 0.0D), launchY(), launchZ(0.0D, 0.0D), ADDITION_WORLD_UNITS_PER_FONT_PX, isLocalPlayer(living), living.getId()));
+    }
+
     private void onTick(Minecraft mc) {
+        // Track health of nearby living entities: the client already knows every nearby entity's
+        // health (entity metadata), so the polled difference is the ACTUAL health change - after
+        // armor, resistance and absorption - which is exactly what 1.12.2 displayed. Works the
+        // same in single- and multiplayer with no server-side component, and keeps every mutation
+        // of `active` on the client thread (the old event handlers ran on the server thread in
+        // singleplayer, racing the render thread).
+        if (mc.level != null && mc.player != null) {
+            final double range = 48.0D;
+            final boolean showNumbers = this.config.entityEffects.showDamageNumbers;
+            final boolean showCrits = this.config.entityEffects.showCritWords;
+            for (var entity : mc.level.entitiesForRendering()) {
+                if (!(entity instanceof LivingEntity living))
+                    continue;
+                if (living.isRemoved() || !living.isAlive())
+                    continue;
+                if (living.distanceToSqr(mc.player) > range * range)
+                    continue;
+
+                final int id = entity.getId();
+                final float current = living.getHealth();
+                final Float previous = this.lastHealth.put(id, current);
+                if (previous == null)
+                    continue;
+                final float change = current - previous;
+                if (change == 0.0F || (!showNumbers && !showCrits) || isOwnTextInFirstPerson(living))
+                    continue;
+
+                if (change < 0.0F) {
+                    // Damage: actual health lost, rounded up like the original (min 1).
+                    spawnDamageWords(living, Math.max(1, Mth.ceil(-change)), showNumbers, showCrits);
+                } else if (showNumbers) {
+                    // Heal: actual health restored, rounded up like the original (min 1).
+                    spawnHealWord(living, Math.max(1, Mth.ceil(change)));
+                }
+            }
+            // Prune entities that left the range, were removed, or died. A tracked entity whose
+            // health is now zero died since the last sample: show the killing blow - its last
+            // sampled health is exactly the final loss, the same delta 1.12.2's poll saw. Entities
+            // that vanished without a corpse (despawn, chunk unload) are dropped silently.
+            this.lastHealth.keySet().removeIf(id -> {
+                var e = mc.level.getEntity(id);
+                if (e instanceof LivingEntity living) {
+                    if (living.isAlive() && !living.isRemoved()
+                            && living.distanceToSqr(mc.player) <= range * range)
+                        return false;
+                    if (living.getHealth() <= 0.0F && (showNumbers || showCrits)
+                            && !isOwnTextInFirstPerson(living)) {
+                        final float loss = this.lastHealth.getOrDefault(id, 0.0F);
+                        if (loss > 0.0F)
+                            spawnDamageWords(living, Math.max(1, Mth.ceil(loss)), showNumbers, showCrits);
+                    }
+                }
+                return true;
+            });
+        }
         // NOTE: ObjectArray has no remove(int), so an indexed remove(i) would be boxed
         // to remove(Object) and silently never remove - leaking entries until the render
         // pass hangs. Use removeIf.
@@ -463,7 +612,13 @@ public class CritWordHandler {
             w.x += w.vx;
             w.y += w.vy;
             w.z += w.vz;
-            return ++w.age >= this.lifetime;
+            final boolean dead = ++w.age >= this.lifetime;
+            if (dead && this.logger.isTracing(Configuration.Flags.CRIT_WORD))
+                this.logger.debug("[CRITWORD-LIFE] id=%x text=%s frames=%d hidden=%d alphaUp=%d "
+                                + "maxScaleRatio=%.3f  (alphaUp>0 or maxScaleRatio>%.2f is the flash)",
+                        System.identityHashCode(w) & 0xFFFF, w.text, w.auditFrames, w.auditHidden,
+                        w.auditMaxAlphaUp, w.auditMaxScaleRatio, MAX_SCALE_STEP_PER_FRAME);
+            return dead;
         });
     }
 
@@ -525,16 +680,33 @@ public class CritWordHandler {
         for (var entry : this.active) {
             // Interpolate the world position between ticks so the moving word is smooth
             // at render framerate, not stuttery at 20 TPS.
-            final double px = Mth.lerp(partialTick, entry.prevX, entry.x);
-            final double py = Mth.lerp(partialTick, entry.prevY, entry.y);
-            final double pz = Mth.lerp(partialTick, entry.prevZ, entry.z);
+            // --- monotonic render clock -------------------------------------------------------
+            // partialTick wraps to near 0 at every tick boundary, while `age` only advances in
+            // onTick (TICK_END). A frame drawn between the wrap and the tick sees `age + ~0` AND
+            // `lerp(~0, prev, cur)` - nearly a full tick LESS than the frame before, on both the
+            // animation clock and the position. Alpha is a falling ramp in renderAge, so a rewind
+            // is a step UP in opacity; the position simply jerks backwards. Either one reads as
+            // "flashes bright for an instant near the end of the shrink". Holding the fraction
+            // until the tick actually lands keeps both monotonic; the next tick resets it.
+            if (entry.lastAge != entry.age)
+                entry.lastPartial = -1F;
+            final float partial = entry.lastPartial >= 0F
+                    ? Math.max(partialTick, entry.lastPartial)
+                    : partialTick;
+            entry.lastAge = entry.age;
+            entry.lastPartial = partial;
+
+            final double px = Mth.lerp(partial, entry.prevX, entry.x);
+            final double py = Mth.lerp(partial, entry.prevY, entry.y);
+            final double pz = Mth.lerp(partial, entry.prevZ, entry.z);
 
             // The simulation advances `age` once per TICK, but this runs once per FRAME - so a size
             // or alpha read straight from entry.age steps at 20 Hz and reads as choppy. Interpolating
             // it is the same treatment the position already gets above, and it is visual only: `age`
             // still decides when the entry dies, and the growth curve, peak tick, lifetime and fade
             // window are all unchanged.
-            final float renderAge = entry.age + partialTick;
+            final float renderAge = entry.age + partial;
+            entry.lastRenderAge = renderAge;
 
             // Cheap projection first: words behind the camera or beyond the render depth
             // are dropped before the (comparatively expensive) occlusion raycast runs.
@@ -564,17 +736,75 @@ public class CritWordHandler {
             if (this.clip.w <= 0.001F || this.clip.w > MAX_RENDER_DEPTH)
                 continue; // behind the camera or too far away
 
-            // Skip words occluded by blocks between the camera and the text.
+            // Occlusion, with hysteresis. The ray runs from the camera to a point half a block above
+            // the mob's head, so as the player or the word moves it grazes geometry - a bare per-frame
+            // test flips on and off and the word blinks out for a frame at a time, which is what
+            // "flashes for an instant" looks like from the outside. Requiring two consecutive
+            // blocked frames before hiding removes the single-frame blink without giving up the
+            // test: a word genuinely behind a wall still disappears, one tick later.
             final var hit = level.clip(new ClipContext(eye, new Vec3(px, py, pz), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
-            if (hit.getType() != HitResult.Type.MISS)
+            boolean blocked = hit.getType() != HitResult.Type.MISS;
+            if (!blocked)
+                blocked = isEntityBlocking(mc, eye, new Vec3(px, py, pz), entry.ownerId);
+            if (blocked) {
+                entry.clearRun = 0;
+                entry.occluded = Math.min(2, entry.occluded + 1);
+                if (entry.occluded >= 2)
+                    entry.hidden = true;
+            } else {
+                entry.occluded = 0;
+                if (entry.hidden) {
+                    // Hiding took two frames, so showing has to as well - otherwise a one-frame dip
+                    // behind a fence post produces hide, then show, and the pair reads as a blink.
+                    if (++entry.clearRun >= 2) {
+                        entry.hidden = false;
+                        entry.clearRun = 0;
+                    }
+                }
+            }
+            if (entry.hidden) {
+                entry.auditHidden++;
                 continue;
+            }
 
             final float depth = this.clip.w;
             final float sx = (this.clip.x / depth * 0.5F + 0.5F) * width;
             final float sy = (1.0F - (this.clip.y / depth * 0.5F + 0.5F)) * height;
 
             // Distance fade + shrink: scale by 1/depth so a word on a far target stays small.
-            float textScale = this.computeTextScale(entry, renderAge, depth, mc, height);
+            // --- vertical scale, measured from the matrix that produced `depth` -------------
+            // See measureTanHalf: the old code took tan(fov/2) from the options slider, which is
+            // not the FOV the projection matrix was built with. Measured in game: sprinting
+            // pushes the real FOV to 1.1x the slider (98 -> 107.8 degrees), so every word was
+            // ~19% too large for as long as the player sprinted, then snapped back.
+            final float tanHalfActual = this.measureTanHalf(camera, camPos, px, py, pz, depth, height);
+            float textScale = this.computeTextScale(entry, renderAge, depth, mc, height, tanHalfActual);
+            // Rate limit: everything the size depends on is smooth, so a frame much larger than the
+            // one before it is not animation - it is the projection matrix having been a different
+            // one for that frame. See the note in the 1.21.1 port for the full reasoning.
+            if (entry.lastScale > 0F && entry.lastScaleAge >= 0F) {
+                final float prevCurve = sizeAtAge(entry.lastScaleAge);
+                final float curCurve = sizeAtAge(renderAge);
+                final float expected = prevCurve > 1.0E-4F
+                        ? entry.lastScale * (curCurve / prevCurve)
+                        : entry.lastScale;
+                if (expected > 0F) {
+                    final float ratio = textScale / expected;
+                    if (ratio > entry.auditMaxScaleRatio)
+                        entry.auditMaxScaleRatio = ratio;
+                    final float cap = expected * MAX_SCALE_STEP_PER_FRAME;
+                    if (textScale > cap) {
+                        this.logger.debug("[CRITWORD-SPIKE] text=%s renderAge=%.3f scale %.3f -> %.3f "
+                                        + "capped to %.3f (curve allows %.3f) depth=%.3f tanHalf=%.4f",
+                                entry.text, renderAge, entry.lastScale, textScale, cap, expected,
+                                depth, tanHalfActual);
+                        textScale = cap;
+                    }
+                }
+            }
+            entry.lastScale = textScale;
+            entry.lastScaleAge = renderAge;
+            entry.auditFrames++;
 
             int alpha = 255;
             if (renderAge > this.fadeStart())
@@ -583,50 +813,97 @@ public class CritWordHandler {
             // Clamp: the truncating cast could go negative on the last frame, which handed an
             // invalid alpha to the colour.
             alpha = alpha < 0 ? 0 : (alpha > 255 ? 255 : alpha);
+            // The fade is monotonic by definition, so enforce it here rather than trusting every
+            // input. renderAge already cannot run backwards, but alpha also depends on `lifetime`
+            // and `fadeStart`, which are handler fields refreshed on damage events - a word whose
+            // animation parameters changed underneath it would otherwise get a brighter frame for
+            // free. This is the last guard between the arithmetic above and the pixels below.
+            if (entry.lastAlpha >= 0 && alpha > entry.lastAlpha)
+                alpha = entry.lastAlpha;
+            entry.lastAlpha = alpha;
             int color = (entry.color & 0x00FFFFFF) | (alpha << 24);
 
             // ---- CRITWORD diagnostics (see the block at the top of this method) -----------
             if (diag) {
-                if (entry.diagLastFrame == diagFrame) {
+                // Detected on the interpolation fraction, NOT on diagFrame - diagFrame is incremented
+                // inside this method, so a second invocation in one frame would increment it too and
+                // this test would never fire. Two calls in one frame share partialTick.
+                if (entry.diagLastFrame == this.frameId) {
                     entry.diagDrawsThisFrame++;
                     this.logger.debug("[CRITWORD-DUP] frame=%d text=%s drawn=%d times in ONE frame "
-                                    + "(ObjectArray add/removeIf race)",
-                            diagFrame, entry.text, entry.diagDrawsThisFrame);
+                                    + "(handler invoked twice: two draws composite to a brighter word)",
+                            this.frameId, entry.text, entry.diagDrawsThisFrame);
                 } else {
-                    entry.diagLastFrame = diagFrame;
+                    entry.diagLastFrame = this.frameId;
                     entry.diagDrawsThisFrame = 1;
                 }
+                entry.lastDrawPartial = partialTick;
 
+                // Only ALPHA going up, or renderAge going BACKWARDS, is a real flash. The old
+                // test also fired when the scale went up, which is simply the growth phase - it
+                // reported 1267 of 1267 "jumps" in a session with no flash at all.
                 final boolean jumped = entry.diagPrevAlpha >= 0
-                        && (alpha > entry.diagPrevAlpha || textScale > entry.diagPrevScale * 1.02F);
+                        && (alpha > entry.diagPrevAlpha || renderAge < entry.diagPrevRenderAge);
+                if (entry.diagPrevAlpha >= 0 && alpha > entry.diagPrevAlpha)
+                    entry.auditMaxAlphaUp = Math.max(entry.auditMaxAlphaUp, alpha - entry.diagPrevAlpha);
                 if (jumped) {
                     this.logger.debug("[CRITWORD-JUMP] text=%s renderAge %.3f -> %.3f | alpha %d -> %d | "
                                     + "scale %.4f -> %.4f  (non-monotonic: this is the flash)",
                             entry.text, entry.diagPrevRenderAge, renderAge,
                             entry.diagPrevAlpha, alpha, entry.diagPrevScale, textScale);
                 }
-                if (jumped || (diagFrame % 10) == 1) {
+                // ONE SHORT LINE PER FRAME, for the whole life. The detailed [CRITWORD-DRAW] below
+                // used to be the every-frame one during the fade, at ~250 characters a line; at
+                // 300+ fps that is a flood and log4j drops lines under load, so the rarer the event
+                // the more likely the one line showing it was dropped. Short lines do not get dropped.
+                this.logger.debug("[CRITWORD-F] %x r=%.3f a=%d s=%.4f d=%.3f",
+                        System.identityHashCode(entry) & 0xFFFF, renderAge, alpha, textScale, depth);
+                final float tanHalfMatrix = tanHalfActual;
+                // Detailed context, sampled - the compact line above owns per-frame coverage now.
+                if (jumped || (diagFrame % 20) == 1) {
                     final float guiPxH = textScale * font.lineHeight;
-                    this.logger.debug("[CRITWORD-DRAW] text=%s age=%d renderAge=%.3f partialTick=%.3f "
+                    this.logger.debug("[CRITWORD-DRAW] id=%x text=%s age=%d renderAge=%.3f ptick=%.3f "
                                     + "depth=%.3f sizeAtAge=%.4f textScale=%.4f | onScreen guiPxH=%.1f "
-                                    + "physPxH=%.1f fracOfScreenH=%.5f | alpha=%d at=%.0f,%.0f",
-                            entry.text, entry.age, renderAge, partialTick, depth, sizeAtAge(renderAge),
+                                    + "physPxH=%.1f fracOfScreenH=%.5f | tanHalfMatrix=%.4f tanHalfOptions=%.4f "
+                                    + "fovRatio=%.3f | alpha=%d occ=%d at=%.0f,%.0f",
+                            System.identityHashCode(entry) & 0xFFFF, entry.text, entry.age, renderAge, partial,
+                            depth, sizeAtAge(renderAge),
                             textScale, guiPxH, guiPxH * mc.getWindow().getGuiScale(),
-                            guiPxH / height, alpha, sx, sy);
+                            guiPxH / height, tanHalfMatrix,
+                            (float) Math.tan(Math.toRadians(mc.options.fov().get()) / 2.0D),
+                            (float) (Math.tan(Math.toRadians(mc.options.fov().get()) / 2.0D) / tanHalfMatrix),
+                            alpha, entry.occluded, sx, sy);
                 }
                 entry.diagPrevAlpha = alpha;
                 entry.diagPrevScale = textScale;
                 entry.diagPrevRenderAge = renderAge;
             }
 
+            // 1.20.1/1.21.1 vanilla Font.adjustColor rewrites any color whose alpha is
+            // below 4 to fully opaque ((color & 0xFC000000) == 0 -> color |= 0xFF000000),
+            // so the fade's last steps - alpha 3, 2, 1, and the 0 produced while a
+            // dead-at-next-tick entry waits for onTick - render at FULL brightness for a
+            // frame or two right before the word vanishes: the single-frame "flash" every
+            // monotonic guard failed to catch, because the override happens inside
+            // drawString, below anything instrumentation can see. This 26.1 pipeline has
+            // no such override (GuiGraphicsExtractor.text only skips alpha == 0), but at
+            // <= 1.6% opacity the word is indistinguishable from gone, so all three
+            // versions skip those frames identically.
+            if (alpha < 4)
+                continue;
+
             final int drawX = -font.width(entry.text) / 2 + 1;
             final int drawY = -font.lineHeight / 2 + 1;
 
             pose.pushMatrix();
             try {
+                // Deliberately NOT snapped to whole GUI pixels - see the note in the 1.21.1 port.
+                // Pixel snapping was added for a sub-pixel-coverage theory of the flash that turned
+                // out to be wrong (real cause: vanilla Font.adjustColor, alpha < 4), and it only
+                // cost sub-pixel smoothness.
                 pose.translate(sx, sy);
                 pose.scale(textScale, textScale);
-                graphics.text(font, entry.text, drawX + 1, drawY + 1, 0xFF000000, false);
+                graphics.text(font, entry.text, drawX + 1, drawY + 1, alpha << 24, false);
                 graphics.text(font, entry.text, drawX, drawY, color, false);
             } finally {
                 pose.popMatrix();

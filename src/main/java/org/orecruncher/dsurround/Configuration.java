@@ -332,8 +332,8 @@ public class Configuration extends ConfigurationData {
         @Property
         @IntegerRange(min = 50, max = 300)
         @Slider
-        @Comment("Text size as a percentage of the default. The world-unit constant already carries 1.12.2's base scale (3.0 * 0.008), so 100 makes the start and end of the animation exactly 1.12.2's spawn size; the maximum is that times the curve's peak, so it lands about 1.7x 1.12.2's largest. This value was chosen in testing - raise it if the text looks small, lower it if too large")
-        public int sizePercent = 100;
+        @Comment("Text size as a percentage of the default. The world-unit constant already carries 1.12.2's base scale (3.0 * 0.008), so 100 makes the start and end of the animation exactly 1.12.2's spawn size. 60 is the shipped default: it puts the PEAK of the curve at about 1.03x 1.12.2's largest frame, which is the size that survived testing in the big packs, while 100 put the peak at 1.7x and read as too large. Raise it if the text looks small, lower it if too large")
+        public int sizePercent = 60;
 
         @Hidden
         @Property

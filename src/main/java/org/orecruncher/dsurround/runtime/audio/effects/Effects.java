@@ -19,7 +19,6 @@ public final class Effects {
     // 1.667 restores the previous default strength, 0.0 disables reverb entirely.
     private static final float GLOBAL_REVERB_MULTIPLIER = 0.36F;
 
-    public static final float GLOBAL_BLOCK_ABSORPTION = 1F;
     public static final float SNOW_AIR_ABSORPTION_FACTOR = 5F;
     public static final float RAIN_AIR_ABSORPTION_FACTOR = 2F;
 
@@ -112,6 +111,13 @@ public final class Effects {
     public static volatile float reflectionTapGain = 0F;
     public static volatile float reflectionTapDelay = 0F;
 
+    /**
+     * Guards the tap pair. Gain and delay are two separate volatile fields, so without this the reader
+     * can take the gain from one evaluation and the delay from another and end up placing a reflection
+     * at a distance that was never measured. The writer takes the same lock.
+     */
+    public static final Object TAP_LOCK = new Object();
+
     /** Last values pushed to the slots, so an unchanged tap is not re-uploaded. */
     private static float lastReflectionTapGain = Float.NaN;
     private static float lastReflectionTapDelay = Float.NaN;
@@ -124,8 +130,15 @@ public final class Effects {
      * re-uploaded hundreds of times a second with identical values.
      */
     private static void applyReflectionTapIfChanged() {
-        final float tapGain = reflectionTapGain;
-        final float tapDelay = reflectionTapDelay;
+        final float tapGain;
+        final float tapDelay;
+        // Read as a PAIR under the writer's lock: two independent volatile reads can otherwise be
+        // satisfied by two different evaluations, which pairs one reflection's loudness with another's
+        // distance.
+        synchronized (TAP_LOCK) {
+            tapGain = reflectionTapGain;
+            tapDelay = reflectionTapDelay;
+        }
         if (tapGain == lastReflectionTapGain && tapDelay == lastReflectionTapDelay)
             return;
         lastReflectionTapGain = tapGain;

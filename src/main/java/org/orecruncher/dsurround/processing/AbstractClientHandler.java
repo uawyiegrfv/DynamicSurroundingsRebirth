@@ -19,6 +19,10 @@ abstract class AbstractClientHandler {
     protected final IModLog logger;
     private final String handlerName;
     private final TimerEMA timer;
+    // Consecutive doTick()/process() failures. Handlers.tick() isolates each handler,
+    // and this lets it log the first stack trace and then throttle instead of writing
+    // 20 stack traces a second for a handler that throws on every tick.
+    private int consecutiveFailures = 0;
 
     AbstractClientHandler(final String name, Configuration config, IModLog logger) {
         this.handlerName = name;
@@ -88,6 +92,22 @@ abstract class AbstractClientHandler {
     //////////////////////////////
     final void updateTimer(final long nanos) {
         this.timer.update(nanos);
+    }
+
+    /**
+     * Records that doTick()/process() threw and returns the new consecutive count.
+     * Called by {@link Handlers} only - it owns the logging policy.
+     */
+    final int noteFailure() {
+        return ++this.consecutiveFailures;
+    }
+
+    /**
+     * Called when a tick completes without throwing, so the count reflects
+     * consecutive failures rather than a lifetime total.
+     */
+    final void clearFailure() {
+        this.consecutiveFailures = 0;
     }
 
     final void connect0() {

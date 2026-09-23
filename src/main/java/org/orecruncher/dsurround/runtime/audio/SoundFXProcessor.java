@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public final class SoundFXProcessor {
 
@@ -54,8 +55,15 @@ public final class SoundFXProcessor {
 
     static volatile boolean isAvailable;
     // Sparse array to hold references to the SoundContexts of playing sounds. Written by the
-    // sound engine thread, read by the background processing worker - hence volatile.
-    private static volatile SourceContext[] sources;
+    // sound engine thread, read by the background processing worker.
+    //
+    // An AtomicReferenceArray, not a plain array: volatile on the REFERENCE says nothing about the
+    // ELEMENTS. A context is built on the sound thread (new SourceContext, attachSound, enable) and
+    // only then published into the array, so without a volatile element write the worker has no
+    // happens-before edge and may observe a non-null context whose fields are still default. x86
+    // hides this in practice, which is exactly why it would be a nasty one to debug if it ever did
+    // surface - and this class already has a history of teardown races (see inFlightEvaluations).
+    private static volatile AtomicReferenceArray<SourceContext> sources;
     private static Worker soundProcessor;
     private static volatile String diagnosticString = StringUtils.EMPTY;
     // Set on the client thread when the player enters or leaves water. The background
@@ -132,7 +140,7 @@ public final class SoundFXProcessor {
     public static void initialize() {
         Effects.initialize();
 
-        sources = new SourceContext[AudioUtilities.getMaxSounds()];
+        sources = new AtomicReferenceArray<>(AudioUtilities.getMaxSounds());
 
         if (soundProcessor == null) {
             soundProcessor = new Worker(
@@ -159,7 +167,8 @@ public final class SoundFXProcessor {
             // Effects.deinitialize() is about to delete. See inFlightEvaluations.
             awaitInFlightEvaluations();
             if (sources != null) {
-                Arrays.fill(sources, null);
+                for (int i = 0; i < sources.length(); i++)
+                    sources.set(i, null);
                 sources = null;
             }
             Effects.deinitialize();
@@ -249,8 +258,8 @@ public final class SoundFXProcessor {
                 // (50 ms) and then settles. Less sound-thread work, at the cost of a short settle.
                 ctx.markImmediate();
             }
-            if (sources != null && id > 0 && id <= sources.length)
-                sources[id - 1] = ctx;
+            if (sources != null && id > 0 && id <= sources.length())
+                sources.set(id - 1, ctx);
         });
     }
 
@@ -283,8 +292,8 @@ public final class SoundFXProcessor {
         var data = sourceContext.dsurround_getData();
         data.ifPresent(sc -> {
             sc.stop();
-            if (sources != null && sc.getId() > 0 && sc.getId() <= sources.length)
-                sources[sc.getId() - 1] = null;
+            if (sources != null && sc.getId() > 0 && sc.getId() <= sources.length())
+                sources.set(sc.getId() - 1, null);
         });
     }
 
@@ -334,7 +343,8 @@ public final class SoundFXProcessor {
                 return;
             int registered = 0;
             final Map<String, Integer> top = new HashMap<>();
-            for (final SourceContext ctx : sources) {
+            for (int i = 0; i < sources.length(); i++) {
+                final SourceContext ctx = sources.get(i);
                 if (ctx == null)
                     continue;
                 registered++;
@@ -400,8 +410,8 @@ public final class SoundFXProcessor {
                 Long last = channelLastActive.get(id);
                 if (last != null && now - last > REAPER_STUCK_MS) {
                     String soundName = "<no ctx>";
-                    if (id > 0 && sources != null && id - 1 < sources.length && sources[id - 1] != null && sources[id - 1].getSound() != null)
-                        soundName = sources[id - 1].getSound().getLocation().toString();
+                    if (id > 0 && sources != null && id - 1 < sources.length() && sources.get(id - 1) != null && sources.get(id - 1).getSound() != null)
+                        soundName = sources.get(id - 1).getSound().getLocation().toString();
                     LOGGER.warn("REAPER: reclaiming stuck channel id=%d (no playback activity for %.1fs) sound=%s", id, (now - last) / 1000.0, soundName);
                     reaped.add(o);
                     reapedIds.add(id);
@@ -428,9 +438,14 @@ public final class SoundFXProcessor {
      * so offloading to a separate thread to keep it out of either the client tick or sound engine makes sense.
      */
     private static void processSounds() {
+        // Take ONE snapshot of the array reference. deinitialize() nulls this field from another thread,
+        // so reading it twice - once to test, once to iterate - leaves a window where the second read
+        // sees null and the iteration throws. Holding the reference also keeps the array identity steady
+        // while the sound thread registers and unregisters contexts in it.
+        final AtomicReferenceArray<SourceContext> snapshot = sources;
         // The worker can still be draining its queue while deinitialize() nulls the
         // sources array (Worker.stop does not await termination) - bail out quietly.
-        if (sources == null)
+        if (snapshot == null)
             return;
         try {
             final ExecutorService pool = threadPool.get();
@@ -447,7 +462,8 @@ public final class SoundFXProcessor {
             immediateUpdateRequested = false;
 
             final ObjectArray<SourceContext> due = new ObjectArray<>(64);
-            for (final SourceContext ctx : sources) {
+            for (int i = 0; i < snapshot.length(); i++) {
+                final SourceContext ctx = snapshot.get(i);
                 if (ctx != null && (immediate || ctx.shouldExecute())) {
                     due.add(ctx);
                 }

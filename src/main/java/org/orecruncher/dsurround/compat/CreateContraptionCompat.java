@@ -121,14 +121,18 @@ public final class CreateContraptionCompat {
                 (Class) contraptionEntityClass,
                 entity.getBoundingBox().inflate(SEARCH_INFLATE));
 
-        final Vec3 sample = entity.position().add(0.0D, -SAMPLE_OFFSET, 0.0D);
-
         for (final Object candidate : candidates) {
             final Object contraption = getContraption.invoke(candidate);
             if (contraption == null)
                 continue;
 
-            final Vec3 localVec = (Vec3) worldToLocalPos.invoke(null, sample, candidate);
+            // Convert first, then step down in the CONTRAPTION's space. Subtracting world-Y before
+            // the transform - which is what Create does for its own probe - is only right while the
+            // contraption is level. On a tilted one, world-down is not the deck's down, and the
+            // sample lands beside the block the player is standing on rather than inside it, which
+            // is how a tilted contraption ended up silent.
+            final Vec3 feet = (Vec3) worldToLocalPos.invoke(null, entity.position(), candidate);
+            final Vec3 localVec = feet.subtract(0.0D, SAMPLE_OFFSET, 0.0D);
             final BlockPos localPos = BlockPos.containing(localVec);
 
             final Map<?, ?> blocks = (Map<?, ?>) getBlocks.invoke(contraption);

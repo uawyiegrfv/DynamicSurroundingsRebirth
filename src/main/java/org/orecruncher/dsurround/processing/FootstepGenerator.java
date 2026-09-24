@@ -721,6 +721,25 @@ public class FootstepGenerator extends AbstractClientHandler {
         // 5. The block directly below the feet (pos).
         // 6. Horizontal scan for the nearest solid block when the player is over an edge.
 
+        // (0) A physics structure or a Create contraption the entity is standing on, asked FIRST.
+        //
+        // Order matters here and this is why. Those structures do not remove the world beneath
+        // them, so a moored ship, a docked train or a low-flying contraption still has terrain
+        // under the feet. Probe (5) would answer with that terrain and return, and the structure
+        // probes would never run, because both are gated on the surface still being air. That is
+        // exactly the reported "the structure sound works only sometimes": it worked whenever the
+        // structure happened to be over air.
+        //
+        // Neither probe can fire without the mod it is for, so a vanilla game falls straight
+        // through: (0a) needs the answer to be more than 1024 blocks away - a structure-local
+        // position comes from a reserved region deliberately sited far outside the world - and
+        // (0b) returns null unless Create's API was found.
+        var structureState = structureSurface(entity, level);
+        if (structureState != null) {
+            if (trace != null) trace.add("-> structure surface (0) = %s".formatted(structureState));
+            return structureState;
+        }
+
         var footState = level.getBlockState(pos.above());
         traceFootCell(trace, entity, level, pos.above(), footState);
         // 1.20.1 / 1.21.1 have no leaf-litter block (LeafLitterBlock arrives in a later 1.21.x), so
@@ -822,52 +841,54 @@ public class FootstepGenerator extends AbstractClientHandler {
         }
 
 
-        // (6) Last resort: vanilla Entity.getOnPos(), asked as the public no-arg overload.
+        // (6) Horizontal neighbour scan, for the player standing over an edge.
         //
-        // Step (3) above reads the mainSupportingBlockPos FIELD, which no mod patches. Sable
-        // instead injects at the HEAD of the PROTECTED getOnPos(float) overload (@Inject,
-        // cancellable) and returns the block the entity stands on in the physics structure's own
-        // coordinate space. That overload is not callable from here; the public no-arg overload is
-        // reachable because it forwards to it - getOnPos() -> getOnPos(1.0E-5f) - so the inject
-        // still fires. (getOnPosLegacy() is the same idea with 0.2f, but it is @Deprecated.)
-        //
-        // A structure keeps its blocks in a reserved plot region of the same Level rather than in
-        // the world grid, which is why every probe above sees air on one.
-        //
-        // The distance test keeps this probe provably unable to change a game without such a mod.
-        // A structure-local position comes from a region deliberately sited far outside the world
-        // the entity occupies, so a position near the entity means getOnPos answered normally -
-        // with a block we have just rejected - and the result stays air. It also keeps the earlier
-        // releases honest: getOnPos() can return the feet CELL when mainSupportingBlockPos is
-        // empty, and accepting that would have changed what a vanilla player hears while standing
-        // inside a plant over a drop.
-        //
-        // Note what crosses this seam: only the BlockState. The position itself is a plot
-        // coordinate and must never be used for world-space maths, particles or sound placement.
+        // Last on purpose: it does not look for the surface the entity stands on, it invents one
+        // out of a block that merely happens to be beside the feet cell. Nothing else in this
+        // method should be skipped in favour of a guess.
         if (state.isAir()) {
-            final var onPos = entity.getOnPos();
-            if (onPos.distManhattan(entity.blockPosition()) > 1024) {
-                final var onState = level.getBlockState(onPos);
-                if (!isNotSolidSurface(onState)) {
-                    if (trace != null) trace.add("-> getOnPos(), structure-local (6) = %s".formatted(onState));
-                    state = onState;
+            for (var dir : Direction.Plane.HORIZONTAL) {
+                var neighbor = level.getBlockState(pos.relative(dir));
+                if (!neighbor.isAir() && neighbor.isSolid()) {
+                    state = neighbor;
+                    break;
                 }
             }
         }
-
-        // (7) A Create contraption. Its blocks are in no Level at all - they live in the
-        // contraption's own map - so this cannot be phrased as a position lookup the way (6) is.
-        // The compat class keeps every Create reference behind reflection and returns null when
-        // Create is absent or its API has moved, so a vanilla game cannot reach this branch's
-        // result. Only the BlockState crosses the seam, as with (6).
-        if (state.isAir()) {
-            final var contraptionState = CreateContraptionCompat.surface(entity, level);
-            if (contraptionState != null && !isNotSolidSurface(contraptionState)) {
-                if (trace != null) trace.add("-> Create contraption (7) = %s".formatted(contraptionState));
-                state = contraptionState;
-            }
-        }
         return state;
+    }
+
+    /**
+     * The surface when the entity stands on a physics structure or a Create contraption, or null.
+     *
+     * <p>Both are asked through the owning mod's own extension point rather than through the world
+     * grid, and both return null - never a guess - when that mod is absent or its API could not be
+     * read. A vanilla game therefore always gets null here and falls through to the probes below,
+     * which is what keeps this refactor invisible to it.
+     */
+    @Nullable
+    private static BlockState structureSurface(final Entity entity, final Level level) {
+        // (0a) Sable injects at the HEAD of the protected Entity.getOnPos(float) and answers with
+        // the block in the structure's own coordinate space. The public no-arg overload forwards
+        // to that method, so the inject fires from here. A structure-local position lives in a
+        // reserved plot region sited far outside the world the entity occupies, and the distance
+        // test is what makes this probe unable to answer for anything else: a nearby position
+        // means getOnPos answered normally, with a block the world probes are about to read anyway.
+        final var onPos = entity.getOnPos();
+        if (onPos.distManhattan(entity.blockPosition()) > 1024) {
+            final var onState = level.getBlockState(onPos);
+            if (!isNotSolidSurface(onState))
+                return onState;
+        }
+
+        // (0b) A Create contraption keeps its blocks in its own map rather than in any Level, so
+        // it cannot be phrased as a position lookup at all. The compat class holds every Create
+        // reference behind reflection and returns null when Create is absent or its API moved.
+        final var contraption = CreateContraptionCompat.surface(entity, level);
+        if (contraption != null && !isNotSolidSurface(contraption))
+            return contraption;
+
+        return null;
     }
 
     /**
@@ -934,7 +955,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // physics plank, which sent the first read of this output down the wrong path.
         if (isNotSolidSurface(state)) {
             trace.add("   material   = (none: air/fluid - the runtime plays NO footstep here)");
-            trace.add("   land sound = %s  (generic - no material under the feet)".formatted(resolveLandSound(player)));
+            trace.add("   land sound = (none: no block under the feet - the runtime is silent)");
             trace.add("   material(resolveMaterial) = (none)");
             return trace;
         }
@@ -978,14 +999,24 @@ public class FootstepGenerator extends AbstractClientHandler {
     /**
      * Resolves the landing sound for the block below the entity. Prefers the material's
      * dedicated *_land recording (distinct "thud"), then the *_run sound, then the base
-     * sound - matching the original 1.12.2 land composition. Falls back to the generic
-     * player.land when no remap applies.
+     * sound - matching the original 1.12.2 land composition, mute when no block can be
+     * identified, and the generic player.land when a block is identified but unmapped.
      */
     static ResourceLocation resolveLandSound(final Entity entity) {
         var state = resolveSurfaceBlock(entity, entity.level(), entity.blockPosition().below());
-        // Waterlogged blocks keep their own landing recording; only air and real fluids fall back.
+        // Air or a fluid means no block could be identified under the feet at all. Returning the
+        // generic player.land here is what players reported as "a strange landing sound": that
+        // recording is a DIRT thud, so a landing on a physics structure or a contraption that the
+        // resolution could not read sounded like dirt on a wooden deck.
+        //
+        // Silence is the honest answer, and it is the one playStep already gives on this exact
+        // condition - a missing sound reads as "nothing to say here", while a dirt thud reads as a
+        // bug. The sentinel is the codebase's existing "play nothing" value, and playLand already
+        // early-returns on it, skipping the land accents and the echo as well: there is no material
+        // to layer anything onto. A block that IS identified but has no remap still gets LAND
+        // below; nothing is silent merely for being unknown to our data.
         if (isNotSolidSurface(state))
-            return LAND;
+            return NO_FOOTSTEP;
 
         var stepSound = state.getSoundType().getStepSound();
         var remap = SOUND_LIBRARY.getRemappedSound(stepSound, state);

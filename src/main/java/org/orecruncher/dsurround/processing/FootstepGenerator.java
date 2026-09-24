@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.phys.Vec3;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.Constants;
+import org.orecruncher.dsurround.compat.CreateContraptionCompat;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 import org.orecruncher.dsurround.config.libraries.impl.VariatorLibrary;
 import org.orecruncher.dsurround.eventing.ClientEventHooks;
@@ -848,9 +849,22 @@ public class FootstepGenerator extends AbstractClientHandler {
             if (onPos.distManhattan(entity.blockPosition()) > 1024) {
                 final var onState = level.getBlockState(onPos);
                 if (!isNotSolidSurface(onState)) {
-                    if (trace != null) trace.add("-> getOnPos(0.2f), structure-local (6) = %s".formatted(onState));
+                    if (trace != null) trace.add("-> getOnPos(), structure-local (6) = %s".formatted(onState));
                     state = onState;
                 }
+            }
+        }
+
+        // (7) A Create contraption. Its blocks are in no Level at all - they live in the
+        // contraption's own map - so this cannot be phrased as a position lookup the way (6) is.
+        // The compat class keeps every Create reference behind reflection and returns null when
+        // Create is absent or its API has moved, so a vanilla game cannot reach this branch's
+        // result. Only the BlockState crosses the seam, as with (6).
+        if (state.isAir()) {
+            final var contraptionState = CreateContraptionCompat.surface(entity, level);
+            if (contraptionState != null && !isNotSolidSurface(contraptionState)) {
+                if (trace != null) trace.add("-> Create contraption (7) = %s".formatted(contraptionState));
+                state = contraptionState;
             }
         }
         return state;

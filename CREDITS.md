@@ -289,3 +289,36 @@ Origin of every texture shipped by this port:
   two files and the same restriction, so this is inherited, not introduced by the port. It is kept
   deliberately (the recordings are hard to replace) and the consequence is recorded here: **do not
   enable monetisation while these two files ship.**
+
+### Compatibility
+
+Compatibility with other mods is implemented by **calling their public API**. No code was copied from
+any of them, and nothing of theirs is bundled or compiled against - the licence position above is
+unaffected.
+
+* **Sable** (<https://github.com/ryanhcode/sable>) - the physics structure support reads
+  `Entity.getOnPos()`, a **vanilla** method that Sable itself patches to answer with the block in the
+  structure's own coordinate space. No Sable code is involved and no Sable dependency is declared:
+  without Sable the call returns vanilla's own answer and nothing changes.
+* **Create** (<https://github.com/simibubi/create>) - the contraption support reads a contraption's
+  block through Create's public API (`AbstractContraptionEntity#getContraption`,
+  `Contraption#getBlocks`, `Contraption#isHiddenInPortal`, `ContraptionCollider#worldToLocalPos`),
+  reached by reflection so that no Create version is required at build time. Create's own
+  `EntityContraptionInteractionMixin` solves the same problem for its step sounds and was read as the
+  reference for the order of operations; the code here is written for this port, not taken from it.
+* **Sound Physics Remastered** - our mixin stands down when it is present, so that only one of the two
+  claims the same OpenAL instruction.
+* **Cloth Config**, **Serene Seasons**, **Better Clouds**, **Xaero's Minimap**, **Presence Footsteps**,
+  **Particle Rain** - soft dependencies, detected at runtime and absent-safe.
+
+Third-party mod ids appear in this project's data files and documentation for interoperability. That
+is nominative use. None of the projects above is affiliated with, or endorses, Dynamic Surroundings
+Rebirth.
+
+### Bundled libraries
+
+* **Nashorn** (`nashorn-core`, <https://github.com/openjdk/nashorn>) - the **26.1 build ships this
+  inside the jar** (`META-INF/jarjar/nashorn-core-<version>.jar`); the 1.20.1 and 1.21.1 builds do
+  not. It is licensed **GPLv2 with the Classpath Exception**, which permits this redistribution;
+  the licence text and the corresponding source are available from the project link above. It backs
+  `lib/scripting` (the `/dsscript` expression evaluator) and is loaded only when a script is run.

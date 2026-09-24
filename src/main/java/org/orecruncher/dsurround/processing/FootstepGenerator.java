@@ -170,6 +170,53 @@ public class FootstepGenerator extends AbstractClientHandler {
     private double dmwBase = 0D;
     private double yPosition = 0D;
     private Vec3 lastPos;
+
+    // Vanilla's own walk distance, used ONLY while the entity stands on a physics structure or a
+    // Create contraption; walkDistMetered says whether that is what the accumulator is currently
+    // being fed from, so a transition cannot fire a step out of the value jump alone.
+    //
+    // Those structures move the entity with setPos from OUTSIDE Entity.move, so the position delta
+    // used below counts their translation as walking: a player standing perfectly still on a moving
+    // deck got a footstep for every stride of the DECK's motion. walkDist accumulates from the
+    // movement vector INSIDE move(), so it does not see that translation.
+    private double lastWalkDist = 0D;
+    private boolean walkDistMetered = false;
+
+    /**
+     * Vanilla's own horizontal walk distance, or null when this version exposes none.
+     *
+     * <p>1.20.1 and 1.21.1 have {@code Entity.walkDist} (horizontalDistance * 0.6). 26.1 removed it
+     * and folded the same job into {@code Entity.moveDist}, which is horizontal * 0.6 while walking
+     * and the full 3D distance while climbing - and is what its own step logic compares. Both are
+     * public floats, only the name differs, so this is resolved once by name and cached. A version
+     * with neither leaves the caller on its own accumulator: this can never be the reason a footstep
+     * is wrong.
+     */
+    private static final java.lang.reflect.Field WALK_DISTANCE = findWalkDistance();
+
+    private static java.lang.reflect.Field findWalkDistance() {
+        for (final String name : new String[]{"walkDist", "moveDist"}) {
+            try {
+                final var field = Entity.class.getDeclaredField(name);
+                if (field.getType() == float.class) {
+                    field.setAccessible(true);
+                    return field;
+                }
+            } catch (final Throwable ignored) {
+                // try the next name
+            }
+        }
+        return null;
+    }
+
+    /** The walk distance above, or a negative value when this version has no such field. */
+    private static double walkDistance(final Player player) {
+        try {
+            return WALK_DISTANCE == null ? -1D : WALK_DISTANCE.getFloat(player);
+        } catch (final Throwable t) {
+            return -1D;
+        }
+    }
     // Leaf-litter steps play once per block position (mirroring the brush-step "messyPos"
     // dedup in StepThroughBrushEffect): lingering on the same litter cell does not
     // re-trigger the crunch on every stride - it fires again only after leaving the
@@ -339,16 +386,36 @@ public class FootstepGenerator extends AbstractClientHandler {
         // including floating at the surface - so this also covers the "swim touching a block"
         // case where the feet are still above the block.
         if ((onGround || onLadder) && !inWater) {
-            double step = 0D;
-            if (this.lastPos != null) {
-                final double dx = pos.x - this.lastPos.x;
-                final double dz = pos.z - this.lastPos.z;
-                step = Math.hypot(dx, dz);
-                // Climbing a ladder is mostly vertical motion; the horizontal distance
-                // alone never accumulates enough to trigger a step while climbing.
-                if (onLadder)
-                    step += Math.abs(pos.y - this.lastPos.y);
-                this.distanceWalked += step * 0.6D;
+            // Standing on a structure? Then measure with vanilla's own walk distance instead of the
+            // world position delta. Both Sable and Create move the entity with setPos from outside
+            // Entity.move, so the delta below counts their translation as walking and fires a step
+            // for every stride of the STRUCTURE's motion - a player standing still on a moving deck
+            // heard footsteps at the deck's speed. walkDist accumulates inside move() and so does
+            // not see that translation.
+            //
+            // This is additive by construction: the else branch is the previous code, character for
+            // character, so nothing outside a structure can be affected. On the first metered tick
+            // the baseline is rebased rather than compared, so stepping onto a structure cannot fire
+            // a phantom step from the switch alone.
+            final double metered = structureSurface(player, player.level()) == null ? -1D : walkDistance(player);
+            if (metered >= 0D) {
+                // Already carries vanilla's 0.6 factor, so it is added unscaled.
+                if (this.walkDistMetered)
+                    this.distanceWalked += metered - this.lastWalkDist;
+                this.lastWalkDist = metered;
+                this.walkDistMetered = true;
+            } else {
+                this.walkDistMetered = false;
+                if (this.lastPos != null) {
+                    final double dx = pos.x - this.lastPos.x;
+                    final double dz = pos.z - this.lastPos.z;
+                    double step = Math.hypot(dx, dz);
+                    // Climbing a ladder is mostly vertical motion; the horizontal distance
+                    // alone never accumulates enough to trigger a step while climbing.
+                    if (onLadder)
+                        step += Math.abs(pos.y - this.lastPos.y);
+                    this.distanceWalked += step * 0.6D;
+                }
             }
             this.lastPos = pos;
 

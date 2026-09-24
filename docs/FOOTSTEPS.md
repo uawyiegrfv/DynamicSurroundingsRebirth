@@ -98,7 +98,7 @@ An accent is layered on top of the primary step so one recording can carry a sec
 | accent (`dsurround:` prefix omitted) | pitch | volume | plays | used by |
 | --- | --- | --- | --- | --- |
 | `footstep_accent/amethyst` | 0.9–1.1 | 0.3 | `minecraft:block.amethyst_block.break` | 2 event(s) |
-| `footstep_accent/brush` | 0.8–1.2 | 0.3 | `dsurround:footsteps.brush_through` | 1 event(s) |
+| `footstep_accent/brush` | 0.8–1.2 | 0.3 | `dsurround:footsteps.brush_accent` | 1 event(s) |
 | `footstep_accent/chain_rattle` | - | 0.28 | `dsurround:armor.medium_walk` | 1 event(s) |
 | `footstep_accent/glass` | 0.95–1.05 | 0.9–1.0 | `dsurround:footsteps.glass` | 3 event(s) |
 | `footstep_accent/mud` | - | 0.8 | `dsurround:footsteps.mud` | **UNUSED** |
@@ -383,7 +383,7 @@ Ice is deliberately **excluded** (the player slides across it), a documented dev
 | accent (`dsurround:` prefix omitted) | pitch | volume | plays | used by |
 | --- | --- | --- | --- | --- |
 | `footstep_accent/amethyst` | 0.9–1.1 | 0.3 | `minecraft:block.amethyst_block.break` | 2 event(s) |
-| `footstep_accent/brush` | 0.8–1.2 | 0.3 | `dsurround:footsteps.brush_through` | 1 event(s) |
+| `footstep_accent/brush` | 0.8–1.2 | 0.3 | `dsurround:footsteps.brush_accent` | 1 event(s) |
 | `footstep_accent/chain_rattle` | - | 0.28 | `dsurround:armor.medium_walk` | 1 event(s) |
 | `footstep_accent/glass` | 0.95–1.05 | 0.9–1.0 | `dsurround:footsteps.glass` | 3 event(s) |
 | `footstep_accent/mud` | - | 0.8 | `dsurround:footsteps.mud` | **UNUSED** |

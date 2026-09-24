@@ -877,6 +877,20 @@ public class FootstepGenerator extends AbstractClientHandler {
         trace.add("climbing(=%s) = %s".formatted(player.onClimbable(), player.onClimbable() && !player.onGround()));
         final var state = resolveSurfaceBlock(player, player.level(), pos, trace);
         trace.add("RESULT: %s".formatted(state));
+        // The runtime paths bail out on air/fluid before they ever look at the sound type
+        // (playStep and resolveLandSound both test isNotSolidSurface first). This report has to
+        // apply the same test or it lies: vanilla leaves AIR's SoundType at the default STONE,
+        // so the lines below used to resolve block.stone.step -> dsurround:footsteps.stone for a
+        // surface where nothing plays at all. A physics structure (Valkyrien Skies, Sable) keeps
+        // its blocks outside the world grid, so standing on one reads as air here - and the
+        // report claimed a stone footstep on a wooden ship. Reported from a player standing on a
+        // physics plank, which sent the first read of this output down the wrong path.
+        if (isNotSolidSurface(state)) {
+            trace.add("   material   = (none: air/fluid - the runtime plays NO footstep here)");
+            trace.add("   land sound = %s  (generic - no material under the feet)".formatted(resolveLandSound(player)));
+            trace.add("   material(resolveMaterial) = (none)");
+            return trace;
+        }
         final var stepSound = state.getSoundType().getStepSound();
         trace.add("   step event = %s".formatted(stepSound.getLocation()));
         final var remap = SOUND_LIBRARY.getRemappedSound(stepSound, state);

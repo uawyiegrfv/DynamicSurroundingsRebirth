@@ -832,12 +832,36 @@ public class FootstepGenerator extends AbstractClientHandler {
             return state;
         }
 
+
+        // (6) Last resort: vanilla Entity.getOnPos(), asked as the public no-arg overload.
+        //
+        // Step (3) above reads the mainSupportingBlockPos FIELD, which no mod patches. Sable
+        // instead injects at the HEAD of the PROTECTED getOnPos(float) overload (@Inject,
+        // cancellable) and returns the block the entity stands on in the physics structure's own
+        // coordinate space. That overload is not callable from here; the public no-arg overload is
+        // reachable because it forwards to it - getOnPos() -> getOnPos(1.0E-5f) - so the inject
+        // still fires. (getOnPosLegacy() is the same idea with 0.2f, but it is @Deprecated.)
+        //
+        // A structure keeps its blocks in a reserved plot region of the same Level rather than in
+        // the world grid, which is why every probe above sees air on one.
+        //
+        // The distance test keeps this probe provably unable to change a game without such a mod.
+        // A structure-local position comes from a region deliberately sited far outside the world
+        // the entity occupies, so a position near the entity means getOnPos answered normally -
+        // with a block we have just rejected - and the result stays air. It also keeps the earlier
+        // releases honest: getOnPos() can return the feet CELL when mainSupportingBlockPos is
+        // empty, and accepting that would have changed what a vanilla player hears while standing
+        // inside a plant over a drop.
+        //
+        // Note what crosses this seam: only the BlockState. The position itself is a plot
+        // coordinate and must never be used for world-space maths, particles or sound placement.
         if (state.isAir()) {
-            for (var dir : Direction.Plane.HORIZONTAL) {
-                var neighbor = level.getBlockState(pos.relative(dir));
-                if (!neighbor.isAir() && neighbor.isSolid()) {
-                    state = neighbor;
-                    break;
+            final var onPos = entity.getOnPos();
+            if (onPos.distManhattan(entity.blockPosition()) > 1024) {
+                final var onState = level.getBlockState(onPos);
+                if (!isNotSolidSurface(onState)) {
+                    if (trace != null) trace.add("-> getOnPos(0.2f), structure-local (6) = %s".formatted(onState));
+                    state = onState;
                 }
             }
         }

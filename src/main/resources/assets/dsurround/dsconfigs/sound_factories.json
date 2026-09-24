@@ -203,7 +203,7 @@
     },
     {
         "location":  "dsurround:footstep_accent/brush",
-        "soundEvent":  "dsurround:footsteps.brush_through",
+        "soundEvent":  "dsurround:footsteps.brush_accent",
         "category":  "PLAYER",
         "volume":  0.3,
         "pitch":  {

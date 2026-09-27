@@ -29,7 +29,16 @@ public class WeatherFogRangeCalculator extends VanillaFogRangeCalculator {
     @Override
     @NotNull
     public FogData render(@NotNull final FogData data, float renderDistance, float partialTick) {
-        float rainStr = GameUtils.getWorld().map(w -> w.getRainLevel(partialTick)).orElseThrow();
+        // While we own the precipitation, fog follows OUR intensity curve rather than
+        // the vanilla rain level. Vanilla's level is a 5s ramp that hits 1.0 whether
+        // the storm is a drizzle or a downpour, which is why fog used to snap in at
+        // full thickness the instant rain started and then sit there while the rain
+        // itself was still building. The FOG response is early-rising and saturates
+        // below the top end: humidity is the first thing you notice, and past a point
+        // more rain does not mean more haze.
+        float rainStr = org.orecruncher.dsurround.processing.PrecipitationIntensity.ownsAmbient()
+                ? org.orecruncher.dsurround.processing.weather.PrecipitationResponse.FOG_DIST.value()
+                : GameUtils.getWorld().map(w -> w.getRainLevel(partialTick)).orElseThrow();
         if (rainStr > 0) {
 
             // Blend both planes from the clear-sky (vanilla) range at rainStr=0 to the

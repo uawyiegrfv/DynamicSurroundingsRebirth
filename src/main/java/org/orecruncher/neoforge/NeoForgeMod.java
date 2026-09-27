@@ -45,6 +45,17 @@ public final class NeoForgeMod {
         if (FMLEnvironment.getDist().isClient()) {
             modBus.addListener(this::onRegisterGuiLayersEvent);
             modBus.addListener(AuroraRenderPipelines::onRegisterPipelines);
+            // Graded rain/snow: suppresses the vanilla rain pass; the geometry is drawn
+            // from the AfterWeather level stage.
+            modBus.addListener(org.orecruncher.dsurround.processing.weather.PrecipitationRenderer::onRegisterWeatherEffectRenderer);
+            org.orecruncher.dsurround.processing.weather.PrecipitationRenderer.bootstrap();
+
+            // 26.1: there is no getSkyColor / getCloudColor / renderSky to
+            // redirect (those methods no longer exist), so the weather colours
+            // are re-applied to the precomputed LevelRenderState instead. See
+            // SkyStateInjector.
+            NeoForge.EVENT_BUS.addListener(
+                    org.orecruncher.dsurround.processing.weather.SkyStateInjector::onExtractLevelRenderState);
 
             this.client = new Client();
             this.client.construct();

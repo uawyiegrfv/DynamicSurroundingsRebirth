@@ -50,6 +50,20 @@ public class SereneSeasons extends AbstractSeasonProvider {
         return Optional.of(this.computed);
     }
 
+    @Override
+    public boolean usesTropicalSeasons() {
+        return true;
+    }
+
+    @Override
+    public boolean isTropicalWet() {
+        // Enum names are EARLY_DRY/MID_DRY/LATE_DRY/EARLY_WET/MID_WET/LATE_WET. Matching
+        // on the name avoids depending on the ordinal, which we cannot verify across
+        // Serene Seasons versions.
+        var helper = SeasonHelper.getSeasonState(this.level());
+        return helper.getTropicalSeason().name().contains("WET");
+    }
+
     public boolean isSpring() {
         var helper = SeasonHelper.getSeasonState(this.level());
         return helper.getSeason() == Season.SPRING;

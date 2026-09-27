@@ -54,6 +54,10 @@ public final class NeoForgeMod {
         if (FMLEnvironment.dist.isClient()) {
             modBus.addListener(this::onRegisterGuiLayersEvent);
             modBus.addListener(AuroraRenderPipelines::onRegisterShaders);
+            // Graded rain/snow: installs the overworld effects object that suppresses
+            // the vanilla rain pass; the geometry is drawn from the AfterWeather stage.
+            modBus.addListener(org.orecruncher.dsurround.processing.weather.PrecipitationRenderer::onRegisterDimensionEffects);
+            org.orecruncher.dsurround.processing.weather.PrecipitationRenderer.bootstrap();
 
             this.client = new Client();
             this.client.construct();

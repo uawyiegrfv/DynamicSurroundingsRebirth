@@ -30,6 +30,7 @@ import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.config.libraries.ITagLibrary;
+import org.orecruncher.dsurround.processing.weather.PrecipitationRenderer;
 import org.orecruncher.dsurround.mixinutils.IBiomeExtended;
 import org.orecruncher.dsurround.tags.BiomeTags;
 
@@ -75,6 +76,22 @@ public class WeatherStormHandler extends AbstractClientHandler {
     private static final ResourceLocation DUST_TORRENTIAL = ResourceLocation.fromNamespaceAndPath(MOD_ID, "textures/environment/dust_torrential.png");
 
 
+    /**
+     * Where the horizon tint samples the biome fog colour. Centre plus a small
+     * ring.
+     *
+     * <p>Reading <b>one</b> point was the border flicker. Standing on a biome
+     * boundary the sampled biome alternates between the two, so the eased
+     * colour spends all its time chasing a target that keeps changing and never
+     * settles - which is exactly what "it flickers, and the colour matches
+     * neither side" looks like. Averaging over a ring makes the target a stable
+     * blend at the boundary instead of an alternating one, so the easing has
+     * something fixed to converge on.</p>
+     */
+    private static final float[][] FOG_SAMPLES = {
+            { 0F, 0F }, { 12F, 0F }, { -12F, 0F }, { 0F, 12F }, { 0F, -12F }
+    };
+
     // Fade rates per tick: 0.1 -> ~0.5s fade-in, 0.04 -> ~1.2s fade-out (retreat is
     // deliberately slower so a stopping storm does not pop).
     private static final float TINT_FADE_IN = 0.10F;
@@ -85,10 +102,56 @@ public class WeatherStormHandler extends AbstractClientHandler {
     private static final int VEIL_RANGE = 10;
 
     private final Scanners scanners;
+    /**
+     * How desert-y it is where the player is, eased.
+     *
+     * <p>The sandstorm used to be switched by a boolean tag test, so crossing a
+     * desert boundary stepped the veil target from zero to full - and the veil
+     * is dust-coloured, which is why the flash matched neither neighbouring
+     * biome's sky. Easing the presence costs one lerp and turns the step into a
+     * fade.</p>
+     */
+    private float desertWeight = 0F;
+
     private float netherTint = 0F;
     private float fullscreenTint = 0F;
     // Rain veil state, updated per tick and consumed by the world renderer.
     private ResourceLocation veilTexture = DUST_CALM;
+    // 1.12.2 StormRenderer: a 32x32 table of per-column half-widths. Each entry is
+    // the unit vector perpendicular to the player->column radius, scaled to 0.5, so
+    // every column's quad is a sheet lying across the radius - the columns together
+    // read as slanted curtains sweeping around the player instead of axis-aligned
+    // rectangles. Indexed by (gridZ - playerZ + 16) * 32 + (gridX - playerX + 16).
+    // Ported from 1.12.2 RAIN_X_COORDS / RAIN_Y_COORDS (StormRenderer static init);
+    // the centre column is 0/0 there and would be NaN, so it falls back to a fixed
+    // half-width to keep the column under the player visible.
+    // Half-width of each column's strip, in blocks. 1.12.2 uses 0.5, which makes
+    // neighbouring strips exactly touch with zero overlap - under the radial layout
+    // that reads as a set of separate sheets rather than one curtain. Widened so
+    // adjacent strips overlap roughly 80%. This is the density knob: raise it for a
+    // thicker / more opaque curtain, lower it for a thinner one.
+    private static final float VEIL_STRIP_HALF_WIDTH = 0.9F;
+    private static final float[] RAIN_X_COORDS = new float[1024];
+    private static final float[] RAIN_Y_COORDS = new float[1024];
+
+    static {
+        for (int i = 0; i < 32; ++i) {
+            for (int j = 0; j < 32; ++j) {
+                final float dx = j - 16F;
+                final float dz = i - 16F;
+                final float r = (float) Math.sqrt(dx * dx + dz * dz);
+                final int idx = i << 5 | j;
+                if (r < 0.0001F) {
+                    RAIN_X_COORDS[idx] = VEIL_STRIP_HALF_WIDTH;
+                    RAIN_Y_COORDS[idx] = 0.0F;
+                } else {
+                    RAIN_X_COORDS[idx] = -dz / r * VEIL_STRIP_HALF_WIDTH;
+                    RAIN_Y_COORDS[idx] = dx / r * VEIL_STRIP_HALF_WIDTH;
+                }
+            }
+        }
+    }
+
     private final java.util.Random columnRandom = new java.util.Random();
     private final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
     // Per-column veil cache: biome match + surface height, plus the packed light at
@@ -102,6 +165,64 @@ public class WeatherStormHandler extends AbstractClientHandler {
     // Dimension the cache was built for - crossing dimensions invalidates it
     // immediately (the same column coordinates exist in every dimension).
     private net.minecraft.resources.ResourceKey<Level> cacheDimension;
+    /**
+     * Strongest fullscreen dust wash, reached at dust intensity 1. The old value
+     * was a flat 0.7 for every storm that ever blew; grading had to start by
+     * admitting that number was a ceiling, not a setting.
+     */
+    private static final float DUST_VEIL_MAX = 0.70F;
+    /**
+     * Hard ceiling on the <em>fullscreen</em> dust wash, and the answer to
+     * "at full strength you cannot see anything".
+     *
+     * <p>The veil is two layers - this flat wash plus the 3D sheets - and the
+     * sheets overlap along any line of sight, so the occlusion that actually
+     * reaches the eye is far more than either layer's alpha suggests. Without
+     * an explicit ceiling the top of the range simply buried the world, and
+     * with it the rain: the whole point of grading is that you can still see
+     * what the storm is doing. These two constants are the visibility knobs.</p>
+     */
+    private static final float DUST_VEIL_FULLSCREEN_MAX = 0.34F;
+    /** As {@link #DUST_VEIL_FULLSCREEN_MAX}, for one 3D dust sheet. */
+    private static final float DUST_VEIL_SHEET_MAX = 0.32F;
+    /**
+     * Shape of the veil's response to dust intensity. Below 1 on purpose: a weak
+     * event still has to be visible as haze, which a linear or convex curve at
+     * these magnitudes barely manages.
+     */
+    private static final float DUST_VEIL_GAMMA = 0.55F;
+    /**
+     * How far a full dust storm pushes the horizon colour towards the dust
+     * colour. Kept below 1 so a sandstorm never fully replaces the sky - it is
+     * air full of dust, not a tan skybox.
+     */
+    private static final float DUST_SKY_TINT = 0.85F;
+    /**
+     * Below this the veil stops thinning out. Same floor the rain uses: past a
+     * point turning the intensity down must not turn the dust off.
+     */
+    private static final float VEIL_MIN_DENSITY = 0.12F;
+    /** Band a sheet of dust fades in over, so it appears rather than pops. */
+    private static final float VEIL_FADE_BAND = 0.14F;
+    /**
+     * Sheet half-width at zero and at full strength, as a multiple of the 1.12.2
+     * cross-section table. Dust has to close up into a wall at full strength; a
+     * weak event leaves gaps between the sheets, which is the point.
+     */
+    private static final float VEIL_WIDTH_MIN = 0.55F;
+    private static final float VEIL_WIDTH_RANGE = 0.65F;
+    /**
+     * Lateral drift rate at zero and at full strength - <em>this is the dust
+     * counterpart of the rain's fall speed</em>. Rain grades how fast a streak
+     * drops; dust is blown sideways, so it grades how fast a sheet travels.
+     * The pair is chosen so that the middle of the range lands near the old
+     * fixed 0.2: a middling storm still looks like it used to and only the two
+     * ends move.
+     */
+    private static final float DUST_DRIFT_MIN = 0.05F;
+    private static final float DUST_DRIFT_RANGE = 0.35F;
+
+
     private float veilR = 0.85F;
     private float veilG = 0.7F;
     private float veilB = 0.4F;
@@ -113,6 +234,12 @@ public class WeatherStormHandler extends AbstractClientHandler {
     private static final net.minecraft.sounds.SoundEvent DUST_HIT_SOUND = net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
             ResourceLocation.fromNamespaceAndPath(MOD_ID, "dust"));
     private final java.util.Random dustRandom = new java.util.Random();
+    // 1.12.2 StormSplashRenderer wobbles the impact volume with a slow simplex noise
+    // term so successive impacts drift instead of jumping independently. Same
+    // algorithm as 1.12.2's NoiseGeneratorSimplex; seeded constant so the wobble is
+    // reproducible across sessions.
+    private static final net.minecraft.world.level.levelgen.synth.SimplexNoise DUST_VOLUME_NOISE =
+            new net.minecraft.world.level.levelgen.synth.SimplexNoise(net.minecraft.util.RandomSource.create(0L));
     private int rainSoundCounter = 0;
 
     // Nether dust veil colors: each column picks a random red / black / red-brown
@@ -137,6 +264,8 @@ public class WeatherStormHandler extends AbstractClientHandler {
         NeoForge.EVENT_BUS.addListener(this::onAfterWeather);
     }
 
+    private boolean veilBroken = false;
+
     @Override
     public void onConnect() {
         this.netherTint = 0F;
@@ -150,6 +279,14 @@ public class WeatherStormHandler extends AbstractClientHandler {
         this.netherTint = 0F;
         this.fullscreenTint = 0F;
         this.horizonWeight = 0F;
+        // Per-world state: caches keyed by dimension + game time, session flags,
+        // and the precipitation statics. Without this, weather from one world
+        // bleeds into the next (and a stale TTL freezes the column cache).
+        org.orecruncher.dsurround.processing.PrecipitationIntensity.onWorldLeft();
+        org.orecruncher.dsurround.processing.weather.PrecipitationRenderer.onWorldLeft();
+        this.columnCache.clear();
+        this.lightCache.clear();
+        this.veilBroken = false;
     }
 
     @Override
@@ -159,8 +296,15 @@ public class WeatherStormHandler extends AbstractClientHandler {
             return;
 
         var biome = level.getBiome(player.blockPosition()).value();
+        // Feed the player's biome to the precipitation profile matcher. This only
+        // resolves and reports for now - it does not change intensity yet - but it
+        // gives the biome-driven grading (N2/N3) a resolved profile to build on and
+        // makes the matcher observable: one log line per biome crossing.
+        PrecipitationIntensity.update(this.logger, clientLevel,
+                this.scanners.playerLogicBiomeInfo(), player.blockPosition());
         boolean nether = level.dimension() == Level.NETHER;
         boolean desert = TAG_LIBRARY.is(BiomeTags.IS_DESERT, biome) || TAG_LIBRARY.is(BiomeTags.IS_BADLANDS, biome);
+        this.desertWeight = fade(this.desertWeight, desert ? 1F : 0F);
         // The nether has no sky so its own Level.isRaining() is always false. The server
         // pushes the overworld's rain state via WeatherPayload (WeatherSyncState cache);
         // without DS on the server the cache stays false and the nether dust stays off.
@@ -168,7 +312,11 @@ public class WeatherStormHandler extends AbstractClientHandler {
         if (nether) {
             raining = org.orecruncher.dsurround.network.WeatherSyncState.isRaining();
         } else {
-            raining = level.isRaining();
+            // A diagnostics lock is by definition used when the world is not
+            // raining, so honour it here too - otherwise /dsprecip lock in a
+            // desert shows the rain curtains and no sandstorm at all.
+            raining = level.isRaining() || org.orecruncher.dsurround.processing.
+                    PrecipitationIntensity.forced() >= 0F;
         }
 
         float netherTarget = 0F;
@@ -199,7 +347,13 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 if (raining) {
                     // Sandstorm: the dust veil fades in and a stream of ambient dust
                     // particles blows with the wind. The horizon tint (fog color) stays.
-                    fullscreenTarget = 0.7F;
+                    // Graded. This used to be a flat 0.7 for every storm, which
+                    // is why two sandstorms at the same strength looked alike.
+                    // The veil is how hard the storm is blowing - see
+                    // PrecipitationIntensity.dustIntensity().
+                    fullscreenTarget = DUST_VEIL_MAX
+                            * (float) Math.pow(PrecipitationIntensity.dustIntensity(),
+                                    DUST_VEIL_GAMMA) * this.desertWeight;
                     this.veilTexture = dustTexture(clientLevel);
                     this.veilR = r;
                     this.veilG = g;
@@ -217,7 +371,8 @@ public class WeatherStormHandler extends AbstractClientHandler {
 
         this.netherTint = fade(this.netherTint, netherTarget);
         this.fullscreenTint = fade(this.fullscreenTint, fullscreenTarget);
-        updateHorizonTint(biome, this.config.weatherOptions.enableBiomeFogColor);
+        updateHorizonTint(clientLevel, player.blockPosition(),
+                this.config.weatherOptions.enableBiomeFogColor);
 
         float dustIntensity = Math.max(this.netherTint, this.fullscreenTint);
         // 1.12.2 StormSplashRenderer accumulating throttle: fires ~once every 3 ticks
@@ -230,13 +385,20 @@ public class WeatherStormHandler extends AbstractClientHandler {
 
     private void playDustImpactSound(Player player, float tint) {
         var level = player.level();
-        int range = VEIL_RANGE;
+        int range = net.minecraft.client.Minecraft.useFancyGraphics() ? 10 : 5;
         int rx = player.blockPosition().getX() + this.dustRandom.nextInt(range * 2 + 1) - range;
         int rz = player.blockPosition().getZ() + this.dustRandom.nextInt(range * 2 + 1) - range;
         int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, rx, rz);
         // Low volume so the 2s rumble reads as a soft low wind, not a drill.
-        // 1.12.2 calculateRainSoundVolume: 0.05 + 0.95 * intensity (clamped 0..1).
-        float volume = Math.min(1F, 0.05F + 0.95F * tint);
+        // 1.12.2 ServerDrivenTracker.getCurrentVolume(): 0.05 + 0.95 * intensityLevel.
+        // 1.12.2 StormSplashRenderer.calculateRainSoundVolume() then wobbles that base
+        // by +/-25% with a slow simplex term (one cycle roughly every 5s).
+        final float baseVolume = Math.min(1F, 0.05F + 0.95F * tint);
+        final float bounds = baseVolume * 0.25F;
+        final float adjust = Mth.clamp(
+                (float) (DUST_VOLUME_NOISE.getValue((level.getGameTime() % 24000L) / 100.0, 1.0) / 5.0D),
+                -bounds, bounds);
+        float volume = Mth.clamp(baseVolume + adjust, 0F, 1F);
         float pitch = 0.9F + (this.dustRandom.nextFloat() - this.dustRandom.nextFloat()) * 0.1F;
         level.playLocalSound(rx + 0.5D, surface + 0.5D, rz + 0.5D, DUST_HIT_SOUND,
                 net.minecraft.sounds.SoundSource.WEATHER, volume, pitch, false);
@@ -260,22 +422,42 @@ public class WeatherStormHandler extends AbstractClientHandler {
      * configured fogColor, toward 0 otherwise; the color eases toward the configured
      * fog color so crossing between biomes does not pop.
      */
-    private void updateHorizonTint(net.minecraft.world.level.biome.Biome biome, boolean enabled) {
+    private void updateHorizonTint(ClientLevel level, net.minecraft.core.BlockPos pos,
+                                   boolean enabled) {
+        // The target is the AVERAGE of the configured fog colour over a small
+        // ring, not the colour of the one biome under the player's feet. See
+        // FOG_SAMPLES: a single sample alternates across a border and the ease
+        // below then spends forever chasing it.
+        float tr = 0F;
+        float tg = 0F;
+        float tb = 0F;
+        int hits = 0;
         if (enabled) {
-            var info = ((IBiomeExtended) (Object) biome).dsurround_getInfo();
-            if (info != null) {
+            for (final float[] sample : FOG_SAMPLES) {
+                this.cursor.set(pos.getX() + (int) sample[0], pos.getY(),
+                        pos.getZ() + (int) sample[1]);
+                var at = level.getBiome(this.cursor).value();
+                var info = ((IBiomeExtended) (Object) at).dsurround_getInfo();
+                if (info == null)
+                    continue;
                 var color = info.getFogColor();
-                if (color != null) {
-                    float tr = ((color.getValue() >> 16) & 0xFF) / 255F;
-                    float tg = ((color.getValue() >> 8) & 0xFF) / 255F;
-                    float tb = (color.getValue() & 0xFF) / 255F;
-                    this.horizonR += (tr - this.horizonR) * 0.1F;
-                    this.horizonG += (tg - this.horizonG) * 0.1F;
-                    this.horizonB += (tb - this.horizonB) * 0.1F;
-                    this.horizonWeight = Math.min(1F, this.horizonWeight + TINT_FADE_IN);
-                    return;
-                }
+                if (color == null)
+                    continue;
+                tr += ((color.getValue() >> 16) & 0xFF) / 255F;
+                tg += ((color.getValue() >> 8) & 0xFF) / 255F;
+                tb += (color.getValue() & 0xFF) / 255F;
+                hits++;
             }
+        }
+        if (hits > 0) {
+            tr /= hits;
+            tg /= hits;
+            tb /= hits;
+            this.horizonR += (tr - this.horizonR) * 0.1F;
+            this.horizonG += (tg - this.horizonG) * 0.1F;
+            this.horizonB += (tb - this.horizonB) * 0.1F;
+            this.horizonWeight = Math.min(1F, this.horizonWeight + TINT_FADE_IN);
+            return;
         }
         this.horizonWeight = Math.max(0F, this.horizonWeight - TINT_FADE_OUT);
     }
@@ -287,6 +469,24 @@ public class WeatherStormHandler extends AbstractClientHandler {
      * imposed, brightness stays vanilla.
      */
     private void onComputeFogColor(ViewportEvent.ComputeFogColor event) {
+        // Dust storm: an INCREMENT on the horizon tint below, never a
+        // replacement for it. Both are multiplicative (max channel normalised
+        // to 1) so they compose: the fixed biome filter keeps its hue and the
+        // dust pushes it further towards the colour of what is in the air.
+        //
+        // It runs before the horizonWeight bail-out on purpose - where no biome
+        // fog colour is configured there is still dust to show, and a sandstorm
+        // is weather, not a biome property.
+        final float dust = PrecipitationIntensity.dustIntensity();
+        if (dust > 0.01F) {
+            final float dMax = Math.max(this.veilR, Math.max(this.veilG, this.veilB));
+            if (dMax > 0.001F) {
+                final float w = dust * DUST_SKY_TINT;
+                event.setRed(lerp(event.getRed(), event.getRed() * (this.veilR / dMax), w));
+                event.setGreen(lerp(event.getGreen(), event.getGreen() * (this.veilG / dMax), w));
+                event.setBlue(lerp(event.getBlue(), event.getBlue() * (this.veilB / dMax), w));
+            }
+        }
         if (this.horizonWeight <= 0.01F)
             return;
         // Only the atmospheric (horizon) fog - not underwater/lava/powdered snow.
@@ -315,7 +515,18 @@ public class WeatherStormHandler extends AbstractClientHandler {
      * 1.12.2 Weather.Properties levels; thunderstorms push the intensity up a tier.
      */
     private static ResourceLocation dustTexture(ClientLevel level) {
-        float intensity = level.getRainLevel(1F) + (level.isThundering() ? 0.25F : 0F);
+        // Read through PrecipitationIntensity, not level.getRainLevel() directly: it is
+        // the single intensity choke point, so grading layers added later land here and
+        // nothing can turn this read into a feedback loop.
+        // The dust storm's own intensity, not the vanilla rain level.
+        //
+        // This used to read the vanilla rain level, which saturates five seconds
+        // into any weather - so every sandstorm hit DUST_TORRENTIAL and the eight
+        // graded strips were dead code. Thundering no longer bumps it either:
+        // that was compensating for the rain level being a step function, and
+        // the dust roll already knows whether the world is storming (sampleBase
+        // skews heavy when it is).
+        float intensity = PrecipitationIntensity.dustIntensity();
         if (intensity >= 1F) return DUST_TORRENTIAL;
         if (intensity >= 0.875F) return DUST_INTENSE;
         if (intensity >= 0.75F) return DUST_STRONG;
@@ -340,7 +551,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
         var mc = Minecraft.getInstance();
         final int width = mc.getWindow().getGuiScaledWidth();
         final int height = mc.getWindow().getGuiScaledHeight();
-        final int alpha = (int) (intensity * 255F * 0.7F);
+        final int alpha = (int) (Math.min(intensity * 0.6F, DUST_VEIL_FULLSCREEN_MAX) * 255F);
         if (alpha <= 0)
             return;
         // Desert haze is yellow-brown; the nether haze is a pale red-brown.
@@ -357,6 +568,25 @@ public class WeatherStormHandler extends AbstractClientHandler {
      * Tesselator route (1.20.1 lineage); 1.21.1 still ships RenderSystem/Tesselator.
      */
     private void onAfterWeather(RenderLevelStageEvent event) {
+        if (this.veilBroken)
+            return;
+        try {
+            this.renderVeil(event);
+        } catch (Throwable t) {
+            // One deterministic failure must not hit the event bus every frame -
+            // degrade to vanilla for the session, same philosophy as the
+            // precipitation renderer's broken flag.
+            this.veilBroken = true;
+            this.logger.error(t, "Sandstorm veil render failed - disabling until restart");
+            try {
+                Tesselator.getInstance().clear();
+            } catch (Throwable ignored) {
+                // buffer was not building; nothing to clean up
+            }
+        }
+    }
+
+    private void renderVeil(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_WEATHER)
             return;
 
@@ -374,11 +604,20 @@ public class WeatherStormHandler extends AbstractClientHandler {
         Vec3 cam = camera.getPosition();
         float partialTick = event.getPartialTick().getGameTimeDeltaPartialTick(false);
         int ticks = (int) level.getGameTime();
-        int range = VEIL_RANGE;
+        int range = net.minecraft.client.Minecraft.useFancyGraphics() ? 10 : 5;
         int playerX = Mth.floor(player.getX());
         int playerY = Mth.floor(player.getY());
         int playerZ = Mth.floor(player.getZ());
-        float veilAlpha = tint * 0.7F;
+        float veilAlpha = Math.min(tint * 0.6F, DUST_VEIL_SHEET_MAX);
+        // The veil's own shape channels. Driven by the tint rather than by the
+        // dust roll directly, because the nether's veil is a fixed-strength
+        // effect with no dust roll behind it - normalising against
+        // DUST_VEIL_MAX keeps it where it has always been instead of
+        // re-grading it into something else.
+        final float veilNow = Mth.clamp(tint / DUST_VEIL_MAX, 0F, 1F);
+        final float drift = DUST_DRIFT_MIN + DUST_DRIFT_RANGE * veilNow;
+        final float widthScale = VEIL_WIDTH_MIN + VEIL_WIDTH_RANGE * veilNow;
+        final float veilDensity = Math.max(veilNow, VEIL_MIN_DENSITY);
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -433,19 +672,48 @@ public class WeatherStormHandler extends AbstractClientHandler {
 
                 int seed = (gridZ << 16) ^ gridX;
                 this.columnRandom.setSeed(seed);
-                float rainX = this.columnRandom.nextFloat();
-                float rainY = this.columnRandom.nextFloat();
+                // Density channel one: which sheets of dust exist at all.
+                // The veil used to draw every column of the grid at any strength,
+                // so a faint haze was a uniform field turned down - it read as
+                // "the world got dimmer", not "there is dust blowing". Same
+                // stratified rank the rain uses: a per-column coin flip clumps,
+                // and the survivor set has to be world-anchored or the field
+                // shimmers as the player walks.
+                final float columnFade = (veilDensity
+                        - PrecipitationRenderer.columnRank(gridX, gridZ)) / VEIL_FADE_BAND;
+                if (columnFade <= 0F)
+                    continue;
+                final float columnAlpha = columnFade > 1F ? 1F : columnFade;
+                // 1.12.2 radial sheet: the cross-section is perpendicular to the
+                // player->column radius, so the columns sweep around the player. This
+                // replaces two nextFloat() draws - which also restores the 1.12.2 random
+                // sequence (setSeed -> nextDouble -> nextGaussian), so the per-column UV
+                // shear and nether dust colours now match 1.12.2 exactly.
+                final int coordIdx = (gridZ - playerZ + 16) * 32 + gridX - playerX + 16;
+                // Density channel two: how wide each sheet is.
+                float rainX = RAIN_X_COORDS[coordIdx] * widthScale;
+                float rainY = RAIN_Y_COORDS[coordIdx] * widthScale;
                 // 1.12.2 StormRenderer dust curtain (line 219-263): a SLOW scroll (512-tick
                 // loop, vs rain's 32) plus per-column UV shear - each column drifts sideways
                 // at its own gaussian rate, which reads as multi-angle particle curtains.
+                // Animation clock. 1.12.2 feeds this from EntityRenderer.rendererUpdateCount,
+                // which is incremented in EntityRenderer.updateRenderer() - called from
+                // Minecraft.runTick(), i.e. once per game tick: the same 20 Hz rate as
+                // level.getGameTime(). So the scroll speed already matches 1.12.2. It is
+                // evaluated as a double because these offsets grow without bound and, as
+                // float, quantize (then freeze) once the accumulated offset passes ~1e6.
+                final double animClock = (double) ticks + partialTick;
                 double d8 = ((ticks & 511) + partialTick) / 512.0;
-                double d9 = this.columnRandom.nextDouble() + (ticks + partialTick) * 0.2F * this.columnRandom.nextGaussian();
-                double d10 = this.columnRandom.nextDouble() + (ticks + partialTick) * this.columnRandom.nextGaussian() * 0.001D;
+                // Lateral drift, graded: the dust counterpart of the rain's fall speed.
+                // The 0.2F here used to be a constant, so every sandstorm blew at the
+                // same rate however hard it was actually blowing.
+                double d9 = this.columnRandom.nextDouble() + animClock * drift * this.columnRandom.nextGaussian();
+                double d10 = this.columnRandom.nextDouble() + animClock * this.columnRandom.nextGaussian() * 0.001D;
 
                 double d6 = gridX + 0.5 - player.getX();
                 double d7 = gridZ + 0.5 - player.getZ();
                 float f3 = Mth.sqrt((float) (d6 * d6 + d7 * d7)) / range;
-                int alpha = (int) (((1.0F - f3 * f3) * 0.3F + 0.5F) * veilAlpha * 255F);
+                int alpha = (int) (((1.0F - f3 * f3) * 0.3F + 0.5F) * veilAlpha * columnAlpha * 255F);
                 long lightKey = BlockPos.asLong(gridX, k2, gridZ);
                 long lightVal;
                 if (this.lightCache.containsKey(lightKey)) {

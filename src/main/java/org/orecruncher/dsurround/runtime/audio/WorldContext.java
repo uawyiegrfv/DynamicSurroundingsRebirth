@@ -65,8 +65,16 @@ public final class WorldContext {
             else
                 this.auralDampening = 0;
 
-            // Get our current rain strength.
-            this.precipitationStrength = this.world.getRainLevel(1F);
+            // Rain sound follows our intensity curve while we own the precipitation,
+            // for the same reason the fog does: vanilla's rain level saturates in ~5s
+            // regardless of how hard it is actually raining, so the sound used to be
+            // at full volume long before the rain had built to anything. AUDIO is
+            // deliberately the fastest-responding channel - lag here is heard as the
+            // sound being out of sync with the picture.
+            this.precipitationStrength =
+                    org.orecruncher.dsurround.processing.PrecipitationIntensity.ownsAmbient()
+                            ? org.orecruncher.dsurround.processing.weather.PrecipitationResponse.AUDIO.value()
+                            : this.world.getRainLevel(1F);
             this.mc = GameUtils.getMC();
         } else {
             this.mc = null;

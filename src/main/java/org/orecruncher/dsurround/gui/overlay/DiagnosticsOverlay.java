@@ -27,7 +27,10 @@ import java.util.Map;
 public class DiagnosticsOverlay extends AbstractOverlay {
 
     private static final int BACKGROUND_COLOR = 0x90505050;     // Very dark gray with alpha
-    private static final int FOREGROUND_COLOR = 0x00E0E0E0;     // Very light gray
+    // Was 0x00E0E0E0. alpha 0x00 means fully transparent: the old drawString
+    // ignored it, but 26.1's text(...) honours it, so on 26.1 the panel drew
+    // its background and no glyphs at all.
+    private static final int FOREGROUND_COLOR = 0xFFE0E0E0;     // Very light gray
 
     private static final Style SPECIAL_MOD_STYLE = Style.EMPTY.withColor(ColorPalette.BRASS).withItalic(true);
     private static final Map<CollectDiagnosticsEvent.Section, TextColor> COLOR_MAP = new EnumMap<>(CollectDiagnosticsEvent.Section.class);

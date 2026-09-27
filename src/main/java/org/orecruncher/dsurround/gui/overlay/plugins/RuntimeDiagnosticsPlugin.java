@@ -53,6 +53,16 @@ public class RuntimeDiagnosticsPlugin implements IDiagnosticPlugin {
             var musicManager = ((IMusicManager)(GameUtils.getMC().getMusicManager())).dsurround_getDiagnosticText();
             event.add(CollectDiagnosticsEvent.Section.Systems, musicManager);
 
+            // Compact line first: it is the one to watch while it is actually
+            // raining. The exhaustive one follows it for when something is wrong.
+            event.add(CollectDiagnosticsEvent.Section.Systems,
+                    org.orecruncher.dsurround.processing.PrecipitationIntensity.compactText());
+
+            // The exhaustive text is one " | "-joined string and does not fit on
+            // a single row, so it goes out one segment per row.
+            for (String line : org.orecruncher.dsurround.processing.PrecipitationIntensity.diagnosticLines())
+                event.add(CollectDiagnosticsEvent.Section.Systems, line);
+
             for (String script : scripts) {
                 Object result = this.conditionEvaluator.eval(new Script(script));
                 event.add(CollectDiagnosticsEvent.Section.Environment, result.toString());

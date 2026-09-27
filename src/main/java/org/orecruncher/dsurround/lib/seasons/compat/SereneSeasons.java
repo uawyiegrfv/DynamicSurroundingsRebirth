@@ -60,6 +60,20 @@ public class SereneSeasons extends AbstractSeasonProvider {
         return Optional.of(this.computed);
     }
 
+    @Override
+    public boolean usesTropicalSeasons() {
+        return true;
+    }
+
+    @Override
+    public boolean isTropicalWet() {
+        // Enum names are EARLY_DRY/MID_DRY/LATE_DRY/EARLY_WET/MID_WET/LATE_WET. Matching
+        // on the name keeps this working across the reflective boundary, where the enum
+        // type itself is not visible at compile time in this version.
+        var trop = invoke(seasonState(), "getTropicalSeason");
+        return trop.toString().contains("WET");
+    }
+
     public boolean isSpring() {
         return isSeason("SPRING");
     }

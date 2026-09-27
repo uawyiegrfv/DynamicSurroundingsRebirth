@@ -131,4 +131,28 @@ public interface ISeasonalInformation {
     default ClientLevel level() {
         return GameUtils.getWorld().orElseThrow();
     }
+
+    /**
+     * Whether this provider reports a tropical wet/dry season at all. Serene
+     * Seasons does; vanilla never does.
+     *
+     * <p>Note this is deliberately <em>not</em> per-biome. Whether a given biome
+     * actually follows the tropical cycle is Serene Seasons' own decision (it
+     * checks its {@code tropical_biomes} tag inside
+     * {@code SeasonHooks.hasPrecipitationSeasonal}), and that answer already
+     * reaches us through {@link #getActivePrecipitation}. All we need from here
+     * is the state of the tropical cycle, so that a tropical biome - which our
+     * profile matcher puts in ARID or TROPICAL - can pick the wet or dry column.
+     */
+    default boolean usesTropicalSeasons() {
+        return false;
+    }
+
+    /**
+     * True when the current tropical season is the wet one. Only meaningful when
+     * {@link #usesTropicalSeasons()} is true.
+     */
+    default boolean isTropicalWet() {
+        return false;
+    }
 }

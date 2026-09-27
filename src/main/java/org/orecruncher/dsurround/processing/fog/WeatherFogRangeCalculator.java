@@ -29,7 +29,28 @@ public class WeatherFogRangeCalculator extends VanillaFogRangeCalculator {
     @Override
     @NotNull
     public FogData render(@NotNull final FogData data, float renderDistance, float partialTick) {
-        float rainStr = GameUtils.getWorld().map(w -> w.getRainLevel(partialTick)).orElseThrow();
+        // While we own the precipitation, fog follows OUR intensity curve rather than
+        // the vanilla rain level. Vanilla's level is a 5s ramp that hits 1.0 whether
+        // the storm is a drizzle or a downpour, which is why fog used to snap in at
+        // full thickness the instant rain started and then sit there while the rain
+        // itself was still building. The FOG response is early-rising and saturates
+        // below the top end: humidity is the first thing you notice, and past a point
+        // more rain does not mean more haze.
+        // rainfall and it is the same number whether the storm is a drizzle or a
+        // downpour, which is why fog used to snap in at full thickness the instant
+        // rain started and then sit there while the rain itself was still building.
+        //
+        // The branch is the dangerous part and it is now the only branch in the
+        // chain. Fog used to pick between two sources on a question the render
+        // thread and the tick could answer differently, so at the start of a storm
+        // it followed vanilla's ramp up, then dropped onto our curve the moment the
+        // tick caught up - the fog visibly tightened and released before settling.
+        // ownsAmbient() answers the same question from the level itself and holds
+        // the answer until every channel has finished, so the two sources now agree
+        // at the instant of the handover: both are zero, coming and going.
+        float rainStr = org.orecruncher.dsurround.processing.PrecipitationIntensity.ownsAmbient()
+                ? org.orecruncher.dsurround.processing.weather.PrecipitationResponse.FOG_DIST.value()
+                : GameUtils.getWorld().map(w -> w.getRainLevel(partialTick)).orElseThrow();
         if (rainStr > 0) {
 
             // Blend both planes from the clear-sky (vanilla) range at rainStr=0 to the

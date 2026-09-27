@@ -58,6 +58,10 @@ public final class DSurround {
         modBus.addListener((net.minecraftforge.client.event.RegisterKeyMappingsEvent e) -> org.orecruncher.dsurround.gui.keyboard.KeyBindings.register(e));
         // Custom aurora shader programs (ShaderInstance) registered during resource reload.
         modBus.addListener(AuroraRenderPipelines::onRegisterShaders);
+        // Graded rain/snow: installs the overworld effects object that suppresses the
+        // vanilla rain pass, and registers the stage listener that draws ours.
+        modBus.addListener(org.orecruncher.dsurround.processing.weather.PrecipitationRenderer::onRegisterDimensionEffects);
+        org.orecruncher.dsurround.processing.weather.PrecipitationRenderer.bootstrap();
 
         // Cloth Config configuration screen
         if (ModList.get().isLoaded(Constants.CLOTH_CONFIG_NEOFORGE)) {

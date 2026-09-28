@@ -2953,5 +2953,89 @@
       "dsurround:ambient/insects/gnatt1"
     ],
     "subtitle": "dsurround.sound.caption.biome.gnatt"
+  },
+  "biome.wind.plains": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/wind_plains",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.leaf1": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/rain_leaf1",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.leaf2": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/rain_leaf2",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.wind1": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/rain_wind1",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.wind2": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/rain_wind2",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.wind3": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/rain_wind3",
+        "stream": true
+      }
+    ]
   }
 }

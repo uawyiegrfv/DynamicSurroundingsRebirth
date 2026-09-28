@@ -1437,6 +1437,15 @@ public final class PrecipitationIntensity {
      *
      * @return shaped intensity in [0, 1]
      */
+    /**
+     * The gust amplitude the current event rolled (profile response curve x
+     * gustiness). Encodes "convective showers gust, drizzle is steady" - the
+     * rain wind layer paces its leaf gusts with it.
+     */
+    public static float gustAmplitude() {
+        return gustAmplitude;
+    }
+
     public static float ambient() {
         return ambient;
     }

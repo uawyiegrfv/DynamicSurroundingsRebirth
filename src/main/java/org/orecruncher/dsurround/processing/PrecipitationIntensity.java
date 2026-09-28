@@ -13,6 +13,7 @@ import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 import org.orecruncher.dsurround.processing.weather.PrecipitationSeason;
 
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * <p>The single source of truth for "how hard is it precipitating right now".</p>
@@ -892,14 +893,23 @@ public final class PrecipitationIntensity {
      * stack is thin - two or three voices in a drizzle - that is a drizzle that
      * briefly becomes a downpour. So the mix is dithered instead of drawn: the
      * blend is accumulated and one heavy drop is emitted each time the running
-     * total crosses one. Heavy drops then arrive evenly spaced at precisely the
-     * rate that was asked for, which is the difference between an intensity
-     * change sounding like the weather filling in and sounding like a switch.</p>
+     * total crosses one. Heavy drops then arrive at the rate that was asked for
+     * instead of in clumps - roughly spaced, never three in a row - which is
+     * the difference between an intensity change sounding like the weather
+     * filling in and sounding like a switch.</p>
      */
     public static boolean nextRainAudioHeavy() {
         if (!ownsAmbient())
             return true;
-        rainTexturePhase += rainAudioCalmBlend();
+        // Jittered, and the jitter averages to exactly 1. A bare accumulator
+        // with a steady blend emits on precisely every Nth one-shot, and at
+        // vanilla's offer rate that is a heavy drop several times a second on a
+        // fixed beat - a rhythm, not a texture, and one that only shows up
+        // because the blend sits still between intensity changes. Scaling the
+        // step by a mean-1 random leaves the long-run mix equal to the blend
+        // (Wald's identity: mean step / 1 = emissions per one-shot) while the
+        // spacing stops being regular.
+        rainTexturePhase += rainAudioCalmBlend() * 2F * ThreadLocalRandom.current().nextFloat();
         if (rainTexturePhase >= 1F) {
             rainTexturePhase -= 1F;
             return true;

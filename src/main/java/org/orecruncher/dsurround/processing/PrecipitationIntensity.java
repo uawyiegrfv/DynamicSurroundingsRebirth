@@ -505,14 +505,14 @@ public final class PrecipitationIntensity {
     }
 
     /**
-     * How many times the sky mixin has been consulted. Stays 0 when the injection
-     * did not land - a renamed {@code renderSky}, or a rewritten render pipeline -
-     * which is the only way to tell "the sky is following our curve" apart from
-     * "we think it is". Counted even when we hand vanilla's value straight back.
+     * How many times the sky brightness route has been consulted. Stays 0 when the
+     * injection did not land - a renamed {@code renderSky}, or a rewritten render
+     * pipeline - which is the only way to tell "the sky is following our curve"
+     * apart from "we think it is". Incremented at the top of
+     * {@link #sunAlphaRainLevel}, before the ownership check, so it counts every
+     * consultation including the ones that hand vanilla's value straight back.
      */
     private static volatile int skyHooks = 0;
-    /** As {@link #skyHooks}, for {@code renderClouds}. */
-    private static volatile int cloudHooks = 0;
     /** As {@link #skyHooks}, for the sky *colour* mixin. */
     private static volatile int skyColorHooks = 0;
     /** As {@link #skyHooks}, for the cloud *colour* mixin. */
@@ -708,6 +708,10 @@ public final class PrecipitationIntensity {
      * which is what {@code SUN} models.</p>
      */
     public static float sunAlphaRainLevel(Level level, float partialTick) {
+        // Counted before the ownership check, exactly like the colour routes: the
+        // question is whether this version's sky route runs at all, not whether we
+        // happened to own the frame.
+        skyHooks++;
         if (!ownsAmbient())
             return level.getRainLevel(partialTick);
         return PrecipitationResponse.SUN.value();
@@ -825,13 +829,44 @@ public final class PrecipitationIntensity {
     }
 
     /**
+     * The {@code AUDIO} channel value at which the rain should sound exactly as
+     * loud as vanilla's rain: {@code 0.625 ^ 0.85 = 0.6704}, i.e. 1.12.2's
+     * {@code heavy} tier.
+     *
+     * <p>Vanilla's rain sound is calibrated for "a rainstorm" and plays at that
+     * level whenever it rains at all - it has no grading. Our curve used to reach
+     * vanilla parity only at {@code intensity == 1.0}, so everything below
+     * torrential came out quieter than the vanilla rain the player is used to
+     * (measured: -4.5 dB at heavy). Anchoring parity at the {@code heavy} tier
+     * instead says what it should say: heavy and above are all "a real
+     * rainstorm", and only the tiers below it are quieter.</p>
+     */
+    private static final float RAIN_AUDIO_PARITY = 0.6704F;
+
+    /**
+     * How far above vanilla the very top of the curve goes, 0 = no headroom.
+     * A torrential downpour should read as <em>more</em> than vanilla's single
+     * rainstorm level, not merely equal to it: +35% is about +2.6 dB.
+     */
+    private static final float RAIN_AUDIO_HEADROOM = 0.35F;
+
+    /**
      * Multiplier on vanilla's hard-coded 0.1 / 0.2 rain volumes.
      *
-     * <p>The first term is the level curve (1.12.2's {@code 0.05 + 0.95 * x};
-     * the floor keeps a drizzle audible instead of fading to nothing). The second
-     * pays back the loudness lost by thinning the stack, so the two knobs move
-     * independently: at full density the compensation is exactly 1 and the volume
-     * is vanilla's own number, and it rises only as the stack thins out.</p>
+     * <p>Three terms. The first is the level curve (1.12.2's
+     * {@code 0.05 + 0.95 * x}; the floor keeps a drizzle audible instead of fading
+     * to nothing) evaluated on {@code x} normalized so parity lands at
+     * {@link #RAIN_AUDIO_PARITY} rather than at 1.0. The second is the headroom
+     * above that point. The third pays back the loudness lost by thinning the
+     * stack, so the knobs move independently: at full density the compensation is
+     * exactly 1 and the volume is vanilla's own number, and it rises only as the
+     * stack thins out.</p>
+     *
+     * <p>Normalizing the <em>channel</em> value rather than the raw intensity is
+     * deliberate. {@code AUDIO} is low-passed (rise 1s / fall 2.5s / release 4s)
+     * on purpose - see {@link #rainAudioCalmBlend} - so that the sound does not
+     * follow the per-frame gust noise in the geometry channels. Reading the raw
+     * intensity here would reintroduce that breathing into the loudness.</p>
      */
     public static float rainAudioVolumeScale() {
         if (!ownsAmbient())
@@ -839,7 +874,10 @@ public final class PrecipitationIntensity {
         final float level = PrecipitationResponse.AUDIO.value();
         final float overlap = Math.max(VANILLA_RAIN_OVERLAP * rainAudioDensity(), 0.5F);
         final float compensation = (float) Math.sqrt(VANILLA_RAIN_OVERLAP / overlap);
-        return (0.05F + 0.95F * level) * compensation;
+        final float normalised = Math.min(1F, level / RAIN_AUDIO_PARITY);
+        final float headroom = 1F + RAIN_AUDIO_HEADROOM
+                * Math.max(0F, (level - RAIN_AUDIO_PARITY) / (1F - RAIN_AUDIO_PARITY));
+        return (0.05F + 0.95F * normalised) * headroom * compensation;
     }
 
     /**
@@ -1077,11 +1115,6 @@ public final class PrecipitationIntensity {
     /** Diagnostics only: how many times the sky mixin has been consulted. */
     public static int skyHooks() {
         return skyHooks;
-    }
-
-    /** Diagnostics only: how many times the cloud mixin has been consulted. */
-    public static int cloudHooks() {
-        return cloudHooks;
     }
 
     /** Diagnostics only: how many times the sky colour mixin has been consulted. */
@@ -1636,15 +1669,19 @@ public final class PrecipitationIntensity {
                         clientLevel == null ? -1F : clientLevel.getRainLevel(1F),
                         lastRising,
                         eventActive)
-                // sky/cloud: how many times the mixins were consulted. If either
-                // stays 0 on a version, that injection did not land and the sky is
-                // still being driven by the vanilla rain level.
-                // Colour hooks last: sky / cloud / fog. These are the colour
-                // routes, separate from skyHook and cloudHook above which are the
-                // brightness routes. All three must climb while it is raining; a
-                // zero that stays zero means that version's colour is still vanilla.
-                + " | skyHook=%d cloudHook=%d color=%d/%d/%d storm=%d".formatted(
-                        skyHooks(), cloudHooks(),
+                // skyHook: how many times the sky brightness route was consulted.
+                // Counted inside sunAlphaRainLevel(), so it climbs whenever the
+                // route runs at all - which is exactly the question "did this
+                // version's sky injection land". A zero that stays zero means the
+                // sky is still vanilla's. (A cloud brightness counter used to sit
+                // next to it, but renderClouds has no getRainLevel call in any of
+                // our versions, so it could only ever read 0 - it was a diagnostic
+                // that always cried wolf, and has been removed.)
+                // Colour hooks: sky / cloud / fog. Separate routes from the
+                // brightness one. All three must climb while it is raining; a zero
+                // that stays zero means that version's colour is still vanilla.
+                + " | skyHook=%d color=%d/%d/%d storm=%d".formatted(
+                        skyHooks(),
                         skyColorHooks(), cloudColorHooks(), fogColorHooks(), stormHooks())
                 // rainAudio = played/offered on the rain sound pass: offered is
                 // vanilla asking (about seven times a second while it rains),

@@ -153,6 +153,42 @@
       }
     ]
   },
+  "biome.leaf_wind.calm": {
+    "subtitle": "dsurround.sound.caption.leaf_wind",
+    "ds_credits": [
+      {
+        "name": "Leaves rustle in the wind (88.0s-95.0s excerpt)",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/leaf_wind_calm",
+        "stream": true,
+        "volume": 0.9
+      }
+    ]
+  },
+  "biome.leaf_wind.strong": {
+    "subtitle": "dsurround.sound.caption.leaf_wind",
+    "ds_credits": [
+      {
+        "name": "Leaves rustle in the wind (42.0s-49.0s excerpt)",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/leaf_wind_strong",
+        "stream": true,
+        "volume": 0.9
+      }
+    ]
+  },
   "biome.deep_dark": {
     "subtitle": "dsurround.sound.caption.deep_dark",
     "ds_credits": [

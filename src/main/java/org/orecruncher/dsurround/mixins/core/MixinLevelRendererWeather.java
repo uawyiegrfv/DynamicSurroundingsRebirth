@@ -41,8 +41,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * and with {@code "required": true} plus {@code defaultRequire: 1} losing means
  * the client dies during startup. Failing to inject costs us the sky effect on
  * that version and nothing else, so we take that. If it ever happens, the
- * {@code skyHook} / {@code cloudHook} counters in the diagnostics stay at 0 and
- * say so out loud instead of leaving a silent regression.</p>
+ * {@code skyHook} counter in the diagnostics stays at 0 and says so out loud
+ * instead of leaving a silent regression.</p>
  *
  * <p>Also note two things that are load-bearing. The handlers are deliberately
  * <em>not</em> static: Mixin matches the handler's {@code static} modifier against

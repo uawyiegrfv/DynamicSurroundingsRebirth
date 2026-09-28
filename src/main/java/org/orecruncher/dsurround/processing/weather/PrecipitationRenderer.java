@@ -450,11 +450,20 @@ public final class PrecipitationRenderer {
             // counter reads "vanilla asked" rather than "we took it over". That is
             // the whole point - see the field comment on tickHooks.
             tickHooks++;
-            // Suppression follows active(): with the feature off, vanilla's
-            // ground splash particles and rain sounds come back; with it on,
-            // both stay suppressed (P5/N7 replace them). An unconditional false
-            // killed them even when disabled, breaking "off means vanilla".
-            return active();
+            // false means "vanilla, carry on". The bytecode says so and it is the
+            // opposite of what the name suggests: offset 19 jumps past the early
+            // return when the hook answers false, and 22 is that return - so true
+            // is what suppresses, false is what lets the method run.
+            //
+            // We want it to run. tickRain is where the splash positions and the
+            // rain sound come from, and both are graded from the inside by
+            // redirecting the rain level it reads and the one-shots it plays
+            // (MixinLevelRendererWeather) - which leaves the heightmap sampling,
+            // the RAIN phase gate that keeps snow silent, lava to SMOKE and the
+            // reduced-particle halving as vanilla's own, correct behaviour.
+            // Answering true would delete the splashes and the sound and leave
+            // nothing to grade, which is what "on" used to do.
+            return false;
         }
     }
 

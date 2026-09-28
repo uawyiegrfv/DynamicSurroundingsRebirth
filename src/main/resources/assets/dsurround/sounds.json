@@ -6,6 +6,15 @@
       "dsurround:ambient/weather/dust"
     ]
   },
+  "rain": {
+    "category": "weather",
+    "sounds": [
+      "dsurround:ambient/weather/rain_calm1",
+      "dsurround:ambient/weather/rain_calm2",
+      "dsurround:ambient/weather/rain_calm3",
+      "dsurround:ambient/weather/rain_calm4"
+    ]
+  },
   "thunder": {
     "subtitle": "dsurround.sound.caption.thunder",
     "ds_credits": [

@@ -30,6 +30,12 @@ whether LPs can be monetized on the various streaming services.
      <li>S: <a href="https://www.freesound.org/people/rayjensen/sounds/202749/">Soft, Chilled Crickets Field Recording</a> by <a href="https://www.freesound.org/people/rayjensen/">rayjensen</a> | License: Creative Commons 0</li>
 </ul>
 
+*dsurround:rain*
+
+<ul>
+     <li>S: rain_calm1-4.ogg, carried over from <a href="https://github.com/OreCruncher/DynamicSurroundings">Dynamic Surroundings 1.12.2</a> by OreCruncher | License: MIT (the licence of that project). No third-party credit is recorded for these clips in 1.12.2, and that project credits every sound it took from elsewhere, which is why they are treated as its own.</li>
+</ul>
+
 *dsurround:thunder*
 
 <ul>

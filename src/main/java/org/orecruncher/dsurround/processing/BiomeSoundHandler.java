@@ -48,9 +48,21 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     //   day   = 1 / (180s / 0.2s) = 1/900  ~ 0.0011
     //   night = 1 / (60s  / 0.2s) = 1/300  ~ 0.0033
     private static final Identifier LEAF_WIND = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.leaf_wind");
-    private static final Identifier LEAF_WIND_CALM = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.leaf_wind.calm");
-    private static final Identifier LEAF_WIND_STRONG = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.leaf_wind.strong");
-    private static final Identifier WIND_GENERIC = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.wind");
+    private static final Identifier WIND_GENERIC = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.wind.plains");
+    private static final Identifier[] RAIN_TEXTURE_WIND = {
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.wind1"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.wind2"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.wind3")};
+    private static final Identifier[] RAIN_TEXTURE_LEAF = {
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.leaf1"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.leaf2")};
+    /**
+     * Loudness lift for the rain wind bed. The assets are quiet field recordings
+     * (wind.ogg sits at -34.8 dB RMS); as one-shot acoustics that was fine, as a
+     * continuous bed it read as "barely there". All beds share this gain, and the
+     * per-asset trims keep their relative matching on top of it.
+     */
+    private static final float RAIN_WIND_BED_GAIN = 2.5F;
 
     // ---- rain wind layer (A-line) ------------------------------------------
     // Sunny behavior is untouched: everything below only runs while the graded
@@ -67,9 +79,6 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final float RAIN_LEAF_MIN_INTENSITY = 0.25F;
     private static final float RAIN_LEAF_INTERVAL_MAX_S = 16F;
     private static final float RAIN_LEAF_INTERVAL_MIN_S = 5F;
-    /** Tier boundaries for the three leaf assets. */
-    private static final float RAIN_LEAF_CALM_TO = 0.4F;
-    private static final float RAIN_LEAF_STRONG_FROM = 0.7F;
     /** Wind -> leaves causality: 0.2 s + up to 0.6 s of jitter, in ticks. */
     private static final long RAIN_LEAF_DELAY_TICKS = 4L;
     private static final long RAIN_LEAF_DELAY_JITTER = 12L;
@@ -79,6 +88,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private long rainLeafNextGustTick;
     private long rainLeafFireTick = -1L;
     private float rainLeafFireVol;
+    private boolean rainLeafFirePositioned;
     private ISoundFactory rainLeafFireFactory;
     private static final float LEAF_WIND_DAY_CHANCE = 0.0011F;
     private static final float LEAF_WIND_NIGHT_CHANCE = 0.0033F;
@@ -208,7 +218,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                     handleAddOnSounds(player, internalVillageBiomeInfo);
                 handleLeafWindGust(player);
                 handleRainWindBed(player);
-                handleRainLeafGust(player);
+                handleRainTexture(player);
                 handleSculkClick(player);
             }
         }
@@ -329,7 +339,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             var factory = ContainerManager.resolve(ISoundLibrary.class)
                     .getSoundFactoryOrDefault(wind);
             this.rainWindLoop = factory.createBackgroundSoundLoop();
-            this.rainWindLoop.setVolume(trim);
+            this.rainWindLoop.setVolume(trim * RAIN_WIND_BED_GAIN);
             this.rainWindAsset = wind;
             this.rainWindLoop.setScaleTarget(target);
             this.audioPlayer.play(this.rainWindLoop);
@@ -371,12 +381,15 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     }
 
     /**
-     * The rain leaf layer: the same three-source canopy surround as the sunny
-     * gust, tiered by intensity (calm / base / strong), paced by the intensity
-     * and by the event's rolled gust amplitude, and fired 0.2-0.8 s after the
-     * gust arrives - wind first, the leaves answer.
+     * The rain texture layer, riding on top of the wind bed. Wooded biomes get
+     * the leaf-dominant clips through the canopy surround (wind first, leaves
+     * answer 0.2-0.8 s later); everywhere else the wind-dominant clips are
+     * layered onto the bed unpositioned - the same wind, gusting differently.
+     * Both pools are intensity-paced and their clips are normalized ~8 dB over
+     * the bed reference, with the playback volume tracking the intensity so the
+     * layer stays just above the bed at every strength instead of jumping out.
      */
-    private void handleRainLeafGust(final Player player) {
+    private void handleRainTexture(final Player player) {
         if (!PrecipitationIntensity.grading() || !doBiomeSounds() || this.scanner.isInside()) {
             this.rainLeafFireTick = -1L;
             this.rainLeafNextGustTick = 0L;
@@ -385,25 +398,25 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         final long now = this.tickCount.getTickCount();
         if (this.rainLeafFireTick >= 0L) {
             if (now >= this.rainLeafFireTick) {
-                playLeafSurround(player, this.rainLeafFireFactory, this.rainLeafFireVol);
+                fireRainTexture(player);
                 this.rainLeafFireTick = -1L;
             }
-            return; // a gust is already pending or firing; pace one at a time
+            return; // a clip is pending or firing; pace one at a time
         }
         if (now < this.rainLeafNextGustTick)
             return;
         final float intensity = PrecipitationIntensity.ambient();
         var info = this.scanner.playerLogicBiomeInfo();
-        if (intensity < RAIN_LEAF_MIN_INTENSITY
-                || info == null || !isWooded(info)) {
+        final boolean wooded = info != null && isWooded(info);
+        final float min = wooded ? RAIN_LEAF_MIN_INTENSITY : RAIN_WIND_MIN_INTENSITY;
+        if (intensity < min) {
             this.rainLeafNextGustTick = now + 20L; // re-check in a second
             return;
         }
-        final Identifier tier = intensity >= RAIN_LEAF_STRONG_FROM ? LEAF_WIND_STRONG
-                : intensity >= RAIN_LEAF_CALM_TO ? LEAF_WIND : LEAF_WIND_CALM;
+        final Identifier[] pool = wooded ? RAIN_TEXTURE_LEAF : RAIN_TEXTURE_WIND;
         this.rainLeafFireFactory = ContainerManager.resolve(ISoundLibrary.class)
-                .getSoundFactoryOrDefault(tier);
-        float t = (intensity - RAIN_LEAF_MIN_INTENSITY) / (1F - RAIN_LEAF_MIN_INTENSITY);
+                .getSoundFactoryOrDefault(pool[RANDOM.nextInt(pool.length)]);
+        float t = (intensity - min) / (1F - min);
         t = t < 0F ? 0F : (t > 1F ? 1F : t);
         float amp = PrecipitationIntensity.gustAmplitude();
         amp = amp < 0F ? 0F : (amp > 2F ? 2F : amp);
@@ -411,9 +424,23 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 (RAIN_LEAF_INTERVAL_MAX_S + (RAIN_LEAF_INTERVAL_MIN_S - RAIN_LEAF_INTERVAL_MAX_S) * t)
                         / (0.6F + 0.8F * amp);
         this.rainLeafNextGustTick = now + (long) (seconds * 20F);
-        this.rainLeafFireVol = 0.7F + 0.3F * t; // swell depth: heavier rain, louder gusts
-        this.rainLeafFireTick = now + RAIN_LEAF_DELAY_TICKS
-                + (long) (RANDOM.nextDouble() * RAIN_LEAF_DELAY_JITTER);
+        this.rainLeafFireVol = 0.35F + 0.65F * t;
+        this.rainLeafFirePositioned = wooded;
+        this.rainLeafFireTick = wooded
+                ? now + RAIN_LEAF_DELAY_TICKS + (long) (RANDOM.nextDouble() * RAIN_LEAF_DELAY_JITTER)
+                : now;
+    }
+
+    private void fireRainTexture(final Player player) {
+        if (this.rainLeafFirePositioned) {
+            playLeafSurround(player, this.rainLeafFireFactory, this.rainLeafFireVol);
+            return;
+        }
+        // Non-positioned, like the wind bed it rides on - the gust is everywhere
+        // at once, not off in a direction. Volume goes in at construction: the
+        // field is protected and writing it does not compile.
+        var instance = this.rainLeafFireFactory.createAsAdditional(this.rainLeafFireVol);
+        this.audioPlayer.play(instance);
     }
 
     /**

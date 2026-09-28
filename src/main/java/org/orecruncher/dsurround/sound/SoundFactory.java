@@ -112,6 +112,28 @@ public record SoundFactory(
                 true);
     }
 
+    /**
+     * The volume-scaled twin of {@link #createAsAdditional()}. Identical in
+     * every field but the volume: same non-positioned placement, same
+     * attenuation, same repeat flags - only the level differs.
+     */
+    @Override
+    public SimpleSoundInstance createAsAdditional(final float volumeScale) {
+        return new SimpleSoundInstance(
+                this.soundEvent.location(),
+                this.category,
+                this.getVolume() * volumeScale,
+                this.getPitch(),
+                Randomizer.current(),
+                this.isRepeatable,
+                this.repeatDelay,
+                this.attenuation,
+                0.0D,
+                0.0D,
+                0.0D,
+                true);
+    }
+
     @Override
     public EntityBoundSoundInstance attachToEntity(Entity entity) {
         return new EntityBoundSoundInstance(

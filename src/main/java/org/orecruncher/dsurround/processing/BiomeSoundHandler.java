@@ -22,6 +22,7 @@ import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.lib.math.MathStuff;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
+import org.orecruncher.dsurround.sound.BackgroundSoundLoop;
 import org.orecruncher.dsurround.sound.ISoundFactory;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 
@@ -47,6 +48,38 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     //   day   = 1 / (180s / 0.2s) = 1/900  ~ 0.0011
     //   night = 1 / (60s  / 0.2s) = 1/300  ~ 0.0033
     private static final Identifier LEAF_WIND = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.leaf_wind");
+    private static final Identifier LEAF_WIND_CALM = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.leaf_wind.calm");
+    private static final Identifier LEAF_WIND_STRONG = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.leaf_wind.strong");
+    private static final Identifier WIND_GENERIC = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.wind");
+
+    // ---- rain wind layer (A-line) ------------------------------------------
+    // Sunny behavior is untouched: everything below only runs while the graded
+    // precipitation system owns the weather, and it fades out with the storm.
+
+    /** Intensity below which a windless biome gets no rain wind bed at all: it
+     *  keeps drizzle from howling across the plains and leaves the sound source
+     *  free. Biomes with their own wind asset skip this gate - their bed is a
+     *  pure proportion of the intensity and dies on its own at the low end. */
+    private static final float RAIN_WIND_MIN_INTENSITY = 0.3F;
+    /** Leaf gust pacing: frequency rises with intensity, divided by the event's
+     *  rolled gust amplitude (convective profiles gust more often than steady
+     *  rain - GustResponse semantics, not a second curve). */
+    private static final float RAIN_LEAF_MIN_INTENSITY = 0.25F;
+    private static final float RAIN_LEAF_INTERVAL_MAX_S = 16F;
+    private static final float RAIN_LEAF_INTERVAL_MIN_S = 5F;
+    /** Tier boundaries for the three leaf assets. */
+    private static final float RAIN_LEAF_CALM_TO = 0.4F;
+    private static final float RAIN_LEAF_STRONG_FROM = 0.7F;
+    /** Wind -> leaves causality: 0.2 s + up to 0.6 s of jitter, in ticks. */
+    private static final long RAIN_LEAF_DELAY_TICKS = 4L;
+    private static final long RAIN_LEAF_DELAY_JITTER = 12L;
+
+    private BackgroundSoundLoop rainWindLoop;
+    private Object rainWindAsset;
+    private long rainLeafNextGustTick;
+    private long rainLeafFireTick = -1L;
+    private float rainLeafFireVol;
+    private ISoundFactory rainLeafFireFactory;
     private static final float LEAF_WIND_DAY_CHANCE = 0.0011F;
     private static final float LEAF_WIND_NIGHT_CHANCE = 0.0033F;
 
@@ -128,11 +161,17 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     @Override
     public void onConnect() {
         clearSounds();
+        this.rainWindLoop = null;
+        this.rainWindAsset = null;
+        this.rainLeafFireTick = -1L;
     }
 
     @Override
     public void onDisconnect() {
         clearSounds();
+        this.rainWindLoop = null;
+        this.rainWindAsset = null;
+        this.rainLeafFireTick = -1L;
     }
 
     private void handleBiomeSounds(final Player player) {
@@ -168,6 +207,8 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 if (internalVillageBiomeInfo != null)
                     handleAddOnSounds(player, internalVillageBiomeInfo);
                 handleLeafWindGust(player);
+                handleRainWindBed(player);
+                handleRainLeafGust(player);
                 handleSculkClick(player);
             }
         }
@@ -215,20 +256,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                     // Surround gust: three sources spread around the player (120 deg apart
                     // with jitter, mixed 8-16 block distances) floating at canopy height
                     // (~6-8 blocks above the ground) so the wind sweeps through the treetops.
-                    final int sources = 3;
-                    final double baseAngle = RANDOM.nextDouble() * Math.PI * 2D;
-                    for (int i = 0; i < sources; i++) {
-                        final double angle = baseAngle + i * (Math.PI * 2D / sources)
-                                + (RANDOM.nextDouble() - 0.5D) * 0.8D;
-                        final double dist = MOOD_SOUND_MIN_RANGE
-                                + RANDOM.nextDouble() * (MOOD_SOUND_MAX_RANGE - MOOD_SOUND_MIN_RANGE);
-                        final double y = player.getY() + 6.0D + RANDOM.nextDouble() * 2.0D;
-                        var pos = new Vec3(player.getX() + Math.cos(angle) * dist, y,
-                                player.getZ() + Math.sin(angle) * dist);
-                        float vol = dsBiomeVolume() * (0.75F + RANDOM.nextFloat() * 0.25F);
-                        var instance = factory.createAtLocation(pos, vol);
-                        this.audioPlayer.play(instance);
-                    }
+                    playLeafSurround(player, factory, 1.0F);
                 }
             }
         }
@@ -250,6 +278,163 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 var instance = factory.createAtLocation(player.getEyePosition().add(offset), dsBiomeVolume());
                 this.audioPlayer.play(instance);
             }
+        }
+    }
+
+    /**
+     * The rain wind bed: a continuous, non-attenuated loop whose volume tracks
+     * the graded intensity. A biome with its own wind acoustic uses that asset;
+     * everywhere else uses the generic wind, gated by a minimum intensity (a
+     * drizzle on the plains should not howl, and the source stays free). The
+     * bed follows the ungated intensity - wind is an attribute of the storm,
+     * not of where the drops land, so it keeps blowing under a roof, muffled.
+     */
+    private void handleRainWindBed(final Player player) {
+        if (!PrecipitationIntensity.grading() || !doBiomeSounds()) {
+            fadeRainWind();
+            return;
+        }
+        final float intensity = PrecipitationIntensity.ambient();
+        Identifier wind = null;
+        float trim = 1F;
+        var info = this.scanner.playerLogicBiomeInfo();
+        if (info != null) {
+            for (var factory : info.findBiomeSoundMatches()) {
+                if (isWindFactory(factory)) {
+                    wind = factory.getLocation();
+                    trim = windTrim(factory);
+                    break;
+                }
+            }
+        }
+        float target;
+        if (wind != null) {
+            target = intensity;
+        } else {
+            wind = WIND_GENERIC;
+            target = intensity <= RAIN_WIND_MIN_INTENSITY
+                    ? 0F
+                    : (intensity - RAIN_WIND_MIN_INTENSITY) / (1F - RAIN_WIND_MIN_INTENSITY);
+        }
+        if (this.scanner.isInside())
+            target *= INDOOR_VOLUME_SCALE;
+        if (target <= 0.005F) {
+            fadeRainWind();
+            return;
+        }
+        if (this.rainWindLoop == null || !wind.equals(this.rainWindAsset)) {
+            // Crossfade on an asset change: the old loop keeps playing until its
+            // scale reaches zero and stops itself, the new one eases in.
+            fadeRainWind();
+            var factory = ContainerManager.resolve(ISoundLibrary.class)
+                    .getSoundFactoryOrDefault(wind);
+            this.rainWindLoop = factory.createBackgroundSoundLoop();
+            this.rainWindLoop.setVolume(trim);
+            this.rainWindAsset = wind;
+            this.rainWindLoop.setScaleTarget(target);
+            this.audioPlayer.play(this.rainWindLoop);
+        } else {
+            this.rainWindLoop.setScaleTarget(target);
+        }
+    }
+
+    private void fadeRainWind() {
+        if (this.rainWindLoop != null) {
+            this.rainWindLoop.setScaleTarget(0F); // eases down, stops itself at zero
+            this.rainWindLoop = null;
+            this.rainWindAsset = null;
+        }
+    }
+
+    /** Whether this factory is one of the wind assets biomes.json can assign. */
+    private static boolean isWindFactory(final ISoundFactory factory) {
+        final String loc = factory.getLocation().toString();
+        return loc.endsWith("biome.wind")
+                || loc.endsWith("biome.wind.hills")
+                || loc.endsWith("biome.wind.mountains")
+                || loc.endsWith("biome.wind.arctic")
+                || loc.endsWith("biome.wind.desert");
+    }
+
+    /**
+     * Per-asset loudness trim, referenced to wind.ogg (-34.8 dB RMS): the wind
+     * assets span ~15 dB and arctic_wind is stereo besides, so one shared curve
+     * would make the arctic blast. trim = 10^((ref - asset) / 20).
+     */
+    private static float windTrim(final ISoundFactory factory) {
+        final String loc = factory.getLocation().toString();
+        if (loc.endsWith("biome.wind.arctic"))
+            return 0.33F; // -25.1 dB, and stereo
+        if (loc.endsWith("biome.wind.desert"))
+            return 1.86F; // -40.2 dB
+        return 1.0F; // wind.ogg is the reference (hills/mountains resolve to it)
+    }
+
+    /**
+     * The rain leaf layer: the same three-source canopy surround as the sunny
+     * gust, tiered by intensity (calm / base / strong), paced by the intensity
+     * and by the event's rolled gust amplitude, and fired 0.2-0.8 s after the
+     * gust arrives - wind first, the leaves answer.
+     */
+    private void handleRainLeafGust(final Player player) {
+        if (!PrecipitationIntensity.grading() || !doBiomeSounds() || this.scanner.isInside()) {
+            this.rainLeafFireTick = -1L;
+            this.rainLeafNextGustTick = 0L;
+            return;
+        }
+        final long now = this.tickCount.getTickCount();
+        if (this.rainLeafFireTick >= 0L) {
+            if (now >= this.rainLeafFireTick) {
+                playLeafSurround(player, this.rainLeafFireFactory, this.rainLeafFireVol);
+                this.rainLeafFireTick = -1L;
+            }
+            return; // a gust is already pending or firing; pace one at a time
+        }
+        if (now < this.rainLeafNextGustTick)
+            return;
+        final float intensity = PrecipitationIntensity.ambient();
+        var info = this.scanner.playerLogicBiomeInfo();
+        if (intensity < RAIN_LEAF_MIN_INTENSITY
+                || info == null || !isWooded(info)) {
+            this.rainLeafNextGustTick = now + 20L; // re-check in a second
+            return;
+        }
+        final Identifier tier = intensity >= RAIN_LEAF_STRONG_FROM ? LEAF_WIND_STRONG
+                : intensity >= RAIN_LEAF_CALM_TO ? LEAF_WIND : LEAF_WIND_CALM;
+        this.rainLeafFireFactory = ContainerManager.resolve(ISoundLibrary.class)
+                .getSoundFactoryOrDefault(tier);
+        float t = (intensity - RAIN_LEAF_MIN_INTENSITY) / (1F - RAIN_LEAF_MIN_INTENSITY);
+        t = t < 0F ? 0F : (t > 1F ? 1F : t);
+        float amp = PrecipitationIntensity.gustAmplitude();
+        amp = amp < 0F ? 0F : (amp > 2F ? 2F : amp);
+        final float seconds =
+                (RAIN_LEAF_INTERVAL_MAX_S + (RAIN_LEAF_INTERVAL_MIN_S - RAIN_LEAF_INTERVAL_MAX_S) * t)
+                        / (0.6F + 0.8F * amp);
+        this.rainLeafNextGustTick = now + (long) (seconds * 20F);
+        this.rainLeafFireVol = 0.7F + 0.3F * t; // swell depth: heavier rain, louder gusts
+        this.rainLeafFireTick = now + RAIN_LEAF_DELAY_TICKS
+                + (long) (RANDOM.nextDouble() * RAIN_LEAF_DELAY_JITTER);
+    }
+
+    /**
+     * The three-source canopy surround: 120 deg apart with jitter, 8-16 blocks
+     * out, floating at tree-crown height so the wind sweeps through the
+     * treetops. Shared by the sunny gust chance and the rain layer.
+     */
+    private void playLeafSurround(final Player player, final ISoundFactory factory, final float volScale) {
+        final int sources = 3;
+        final double baseAngle = RANDOM.nextDouble() * Math.PI * 2D;
+        for (int i = 0; i < sources; i++) {
+            final double angle = baseAngle + i * (Math.PI * 2D / sources)
+                    + (RANDOM.nextDouble() - 0.5D) * 0.8D;
+            final double dist = MOOD_SOUND_MIN_RANGE
+                    + RANDOM.nextDouble() * (MOOD_SOUND_MAX_RANGE - MOOD_SOUND_MIN_RANGE);
+            final double y = player.getY() + 6.0D + RANDOM.nextDouble() * 2.0D;
+            var pos = new Vec3(player.getX() + Math.cos(angle) * dist, y,
+                    player.getZ() + Math.sin(angle) * dist);
+            float vol = dsBiomeVolume() * volScale * (0.75F + RANDOM.nextFloat() * 0.25F);
+            var instance = factory.createAtLocation(pos, vol);
+            this.audioPlayer.play(instance);
         }
     }
 

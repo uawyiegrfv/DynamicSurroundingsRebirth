@@ -79,6 +79,19 @@ public interface ISoundFactory {
     SimpleSoundInstance createAsAdditional();
 
     /**
+     * As {@link #createAsAdditional()}, with the clip's own volume scaled.
+     *
+     * <p>The scale has to be applied while the instance is built.
+     * {@code AbstractSoundInstance.volume} is protected - reachable from a mixin,
+     * not from ordinary code - so a caller that wants an additional sound below
+     * its configured level has to ask for it here. Anything else is one protected
+     * field write away from not compiling.</p>
+     *
+     * @param volumeScale multiplier on the configured volume
+     */
+    SimpleSoundInstance createAsAdditional(float volumeScale);
+
+    /**
      * Creates an attenuated sound instance at the center of the specified block location. The
      * sound instance is not repeated.
      */

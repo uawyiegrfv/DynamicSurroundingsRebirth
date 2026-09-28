@@ -527,7 +527,7 @@ public final class PrecipitationIntensity {
     private static float lastReportedFogOut = -1F;
     private static int fogJumpCooldown = 0;
     /** Biome id under each of the five location samples, refreshed per tick. */
-    private static final String[] lastSampleBiomes = new String[LOCATION_SAMPLES.length];
+    private static final Object[] lastSampleBiomes = new Object[LOCATION_SAMPLES.length];
 
     /** As {@link #skyHooks}, for the fog *colour* mixin. */
     private static volatile int fogColorHooks = 0;
@@ -1014,9 +1014,10 @@ public final class PrecipitationIntensity {
     private static float modeAt(Level level, BlockPos pos, PrecipitationSeason season, int index) {
         try {
             var holder = level.getBiome(pos);
-            lastSampleBiomes[index] = holder.unwrapKey()
-                    .map(k -> k.location().toString())
-                    .orElse("unknown");
+            // The key itself, not a rendered string: this is written per sample
+            // per tick and only ever read by the diagnostics line, which renders
+            // it on demand. A per-sample String allocation was pure waste.
+            lastSampleBiomes[index] = holder.unwrapKey().orElse(null);
             var biome = holder.value();
             var info = ((org.orecruncher.dsurround.mixinutils.IBiomeExtended) (Object) biome)
                     .dsurround_getInfo();
@@ -1239,6 +1240,11 @@ public final class PrecipitationIntensity {
     private static final int IDLE_LOG_INTERVAL = 600;
     /** Intensity below which, with no event running, a tick goes idle. */
     private static final float IDLE_EPSILON = 0.001F;
+    /** Ticks between refreshes of the five-sample location ring. The ring's
+     *  easing advances per tick regardless; see the call site in update. */
+    private static final int LOCATION_SAMPLE_INTERVAL = 5;
+    /** Stamp of the last location-ring refresh (game time). */
+    private static long lastLocationSampleTick = Long.MIN_VALUE;
     private static int stateLogCounter = 0;
     private static int idleLogCounter = 0;
 
@@ -1473,14 +1479,23 @@ public final class PrecipitationIntensity {
         // start reacting once the border was already crossed, which is the
         // difference between weather that changes with the countryside and a
         // switch thrown at the boundary.
-        final float modeNow = sampleLocationMode(level, pos, currentSeason,
-                profile.modeFor(currentSeason));
-        // A negative return means "too few usable samples" - hold what we have.
-        if (modeNow >= 0F) {
-            if (locationMode <= 0F)
-                locationMode = modeNow;
-            else
-                locationMode += (modeNow - locationMode) * LOCATION_ALPHA;
+        // The five biome samples only feed a low-passed target, and the sample
+        // ring (lookahead blocks around the player) crosses on a seconds
+        // timescale - refreshing it every tick buys nothing. Sample every few
+        // ticks and let the per-tick easing do the smoothing; this is the
+        // weather system's biggest per-tick query cost while it is raining.
+        if (level.getGameTime() - lastLocationSampleTick >= LOCATION_SAMPLE_INTERVAL
+                || level.getGameTime() < lastLocationSampleTick) {
+            lastLocationSampleTick = level.getGameTime();
+            final float modeNow = sampleLocationMode(level, pos, currentSeason,
+                    profile.modeFor(currentSeason));
+            // A negative return means "too few usable samples" - hold what we have.
+            if (modeNow >= 0F) {
+                if (locationMode <= 0F)
+                    locationMode = modeNow;
+                else
+                    locationMode += (modeNow - locationMode) * LOCATION_ALPHA;
+            }
         }
 
         // An event that has just ended is forgotten, so a world rejoined after a dry

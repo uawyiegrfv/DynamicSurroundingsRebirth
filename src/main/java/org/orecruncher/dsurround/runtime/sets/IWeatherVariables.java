@@ -50,6 +50,34 @@ public interface IWeatherVariables {
     float getThunderIntensity();
 
     /**
+     * Our graded storm intensity, 0 - 1. Unlike {@link #getRainIntensity()} this
+     * is not the vanilla rain ramp: it is the per-storm roll shaped by the biome
+     * profile and the season, so a drizzle and a downpour read differently even
+     * though both sit at a vanilla rain level of 1.0.
+     *
+     * <p>Deliberately <em>not</em> gated on what is landing on the player: wind,
+     * sky darkness and fog are properties of the weather, not of whether the
+     * player happens to be under a roof. Use
+     * {@link #getGradedPrecipitation()} when the question is "is precipitation
+     * actually reaching here".</p>
+     *
+     * @return 0 - 1
+     */
+    float getGradedIntensity();
+
+    /**
+     * Our graded precipitation intensity, 0 - 1, gated - 0 when nothing is
+     * actually falling at the player's position (dry season, a biome that does
+     * not precipitate, under a roof, or not raining).
+     *
+     * <p>This is the one to use for anything that needs rain to physically
+     * arrive: surface impact sounds, puddle splashes.</p>
+     *
+     * @return 0 - 1
+     */
+    float getGradedPrecipitation();
+
+    /**
      * Gets the temperature at the current player location
      *
      * @return the temperature

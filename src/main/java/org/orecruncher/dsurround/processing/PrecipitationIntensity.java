@@ -380,6 +380,34 @@ public final class PrecipitationIntensity {
      */
     private static volatile float lastRamp = 0F;
 
+    /**
+     * The dead-band the ramp is compared against - and, the same number, the level
+     * below which the ramp counts as dry. One number on purpose: the vanilla ramp
+     * steps by 0.01 per tick and arrives at zero through the float32 residue of a
+     * hundred such steps, so its last move is worth about 1e-7 (it is the residue
+     * that gets clamped, not a real step). That is far below any dead-band that
+     * can still separate a real step from a repeated reading, so "did the ramp
+     * move" can never be the test for "is it dry". See {@link #weatherRising} -
+     * this was the whole bug: a ramp that had already gone dry was judged flat,
+     * flat was answered with the latched event flag, and the event became
+     * immortal, so its peak was never re-rolled.
+     */
+    private static final float RAMP_EPSILON = 1e-4F;
+
+    /**
+     * The rain level at which vanilla itself calls a world rainy:
+     * {@code Level.isRaining()} is {@code getRainLevel(1F) > 0.2F}. It separates
+     * "the player arrived and it was already raining" - the one case a persisted
+     * event may be resumed for - from "a storm is starting right now". A storm
+     * that starts in front of the player begins at a ramp of about zero and
+     * climbs, so a ramp already at a fifth or more means this player did not see
+     * it begin.
+     */
+    private static final float RESUME_RAMP_MIN = 0.2F;
+
+    /** What the last {@link #weatherRising} call decided. Diagnostics only. */
+    private static volatile boolean lastRising = false;
+
     /** How far the attack has progressed, 0..1. Drives the sun - see {@code SUN}. */
     private static volatile float attackProgress = 0F;
 
@@ -723,6 +751,177 @@ public final class PrecipitationIntensity {
         if (!ownsAmbient())
             return level.getRainLevel(partialTick);
         return PrecipitationResponse.SKY_LIGHT.value();
+    }
+
+    // ---- rain sound and ground splash (N7) ---------------------------------
+    //
+    // Vanilla's rain sound is not a loop. tickRain counts frames and fires a
+    // two second one-shot about 6.9 times a second, so roughly fourteen of them
+    // overlap at any moment. That gives us two independent knobs that vanilla
+    // welds into one: how often a voice starts, and how loud it is. Light rain
+    // is a handful of voices, heavy rain is the full fourteen - which is the
+    // part vanilla cannot express, because its only input is rainLevel and that
+    // number is near 1 far too early.
+
+    /**
+     * Expected number of overlapping vanilla rain voices at full rate.
+     *
+     * <p>6.9 plays per second (the {@code random.nextInt(3)} gate over one
+     * decrement per tick gives an expected 2.89 ticks between fires) times a
+     * ~2.0 second clip. Used only to work out how much of the stack we removed,
+     * so its error bars are wide and that is fine.</p>
+     */
+    private static final float VANILLA_RAIN_OVERLAP = 13.8F;
+
+    /** Play-rate floor. At 0.15 the stack is about two voices - sparse but present. */
+    private static final float RAIN_AUDIO_DENSITY_MIN = 0.15F;
+
+    /** Diagnostics: how many times vanilla offered to play a rain one-shot. */
+    private static int rainAudioOpportunities = 0;
+
+    /** Diagnostics: how many of those we actually let through. */
+    private static int rainAudioPlayed = 0;
+
+    /**
+     * The rain level the ground splash and the rain sound density follow.
+     *
+     * <p>{@code SPLASH} and not {@code intensity()}: it is derived from
+     * {@code GEOMETRY} precisely so that what you hear and what you see land on
+     * the player together. Reading the raw intensity here would give the sound
+     * its own clock, which is the one artefact a graded storm cannot survive.</p>
+     */
+    public static float splashRainLevel(Level level, float partialTick) {
+        if (!ownsAmbient())
+            return level.getRainLevel(partialTick);
+        return PrecipitationResponse.SPLASH.value();
+    }
+
+    /**
+     * Fraction of vanilla's ~6.9 plays per second that should actually be let
+     * through, 0..1.
+     *
+     * <p>Light rain is sparse but still continuous - it never goes to zero, or
+     * the rain would switch off between drops. It also never reaches vanilla's
+     * full rate at low intensity: at full rate the stack is fourteen voices, and
+     * fourteen voices at drizzle volume is a downpour that forgot to get loud.</p>
+     */
+    public static float rainAudioDensity() {
+        if (!ownsAmbient())
+            return 1F;
+        final float splash = PrecipitationResponse.SPLASH.value();
+        return RAIN_AUDIO_DENSITY_MIN + (1F - RAIN_AUDIO_DENSITY_MIN) * splash;
+    }
+
+    /**
+     * Multiplier on vanilla's hard-coded 0.1 / 0.2 rain volumes.
+     *
+     * <p>The first term is the level curve (1.12.2's {@code 0.05 + 0.95 * x};
+     * the floor keeps a drizzle audible instead of fading to nothing). The second
+     * pays back the loudness lost by thinning the stack, so the two knobs move
+     * independently: at full density the compensation is exactly 1 and the volume
+     * is vanilla's own number, and it rises only as the stack thins out.</p>
+     */
+    public static float rainAudioVolumeScale() {
+        if (!ownsAmbient())
+            return 1F;
+        final float level = PrecipitationResponse.AUDIO.value();
+        final float overlap = Math.max(VANILLA_RAIN_OVERLAP * rainAudioDensity(), 0.5F);
+        final float compensation = (float) Math.sqrt(VANILLA_RAIN_OVERLAP / overlap);
+        return (0.05F + 0.95F * level) * compensation;
+    }
+
+    /**
+     * Our own rain one-shot - the calm layer. Ported from 1.12.2 (rain_calm1-4;
+     * that project is MIT and the clip carries no third-party credit, unlike
+     * every sound OreCruncher took from elsewhere, which is why it is safe to
+     * bring over). It is thin and distant where the vanilla clip is thick and
+     * close, which is the entire reason to have it: light rain is a different
+     * sound, and turning the vanilla clip down does not turn it into one.
+     */
+    private static final net.minecraft.sounds.SoundEvent RAIN_CALM_SOUND =
+            net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("dsurround", "rain"));
+
+    public static net.minecraft.sounds.SoundEvent rainCalmSound() {
+        return RAIN_CALM_SOUND;
+    }
+
+    /**
+     * How much louder the calm clip has to be played to sit next to the vanilla
+     * one. Measured: rain_calm RMS -46 dB against vanilla rain1-8 at -27 dB, so
+     * equal loudness would be +19 dB. Not that much, for two reasons - at these
+     * base volumes +19 dB pushes a one-shot past 1.0, and a drizzle is supposed
+     * to be quieter than a downpour anyway. +13 dB closes most of the gap and
+     * leaves the rest to the level curve.
+     */
+    private static final float RAIN_CALM_GAIN = 4.47F;
+
+    public static float rainCalmGain() {
+        return RAIN_CALM_GAIN;
+    }
+
+    /**
+     * Fraction of the rain one-shots that should be the heavy (vanilla) clip
+     * rather than the calm one, 0..1.
+     *
+     * <p>A per-one-shot probability, not a filter and not two clips playing at
+     * once. The stack is made of individual drops, so choosing which clip each
+     * drop is <em>is</em> the crossfade: a drizzle is mostly calm drops with the
+     * occasional heavy one, a downpour is the other way round, and the middle
+     * is a genuine mix. It costs nothing - the same number of voices, no
+     * filtering - which is the only reason this is the way the blend is done.</p>
+     *
+     * <p>Driven by {@code AUDIO} and not {@code SPLASH} so that the texture and
+     * the loudness agree: the density knob is what landing rain looks like,
+     * this one is what the weather sounds like.</p>
+     */
+    public static float rainAudioCalmBlend() {
+        if (!ownsAmbient())
+            return 1F;
+        return Mth.clamp(PrecipitationResponse.AUDIO.value(), 0F, 1F);
+    }
+
+    /**
+     * Dither state for {@link #nextRainAudioHeavy()}. Not part of any curve -
+     * it is the fractional carry that keeps the clip mix honest.
+     */
+    private static float rainTexturePhase = 0F;
+
+    /**
+     * Whether the next rain one-shot should be the heavy (vanilla) clip rather
+     * than the calm one.
+     *
+     * <p>An independent coin flip gets the ratio right on average and wrong in
+     * exactly the short runs a listener actually hears: at a fifth heavy, three
+     * heavy drops in a row turns up every fifteen seconds or so, and when the
+     * stack is thin - two or three voices in a drizzle - that is a drizzle that
+     * briefly becomes a downpour. So the mix is dithered instead of drawn: the
+     * blend is accumulated and one heavy drop is emitted each time the running
+     * total crosses one. Heavy drops then arrive evenly spaced at precisely the
+     * rate that was asked for, which is the difference between an intensity
+     * change sounding like the weather filling in and sounding like a switch.</p>
+     */
+    public static boolean nextRainAudioHeavy() {
+        if (!ownsAmbient())
+            return true;
+        rainTexturePhase += rainAudioCalmBlend();
+        if (rainTexturePhase >= 1F) {
+            rainTexturePhase -= 1F;
+            return true;
+        }
+        return false;
+    }
+
+    /** Counts a vanilla offer to play a rain one-shot, and records the answer. */
+    public static void noteRainAudio(boolean played) {
+        rainAudioOpportunities++;
+        if (played)
+            rainAudioPlayed++;
+    }
+
+    /** Diagnostics: {@code played/offered} rain one-shots since the last reset. */
+    public static String rainAudioDiagnostics() {
+        return rainAudioPlayed + "/" + rainAudioOpportunities;
     }
 
     // ---- channel locks -----------------------------------------------------
@@ -1143,14 +1342,25 @@ public final class PrecipitationIntensity {
         // tick started a fresh one - so a single storm re-rolled its base over and
         // over and the peak never held still. Only an actual decrease is falling;
         // anything else keeps whatever we already decided.
+        // A rain level at or below the dead-band is dry, and that is an answer,
+        // not a fallback. It has to come before the direction test: the vanilla
+        // ramp reaches zero in a step worth about 1e-7 (the float32 residue of a
+        // hundred 0.01 steps being clamped away), which the dead-band cannot see,
+        // so the last move of every storm used to be classified "flat" and flat
+        // fell through to the latched flag below - keeping an ended event alive
+        // forever and pinning its peak. Rain level zero means no precipitation;
+        // no amount of "it did not move" can outweigh that.
         final boolean rising;
-        if (ramp >= 1F || ramp > lastRamp + 1e-4F)
+        if (ramp <= RAMP_EPSILON)
+            rising = false;
+        else if (ramp >= 1F || ramp > lastRamp + RAMP_EPSILON)
             rising = true;
-        else if (ramp < lastRamp - 1e-4F)
+        else if (ramp < lastRamp - RAMP_EPSILON)
             rising = false;
         else
             rising = eventActive;
         lastRamp = ramp;
+        lastRising = rising;
         return rising;
     }
 
@@ -1407,8 +1617,9 @@ public final class PrecipitationIntensity {
                 + " | dust=%s".formatted(
                         dustProfile == null ? "n/a"
                                 : "%.2f/%.2f".formatted(dustIntensity, dustBase))
-                + " | ramp=%.2f rising=%s".formatted(
+                + " | ramp=%.3f rising=%s active=%s".formatted(
                         clientLevel == null ? -1F : clientLevel.getRainLevel(1F),
+                        lastRising,
                         eventActive)
                 // sky/cloud: how many times the mixins were consulted. If either
                 // stays 0 on a version, that injection did not land and the sky is
@@ -1419,7 +1630,21 @@ public final class PrecipitationIntensity {
                 // zero that stays zero means that version's colour is still vanilla.
                 + " | skyHook=%d cloudHook=%d color=%d/%d/%d storm=%d".formatted(
                         skyHooks(), cloudHooks(),
-                        skyColorHooks(), cloudColorHooks(), fogColorHooks(), stormHooks());
+                        skyColorHooks(), cloudColorHooks(), fogColorHooks(), stormHooks())
+                // rainAudio = played/offered on the rain sound pass: offered is
+                // vanilla asking (about seven times a second while it rains),
+                // played is what the density gate let through. The ratio IS the
+                // density, so it should be well under 1 in a drizzle and reach
+                // 1 only at full intensity. Both counters are cumulative, so
+                // read the ratio and not the numbers.
+                // dens/vol are the two knobs themselves, and both read 1.00 on
+                // any frame vanilla owns - which is the point: seeing 1.00
+                // while it rains means the redirect did not land.
+                + " | rainAudio=%s dens=%.2f vol=%.2f heavy=%.2f".formatted(
+                        rainAudioDiagnostics(),
+                        rainAudioDensity(),
+                        rainAudioVolumeScale(),
+                        rainAudioCalmBlend());
     }
 
     /**
@@ -1453,8 +1678,22 @@ public final class PrecipitationIntensity {
         // envelope and the squall clock - the ramp read above is the only thing
         // that watches for weather starting. Ticks outnumber rain by orders of
         // magnitude; this is the difference the profiler sees.
+        //
+        // "Every channel has settled" has to be a TEST, not an assumption. This
+        // path returns before PrecipitationResponse.tickAll(), and tickAll is
+        // the only thing that ever advances a channel - so any channel still
+        // above zero when the path is taken stays there. Frozen, not decaying:
+        // the sky keeps its rain tint and the fog keeps its rain thickness for
+        // good, because nothing is left running that could take them away.
+        // The two facts that make it reachable are both upstream of this test:
+        // the ramp reaches zero in a single tick and ambient is multiplied by
+        // it, so "dry" arrives instantly, while the slowest chain (atmosphere
+        // -> sky -> cloud, several seconds of release) is still sweeping down.
+        // Hence anyActive(), asked last so it only costs anything on a tick
+        // that is already idle on every cheaper count.
         if (forced < 0F && !raining && !eventActive
-                && ambient < IDLE_EPSILON && dustIntensity < IDLE_EPSILON) {
+                && ambient < IDLE_EPSILON && dustIntensity < IDLE_EPSILON
+                && !PrecipitationResponse.anyActive()) {
             if (++idleLogCounter >= IDLE_LOG_INTERVAL) {
                 idleLogCounter = 0;
                 logger.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s",
@@ -1501,11 +1740,13 @@ public final class PrecipitationIntensity {
         // An event that has just ended is forgotten, so a world rejoined after a dry
         // spell rolls a new one instead of inheriting the attack clock of a storm
         // that finished sessions ago.
-        // Forget the event only once the vanilla ramp has fully drained - the
+        // Forget the event only once the vanilla ramp has drained - the
         // first downward step is while the rain is still on screen (the release),
         // and clearing then deleted the persistence file mid-release and dipped
-        // the dust.
-        if (!raining && eventActive && lastRamp <= 0F)
+        // the dust. Drained means below the dead-band, not equal to zero: the ramp
+        // can stop a hair above zero and stay there, and an "equals zero" test
+        // for dry is what let an ended event live forever.
+        if (!raining && eventActive && lastRamp <= RAMP_EPSILON)
             clearEvent(level);
 
         if (raining && !eventActive) {
@@ -1516,7 +1757,14 @@ public final class PrecipitationIntensity {
             // The event identity is persisted so the attack clock keeps running across
             // sessions instead of the player returning to find the storm building from
             // drizzle again - see {@link #restoreEvent}.
-            eventRestored = restoreEvent(level, profile);
+            //
+            // Resume is only for that case, and the ramp is what says which case
+            // this is. A storm the player watches begin starts at a ramp of about
+            // zero and climbs, so it is a new event whatever file happens to be
+            // lying around - a leftover file (a crash, a storm that ended while
+            // the world was closed) used to be replayed verbatim, which is how
+            // one world could draw the same peak for the rest of its life.
+            eventRestored = ramp >= RESUME_RAMP_MIN && restoreEvent(level, profile);
 
             if (eventRestored) {
                 logger.info("Precipitation event -> RESTORED base=%.2f profile=%s season=%s age=%.0fs",
@@ -1570,7 +1818,7 @@ public final class PrecipitationIntensity {
                         gustPeriodA, gustPeriodB, gustWeightB, gustSharpness);
             }
         }
-        eventActive = raining || (eventActive && lastRamp > 0F);
+        eventActive = raining || (eventActive && lastRamp > RAMP_EPSILON);
 
         if (profile != currentProfile || phase != currentPhase) {
             currentProfile = profile;
@@ -1973,6 +2221,9 @@ public final class PrecipitationIntensity {
         dustIntensity = 0F;
         warmStart = false;
         lastRamp = 0F;
+        lastRising = false;
+        eventRestored = false;
+        rainTexturePhase = 0F;
         forced = -1F;
         resetSqualls();
         PrecipitationResponse.resetAll();

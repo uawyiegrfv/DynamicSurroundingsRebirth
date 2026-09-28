@@ -498,7 +498,12 @@ public final class PrecipitationRenderer {
             // counter reads "vanilla asked" rather than "we took it over". That is
             // the whole point - see the field comment on tickHooks.
             tickHooks++;
-            // Vanilla ground splash particles - no replacement yet.
+            // The caller is `if (renderer != null && renderer.tickRain(...))
+            // return;` - true means vanilla stops, false means vanilla carries
+            // on. We want it to carry on: tickRainParticles is the only place
+            // the ground splash positions and the two rain one-shots come from,
+            // and N7 grades both from the inside (see
+            // MixinWeatherEffectRenderer). Offsets: ifeq 29 at 25, return at 28.
             return false;
         }
     }

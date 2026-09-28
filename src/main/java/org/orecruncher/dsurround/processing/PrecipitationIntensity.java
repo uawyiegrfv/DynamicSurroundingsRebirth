@@ -527,7 +527,7 @@ public final class PrecipitationIntensity {
     private static float lastReportedFogOut = -1F;
     private static int fogJumpCooldown = 0;
     /** Biome id under each of the five location samples, refreshed per tick. */
-    private static final String[] lastSampleBiomes = new String[LOCATION_SAMPLES.length];
+    private static final Object[] lastSampleBiomes = new Object[LOCATION_SAMPLES.length];
 
     /** As {@link #skyHooks}, for the fog *colour* mixin. */
     private static volatile int fogColorHooks = 0;
@@ -1025,9 +1025,9 @@ public final class PrecipitationIntensity {
     private static float modeAt(Level level, BlockPos pos, PrecipitationSeason season, int index) {
         try {
             var holder = level.getBiome(pos);
-            lastSampleBiomes[index] = holder.unwrapKey()
-                    .map(k -> k.identifier().toString())
-                    .orElse("unknown");
+            // The key itself, not a rendered string: written per sample per tick,
+            // read only by the diagnostics line (rendered on demand).
+            lastSampleBiomes[index] = holder.unwrapKey().orElse(null);
             var biome = holder.value();
             var info = ((org.orecruncher.dsurround.mixinutils.IBiomeExtended) (Object) biome)
                     .dsurround_getInfo();

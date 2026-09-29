@@ -1139,7 +1139,9 @@ public final class PrecipitationIntensity {
      * release, which is exactly the span the takeover has to cover. It is a
      * field read, cheap enough to call from the render path.</p>
      */
-    private static boolean rainingNow() {
+    /** Public so consumers that must not lag the storm - the rain-on-material
+     *  layer among them - can ask this instead of gating on a level. */
+    public static boolean rainingNow() {
         final Level level = clientLevel;
         if (level != null) {
             try {

@@ -92,19 +92,13 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * not ours to change.
      */
     private static final float RAIN_LEAF_SOURCE_COMP = 0.58F;
-    /** Wind -> leaves causality: 0.2 s + up to 0.6 s of jitter, in ticks. */
-    private static final long RAIN_LEAF_DELAY_TICKS = 4L;
-    private static final long RAIN_LEAF_DELAY_JITTER = 12L;
+    // No delay constants any more. The wind->leaves lag is in the clips
+    // themselves - they were recorded that way - and scheduling a second track
+    // a few ticks later only doubled the wind.
 
     private BackgroundSoundLoop rainWindLoop;
     private Object rainWindAsset;
     private long rainGustNextTick;
-    /** Tick the canopy half of a gust fires on; -1 when nothing is pending.
-     *  The wind half plays the moment the gust is scheduled - see
-     *  {@link #handleRainTexture}. */
-    private long rainGustLeafTick = -1L;
-    private float rainGustVol;
-    private ISoundFactory rainGustLeafFactory;
     private static final float LEAF_WIND_DAY_CHANCE = 0.0011F;
     private static final float LEAF_WIND_NIGHT_CHANCE = 0.0033F;
 
@@ -188,7 +182,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         clearSounds();
         this.rainWindLoop = null;
         this.rainWindAsset = null;
-        this.rainGustLeafTick = -1L;
+        this.rainGustNextTick = 0L;
     }
 
     @Override
@@ -196,7 +190,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         clearSounds();
         this.rainWindLoop = null;
         this.rainWindAsset = null;
-        this.rainGustLeafTick = -1L;
+        this.rainGustNextTick = 0L;
     }
 
     private void handleBiomeSounds(final Player player) {
@@ -396,39 +390,37 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     }
 
     /**
-     * The gust layer, riding on top of the wind bed. One gust is two tracks:
-     * the wind, played at once and unpositioned - a gust is everywhere, not
-     * off in a direction - and, where there are trees, the canopy answer from
-     * three points overhead starting a beat later. Both halves are about ten
-     * seconds of the same recording, so they swell and die together; the wind
-     * has to reach the trees before it can move them, and that lag is in the
-     * clips as much as in the scheduling.
+     * The gust layer, riding on top of the wind bed. Sparse - tens of seconds
+     * apart - and one clip per gust.
      *
-     * <p>Every clip in both pools - and the bed underneath them - is cut from
-     * the one 106 s cinetony field recording. The first pass built the bed out
-     * of {@code wind.ogg}, which is the hills/mountains asset, and layered
-     * leaf-recording clips on top of it; two sources, two spectral signatures,
-     * and it sounded like two unrelated noises because it was. One source and
-     * a loudness difference is what makes a gust read as a single event.</p>
+     * <p>Wooded biomes get a clip that carries its own wind and then its
+     * leaves, played from three points at canopy height. Open country gets a
+     * clip with wind and no leaves, played unpositioned. The pass before this
+     * one played a wind clip <em>and</em> a leaf clip together; every leaf clip
+     * in this recording already has wind in it - it is leaves <em>in</em> wind
+     * - so that doubled the wind and buried the leaves. One clip, and the
+     * wind-then-leaves ordering is the recording's own.</p>
      *
-     * <p>Pacing is deliberately sparse. A canopy that never stops rustling is
-     * weather-as-noise.</p>
+     * <p>Every clip in both pools, and the bed underneath them, comes out of
+     * the one 106 s cinetony field recording, so a gust reads as a single
+     * event. Bed and gust differ in spectrum - the bed sits near 1.2 kHz, a
+     * gust sweeps past 2.7 kHz - and in level. The bed is the weather; the
+     * gust is the moment.</p>
+     *
+     * <p>What separates a gust from rain is the swell, not the spectrum: leaves
+     * and rain both rustle somewhere in 2-8 kHz, and a plateau of rustle is
+     * indistinguishable from rain. So the clips start before the gust arrives
+     * and keep the arrival - see {@code gust_fades} in
+     * {@code tools/_make_rain_wind_assets_v2.py}. A 1.5 s fade-in on a clip
+     * whose wind peaks two seconds in flattened exactly the thing that made it
+     * a gust.</p>
      */
     private void handleRainTexture(final Player player) {
         if (!PrecipitationIntensity.grading() || !doBiomeSounds() || this.scanner.isInside()) {
-            this.rainGustLeafTick = -1L;
             this.rainGustNextTick = 0L;
             return;
         }
         final long now = this.tickCount.getTickCount();
-        if (this.rainGustLeafTick >= 0L) {
-            if (now >= this.rainGustLeafTick) {
-                playLeafSurround(player, this.rainGustLeafFactory,
-                        this.rainGustVol * RAIN_LEAF_SOURCE_COMP);
-                this.rainGustLeafTick = -1L;
-            }
-            return; // the canopy half is pending or firing; one gust at a time
-        }
         if (now < this.rainGustNextTick)
             return;
         final float intensity = PrecipitationIntensity.ambient();
@@ -446,21 +438,26 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         final float seconds =
                 (RAIN_LEAF_INTERVAL_MAX_S + (RAIN_LEAF_INTERVAL_MIN_S - RAIN_LEAF_INTERVAL_MAX_S) * t)
                         / (0.6F + 0.8F * amp);
+        final float vol = 0.35F + 0.65F * t;
+        // var, not the resource-location type: it is Identifier on 26.1 and
+        // ResourceLocation on the other two.
+        final var pool = wooded ? RAIN_TEXTURE_LEAF : RAIN_TEXTURE_WIND;
+        var factory = ContainerManager.resolve(ISoundLibrary.class)
+                .getSoundFactoryOrDefault(pool[RANDOM.nextInt(pool.length)]);
+        if (wooded)
+            // Canopy surround. The trim keeps three sources from landing 4.8 dB
+            // over one; it lives here and not in playLeafSurround because that
+            // method is shared with the sunny gust, which is not ours to change.
+            playLeafSurround(player, factory, vol * RAIN_LEAF_SOURCE_COMP);
+        else
+            // No canopy to answer, so no direction either: a gust is everywhere.
+            this.audioPlayer.play(factory.createAsAdditional(vol));
         this.rainGustNextTick = now + (long) (seconds * 20F);
-        this.rainGustVol = 0.35F + 0.65F * t;
-        // Wind first, and everywhere - the bed is unpositioned too, and a
-        // positioned gust sounds like weather happening over there.
-        this.audioPlayer.play(ContainerManager.resolve(ISoundLibrary.class)
-                .getSoundFactoryOrDefault(RAIN_TEXTURE_WIND[RANDOM.nextInt(RAIN_TEXTURE_WIND.length)])
-                .createAsAdditional(this.rainGustVol));
-        // Leaves a beat later, and only where there are leaves. No trees, no
-        // second track: plains get the same gust without the canopy.
-        if (wooded) {
-            this.rainGustLeafFactory = ContainerManager.resolve(ISoundLibrary.class)
-                    .getSoundFactoryOrDefault(RAIN_TEXTURE_LEAF[RANDOM.nextInt(RAIN_TEXTURE_LEAF.length)]);
-            this.rainGustLeafTick = now + RAIN_LEAF_DELAY_TICKS
-                    + (long) (RANDOM.nextDouble() * RAIN_LEAF_DELAY_JITTER);
-        }
+        // One line per gust, so tens of seconds apart: is the wooded test
+        // answering what we think it is? The trait set is what decided it.
+        this.logger.info("[RAIN-GUST] wooded=%s traits=%s intensity=%.2f vol=%.2f next=%.0fs",
+                wooded, info == null ? "null" : info.getTraits().toString(),
+                intensity, vol, seconds);
     }
 
     /**

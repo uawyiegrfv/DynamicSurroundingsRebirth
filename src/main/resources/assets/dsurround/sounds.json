@@ -3024,6 +3024,51 @@
       }
     ]
   },
+  "biome.rain.glass": {
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_glass1"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_glass2"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_glass3"
+      }
+    ]
+  },
+  "biome.rain.metal": {
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_metal1"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_metal2"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_metal3"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_metal4"
+      }
+    ]
+  },
+  "biome.rain.water": {
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_water1"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_water2"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_water3"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_water4"
+      }
+    ]
+  },
   "biome.rain.wind3": {
     "ds_credits": [
       {

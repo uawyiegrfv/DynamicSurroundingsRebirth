@@ -3082,5 +3082,131 @@
         "stream": true
       }
     ]
+  },
+  "biome.rain.glass.light": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_glass_light",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.glass.medium": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_glass_medium",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.glass.heavy": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_glass_heavy",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.metal.light": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_metal_light",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.metal.medium": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_metal_medium",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.metal.heavy": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_metal_heavy",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.water.light": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_water_light",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.water.medium": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_water_medium",
+        "stream": true
+      }
+    ]
+  },
+  "biome.rain.water.heavy": {
+    "ds_credits": [
+      {
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_water_heavy",
+        "stream": true
+      }
+    ]
   }
 }

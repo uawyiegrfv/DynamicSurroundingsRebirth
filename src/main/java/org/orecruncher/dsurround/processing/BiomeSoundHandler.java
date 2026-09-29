@@ -119,8 +119,15 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final float RAIN_MATERIAL_INTERVAL_MAX_S = 2.2F;
     private static final float RAIN_MATERIAL_INTERVAL_MIN_S = 0.5F;
     private static final float RAIN_MATERIAL_VOLUME = 0.55F;
-    /** How far around the player to sample for a surface, in blocks. */
-    private static final double RAIN_MATERIAL_RADIUS = 6.0D;
+    // Search volume around the player. Not a single ground sample: surfaces can
+    // be overhead (a metal roof) or off to the side (a glass wall) as easily as
+    // underfoot. Stride 2 keeps the column count down - every column is a
+    // height scan, and materials are patchy anyway, so a coarser grid loses
+    // almost nothing.
+    private static final int RAIN_MATERIAL_RADIUS = 8;
+    private static final int RAIN_MATERIAL_UP = 8;
+    private static final int RAIN_MATERIAL_DOWN = 4;
+    private static final int RAIN_MATERIAL_STRIDE = 2;
 
     /**
      * Per-source trim for the three-source canopy surround. Perceived level
@@ -328,23 +335,24 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * Plays a short burst of clicks at a random spot near the player.
      */
     /**
-     * A raindrop landing on the surface the player is standing over.
+     * A raindrop landing on a surface near the player.
      *
-     * <p>Three materials, not the sixty the footstep system knows: glass,
-     * metal and water. They are the ones that read instantly - a greenhouse
-     * roof, a corrugated shelter, a lake - and the maintainer asked for the
-     * extraction to be proven on three before it is generalised.</p>
+     * <p>Three materials, not the sixty the footstep system knows: glass, metal
+     * and water. They are the ones that read instantly - a greenhouse roof, a
+     * corrugated shelter, a lake - and the maintainer asked for the extraction
+     * to be proven on three before it is generalised.</p>
      *
-     * <p>The surface is sampled at a random point around the player and then
-     * dropped to the ground under it, rather than read from under the
-     * player's feet. The footstep lookup is empty the moment the player is
-     * flying, and even on the ground rain does not land on the player - it
-     * lands on the world. Finding the actual block also gives the sound a
-     * position, which is the point: the drop landed over there.</p>
+     * <p>The surface is found by looking, not by assuming. Rain lands on whatever
+     * is open to the sky: the ground underfoot, but equally a metal roof
+     * overhead or a pane of glass off to one side. So the search collects every
+     * surface in a volume around the player that is (a) one of our materials and
+     * (b) open above, then picks one of them and plays the drop there. Nothing
+     * about the player's own position is assumed - which also means it keeps
+     * working while flying, where "the block under the player" is air.</p>
      *
-     * <p>Nothing else is wired up yet - stone, wood and leaves are all in the
-     * pool and all need their own clips cut. Deliberate: get three right
-     * first.</p>
+     * <p>Only materials with a clip behind them are wired up; everything else
+     * returns no match. Stone, wood and leaves are all waiting on their own
+     * clips, deliberately - three first.</p>
      */
     private void handleRainMaterial(final Player player) {
         if (!PrecipitationIntensity.grading() || !doBiomeSounds() || this.scanner.isInside()) {
@@ -359,27 +367,8 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             this.rainMaterialNextTick = now + 20L;
             return;
         }
-        var level = player.level();
-        final double angle = RANDOM.nextDouble() * Math.PI * 2D;
-        final double dist = RANDOM.nextDouble() * RAIN_MATERIAL_RADIUS;
-        var pos = new net.minecraft.core.BlockPos.MutableBlockPos(
-                (int) Math.floor(player.getX() + Math.cos(angle) * dist), 0,
-                (int) Math.floor(player.getZ() + Math.sin(angle) * dist));
-        pos.setY(org.orecruncher.dsurround.lib.world.WorldUtils.getPrecipitationHeight(level, pos) - 1);
-        var state = level.getBlockState(pos);
-        final ResourceLocation sound;
-        if (state.getFluidState().is(net.minecraft.tags.FluidTags.WATER))
-            sound = RAIN_MATERIAL_WATER;
-        else {
-            var type = state.getSoundType();
-            if (type == net.minecraft.world.level.block.SoundType.GLASS)
-                sound = RAIN_MATERIAL_GLASS;
-            else if (type == net.minecraft.world.level.block.SoundType.METAL)
-                sound = RAIN_MATERIAL_METAL;
-            else
-                sound = null;
-        }
-        if (sound == null) {
+        final var spot = findMaterialSurface(player);
+        if (spot == null) {
             this.rainMaterialNextTick = now + 20L;
             return;
         }
@@ -388,12 +377,67 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         final float seconds = RAIN_MATERIAL_INTERVAL_MAX_S
                 + (RAIN_MATERIAL_INTERVAL_MIN_S - RAIN_MATERIAL_INTERVAL_MAX_S) * t;
         this.rainMaterialNextTick = now + (long) (seconds * 20F);
-        var factory = ContainerManager.resolve(ISoundLibrary.class).getSoundFactoryOrDefault(sound);
-        // AT the surface, one block up - that is where the drop landed.
+        var factory = ContainerManager.resolve(ISoundLibrary.class)
+                .getSoundFactoryOrDefault(spot.sound());
+        // AT the surface, just above it - that is where the drop landed.
         var instance = factory.createAtLocation(
-                new Vec3(pos.getX() + 0.5D, pos.getY() + 1.0D, pos.getZ() + 0.5D),
+                new Vec3(spot.pos().getX() + 0.5D, spot.pos().getY() + 1.0D, spot.pos().getZ() + 0.5D),
                 RAIN_MATERIAL_VOLUME * (0.6F + 0.4F * t));
         this.audioPlayer.play(instance);
+    }
+
+    /**
+     * One material surface open to the sky within reach of the player, or null.
+     *
+     * <p>Collects every candidate first and then chooses, rather than taking the
+     * first hit: a single hit would always favour whichever corner the scan
+     * reaches first, which reads as the drop always landing in the same place.</p>
+     */
+    private MaterialSpot findMaterialSurface(final Player player) {
+        var level = player.level();
+        final int px = player.getBlockX();
+        final int py = player.getBlockY();
+        final int pz = player.getBlockZ();
+        var pos = new net.minecraft.core.BlockPos.MutableBlockPos(0, 0, 0);
+        var above = new net.minecraft.core.BlockPos.MutableBlockPos(0, 0, 0);
+        final ObjectArray<MaterialSpot> found = new ObjectArray<>(8);
+        for (int x = px - RAIN_MATERIAL_RADIUS; x <= px + RAIN_MATERIAL_RADIUS; x += RAIN_MATERIAL_STRIDE)
+            for (int z = pz - RAIN_MATERIAL_RADIUS; z <= pz + RAIN_MATERIAL_RADIUS; z += RAIN_MATERIAL_STRIDE)
+                // No world-height clamp: getBlockState outside the build height
+                // is air, which simply matches nothing, and the two accessors
+                // that would express the clamp are named differently per version.
+                for (int y = py - RAIN_MATERIAL_DOWN; y <= py + RAIN_MATERIAL_UP; y++) {
+                    pos.set(x, y, z);
+                    var state = level.getBlockState(pos);
+                    var sound = materialSound(state);
+                    if (sound == null)
+                        continue;
+                    // Open to the sky: nothing sitting on top of it, so rain
+                    // actually reaches it. A block buried in a wall is not rained on.
+                    above.set(x, y + 1, z);
+                    if (!level.getBlockState(above).isAir())
+                        continue;
+                    found.add(new MaterialSpot(pos.immutable(), sound));
+                }
+        if (found.size() == 0)
+            return null;
+        return found.get(RANDOM.nextInt(found.size()));
+    }
+
+    /** Which of our three materials this block is, or null if none of them. */
+    private ResourceLocation materialSound(final net.minecraft.world.level.block.state.BlockState state) {
+        if (state.getFluidState().is(net.minecraft.tags.FluidTags.WATER))
+            return RAIN_MATERIAL_WATER;
+        var type = state.getSoundType();
+        if (type == net.minecraft.world.level.block.SoundType.GLASS)
+            return RAIN_MATERIAL_GLASS;
+        if (type == net.minecraft.world.level.block.SoundType.METAL)
+            return RAIN_MATERIAL_METAL;
+        return null;
+    }
+
+    /** A material surface and the clip it should play. */
+    private record MaterialSpot(net.minecraft.core.BlockPos pos, ResourceLocation sound) {
     }
 
     private void handleSculkClick(Player player) {

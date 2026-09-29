@@ -62,6 +62,21 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.metal");
     private static final Identifier RAIN_MATERIAL_WATER =
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.water");
+
+    private static final Identifier[] RAIN_MATERIAL_GLASS_TIERS = {
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.glass.light"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.glass.medium"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.glass.heavy"),};
+    private static final Identifier[] RAIN_MATERIAL_METAL_TIERS = {
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.metal.light"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.metal.medium"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.metal.heavy"),};
+    private static final Identifier[] RAIN_MATERIAL_WATER_TIERS = {
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.water.light"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.water.medium"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.water.heavy"),};
+    private static final Identifier[][] RAIN_MATERIAL_TIERS = {
+            RAIN_MATERIAL_GLASS_TIERS, RAIN_MATERIAL_METAL_TIERS, RAIN_MATERIAL_WATER_TIERS};
     private static final Identifier[] RAIN_TEXTURE_LEAF = {
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.leaf1"),
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.leaf2")};
@@ -96,13 +111,17 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final float RAIN_LEAF_INTERVAL_MAX_S = 70F;
     private static final float RAIN_LEAF_INTERVAL_MIN_S = 18F;
     /**
-     * How far the wind bed may fall below the level the intensity asks for.
-     * A bed pinned to one level is a loop with a volume knob, and the
-     * maintainer asked for the swells to bite harder. Two slow periods that are
-     * not multiples of each other, so consecutive troughs never land in the
-     * same place and it never settles into an audible pulse.
+    /**
+     * How far the wind bed may fall below, and how far it may rise above, the
+     * level the intensity asks for. A bed pinned to one level is a loop with a
+     * volume knob, and the maintainer asked for the swells to bite harder.
+     * The ceiling is separate from the floor because the complaint was about
+     * the crest specifically - lowering the shared bed gain instead would have
+     * dragged the trough down with it, and the trough is already at the level
+     * that stopped reading as "barely there".
      */
     private static final float RAIN_WIND_SWELL_FLOOR = 0.42F;
+    private static final float RAIN_WIND_SWELL_PEAK = 0.8F;
     private static final float RAIN_WIND_SWELL_PERIOD_A_S = 14F;
     private static final float RAIN_WIND_SWELL_PERIOD_B_S = 23F;
     /**
@@ -111,25 +130,58 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      */
     private static final float RAIN_GUST_STORM_GAIN = 1.3F;
     /**
-     * Rain landing on a surface: how often, and how loud. The clips are
-     * already pulled down to -40 dB (footstep clips sit at -25..-33, rain at
-     * -46), so this is the last trim on top of that.
+     * Rain landing on a material surface: a bounded number of continuous loops
+     * spread over whatever surfaces are in reach.
+     *
+     * <p>Not one per material. One per material stopped different materials
+     * competing and started the identical bug one level down - a whole glass
+     * roof produced exactly one sound, and every other block of glass was
+     * silent, because the slot had claimed the material. Rain on a surface is a
+     * field: a large expanse should carry several loops spread across it, and
+     * they get louder together simply because there are more of them.</p>
+     *
+     * <p>This is also the performance answer. The cap is on the total, so a
+     * field of glass costs what a single pane costs, many materials in reach
+     * can neither stutter nor fall silent, and adding more materials later does
+     * not change the budget.</p>
      */
+    private static final int RAIN_MATERIAL_MAX_LOOPS = 4;
+    /** Water is parked - see materialSound(). */
+    private static final boolean RAIN_MATERIAL_WATER_ENABLED = false;
+    /** Only for the diagnostic line. */
+    /** Only for the diagnostic line. */
+    private static final String[] MATERIAL_NAMES = {"glass", "metal", "water"};
     private static final float RAIN_MATERIAL_MIN_INTENSITY = 0.2F;
-    private static final float RAIN_MATERIAL_INTERVAL_MAX_S = 2.2F;
-    private static final float RAIN_MATERIAL_INTERVAL_MIN_S = 0.5F;
-    // 1.0, not the 0.55 it started at: the clips are the quiet element and a
-    // single voice under a stack of rain was being masked outright.
+    /** Per-asset trim, applied once when the loop is created. */
     private static final float RAIN_MATERIAL_VOLUME = 1.0F;
+    /** Lowest scale the intensity curve reaches - a drizzle still has some. */
+    private static final float RAIN_MATERIAL_VOLUME_FLOOR = 0.55F;
+    private static final float RAIN_MATERIAL_TIER_MEDIUM = 0.4F;
+    private static final float RAIN_MATERIAL_TIER_HEAVY = 0.7F;
+    /**
+     * Cadence for re-validating and re-filling the anchored surfaces. One
+     * second: at the old twelve a freshly placed block stayed silent long
+     * enough to look broken. The column scan only costs anything on this beat,
+     * so this is the whole bill.
+     */
+    private static final int RAIN_MATERIAL_SCAN_TICKS = 20;
+
     // Search volume around the player. Not a single ground sample: surfaces can
     // be overhead (a metal roof) or off to the side (a glass wall) as easily as
-    // underfoot. Stride 2 keeps the column count down - every column is a
-    // height scan, and materials are patchy anyway, so a coarser grid loses
-    // almost nothing.
-    private static final int RAIN_MATERIAL_RADIUS = 8;
+    // underfoot. Stride 1 - every column. The first pass used 2 to halve the
+    // column count and it cost far more than it saved: a lone pane or a single
+    // block of metal simply fell between the sampled columns and was not found,
+    // which reads as the whole feature being broken.
+    // Radius is 6, not 8: reach is the cheap thing to give up and the beat is
+    // ten times faster, so a narrower box is how the cost stays flat.
+    private static final int RAIN_MATERIAL_RADIUS = 6;
     private static final int RAIN_MATERIAL_UP = 8;
-    private static final int RAIN_MATERIAL_DOWN = 4;
-    private static final int RAIN_MATERIAL_STRIDE = 2;
+    // Deep enough to reach water you are standing above. A lake or a pool is
+    // usually below the player rather than level with them, and that is the
+    // case the shallow window kept missing - water's special case is reach
+    // downward, not a different way of finding it.
+    private static final int RAIN_MATERIAL_DOWN = 12;
+    private static final int RAIN_MATERIAL_STRIDE = 1;
 
     /**
      * Per-source trim for the three-source canopy surround. Perceived level
@@ -148,6 +200,14 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private Object rainWindAsset;
     private long rainGustNextTick;
     private long rainMaterialNextTick;
+    private final BackgroundSoundLoop[] rainMaterialLoops =
+            new BackgroundSoundLoop[RAIN_MATERIAL_MAX_LOOPS];
+    private final Object[] rainMaterialAssets = new Object[RAIN_MATERIAL_MAX_LOOPS];
+    private final net.minecraft.core.BlockPos[] rainMaterialSpots =
+            new net.minecraft.core.BlockPos[RAIN_MATERIAL_MAX_LOOPS];
+    private final int[] rainMaterialMaterials = new int[RAIN_MATERIAL_MAX_LOOPS];
+    private final int[] rainMaterialTiers = new int[RAIN_MATERIAL_MAX_LOOPS];
+    private org.orecruncher.dsurround.processing.scanner.MaterialSurfaceScanner surfaceScanner;
     private static final float LEAF_WIND_DAY_CHANCE = 0.0011F;
     private static final float LEAF_WIND_NIGHT_CHANCE = 0.0033F;
 
@@ -358,95 +418,209 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      */
     private void handleRainMaterial(final Player player) {
         if (!PrecipitationIntensity.grading() || !doBiomeSounds()) {
-            this.rainMaterialNextTick = 0L;
+            fadeRainMaterial();
             return;
         }
-        final long now = this.tickCount.getTickCount();
-        if (now < this.rainMaterialNextTick)
+        // Not ambient() >= some level. ambient is the smoothed envelope times
+        // the vanilla ramp, so any level gate on it is crossed about a second
+        // into the storm: the layer started late and then still had the loop
+        // player's own ease-in to sit through. rainingNow() is true on the
+        // first tick of the ramp, so the ease-in is all that is left to wait for.
+        if (!PrecipitationIntensity.rainingNow()) {
+            fadeRainMaterial();
             return;
+        }
+        // The scanner has to be ticked every tick to make progress: it walks the
+        // volume a slice at a time. It only runs while it is raining, so a dry
+        // world pays nothing for it.
+        this.materialSurfaces(player);
         final float intensity = PrecipitationIntensity.ambient();
-        if (intensity < RAIN_MATERIAL_MIN_INTENSITY) {
-            this.rainMaterialNextTick = now + 20L;
-            return;
-        }
-        final var surfaces = findMaterialSurfaces(player);
-        if (surfaces == null || surfaces.size() == 0) {
-            // No such surface in reach. Nothing to play - and say so, because
-            // silence is indistinguishable from "broken" without this line.
-            this.logger.debug("[RAIN-MAT] no glass/metal/water surface in reach (intensity %.2f)",
-                    intensity);
-            this.rainMaterialNextTick = now + 20L;
-            return;
-        }
-        final var spot = surfaces.get(RANDOM.nextInt(surfaces.size()));
+        final long now = this.tickCount.getTickCount();
+        // A surface being broken has to silence its loop on the tick it
+        // happens, so the anchored spots are re-checked every tick: two block
+        // reads per slot, which is nothing next to a second of rain-on-glass
+        // sounding from a block that is no longer there. The scan and the
+        // re-fill stay on the slow beat - that is the expensive part.
+        var level = player.level();
+        for (int i = 0; i < RAIN_MATERIAL_MAX_LOOPS; i++)
+            if (this.rainMaterialSpots[i] != null
+                    && !spotStillValid(level, this.rainMaterialSpots[i],
+                            this.rainMaterialMaterials[i]))
+                fadeMaterialLoop(i);
+        if (now % RAIN_MATERIAL_SCAN_TICKS == 0)
+            refreshMaterialLoops(player, intensity);
         float t = (intensity - RAIN_MATERIAL_MIN_INTENSITY) / (1F - RAIN_MATERIAL_MIN_INTENSITY);
         t = t < 0F ? 0F : (t > 1F ? 1F : t);
-        final float seconds = RAIN_MATERIAL_INTERVAL_MAX_S
-                + (RAIN_MATERIAL_INTERVAL_MIN_S - RAIN_MATERIAL_INTERVAL_MAX_S) * t;
-        this.rainMaterialNextTick = now + (long) (seconds * 20F);
-        var factory = ContainerManager.resolve(ISoundLibrary.class)
-                .getSoundFactoryOrDefault(spot.sound());
-        final float vol = RAIN_MATERIAL_VOLUME * (0.6F + 0.4F * t);
-        // AT the surface, just above it - that is where the drop landed.
-        var instance = factory.createAtLocation(
-                new Vec3(spot.pos().getX() + 0.5D, spot.pos().getY() + 1.0D, spot.pos().getZ() + 0.5D),
-                vol);
-        this.audioPlayer.play(instance);
-        this.logger.info("[RAIN-MAT] spots=%d -> %s at (%d,%d,%d) vol=%.2f intensity=%.2f",
-                surfaces.size(), spot.sound().getPath(),
-                spot.pos().getX(), spot.pos().getY(), spot.pos().getZ(), vol, intensity);
+        // Starting on tick one means ambient is still near zero, so bring the
+        // level up over the first MIN_INTENSITY of the envelope. Without this the
+        // layer arrives at FLOOR scale immediately; the loop player eases, but
+        // easing towards a target that is already high is not a fade in.
+        float fadeIn = intensity / RAIN_MATERIAL_MIN_INTENSITY;
+        fadeIn = fadeIn < 0F ? 0F : (fadeIn > 1F ? 1F : fadeIn);
+        final float vol = fadeIn
+                * (RAIN_MATERIAL_VOLUME_FLOOR + (1F - RAIN_MATERIAL_VOLUME_FLOOR) * t);
+        for (int k = 0; k < RAIN_MATERIAL_MAX_LOOPS; k++)
+            if (this.rainMaterialLoops[k] != null)
+                this.rainMaterialLoops[k].setScaleTarget(vol);
     }
 
     /**
-     * Every material surface open to the sky within reach of the player.
+     * Spread a bounded number of loops over the material surfaces in reach.
      *
-     * <p>Returns all of them rather than one, so the caller can pick fairly. A
-     * single hit would always favour whichever corner the scan reaches first,
-     * which reads as the drop always landing in the same place.</p>
+     * <p>Two jobs on the same beat. First drop anything that is no longer what
+     * it was: the block was broken, something was built on top of it, or the
+     * tier moved. Then fill the free slots by farthest-point sampling seeded
+     * with the spots already playing, so a new slot lands away from the ones
+     * already sounding rather than next to them.</p>
      */
-    private ObjectArray<MaterialSpot> findMaterialSurfaces(final Player player) {
+    private void refreshMaterialLoops(final Player player, final float intensity) {
         var level = player.level();
-        final int px = player.getBlockX();
-        final int py = player.getBlockY();
-        final int pz = player.getBlockZ();
-        var pos = new net.minecraft.core.BlockPos.MutableBlockPos(0, 0, 0);
-        var above = new net.minecraft.core.BlockPos.MutableBlockPos(0, 0, 0);
-        final ObjectArray<MaterialSpot> found = new ObjectArray<>(8);
-        for (int x = px - RAIN_MATERIAL_RADIUS; x <= px + RAIN_MATERIAL_RADIUS; x += RAIN_MATERIAL_STRIDE)
-            for (int z = pz - RAIN_MATERIAL_RADIUS; z <= pz + RAIN_MATERIAL_RADIUS; z += RAIN_MATERIAL_STRIDE)
-                // No world-height clamp: getBlockState outside the build height
-                // is air, which simply matches nothing, and the two accessors
-                // that would express the clamp are named differently per version.
-                for (int y = py - RAIN_MATERIAL_DOWN; y <= py + RAIN_MATERIAL_UP; y++) {
-                    pos.set(x, y, z);
-                    var state = level.getBlockState(pos);
-                    var sound = materialSound(state);
-                    if (sound == null)
-                        continue;
-                    // Open to the sky: nothing sitting on top of it, so rain
-                    // actually reaches it. A block buried in a wall is not rained on.
-                    above.set(x, y + 1, z);
-                    if (!level.getBlockState(above).isAir())
-                        continue;
-                    found.add(new MaterialSpot(pos.immutable(), sound));
-                }
-        return found;
+        final int tier = intensity >= RAIN_MATERIAL_TIER_HEAVY ? 2
+                : (intensity >= RAIN_MATERIAL_TIER_MEDIUM ? 1 : 0);
+
+        // Validity is checked every tick by the caller; this is only the tier.
+        for (int i = 0; i < RAIN_MATERIAL_MAX_LOOPS; i++)
+            if (this.rainMaterialSpots[i] != null && this.rainMaterialTiers[i] != tier)
+                fadeMaterialLoop(i);
+
+        boolean free = false;
+        for (int i = 0; i < RAIN_MATERIAL_MAX_LOOPS; i++)
+            if (this.rainMaterialLoops[i] == null)
+                free = true;
+        if (!free)
+            return;
+
+        final var surfaces = this.materialSurfaces(player);
+        if (surfaces == null || surfaces.size() == 0) {
+            // Nothing suitable in reach. Say so, because silence is
+            // indistinguishable from "broken" without this line.
+            this.logger.debug("[RAIN-MAT] no glass/metal/water surface in reach (intensity %.2f)",
+                    intensity);
+            return;
+        }
+        for (int i = 0; i < RAIN_MATERIAL_MAX_LOOPS; i++) {
+            if (this.rainMaterialLoops[i] != null)
+                continue;
+            final var spot = pickSpread(surfaces, i);
+            if (spot == null)
+                break;
+            final var sound = RAIN_MATERIAL_TIERS[spot.material()][tier];
+            var factory = ContainerManager.resolve(ISoundLibrary.class)
+                    .getSoundFactoryOrDefault(sound);
+            var loop = factory.createBackgroundSoundLoopAt(spot.pos());
+            loop.setVolume(RAIN_MATERIAL_VOLUME);
+            loop.setScaleTarget(0F);
+            this.rainMaterialLoops[i] = loop;
+            this.rainMaterialAssets[i] = sound;
+            this.rainMaterialSpots[i] = spot.pos();
+            this.rainMaterialMaterials[i] = spot.material();
+            this.rainMaterialTiers[i] = tier;
+            this.audioPlayer.play(loop);
+            this.logger.info("[RAIN-MAT] %s -> %s at (%d,%d,%d) tier=%d intensity=%.2f",
+                    MATERIAL_NAMES[spot.material()], sound.getPath(), spot.pos().getX(),
+                    spot.pos().getY(), spot.pos().getZ(), tier, intensity);
+        }
     }
 
-    /** Which of our three materials this block is, or null if none of them. */
-    private Identifier materialSound(final net.minecraft.world.level.block.state.BlockState state) {
-        if (state.getFluidState().is(net.minecraft.tags.FluidTags.WATER))
-            return RAIN_MATERIAL_WATER;
+    /** Still the same material, and still open to the sky? */
+    private static boolean spotStillValid(final net.minecraft.world.level.Level level,
+                                          final net.minecraft.core.BlockPos pos,
+                                          final int material) {
+        return level.getBlockState(pos.above()).isAir()
+                && materialSound(level.getBlockState(pos)) == material;
+    }
+
+    /**
+     * The surface furthest from everything already anchored - farthest-point
+     * sampling, seeded with the spots still playing. Distance is what spreads
+     * the loops over a large expanse instead of bunching them at whatever the
+     * scan reached first, and because the slots are material-agnostic it lets
+     * two blocks of the same material both get a loop.
+     */
+    private org.orecruncher.dsurround.processing.scanner.MaterialSurfaceScanner.Surface
+            pickSpread(final ObjectArray<org.orecruncher.dsurround.processing.scanner.MaterialSurfaceScanner.Surface> surfaces, final int slot) {
+        org.orecruncher.dsurround.processing.scanner.MaterialSurfaceScanner.Surface best = null;
+        double bestScore = -1.0;
+        for (int k = 0; k < surfaces.size(); k++) {
+            final var s = surfaces.get(k);
+            boolean clash = false;
+            double nearest = -1.0;
+            for (int j = 0; j < RAIN_MATERIAL_MAX_LOOPS; j++) {
+                if (j == slot || this.rainMaterialSpots[j] == null)
+                    continue;
+                final var other = this.rainMaterialSpots[j];
+                if (other.equals(s.pos())) {
+                    clash = true;
+                    break;
+                }
+                final int dx = other.getX() - s.pos().getX();
+                final int dy = other.getY() - s.pos().getY();
+                final int dz = other.getZ() - s.pos().getZ();
+                final double d = dx * dx + dy * dy + dz * dz;
+                if (nearest < 0.0 || d < nearest)
+                    nearest = d;
+            }
+            if (clash)
+                continue;
+            // Nothing anchored yet: every candidate scores alike, so break the
+            // tie at random instead of taking the first in scan order.
+            final double score = nearest < 0.0 ? RANDOM.nextDouble() : nearest;
+            if (score > bestScore) {
+                bestScore = score;
+                best = s;
+            }
+        }
+        return best;
+    }
+
+    private void fadeMaterialLoop(final int k) {
+        if (this.rainMaterialLoops[k] != null) {
+            this.rainMaterialLoops[k].setScaleTarget(0F);
+            this.rainMaterialLoops[k] = null;
+            this.rainMaterialAssets[k] = null;
+            this.rainMaterialSpots[k] = null;
+        }
+    }
+
+    private void fadeRainMaterial() {
+        for (int k = 0; k < RAIN_MATERIAL_MAX_LOOPS; k++)
+            fadeMaterialLoop(k);
+    }
+
+    /**
+     * The material surfaces in reach, from the shared cuboid scanner. Created on
+     * first use and ticked here; this is also what makes the scan stop entirely
+     * when it is not raining, since nothing calls it then.
+     */
+    private ObjectArray<org.orecruncher.dsurround.processing.scanner.MaterialSurfaceScanner.Surface>
+            materialSurfaces(final Player player) {
+        if (this.surfaceScanner == null) {
+            final var locus = new org.orecruncher.dsurround.lib.scanner.ScanContext(
+                    () -> org.orecruncher.dsurround.lib.GameUtils.getWorld().orElseThrow(),
+                    () -> player.blockPosition(),
+                    this.logger);
+            this.surfaceScanner =
+                    new org.orecruncher.dsurround.processing.scanner.MaterialSurfaceScanner(locus);
+        }
+        this.surfaceScanner.tick();
+        return this.surfaceScanner.surfaces();
+    }
+
+    /** Which of our three materials this block is, or -1 if none of them. */
+    private static int materialSound(final net.minecraft.world.level.block.state.BlockState state) {
+        // Water is wired but parked. The clip still does not read as rain on
+        // water, and no sound is better than a wrong one until a proper source
+        // turns up. Flip RAIN_MATERIAL_WATER_ENABLED to bring the whole path
+        // back - assets, events and the tier lookup are all still in place.
+        if (RAIN_MATERIAL_WATER_ENABLED
+                && state.getFluidState().is(net.minecraft.tags.FluidTags.WATER))
+            return 2;
         var type = state.getSoundType();
         if (type == net.minecraft.world.level.block.SoundType.GLASS)
-            return RAIN_MATERIAL_GLASS;
+            return 0;
         if (type == net.minecraft.world.level.block.SoundType.METAL)
-            return RAIN_MATERIAL_METAL;
-        return null;
-    }
-
-    /** A material surface and the clip it should play. */
-    private record MaterialSpot(net.minecraft.core.BlockPos pos, Identifier sound) {
+            return 1;
+        return -1;
     }
 
     private void handleSculkClick(Player player) {
@@ -540,7 +714,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         final double a = Math.sin(tick * 2D * Math.PI / (RAIN_WIND_SWELL_PERIOD_A_S * 20F));
         final double b = Math.sin(tick * 2D * Math.PI / (RAIN_WIND_SWELL_PERIOD_B_S * 20F) + 1.3D);
         float s = 0.5F + 0.5F * (float) (0.6D * a + 0.4D * b);
-        return RAIN_WIND_SWELL_FLOOR + (1F - RAIN_WIND_SWELL_FLOOR) * s;
+        return RAIN_WIND_SWELL_FLOOR + (RAIN_WIND_SWELL_PEAK - RAIN_WIND_SWELL_FLOOR) * s;
     }
 
     /** Whether this factory is one of the wind assets biomes.json can assign. */

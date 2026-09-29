@@ -81,8 +81,26 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     // first pass used. At the old rate the canopy never stopped rustling, which
     // reads as noise rather than weather - what is wanted is the occasional big
     // gust that comes through and takes the leaves with it.
-    private static final float RAIN_LEAF_INTERVAL_MAX_S = 60F;
-    private static final float RAIN_LEAF_INTERVAL_MIN_S = 25F;
+    // Widened: 70 s at the low end down to 18 s at full intensity (was 60/25),
+    // before the amplitude divisor. The maintainer could not tell that the
+    // pacing was coupled to intensity at all, so make the span obvious.
+    private static final float RAIN_LEAF_INTERVAL_MAX_S = 70F;
+    private static final float RAIN_LEAF_INTERVAL_MIN_S = 18F;
+    /**
+     * How far the wind bed may fall below the level the intensity asks for.
+     * A bed pinned to one level is a loop with a volume knob, and the
+     * maintainer asked for the swells to bite harder. Two slow periods that are
+     * not multiples of each other, so consecutive troughs never land in the
+     * same place and it never settles into an audible pulse.
+     */
+    private static final float RAIN_WIND_SWELL_FLOOR = 0.42F;
+    private static final float RAIN_WIND_SWELL_PERIOD_A_S = 14F;
+    private static final float RAIN_WIND_SWELL_PERIOD_B_S = 23F;
+    /**
+     * Extra level for a gust in a thunderstorm. A thunderstorm has to outshout
+     * its own rain; at full intensity the gusts were being buried by it.
+     */
+    private static final float RAIN_GUST_STORM_GAIN = 1.3F;
     /**
      * Per-source trim for the three-source canopy surround. Perceived level
      * goes with volume * sqrt(voices), so three sources at full volume land
@@ -337,6 +355,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         }
         if (this.scanner.isInside())
             target *= INDOOR_VOLUME_SCALE;
+        target *= windSwell(this.tickCount.getTickCount());
         if (target <= 0.005F) {
             fadeRainWind();
             return;
@@ -363,6 +382,20 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             this.rainWindLoop = null;
             this.rainWindAsset = null;
         }
+    }
+
+    /**
+     * Slow swell for the wind bed, 0.42-1.0. Two sines at 14 s and 23 s: their
+     * beat period is over five minutes, so the shape does not repeat inside any
+     * stretch a player is likely to listen to, and the troughs land at a
+     * different point every time. The loop player eases towards whatever this
+     * returns, so following it costs nothing and adds no seams.
+     */
+    private static float windSwell(final long tick) {
+        final double a = Math.sin(tick * 2D * Math.PI / (RAIN_WIND_SWELL_PERIOD_A_S * 20F));
+        final double b = Math.sin(tick * 2D * Math.PI / (RAIN_WIND_SWELL_PERIOD_B_S * 20F) + 1.3D);
+        float s = 0.5F + 0.5F * (float) (0.6D * a + 0.4D * b);
+        return RAIN_WIND_SWELL_FLOOR + (1F - RAIN_WIND_SWELL_FLOOR) * s;
     }
 
     /** Whether this factory is one of the wind assets biomes.json can assign. */
@@ -438,7 +471,10 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         final float seconds =
                 (RAIN_LEAF_INTERVAL_MAX_S + (RAIN_LEAF_INTERVAL_MIN_S - RAIN_LEAF_INTERVAL_MAX_S) * t)
                         / (0.6F + 0.8F * amp);
-        final float vol = 0.35F + 0.65F * t;
+        // Louder still when it thunders: a storm has to be heard over its own
+        // rain, and that was exactly where the gusts were being buried.
+        final float vol = (0.35F + 0.65F * t)
+                * (player.level().isThundering() ? RAIN_GUST_STORM_GAIN : 1F);
         // var, not the resource-location type: it is Identifier on 26.1 and
         // ResourceLocation on the other two.
         final var pool = wooded ? RAIN_TEXTURE_LEAF : RAIN_TEXTURE_WIND;

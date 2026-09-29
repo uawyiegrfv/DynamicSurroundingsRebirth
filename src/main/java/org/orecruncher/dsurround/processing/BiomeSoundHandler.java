@@ -53,6 +53,15 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.wind1"),
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.wind2"),
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.wind3")};
+    // Rain landing on a surface. Three materials for now - see the comment on
+    // handleRainMaterial(). Extracted from the footstep pools by
+    // tools/_make_material_rain_assets.py.
+    private static final Identifier RAIN_MATERIAL_GLASS =
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.glass");
+    private static final Identifier RAIN_MATERIAL_METAL =
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.metal");
+    private static final Identifier RAIN_MATERIAL_WATER =
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.water");
     private static final Identifier[] RAIN_TEXTURE_LEAF = {
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.leaf1"),
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.leaf2")};
@@ -102,6 +111,18 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      */
     private static final float RAIN_GUST_STORM_GAIN = 1.3F;
     /**
+     * Rain landing on a surface: how often, and how loud. The clips are
+     * already pulled down to -40 dB (footstep clips sit at -25..-33, rain at
+     * -46), so this is the last trim on top of that.
+     */
+    private static final float RAIN_MATERIAL_MIN_INTENSITY = 0.2F;
+    private static final float RAIN_MATERIAL_INTERVAL_MAX_S = 2.2F;
+    private static final float RAIN_MATERIAL_INTERVAL_MIN_S = 0.5F;
+    private static final float RAIN_MATERIAL_VOLUME = 0.55F;
+    /** How far around the player to sample for a surface, in blocks. */
+    private static final double RAIN_MATERIAL_RADIUS = 6.0D;
+
+    /**
      * Per-source trim for the three-source canopy surround. Perceived level
      * goes with volume * sqrt(voices), so three sources at full volume land
      * 4.8 dB above one - enough to bury the wind they are meant to ride with.
@@ -117,6 +138,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private BackgroundSoundLoop rainWindLoop;
     private Object rainWindAsset;
     private long rainGustNextTick;
+    private long rainMaterialNextTick;
     private static final float LEAF_WIND_DAY_CHANCE = 0.0011F;
     private static final float LEAF_WIND_NIGHT_CHANCE = 0.0033F;
 
@@ -246,6 +268,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 handleLeafWindGust(player);
                 handleRainWindBed(player);
                 handleRainTexture(player);
+                handleRainMaterial(player);
                 handleSculkClick(player);
             }
         }
@@ -304,6 +327,75 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * Independent of the shared mood chance, so it never inflates other mood sounds.
      * Plays a short burst of clicks at a random spot near the player.
      */
+    /**
+     * A raindrop landing on the surface the player is standing over.
+     *
+     * <p>Three materials, not the sixty the footstep system knows: glass,
+     * metal and water. They are the ones that read instantly - a greenhouse
+     * roof, a corrugated shelter, a lake - and the maintainer asked for the
+     * extraction to be proven on three before it is generalised.</p>
+     *
+     * <p>The surface is sampled at a random point around the player and then
+     * dropped to the ground under it, rather than read from under the
+     * player's feet. The footstep lookup is empty the moment the player is
+     * flying, and even on the ground rain does not land on the player - it
+     * lands on the world. Finding the actual block also gives the sound a
+     * position, which is the point: the drop landed over there.</p>
+     *
+     * <p>Nothing else is wired up yet - stone, wood and leaves are all in the
+     * pool and all need their own clips cut. Deliberate: get three right
+     * first.</p>
+     */
+    private void handleRainMaterial(final Player player) {
+        if (!PrecipitationIntensity.grading() || !doBiomeSounds() || this.scanner.isInside()) {
+            this.rainMaterialNextTick = 0L;
+            return;
+        }
+        final long now = this.tickCount.getTickCount();
+        if (now < this.rainMaterialNextTick)
+            return;
+        final float intensity = PrecipitationIntensity.ambient();
+        if (intensity < RAIN_MATERIAL_MIN_INTENSITY) {
+            this.rainMaterialNextTick = now + 20L;
+            return;
+        }
+        var level = player.level();
+        final double angle = RANDOM.nextDouble() * Math.PI * 2D;
+        final double dist = RANDOM.nextDouble() * RAIN_MATERIAL_RADIUS;
+        var pos = new net.minecraft.core.BlockPos.MutableBlockPos(
+                (int) Math.floor(player.getX() + Math.cos(angle) * dist), 0,
+                (int) Math.floor(player.getZ() + Math.sin(angle) * dist));
+        pos.setY(org.orecruncher.dsurround.lib.world.WorldUtils.getPrecipitationHeight(level, pos) - 1);
+        var state = level.getBlockState(pos);
+        final Identifier sound;
+        if (state.getFluidState().is(net.minecraft.tags.FluidTags.WATER))
+            sound = RAIN_MATERIAL_WATER;
+        else {
+            var type = state.getSoundType();
+            if (type == net.minecraft.world.level.block.SoundType.GLASS)
+                sound = RAIN_MATERIAL_GLASS;
+            else if (type == net.minecraft.world.level.block.SoundType.METAL)
+                sound = RAIN_MATERIAL_METAL;
+            else
+                sound = null;
+        }
+        if (sound == null) {
+            this.rainMaterialNextTick = now + 20L;
+            return;
+        }
+        float t = (intensity - RAIN_MATERIAL_MIN_INTENSITY) / (1F - RAIN_MATERIAL_MIN_INTENSITY);
+        t = t < 0F ? 0F : (t > 1F ? 1F : t);
+        final float seconds = RAIN_MATERIAL_INTERVAL_MAX_S
+                + (RAIN_MATERIAL_INTERVAL_MIN_S - RAIN_MATERIAL_INTERVAL_MAX_S) * t;
+        this.rainMaterialNextTick = now + (long) (seconds * 20F);
+        var factory = ContainerManager.resolve(ISoundLibrary.class).getSoundFactoryOrDefault(sound);
+        // AT the surface, one block up - that is where the drop landed.
+        var instance = factory.createAtLocation(
+                new Vec3(pos.getX() + 0.5D, pos.getY() + 1.0D, pos.getZ() + 0.5D),
+                RAIN_MATERIAL_VOLUME * (0.6F + 0.4F * t));
+        this.audioPlayer.play(instance);
+    }
+
     private void handleSculkClick(Player player) {
         if (doBiomeSounds()) {
             var biome = this.scanner.playerLogicBiomeInfo();

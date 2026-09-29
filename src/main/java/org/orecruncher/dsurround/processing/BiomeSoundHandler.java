@@ -118,7 +118,9 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final float RAIN_MATERIAL_MIN_INTENSITY = 0.2F;
     private static final float RAIN_MATERIAL_INTERVAL_MAX_S = 2.2F;
     private static final float RAIN_MATERIAL_INTERVAL_MIN_S = 0.5F;
-    private static final float RAIN_MATERIAL_VOLUME = 0.55F;
+    // 1.0, not the 0.55 it started at: the clips are the quiet element and a
+    // single voice under a stack of rain was being masked outright.
+    private static final float RAIN_MATERIAL_VOLUME = 1.0F;
     // Search volume around the player. Not a single ground sample: surfaces can
     // be overhead (a metal roof) or off to the side (a glass wall) as easily as
     // underfoot. Stride 2 keeps the column count down - every column is a
@@ -355,7 +357,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * clips, deliberately - three first.</p>
      */
     private void handleRainMaterial(final Player player) {
-        if (!PrecipitationIntensity.grading() || !doBiomeSounds() || this.scanner.isInside()) {
+        if (!PrecipitationIntensity.grading() || !doBiomeSounds()) {
             this.rainMaterialNextTick = 0L;
             return;
         }
@@ -367,11 +369,16 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             this.rainMaterialNextTick = now + 20L;
             return;
         }
-        final var spot = findMaterialSurface(player);
-        if (spot == null) {
+        final var surfaces = findMaterialSurfaces(player);
+        if (surfaces == null || surfaces.size() == 0) {
+            // No such surface in reach. Nothing to play - and say so, because
+            // silence is indistinguishable from "broken" without this line.
+            this.logger.debug("[RAIN-MAT] no glass/metal/water surface in reach (intensity %.2f)",
+                    intensity);
             this.rainMaterialNextTick = now + 20L;
             return;
         }
+        final var spot = surfaces.get(RANDOM.nextInt(surfaces.size()));
         float t = (intensity - RAIN_MATERIAL_MIN_INTENSITY) / (1F - RAIN_MATERIAL_MIN_INTENSITY);
         t = t < 0F ? 0F : (t > 1F ? 1F : t);
         final float seconds = RAIN_MATERIAL_INTERVAL_MAX_S
@@ -379,21 +386,25 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         this.rainMaterialNextTick = now + (long) (seconds * 20F);
         var factory = ContainerManager.resolve(ISoundLibrary.class)
                 .getSoundFactoryOrDefault(spot.sound());
+        final float vol = RAIN_MATERIAL_VOLUME * (0.6F + 0.4F * t);
         // AT the surface, just above it - that is where the drop landed.
         var instance = factory.createAtLocation(
                 new Vec3(spot.pos().getX() + 0.5D, spot.pos().getY() + 1.0D, spot.pos().getZ() + 0.5D),
-                RAIN_MATERIAL_VOLUME * (0.6F + 0.4F * t));
+                vol);
         this.audioPlayer.play(instance);
+        this.logger.info("[RAIN-MAT] spots=%d -> %s at (%d,%d,%d) vol=%.2f intensity=%.2f",
+                surfaces.size(), spot.sound().getPath(),
+                spot.pos().getX(), spot.pos().getY(), spot.pos().getZ(), vol, intensity);
     }
 
     /**
-     * One material surface open to the sky within reach of the player, or null.
+     * Every material surface open to the sky within reach of the player.
      *
-     * <p>Collects every candidate first and then chooses, rather than taking the
-     * first hit: a single hit would always favour whichever corner the scan
-     * reaches first, which reads as the drop always landing in the same place.</p>
+     * <p>Returns all of them rather than one, so the caller can pick fairly. A
+     * single hit would always favour whichever corner the scan reaches first,
+     * which reads as the drop always landing in the same place.</p>
      */
-    private MaterialSpot findMaterialSurface(final Player player) {
+    private ObjectArray<MaterialSpot> findMaterialSurfaces(final Player player) {
         var level = player.level();
         final int px = player.getBlockX();
         final int py = player.getBlockY();
@@ -419,9 +430,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                         continue;
                     found.add(new MaterialSpot(pos.immutable(), sound));
                 }
-        if (found.size() == 0)
-            return null;
-        return found.get(RANDOM.nextInt(found.size()));
+        return found;
     }
 
     /** Which of our three materials this block is, or null if none of them. */

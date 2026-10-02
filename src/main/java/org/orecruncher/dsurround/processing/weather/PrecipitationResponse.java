@@ -108,6 +108,50 @@ public final class PrecipitationResponse {
             new PrecipitationResponse("sun", 1F, 1F, 0F, 2F, 3F, 5F);
 
     /**
+     * Water hanging off a roof edge - the eave drip, on the clock water on a
+     * roof actually keeps.
+     *
+     * <p>A root, not a derived channel, and the reason is the gate. Every
+     * drip point is under something by definition - under an eave, under a
+     * balcony, under a canopy - and the gated chain ({@link #GEOMETRY} and
+     * everything fed from it) is zero exactly there, because intensity() is
+     * about what lands on the player. Deriving from it would silence the one
+     * spot the effect exists for. It cannot derive from {@link #ATMOSPHERE}
+     * either: that root is dust-aware, and a sandstorm must not shake water
+     * off a roof. So this reads the ambient intensity directly - a root is
+     * where "which intensity feeds me" is decided.</p>
+     *
+     * <p>gamma 1 / saturateAt 1: pure delay, the {@link #WET} discipline -
+     * the shape belongs to the rain, this channel only says when the roof has
+     * water to shed.
+     * <ul>
+     *   <li><b>rise 7s</b> - a roof sheds almost as soon as it is wet, but
+     *       not on the very first tick; also short enough to smear the gust
+     *       wobble.</li>
+     *   <li><b>fall 45s</b> - easing rain thins the sheet on the roof. Was 18s,
+     *       which drained the channel fast enough that the tail was over in
+     *       about twenty seconds of listening: the rate is quadratic in this
+     *       value, so halving the value quarters what you hear.</li>
+     *   <li><b>release 150s</b> - the after-rain tail. A saturated roof keeps
+     *       dripping long after the cloud has passed, and the maintainer's
+     *       floor was "at least 50s of audible drips". The tail is the min of
+     *       this sweep and the 18s fall above, and the rate fades with the
+     *       value squared - measured offline (tools/_drip_sim.py) the last
+     *       plip lands ~55s after the rain stops, thinning from a drip every
+     *       0.4s to one every few seconds. Swept linearly so it really
+     *       ends. Deliberately beyond {@link #AFTER_FOG}'s dispersal: the
+     *       haze and the drips are the same leftover water, and the drips
+     *       outlive the mist the way a wet roof outlives wet air.</li>
+     * </ul></p>
+     *
+     * <p>In {@link #ALL} for the usual reason - the idle fast path would
+     * freeze a channel left out of it mid-drain, and the cost of holding the
+     * takeover frame is invisible by the time the drips reach zero.</p>
+     */
+    public static final PrecipitationResponse DRIP =
+            new PrecipitationResponse("drip", 1F, false, 1F, 0F, 7F, 45F, 150F);
+
+    /**
      * L1 root - what happens where the rain lands.
      *
      * <p>Derived from {@link #GEOMETRY}, and at present numerically identical to
@@ -129,6 +173,36 @@ public final class PrecipitationResponse {
      */
     public static final PrecipitationResponse SPLASH =
             new PrecipitationResponse("splash", SURFACE, 0.7F, 0.8F, 0F, 0F, 0F, 0F);
+
+    /**
+     * How wet the ground is - the quantity {@link #SPLASH} already reads, put on
+     * the clock water actually keeps.
+     *
+     * <p>Derived from {@link #SPLASH} with no shaping of its own so the two can
+     * never disagree about how wet the ground is; everything this channel adds
+     * is <em>delay</em>. That delay is the whole reason it exists. Rain has to
+     * land before there is anything to splash, so this cannot follow the
+     * intensity the way the geometry does: in the first seconds of a storm the
+     * ground is still dry, and a footstep that splashes then is the one thing
+     * this curve is here to prevent. Water also leaves slower than it arrives -
+     * puddles do not evaporate the moment the cloud passes - hence a fall twice
+     * the rise.</p>
+     *
+     * <p>It also refuses to follow gusts, because ground wetness is accumulated,
+     * not instantaneous: a squall that doubles the rain for twenty seconds does
+     * not double the water on the ground, and a swell that eases off does not
+     * dry it. The rise time is what turns the gust wobble into the steady "it
+     * has been raining a while" reading.</p>
+     *
+     * <p>Being in {@link #ALL} means it also holds the precipitation release
+     * until it has dried - see {@link #anyActive()} - which is deliberate. The
+     * alternative is a channel the idle fast path abandons, and that path runs
+     * before {@link #tickAll}: a channel left out of {@code anyActive()} would
+     * freeze mid-wet and never drain. The extra seconds cost nothing visible,
+     * because by then every channel that draws anything is already at zero.</p>
+     */
+    public static final PrecipitationResponse WET =
+            new PrecipitationResponse("wet", SPLASH, 1F, 1F, 0F, 12F, 24F, 30F);
 
     /**
      * Rain sound level, derived from {@link #SURFACE}.
@@ -161,6 +235,43 @@ public final class PrecipitationResponse {
      */
     public static final PrecipitationResponse FOG_COLOR =
             new PrecipitationResponse("fogColor", FOG_DIST, 1F, 1F, 0F, 0F, 0F, 0F);
+
+    /**
+     * The haze that outlives the rain - the other half of the rain fog, on a
+     * clock of its own.
+     *
+     * <p>Rain fog is really two things at once, and they want to end at
+     * different times. Pulling in the far plane <em>is</em> the loss of view
+     * distance, and that should come back as soon as the rain does. What is
+     * left - the near plane, the visible haze - is water still hanging in the
+     * air, and real air does not clear the moment the cloud passes. So the two
+     * are split: {@link #FOG_DIST} keeps driving the far plane as before, and
+     * this channel drives the haze alone.</p>
+     *
+     * <p>Derived from {@link #FOG_DIST} with no shaping, so the haze can never
+     * disagree with the rain about how thick the air got - the same discipline
+     * that keeps {@link #SPLASH} and {@link #WET} from drifting apart. The
+     * three constants are the whole point of it:
+     * <ul>
+     *   <li><b>rise 0</b> - during rain it tracks exactly, or it would trail
+     *       the storm it is supposed to be part of.</li>
+     *   <li><b>fall 45s</b> - a peak hold. Without it a gust that eased off
+     *       would take the haze down with it, and the haze is accumulated, not
+     *       instantaneous.</li>
+     *   <li><b>release 50s</b> - a game hour is 50 real seconds, which is the
+     *       dispersal time that was asked for. The tail is swept linearly, so
+     *       it genuinely arrives at zero instead of hovering above it.</li>
+     * </ul></p>
+     *
+     * <p>It has to sit in {@link #ALL}: the idle fast path in
+     * {@code PrecipitationIntensity.update()} returns before {@code tickAll()},
+     * so a channel left out of {@code anyActive()} would freeze mid-haze and
+     * never drain. The cost is the precipitation takeover holding the frame
+     * that much longer, which is invisible - by then every channel that draws
+     * anything has already reached zero.</p>
+     */
+    public static final PrecipitationResponse AFTER_FOG =
+            new PrecipitationResponse("afterFog", FOG_DIST, 1F, 1F, 0F, 0F, 45F, 50F);
 
     /**
      * Sky darkening, and with it the fading of the sun, moon and stars, derived
@@ -232,9 +343,9 @@ public final class PrecipitationResponse {
     private static final PrecipitationResponse[] ALL = {
             // Roots first, then derived in dependency order: tickAll walks this
             // array exactly once, so a parent must already have advanced this tick.
-            GEOMETRY, ATMOSPHERE, SUN,
-            SURFACE, SPLASH, AUDIO,
-            FOG_DIST, FOG_COLOR, SKY, CLOUD, SKY_LIGHT, STORM
+            GEOMETRY, ATMOSPHERE, SUN, DRIP,
+            SURFACE, SPLASH, WET, AUDIO,
+            FOG_DIST, FOG_COLOR, AFTER_FOG, SKY, CLOUD, SKY_LIGHT, STORM
     };
 
     /** Channel by diagnostics name, or null. See PrecipitationCommand. */

@@ -14,6 +14,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraft.client.gui.screens.Screen;
+import org.orecruncher.dsurround.client.particle.ModParticles;
 import org.orecruncher.dsurround.commands.Commands;
 import net.minecraft.client.Minecraft;
 import org.orecruncher.dsurround.eventing.ClientState;
@@ -58,6 +59,11 @@ public final class DSurround {
         modBus.addListener((net.minecraftforge.client.event.RegisterKeyMappingsEvent e) -> org.orecruncher.dsurround.gui.keyboard.KeyBindings.register(e));
         // Custom aurora shader programs (ShaderInstance) registered during resource reload.
         modBus.addListener(AuroraRenderPipelines::onRegisterShaders);
+        // The drip particle's type goes into the built-in registry here, where
+        // Forge still allows it; its provider is bound from Client.onComplete
+        // instead, because this Forge build's RegisterParticleProvidersEvent
+        // exposes no register method and the sprite needs a stitched atlas.
+        modBus.addListener(ModParticles::registerType);
         // Graded rain/snow: installs the overworld effects object that suppresses the
         // vanilla rain pass, and registers the stage listener that draws ours.
         modBus.addListener(org.orecruncher.dsurround.processing.weather.PrecipitationRenderer::onRegisterDimensionEffects);

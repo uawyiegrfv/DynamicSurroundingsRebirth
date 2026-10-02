@@ -34,7 +34,7 @@ import org.orecruncher.dsurround.processing.weather.PrecipitationRenderer;
  * precisely the confusion a lock exists to remove.</p>
  *
  * <p>Channels: sky, cloud, fog, fogColor, skyLight, sun, storm, geometry,
- * surface, audio, splash.</p>
+ * surface, audio, splash, wet, drip.</p>
  */
 class PrecipitationCommand extends AbstractClientCommand {
 
@@ -79,7 +79,7 @@ class PrecipitationCommand extends AbstractClientCommand {
                         .formatted(name, value));
             return Component.literal("No channel named '%s'. Try: sky, cloud, fog, fogColor, "
                     .formatted(name)
-                    + "skyLight, sun, storm, geometry, audio, splash");
+                    + "skyLight, sun, storm, geometry, audio, splash, wet, drip");
         });
     }
 

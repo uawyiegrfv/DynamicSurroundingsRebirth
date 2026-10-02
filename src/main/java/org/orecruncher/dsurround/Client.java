@@ -3,6 +3,7 @@ package org.orecruncher.dsurround;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.resources.ResourceLocation;
+import org.orecruncher.dsurround.client.particle.ModParticles;
 import org.orecruncher.dsurround.config.libraries.*;
 import org.orecruncher.dsurround.config.libraries.impl.*;
 import org.orecruncher.dsurround.gui.keyboard.KeyBindings;
@@ -92,6 +93,10 @@ public final class Client {
     public void initializeClient() {
         this.logger.info("[%s] Client initializing", Constants.MOD_ID);
 
+        // (The drip particle's type is registered from Forge's RegisterEvent,
+        // wired in DSurround - a built-in registry cannot be written to from
+        // here. Its provider is bound later, on the first client tick.)
+
         // (Forge RegisterClientCommandsEvent / RegisterClientReloadListenersEvent)
 
         // Do the handlers
@@ -162,6 +167,11 @@ public final class Client {
     }
 
     public void onComplete(Minecraft client) {
+        // The drip particle's provider. It waits for the first client tick
+        // because the sprite it fetches only exists once the particle atlas has
+        // been stitched, and because the engine is only reachable now.
+        ModParticles.registerProvider();
+
         // Force the handlers to be instantiated: Handlers registers its per-tick
         // listeners (TICK_END etc.) in the constructor, and registerSingleton is lazy.
         ContainerManager.getRootContainer().resolve(Handlers.class);

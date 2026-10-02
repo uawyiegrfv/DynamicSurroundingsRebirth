@@ -146,6 +146,38 @@ public record SoundFactory(
         );
     }
 
+    /**
+     * A twin of this factory with its configured volume multiplied by
+     * {@code volumeScale} - see {@link ISoundFactory#scaled(float)} for why the
+     * scaling belongs here and not on the instance.
+     *
+     * <p>The volume is a {@link FloatProvider}, which may be a range, so the
+     * twin samples this factory's provider once and pins the answer. Exact for
+     * a factory whose volume is a single value, which is every caller today; it
+     * would collapse the spread of one that declared a range, and the fix for
+     * that is a provider that multiplies rather than samples, not a second
+     * constant here.</p>
+     */
+    @Override
+    public ISoundFactory scaled(float volumeScale) {
+        if (volumeScale == 1F)
+            return this;
+        return new SoundFactory(
+                this.location,
+                this.soundEvent,
+                ConstantFloat.of(this.getVolume() * volumeScale),
+                this.pitch,
+                this.category,
+                this.isRepeatable,
+                this.repeatDelay,
+                this.global,
+                this.attenuation,
+                this.musicSettings,
+                this.land,
+                this.wander,
+                this.jump);
+    }
+
     @Override
     public SimpleSoundInstance createAtLocation(double posX, double posY, double posZ, float volumeScale) {
         return new SimpleSoundInstance(

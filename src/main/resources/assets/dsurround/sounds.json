@@ -777,6 +777,33 @@
       "dsurround:ambient/droplets/drop4"
     ]
   },
+  "weather/drip/ground_big": {
+    "sounds": [
+      "minecraft:block/pointed_dripstone/drip_water1",
+      "minecraft:block/pointed_dripstone/drip_water2",
+      "minecraft:block/pointed_dripstone/drip_water3",
+      "minecraft:block/pointed_dripstone/drip_water7",
+      "minecraft:block/pointed_dripstone/drip_water9",
+      "minecraft:block/pointed_dripstone/drip_water10",
+      "minecraft:block/pointed_dripstone/drip_water14",
+      "minecraft:block/pointed_dripstone/drip_water15",
+      "dsurround:ambient/droplets/drop1"
+    ]
+  },
+  "weather/drip/ground_small": {
+    "sounds": [
+      "minecraft:block/pointed_dripstone/drip_water4",
+      "minecraft:block/pointed_dripstone/drip_water5",
+      "minecraft:block/pointed_dripstone/drip_water6",
+      "minecraft:block/pointed_dripstone/drip_water8",
+      "minecraft:block/pointed_dripstone/drip_water11",
+      "minecraft:block/pointed_dripstone/drip_water12",
+      "minecraft:block/pointed_dripstone/drip_water13",
+      "dsurround:ambient/droplets/drop2",
+      "dsurround:ambient/droplets/drop3",
+      "dsurround:ambient/droplets/drop4"
+    ]
+  },
   "seagulls": {
     "subtitle": "dsurround.sound.caption.seagulls",
     "sounds": [
@@ -3069,6 +3096,166 @@
       }
     ]
   },
+  "biome.rain.wood": {
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_wood1"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_wood2"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_wood3"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_wood4"
+      }
+    ]
+  },
+  "biome.rain.log": {
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_log1"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_log2"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_log3"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_log4"
+      }
+    ]
+  },
+  "biome.rain.wood.light": {
+    "subtitle": "dsurround.sound.caption.rain.wood",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_wood_light"
+      }
+    ]
+  },
+  "biome.rain.wood.medium": {
+    "subtitle": "dsurround.sound.caption.rain.wood",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_wood_medium"
+      }
+    ]
+  },
+  "biome.rain.wood.heavy": {
+    "subtitle": "dsurround.sound.caption.rain.wood",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_wood_heavy"
+      }
+    ]
+  },
+  "biome.rain.log.light": {
+    "subtitle": "dsurround.sound.caption.rain.log",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_log_light"
+      }
+    ]
+  },
+  "biome.rain.log.medium": {
+    "subtitle": "dsurround.sound.caption.rain.log",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_log_medium"
+      }
+    ]
+  },
+  "biome.rain.log.heavy": {
+    "subtitle": "dsurround.sound.caption.rain.log",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_log_heavy"
+      }
+    ]
+  },
+  "biome.rain.stone": {
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_stone1"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_stone2"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_stone3"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_stone4"
+      }
+    ]
+  },
+  "biome.rain.leaves": {
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_leaves1"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_leaves2"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_leaves3"
+      },
+      {
+        "name": "dsurround:ambient/weather/rain_leaves4"
+      }
+    ]
+  },
+  "biome.rain.stone.light": {
+    "subtitle": "dsurround.sound.caption.rain.stone",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_stone_light"
+      }
+    ]
+  },
+  "biome.rain.stone.medium": {
+    "subtitle": "dsurround.sound.caption.rain.stone",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_stone_medium"
+      }
+    ]
+  },
+  "biome.rain.stone.heavy": {
+    "subtitle": "dsurround.sound.caption.rain.stone",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_stone_heavy"
+      }
+    ]
+  },
+  "biome.rain.leaves.light": {
+    "subtitle": "dsurround.sound.caption.rain.leaves",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_leaves_light"
+      }
+    ]
+  },
+  "biome.rain.leaves.medium": {
+    "subtitle": "dsurround.sound.caption.rain.leaves",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_leaves_medium"
+      }
+    ]
+  },
+  "biome.rain.leaves.heavy": {
+    "subtitle": "dsurround.sound.caption.rain.leaves",
+    "sounds": [
+      {
+        "name": "dsurround:ambient/weather/rain_leaves_heavy"
+      }
+    ]
+  },
   "biome.rain.wind3": {
     "ds_credits": [
       {
@@ -3084,6 +3271,7 @@
     ]
   },
   "biome.rain.glass.light": {
+    "subtitle": "dsurround.sound.caption.rain.glass",
     "ds_credits": [
       {
         "author": "cinetony",
@@ -3092,12 +3280,12 @@
     ],
     "sounds": [
       {
-        "name": "dsurround:ambient/weather/rain_glass_light",
-        "stream": true
+        "name": "dsurround:ambient/weather/rain_glass_light"
       }
     ]
   },
   "biome.rain.glass.medium": {
+    "subtitle": "dsurround.sound.caption.rain.glass",
     "ds_credits": [
       {
         "author": "cinetony",
@@ -3106,12 +3294,12 @@
     ],
     "sounds": [
       {
-        "name": "dsurround:ambient/weather/rain_glass_medium",
-        "stream": true
+        "name": "dsurround:ambient/weather/rain_glass_medium"
       }
     ]
   },
   "biome.rain.glass.heavy": {
+    "subtitle": "dsurround.sound.caption.rain.glass",
     "ds_credits": [
       {
         "author": "cinetony",
@@ -3120,12 +3308,12 @@
     ],
     "sounds": [
       {
-        "name": "dsurround:ambient/weather/rain_glass_heavy",
-        "stream": true
+        "name": "dsurround:ambient/weather/rain_glass_heavy"
       }
     ]
   },
   "biome.rain.metal.light": {
+    "subtitle": "dsurround.sound.caption.rain.metal",
     "ds_credits": [
       {
         "author": "cinetony",
@@ -3134,12 +3322,12 @@
     ],
     "sounds": [
       {
-        "name": "dsurround:ambient/weather/rain_metal_light",
-        "stream": true
+        "name": "dsurround:ambient/weather/rain_metal_light"
       }
     ]
   },
   "biome.rain.metal.medium": {
+    "subtitle": "dsurround.sound.caption.rain.metal",
     "ds_credits": [
       {
         "author": "cinetony",
@@ -3148,12 +3336,12 @@
     ],
     "sounds": [
       {
-        "name": "dsurround:ambient/weather/rain_metal_medium",
-        "stream": true
+        "name": "dsurround:ambient/weather/rain_metal_medium"
       }
     ]
   },
   "biome.rain.metal.heavy": {
+    "subtitle": "dsurround.sound.caption.rain.metal",
     "ds_credits": [
       {
         "author": "cinetony",
@@ -3162,12 +3350,12 @@
     ],
     "sounds": [
       {
-        "name": "dsurround:ambient/weather/rain_metal_heavy",
-        "stream": true
+        "name": "dsurround:ambient/weather/rain_metal_heavy"
       }
     ]
   },
   "biome.rain.water.light": {
+    "subtitle": "dsurround.sound.caption.rain.water",
     "ds_credits": [
       {
         "author": "cinetony",
@@ -3176,12 +3364,12 @@
     ],
     "sounds": [
       {
-        "name": "dsurround:ambient/weather/rain_water_light",
-        "stream": true
+        "name": "dsurround:ambient/weather/rain_water_light"
       }
     ]
   },
   "biome.rain.water.medium": {
+    "subtitle": "dsurround.sound.caption.rain.water",
     "ds_credits": [
       {
         "author": "cinetony",
@@ -3190,12 +3378,12 @@
     ],
     "sounds": [
       {
-        "name": "dsurround:ambient/weather/rain_water_medium",
-        "stream": true
+        "name": "dsurround:ambient/weather/rain_water_medium"
       }
     ]
   },
   "biome.rain.water.heavy": {
+    "subtitle": "dsurround.sound.caption.rain.water",
     "ds_credits": [
       {
         "author": "cinetony",
@@ -3204,8 +3392,7 @@
     ],
     "sounds": [
       {
-        "name": "dsurround:ambient/weather/rain_water_heavy",
-        "stream": true
+        "name": "dsurround:ambient/weather/rain_water_heavy"
       }
     ]
   }

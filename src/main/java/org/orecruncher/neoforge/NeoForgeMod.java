@@ -16,6 +16,7 @@ import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import org.orecruncher.dsurround.Client;
+import org.orecruncher.dsurround.client.particle.ModParticles;
 import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.eventing.ClientState;
 import org.orecruncher.dsurround.gui.overlay.LowDurabilityHighlightOverlay;
@@ -54,6 +55,9 @@ public final class NeoForgeMod {
         if (FMLEnvironment.dist.isClient()) {
             modBus.addListener(this::onRegisterGuiLayersEvent);
             modBus.addListener(AuroraRenderPipelines::onRegisterShaders);
+            // The drip particle's type. Built-in registries are only writable
+            // from this event - see ModParticles.registerType.
+            modBus.addListener(ModParticles::registerType);
             // Graded rain/snow: installs the overworld effects object that suppresses
             // the vanilla rain pass; the geometry is drawn from the AfterWeather stage.
             modBus.addListener(org.orecruncher.dsurround.processing.weather.PrecipitationRenderer::onRegisterDimensionEffects);

@@ -101,6 +101,10 @@ public class Handlers {
 
         // Distant thunder rumbling during storms.
         ContainerManager.resolve(ThunderHandler.class);
+
+        // Eave and canopy drips while it rains, and the after-rain tail.
+        ContainerManager.resolve(DripHandler.class);
+
         this.register(AreaBlockEffects.class);
         this.register(StepAccentGenerator.class);
         this.register(FogHandler.class);
@@ -242,6 +246,7 @@ public class Handlers {
                 .registerSingleton(CritWordHandler.class)
             .registerSingleton(SpeechBubbleHandler.class)
             .registerSingleton(ThunderHandler.class)
+            .registerSingleton(DripHandler.class)
             .registerSingleton(AreaBlockEffects.class)
             .registerSingleton(FootstepAccents.class)
             .registerSingleton(StepAccentGenerator.class)

@@ -76,6 +76,10 @@ public class Configuration extends ConfigurationData {
         public static final int RESOURCE_LOADING = 0x4;
         /** Crit-word / damage-number rendering: size inputs, animation, and glitch detection. */
         public static final int CRIT_WORD = 0x8;
+        /** Rain-on-material layer: scan, allocator picks, and the per-tick cost line. */
+        public static final int RAIN_MATERIAL = 0x10;
+        /** Eave/canopy drips: scan rejection histogram and samples, pool fills, and fire picks. */
+        public static final int WATER_DRIPS = 0x20;
     }
 
     public static class Logging {
@@ -85,7 +89,7 @@ public class Configuration extends ConfigurationData {
         public boolean enableDebugLogging = false;
 
         @Property
-        @Comment("Bitmask for toggling various debug traces")
+        @Comment("Bitmask for toggling various debug traces: 1 audio player, 2 basic sound play, 4 resource loading, 8 crit word, 16 rain-on-material")
         public int traceMask = 0;
 
         @Property
@@ -572,6 +576,10 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable graded rain and snow (intensity varies by biome and season)")
         public boolean enableGradedPrecipitation = true;
+
+        @Property
+        @Comment("Enable/disable water dripping off eaves and leaves while it rains, and the after-rain tail")
+        public boolean enableWaterDrips = true;
     }
 
     public static class FogOptions {
@@ -590,6 +598,10 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable weather fog effect")
         public boolean enableWeatherFog = true;
+
+        @Property
+        @Comment("Enable/disable the haze that lingers after the rain stops, fading over about one in-game hour")
+        public boolean enableAfterRainFog = true;
 
         @Property
         @Comment("Increase fog at bedrock layers")

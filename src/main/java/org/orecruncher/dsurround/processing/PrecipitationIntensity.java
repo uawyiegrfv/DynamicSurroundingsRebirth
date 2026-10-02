@@ -1653,10 +1653,18 @@ public final class PrecipitationIntensity {
                         PrecipitationRenderer.isBroken())
                 // The per-channel response values: what the sky, fog and audio are
                 // actually being driven with. They differ from intensity on purpose.
-                + " | sky=%.2f fog=%.2f audio=%.2f".formatted(
+                + " | sky=%.2f fog=%.2f audio=%.2f wet=%.2f drip=%.2f thunder=%s".formatted(
                         PrecipitationResponse.SKY.value(),
                         PrecipitationResponse.FOG_DIST.value(),
-                        PrecipitationResponse.AUDIO.value())
+                        PrecipitationResponse.AUDIO.value(),
+                        // The two that were just wired to intensity and had no
+                        // way to be watched. wet is what the footstep accent
+                        // reads; drip is what the eave drip budget reads;
+                        // thunder is the countdown to the next rumble and the
+                        // level it will fire at.
+                        PrecipitationResponse.WET.value(),
+                        PrecipitationResponse.DRIP.value(),
+                        ThunderHandler.thunderDiagnostics())
                 // Who is driving the ambient consumers, and what is still holding
                 // the frame. "owner=ours" with a non-"none" holder is normal at the
                 // tail of a storm; "owner=vanilla" while it is raining is not.

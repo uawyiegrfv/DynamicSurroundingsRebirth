@@ -50,6 +50,22 @@ public interface ISoundFactory {
     EntityBoundSoundInstance attachToEntity(Entity entity);
 
     /**
+     * A twin of this factory whose configured volume is multiplied by the given
+     * factor. The sound, category, pitch, attenuation and repeat behaviour all
+     * carry across untouched, so the result is the same recording at a
+     * different level rather than a different sound.
+     *
+     * <p>It has to be asked for here because {@code AbstractSoundInstance.volume}
+     * is protected: once a caller holds an instance the level is fixed, and the
+     * only thing that knows the configured volume is the factory that owns it.
+     * A scale applied afterwards is one protected field write away from not
+     * compiling.</p>
+     *
+     * @param volumeScale multiplier on the configured volume
+     */
+    ISoundFactory scaled(float volumeScale);
+
+    /**
      * Creates a sound instance that has no attenuation and that will repeat without any
      * delays.
      */

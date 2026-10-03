@@ -3,6 +3,7 @@ package org.orecruncher.dsurround.processing.weather;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Camera;
@@ -22,6 +23,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RegisterDimensionSpecialEffectsEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.common.MinecraftForge;
+import org.joml.Matrix4f;
 import org.orecruncher.dsurround.Client;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
 
@@ -464,6 +466,46 @@ public final class PrecipitationRenderer {
             // Answering true would delete the splashes and the sound and leave
             // nothing to grade, which is what "on" used to do.
             return false;
+        }
+
+        @Override
+        public boolean renderClouds(ClientLevel level, int ticks, float partialTick,
+                                    PoseStack poseStack, double camX, double camY, double camZ,
+                                    Matrix4f projectionMatrix) {
+            // The clear-sky event's hard end. This is Forge's own extension hook
+            // on the cloud pass: returning true means "already handled", and
+            // handled-here means not drawn. Below the threshold the pass runs
+            // normally, its colour melted towards the sky by
+            // MixinClientLevelWeatherColors, so the sheet fades into the
+            // background before the decline ever fires and the switchover is
+            // invisible. Deliberately NOT routed through active() - that gate is
+            // the precipitation takeover, and the sky events must work on a
+            // cloudless dry day, which active() would answer false for.
+            if (SkyEventScheduler.suppressCloudRendering())
+                return true;
+            return super.renderClouds(level, ticks, partialTick, poseStack,
+                    camX, camY, camZ, projectionMatrix);
+        }
+
+        @Override
+        public float getCloudHeight() {
+            // The clear-sky event's VISIBLE ending. Melting the cloud colour
+            // into the sky hides the sheet only against the sky itself - clouds
+            // in front of terrain stay visible until the render is declined,
+            // which read as "no fade, then they vanish". Lifting the sheet does
+            // not have that blind spot: the whole plane rises, thins with
+            // perspective and is gone past the far plane, continuously, in the
+            // direction clouds actually leave. Squared so the lift stays
+            // negligible early and commits late. The height is part of the mesh
+            // cell index, so vanilla re-bakes the mesh on its own while this
+            // moves - no forcing needed for the lift.
+            // No lift. The first cut pushed the sheet up by clear^2 * 4096,
+            // which read as the entire cloud layer launching into the sky on
+            // event start and falling back on event end - the sheet was still
+            // well inside the view while it travelled. The fade is done in the
+            // cloud pass instead (see MixinLevelRendererWeather), so the plane
+            // stays put and only its alpha moves.
+            return super.getCloudHeight();
         }
     }
 

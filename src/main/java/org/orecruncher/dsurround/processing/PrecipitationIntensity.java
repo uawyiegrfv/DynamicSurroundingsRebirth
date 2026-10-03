@@ -11,6 +11,7 @@ import org.orecruncher.dsurround.processing.weather.PrecipitationProfile;
 import org.orecruncher.dsurround.processing.weather.PrecipitationRenderer;
 import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 import org.orecruncher.dsurround.processing.weather.PrecipitationSeason;
+import org.orecruncher.dsurround.processing.weather.SkyEventScheduler;
 
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -684,6 +685,40 @@ public final class PrecipitationIntensity {
     // skyRainLevel() - the max(SKY, SUN) patch - had no consumer: renderSky feeds
     // on sunAlphaRainLevel() (SUN alone) and the sky colour on skyColorRainLevel()
     // (SKY alone). Removed along with PrecipitationResponse.skyRainLevel().
+    // ---- dry-weather sky events --------------------------------------------
+    //
+    // The overcast and clear-sky events hand their sky changes to the read
+    // points below as a max() against the rain chain's own value - a blend at
+    // the consumer, not a derivation, so neither chain can drag the other off
+    // its clock. The weights are the whole tuning surface: how far each read
+    // point leans towards the event at full overcast.
+
+    /**
+     * How fast the overcast takes the sun, moon and stars away. The route
+     * returns {@code min(1, overcast * this)}, so 2.0 puts the celestial alpha
+     * at exactly 0 by the time the overcast reaches 0.5 - deliberately AHEAD
+     * of the sky brightening. A half-dimmed sun against a brightening sky
+     * shows as a large soft grey halo (the maintainer's "模糊庞大的光圈"):
+     * the vanilla sun quad is a wide soft gradient that normally reads as its
+     * bright core, and once the sky goes pale the whole gradient is visible.
+     * Vanilla never meets this because its sky darkens with the rain instead
+     * of brightening. The earlier 0.8 "dim, don't hide" tuning was what
+     * produced the halo.
+     */
+    public static final float OVERCAST_SUN_GONE = 2.0F;
+    /** How far a full overcast greys the clouds (a mid-strength rain graying). */
+    public static final float OVERCAST_CLOUD_GRAY = 0.8F;
+    /**
+     * How far a full overcast feeds the sky <em>darkening</em> route. Small on
+     * purpose: the rain branch darkens towards {@code luma * 0.6}, and the
+     * overcast look is finished by the grey-out on the final colour (see
+     * {@code MixinClientLevelWeatherColors}). This weight only pulls the base a
+     * little way off pure blue so the greyed result reads grey rather than
+     * washed-out blue - the first cut at 0.25 fought the grey-out and helped
+     * push the sky to white.
+     */
+    public static final float OVERCAST_SKY_DARK = 0.10F;
+
     /**
      * The rain level the sun, moon and stars fade by.
      *
@@ -693,7 +728,8 @@ public final class PrecipitationIntensity {
      * The sky quad was already drawn earlier, from {@code getSkyColor}. The two
      * are separate routes with separate meanings, and only this one should follow
      * {@code SUN}: the sun goes away when the cloud arrives and then stays away,
-     * which is what {@code SUN} models.</p>
+     * which is what {@code SUN} models. An overcast event drives the same
+     * route to zero ahead of the sky change - see {@code OVERCAST_SUN_GONE}.</p>
      */
     public static float sunAlphaRainLevel(Level level, float partialTick) {
         // Counted before the ownership check, exactly like the colour routes: the
@@ -702,18 +738,21 @@ public final class PrecipitationIntensity {
         skyHooks++;
         if (!ownsAmbient())
             return level.getRainLevel(partialTick);
-        return PrecipitationResponse.SUN.value();
+        return Math.max(PrecipitationResponse.SUN.value(),
+                Math.min(1F, PrecipitationResponse.OVERCAST.value() * OVERCAST_SUN_GONE));
     }
 
     /**
      * The rain level the <em>cloud colour</em> should be computed from - CLOUD
-     * alone, for the same reason the sky colour takes SKY alone.
+     * alone, for the same reason the sky colour takes SKY alone - widened with
+     * the overcast grey (see {@code OVERCAST_CLOUD_GRAY}).
      */
     public static float cloudColorRainLevel(Level level, float partialTick) {
         cloudColorHooks++;
         if (!ownsAmbient())
             return level.getRainLevel(partialTick);
-        return PrecipitationResponse.CLOUD.value();
+        return Math.max(PrecipitationResponse.CLOUD.value(),
+                PrecipitationResponse.OVERCAST.value() * OVERCAST_CLOUD_GRAY);
     }
 
     /**
@@ -736,7 +775,8 @@ public final class PrecipitationIntensity {
     public static float skyColorRainLevel(Level level, float partialTick) {
         skyColorHooks++;
         final float out = ownsAmbient()
-                ? PrecipitationResponse.SKY.value()
+                ? Math.max(PrecipitationResponse.SKY.value(),
+                           PrecipitationResponse.OVERCAST.value() * OVERCAST_SKY_DARK)
                 : level.getRainLevel(partialTick);
         lastSkyColorOut = out;
         noteSkyColorFrame(level, partialTick, out);
@@ -1020,9 +1060,18 @@ public final class PrecipitationIntensity {
      */
     public static float fogColorRainLevel(Level level, float partialTick) {
         fogColorHooks++;
-        final float out = ownsAmbient()
-                ? PrecipitationResponse.FOG_COLOR.value()
-                : level.getRainLevel(partialTick);
+        final float out;
+        if (!ownsAmbient()) {
+            out = level.getRainLevel(partialTick);
+        } else {
+            // The overcast rides the same input at the same small weight the sky
+            // route gets (OVERCAST_SKY_DARK): vanilla's own fog arithmetic is what
+            // rain fog uses, and an overcast borrowing it keeps the two weathers
+            // reading as one system. While it rains the overcast is zero and this
+            // is byte-for-byte the old route.
+            out = Math.max(PrecipitationResponse.FOG_COLOR.value(),
+                    PrecipitationResponse.OVERCAST.value() * OVERCAST_SKY_DARK);
+        }
         noteFogColorFrame(level, partialTick, out);
         return out;
     }
@@ -1044,42 +1093,101 @@ public final class PrecipitationIntensity {
     // Either way the answer comes from the log rather than from another guess.
     // -------------------------------------------------------------------------
 
-    private static float[] lastSkyRGB = null;
-    private static float[] lastFogRGB = null;
-    private static float[] lastShaderRGB = null;
+    // The three probes below hold their "previous" colours as primitives and
+    // format their context lazily. Both used to be done unconditionally every
+    // frame - two float[] allocations and a String.format ahead of any null
+    // check, on the render path, whether or not a line ever printed - which is
+    // frame garbage sitting exactly where any honest timing measurement of the
+    // sky routes has to run.
+    private static float lastSkyR = -1F, lastSkyG = -1F, lastSkyB = -1F;
+    private static float lastFogR = -1F, lastFogG = -1F, lastFogB = -1F;
+    private static float lastShaderR = -1F, lastShaderG = -1F, lastShaderB = -1F;
+    private static float lastCloudR = -1F, lastCloudG = -1F, lastCloudB = -1F;
     private static float lastDarkenOut = -1F;
     private static float lastStormOut = -1F;
     private static float lastVanillaThunder = -1F;
-    /** Inputs captured so a jump can be attributed - see noteSkyColorRGB. */
-    private static volatile String skyProbeContext = "";
+    /** Sampling inputs of the most recent {@link #noteSkyColorRGB} call. */
+    private static float lastProbePt = 0F;
+    private static double lastProbePx = 0D;
+    private static double lastProbePy = 0D;
+    private static double lastProbePz = 0D;
     private static int rgbFrameCounter = 0;
     private static int rgbJumpCooldown = 0;
+
+    /**
+     * The inputs a jump is attributed against. The position and partial tick
+     * are those of the most recent sky-colour call - which, for the jump line,
+     * is the call that detected the jump. Built only when a line actually
+     * prints; see the field comment above.
+     */
+    private static String skyContext() {
+        return String.format(
+                "rain=%.3f thunder=%.3f vanillaThunder=%.3f pt=%.3f pos=%.1f,%.1f,%.1f",
+                lastSkyColorOut, lastStormOut, lastVanillaThunder, lastProbePt,
+                lastProbePx, lastProbePy, lastProbePz);
+    }
 
     /** Result of {@code ClientLevel.getSkyColor} - the sky base colour. */
     public static void noteSkyColorRGB(Level level, float r, float g, float b,
                                        double px, double py, double pz, float partialTick) {
+        final IModLog log = diagLogger;
+        if (log == null)
+            return;
         final Level at = level != null ? level : currentLevelOrNull();
         // The inputs are logged alongside the result because a jumping result with
         // steady inputs means the jump came from the sampling - the position or
         // the partial tick - rather than from anything we feed in.
-        skyProbeContext = String.format(
-                "rain=%.3f thunder=%.3f vanillaThunder=%.3f pt=%.3f pos=%.1f,%.1f,%.1f",
-                lastSkyColorOut, lastStormOut, lastVanillaThunder, partialTick, px, py, pz);
-        reportRGB(at, "SKYRGB", new float[] { r, g, b }, lastSkyRGB);
-        lastSkyRGB = new float[] { r, g, b };
+        lastProbePt = partialTick;
+        lastProbePx = px;
+        lastProbePy = py;
+        lastProbePz = pz;
+        reportRGB(at, "SKYRGB", r, g, b, lastSkyR, lastSkyG, lastSkyB);
+        lastSkyR = r;
+        lastSkyG = g;
+        lastSkyB = b;
     }
 
     /** Result of {@code FogRenderer.setupColor} - read back from the render system. */
     public static void noteFogColorRGB(float[] rgba) {
-        reportRGB(currentLevelOrNull(), "FOGRGB", rgba, lastFogRGB);
-        lastFogRGB = rgba == null ? null : rgba.clone();
+        final IModLog log = diagLogger;
+        if (log == null || rgba == null || rgba.length < 3)
+            return;
+        reportRGB(currentLevelOrNull(), "FOGRGB", rgba[0], rgba[1], rgba[2],
+                lastFogR, lastFogG, lastFogB);
+        lastFogR = rgba[0];
+        lastFogG = rgba[1];
+        lastFogB = rgba[2];
     }
 
     /** The colour vanilla multiplies into the sky quad inside renderSky. */
     public static void noteSkyShaderColor(Level level, float r, float g, float b) {
-        reportRGB(level != null ? level : currentLevelOrNull(), "SHADER",
-                new float[] { r, g, b }, lastShaderRGB);
-        lastShaderRGB = new float[] { r, g, b };
+        final IModLog log = diagLogger;
+        if (log == null)
+            return;
+        reportRGB(level != null ? level : currentLevelOrNull(), "SHADER", r, g, b,
+                lastShaderR, lastShaderG, lastShaderB);
+        lastShaderR = r;
+        lastShaderG = g;
+        lastShaderB = b;
+    }
+
+    /**
+     * Result of {@code ClientLevel.getCloudColor} - the colour the cloud sheet
+     * will be BAKED with at the next mesh rebuild. This is the value to watch
+     * for the sky events: the bake only refreshes when the colour has moved
+     * 2.0E-4, so a numerically correct fade can sit here for seconds without
+     * reaching the screen. A [CLOUDRGB-JUMP] with no visual change means the
+     * mesh did not re-bake; a visible step without a jump means it did.
+     */
+    public static void noteCloudColorRGB(Level level, float r, float g, float b) {
+        final IModLog log = diagLogger;
+        if (log == null)
+            return;
+        reportRGB(level != null ? level : currentLevelOrNull(), "CLOUDRGB", r, g, b,
+                lastCloudR, lastCloudG, lastCloudB);
+        lastCloudR = r;
+        lastCloudG = g;
+        lastCloudB = b;
     }
 
     /** Result of {@code ClientLevel.getSkyDarken} - the world light level. */
@@ -1091,35 +1199,37 @@ public final class PrecipitationIntensity {
             rgbJumpCooldown = 10;
             log.info("[DARKEN-JUMP] %.4f -> %.4f camBiome=%s playerBiome=%s %s %s caller=%s",
                     lastDarkenOut, v, cameraBiomeId(level), playerBiomeId(level),
-                    biomeColorDetail(level), skyProbeContext, callerHint());
+                    biomeColorDetail(level), skyContext(), callerHint());
         }
         if (rgbJumpCooldown > 0)
             rgbJumpCooldown--;
         if (++rgbFrameCounter >= 120) {
             rgbFrameCounter = 0;
             log.info("[DARKEN-FRAME] %.4f camBiome=%s playerBiome=%s %s",
-                    v, cameraBiomeId(level), playerBiomeId(level), skyProbeContext);
+                    v, cameraBiomeId(level), playerBiomeId(level), skyContext());
         }
         lastDarkenOut = v;
     }
 
-    private static void reportRGB(Level level, String tag, float[] now, float[] prev) {
+    private static void reportRGB(Level level, String tag, float r, float g, float b,
+                                  float prevR, float prevG, float prevB) {
         final IModLog log = diagLogger;
-        if (log == null || now == null)
+        if (log == null)
             return;
-        if (prev != null && rgbJumpCooldown <= 0 && maxDelta(now, prev) > 0.03F) {
+        if (prevR >= 0F && rgbJumpCooldown <= 0
+                && maxDelta3(prevR, prevG, prevB, r, g, b) > 0.03F) {
             rgbJumpCooldown = 10;
             log.info("[" + tag + "-JUMP] %.3f,%.3f,%.3f -> %.3f,%.3f,%.3f camBiome=%s playerBiome=%s %s %s caller=%s",
-                    prev[0], prev[1], prev[2], now[0], now[1], now[2],
+                    prevR, prevG, prevB, r, g, b,
                     cameraBiomeId(level), playerBiomeId(level), biomeColorDetail(level),
-                    skyProbeContext, callerHint());
+                    skyContext(), callerHint());
         }
         if (rgbJumpCooldown > 0)
             rgbJumpCooldown--;
         if (++rgbFrameCounter >= 120) {
             rgbFrameCounter = 0;
             log.info("[" + tag + "-FRAME] %.3f,%.3f,%.3f camBiome=%s playerBiome=%s %s",
-                    now[0], now[1], now[2],
+                    r, g, b,
                     cameraBiomeId(level), playerBiomeId(level), biomeColorDetail(level));
         }
     }
@@ -1157,11 +1267,9 @@ public final class PrecipitationIntensity {
         return "?";
     }
 
-    private static float maxDelta(float[] a, float[] b) {
-        float d = 0F;
-        for (int i = 0; i < 3 && i < a.length && i < b.length; i++)
-            d = Math.max(d, Math.abs(a[i] - b[i]));
-        return d;
+    private static float maxDelta3(float aR, float aG, float aB,
+                                   float bR, float bG, float bB) {
+        return Math.max(Math.max(Math.abs(aR - bR), Math.abs(aG - bG)), Math.abs(aB - bB));
     }
 
     /**
@@ -1611,9 +1719,21 @@ public final class PrecipitationIntensity {
      * "feature switched off" meaning "vanilla behaviour" for the ambient
      * consumers too, rather than them quietly following a curve the player
      * turned off.
+     *
+     * <p>The two sky-event channels widen this on purpose, and they widen
+     * <em>this</em> rather than {@link #takeoverReady()} for a reason worth
+     * keeping: takeoverReady() is the precipitation renderer's takeover gate
+     * ({@code PrecipitationRenderer.active()}), and an overcast event lasts
+     * in-game hours - lighting that gate for all of them would run the rain
+     * renderer every frame of a cloudless day. The read points below are the
+     * consumers that actually need to see the events, and they ask here.</p>
      */
     public static boolean ownsAmbient() {
-        return grading() && takeoverReady();
+        if (!grading())
+            return false;
+        return takeoverReady()
+                || PrecipitationResponse.OVERCAST.value() > 0F
+                || PrecipitationResponse.CLEAR.value() > 0F;
     }
 
     /**
@@ -1894,7 +2014,15 @@ public final class PrecipitationIntensity {
                         rainAudioDiagnostics(),
                         rainAudioDensity(),
                         rainAudioVolumeScale(),
-                        rainAudioCalmBlend());
+                        rainAudioCalmBlend())
+                // The dry-weather sky events: state line plus the two channels
+                // actually being rendered from. "gap" with a non-zero oc/clr is
+                // the tail of an event fading - normal; "running" with a zero
+                // channel means the event is yielding to rain.
+                + " | skyEvents=%s oc=%.2f clr=%.2f".formatted(
+                        SkyEventScheduler.diagnostics(),
+                        PrecipitationResponse.OVERCAST.value(),
+                        PrecipitationResponse.CLEAR.value());
     }
 
     /**
@@ -1923,6 +2051,13 @@ public final class PrecipitationIntensity {
         final float ramp = level.getRainLevel(1F);
         final boolean raining = weatherRising(ramp);
 
+        // The dry-weather sky events advance here, before the idle fast path -
+        // the one position that lets them keep moving while everything else in
+        // this class stands down. Their per-tick cost is O(1) arithmetic; the
+        // one biome query they need (the profile roll at spawn time) happens
+        // once per gap and is fed the traits this tick already has.
+        SkyEventScheduler.tick(logger, raining, info == null ? null : info.getTraits());
+
         // Idle fast path. When nothing is falling, nothing has been rolled and
         // every channel has settled, skip the five-sample biome query, the
         // envelope and the squall clock - the ramp read above is the only thing
@@ -1946,14 +2081,21 @@ public final class PrecipitationIntensity {
                 && !PrecipitationResponse.anyActive()) {
             if (++idleLogCounter >= IDLE_LOG_INTERVAL) {
                 idleLogCounter = 0;
-                logger.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s",
+                // oc=/clr= are the sky-event channels. They are excluded from
+                // anyActive() on purpose, so this line appearing while one of
+                // them is non-zero is the proof the idle path still fires with
+                // an event running - the one regression this design had to
+                // rule out. See SkyEventScheduler.
+                logger.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
                         PrecipitationRenderer.hookCalls(),
                         PrecipitationRenderer.tickHooks(),
                         PrecipitationRenderer.renderCalls(),
                         PrecipitationRenderer.isBroken(),
                         skyColorHooks(), cloudColorHooks(), fogColorHooks(), stormHooks(),
                         org.orecruncher.dsurround.Client.Config == null ? "null"
-                                : String.valueOf(org.orecruncher.dsurround.Client.Config.weatherOptions.enableGradedPrecipitation));
+                                : String.valueOf(org.orecruncher.dsurround.Client.Config.weatherOptions.enableGradedPrecipitation),
+                        PrecipitationResponse.OVERCAST.value(),
+                        PrecipitationResponse.CLEAR.value());
             }
             return;
         }
@@ -2199,14 +2341,16 @@ public final class PrecipitationIntensity {
                 }
             } else if (++idleLogCounter >= IDLE_LOG_INTERVAL) {
                 idleLogCounter = 0;
-                log.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s",
+                log.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
                         PrecipitationRenderer.hookCalls(),
                         PrecipitationRenderer.tickHooks(),
                         PrecipitationRenderer.renderCalls(),
                         PrecipitationRenderer.isBroken(),
                         skyColorHooks(), cloudColorHooks(), fogColorHooks(), stormHooks(),
                         org.orecruncher.dsurround.Client.Config == null ? "null"
-                                : String.valueOf(org.orecruncher.dsurround.Client.Config.weatherOptions.enableGradedPrecipitation));
+                                : String.valueOf(org.orecruncher.dsurround.Client.Config.weatherOptions.enableGradedPrecipitation),
+                        PrecipitationResponse.OVERCAST.value(),
+                        PrecipitationResponse.CLEAR.value());
             }
         }
 
@@ -2476,6 +2620,7 @@ public final class PrecipitationIntensity {
         rainTexturePhase = 0F;
         forced = -1F;
         resetSqualls();
+        SkyEventScheduler.reset();
         PrecipitationResponse.resetAll();
     }
 
@@ -2536,7 +2681,7 @@ public final class PrecipitationIntensity {
         }
     }
 
-    private static PrecipitationSeason seasonFor(PrecipitationProfile profile) {
+    private static PrecipitationSeason seasonColumnFor(PrecipitationProfile profile) {
         var handler = SeasonManager.HANDLER;
         if (handler.usesTropicalSeasons()
                 && (profile == PrecipitationProfile.ARID
@@ -2558,6 +2703,16 @@ public final class PrecipitationIntensity {
         // SUMMER column, which pinned a vanilla world to one sixth of the
         // table. See PrecipitationSeason.VANILLA.
         return PrecipitationSeason.VANILLA;
+    }
+
+    /**
+     * The season column to roll a given profile against, right now. Public for
+     * the sky-event scheduler, which rolls on the same seasonal axis the rain
+     * events do - one answer, one method, so the two systems cannot disagree
+     * about what season it is.
+     */
+    public static PrecipitationSeason seasonFor(PrecipitationProfile profile) {
+        return seasonColumnFor(profile);
     }
 
 }

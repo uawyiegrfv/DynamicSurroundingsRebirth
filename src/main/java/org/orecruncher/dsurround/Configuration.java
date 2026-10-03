@@ -80,6 +80,8 @@ public class Configuration extends ConfigurationData {
         public static final int RAIN_MATERIAL = 0x10;
         /** Eave/canopy drips: scan rejection histogram and samples, pool fills, and fire picks. */
         public static final int WATER_DRIPS = 0x20;
+        /** Dry-weather sky events: spawn rolls, yields to rain, and per-tick cost. */
+        public static final int SKY_EVENTS = 0x40;
     }
 
     public static class Logging {
@@ -89,7 +91,7 @@ public class Configuration extends ConfigurationData {
         public boolean enableDebugLogging = false;
 
         @Property
-        @Comment("Bitmask for toggling various debug traces: 1 audio player, 2 basic sound play, 4 resource loading, 8 crit word, 16 rain-on-material")
+        @Comment("Bitmask for toggling various debug traces: 1 audio player, 2 basic sound play, 4 resource loading, 8 crit word, 16 rain-on-material, 32 water drips, 64 sky events")
         public int traceMask = 0;
 
         @Property
@@ -577,6 +579,18 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable water dripping off eaves and leaves while it rains, and the after-rain tail")
         public boolean enableWaterDrips = true;
+
+        @Property
+        @Comment("Enable/disable the dry-weather sky events (an overcast day, and the day the clouds clear away). Part of the graded weather system: enableGradedPrecipitation off turns these off with it")
+        public boolean enableSkyEvents = true;
+
+        @Property
+        @Comment("Enable/disable the overcast event - a grey, rainless day: pale grey sky, greyed clouds, no sun")
+        public boolean enableOvercastSkyEvent = true;
+
+        @Property
+        @Comment("Enable/disable the clear-sky event - the cloud sheet thins away. With Sodium/Embeddium installed the clouds go without a fade: their cloud renderer takes over and ignores our alpha")
+        public boolean enableClearSkyEvent = true;
     }
 
     public static class FogOptions {

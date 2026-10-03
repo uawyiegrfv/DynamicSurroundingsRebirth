@@ -11,6 +11,9 @@ import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 import org.orecruncher.dsurround.client.particle.ModParticles;
+import org.orecruncher.dsurround.client.particle.WaterDripParticle;
+import org.orecruncher.dsurround.mixins.core.MixinParticleManager;
+import net.minecraft.client.particle.Particle;
 import org.orecruncher.dsurround.eventing.ClientState;
 import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.collections.ObjectArray;
@@ -106,7 +109,7 @@ public class DripHandler {
      */
     private static final double MIN_HANG_SPREAD_SQ = 0.16D;
     /** Hard ceiling on sounding points; the value curve usually asks for fewer. */
-    private static final int MAX_POINTS = 40;
+    private static final int MAX_POINTS = 56;
     /**
      * How long one spot owns its stretch of eave before handing it to a
      * random replacement: 30 seconds plus 0-45 more. The maintainer's own
@@ -287,6 +290,8 @@ public class DripHandler {
     private final Map<ResourceLocation, ISoundFactory> factories = new HashMap<>();
     private final List<Spot> pool = new ArrayList<>();
     private final List<PendingLanding> pending = new ArrayList<>();
+    /** Drops we are still holding, so a point that stops being one can let go. */
+    private final List<HangingDrop> hanging = new ArrayList<>();
 
     private Level lastWorld;
     private long lastScanTick = -1000L;
@@ -411,6 +416,14 @@ public class DripHandler {
         // one point) and dies out on its own: each follow-up extends only by
         // half chance.
         for (final Spot spot : this.pool) {
+            // A spot whose block is gone stops producing on the very next tick.
+            // These two paths bypass the budget draw, and the budget draw was
+            // the only place that asked - so a broken eave kept dripping for
+            // up to a scan interval (20 ticks) and a thread re-fired every few
+            // ticks throughout. Cost is a handful of block reads per spot per
+            // tick, a few percent of what one scan already costs.
+            if (!DripScanner.isStillValid(world, spot.point))
+                continue;
             // Threads: one place, dripping on a clock of its own, for a stretch
             // of seconds. They bypass the shared budget because they ARE one
             // spot letting go - the budget decides how much of the eave is
@@ -433,6 +446,7 @@ public class DripHandler {
             }
         }
 
+        this.releaseDrops(world);
         this.playDue(tick);
 
         // A spot whose time is up hands its stretch of eave back; the refill
@@ -733,7 +747,10 @@ public class DripHandler {
         double hx = point.point().getX() + 0.5D;
         double hz = point.point().getZ() + 0.5D;
         final int mask = point.faces();
-        if (mask == 0) {
+        if (mask == DripScanner.FACE_CENTER) {
+            // A post drips from the middle of its underside, exactly - the
+            // spray below is for a leaf canopy, which has no single place.
+        } else if (mask == 0) {
             hx += (this.random.nextDouble() - 0.5D) * 0.7D;
             hz += (this.random.nextDouble() - 0.5D) * 0.7D;
         } else {
@@ -833,9 +850,11 @@ public class DripHandler {
         // the size, colour and animation all wrong across two attempts, and
         // none of those can be judged without looking at the game. Swap this
         // one line back to ModParticles.WATER_DRIP to use ours again.
-        world.addParticle(net.minecraft.core.particles.ParticleTypes.DRIPPING_WATER, hx, hy, hz,
-                HANG_TICKS,
-                point.fall() * FALL_TICKS_PER_BLOCK + LANDING_DELAY_EXTRA, 0.0D);
+        // Our own particle, wearing vanilla's texture: water_drip.png is a copy of
+        // vanilla's drip_hang.png. Borrowing vanilla's sprite directly does not
+        // work, so the drop is ours - which is also what lets a hanging drop be
+        // released the moment its block goes away (see releaseDrops).
+        this.spawnDrop(world, point, hx, hy, hz);
 
         // The pool is picked when the drop falls, not when it lands: a drizzle
         // sheds the small set, a storm the big one. Quieter as the roof
@@ -852,6 +871,55 @@ public class DripHandler {
     }
 
     /** The landing sound, when the falling drop would have hit. */
+    /**
+     * Spawn one drop and keep hold of it. The handle is the whole point: a drop
+     * still hanging when its block goes has to be told to let go, and vanilla's
+     * {@code addParticle} does not give one back.
+     */
+    private void spawnDrop(final Level world, final DripScanner.DripPoint point,
+                           final double x, final double y, final double z) {
+        final var pm = GameUtils.getParticleManager();
+        if (pm == null)
+            return;
+        // makeParticle, not createParticle: the public one queues as well as
+        // creating, and a particle that is queued and then added again ticks
+        // and renders twice.
+        final Particle particle = ((MixinParticleManager) pm).dsurround_createParticle(
+                ModParticles.WATER_DRIP, x, y, z, HANG_TICKS,
+                point.fall() * FALL_TICKS_PER_BLOCK + LANDING_DELAY_EXTRA, 0.0D);
+        if (particle == null)
+            return;
+        pm.add(particle);
+        if (particle instanceof WaterDripParticle drop)
+            this.hanging.add(new HangingDrop(point, drop));
+    }
+
+    /**
+     * Let go of every drop whose point has stopped being a drip point - its
+     * block was broken, so it is hanging off nothing. The same pass drops the
+     * bookkeeping for anything that already landed or already let go, which
+     * keeps the list no longer than the roof is wet.
+     */
+    private void releaseDrops(final Level world) {
+        if (this.hanging.isEmpty())
+            return;
+        for (int i = this.hanging.size() - 1; i >= 0; i--) {
+            final HangingDrop held = this.hanging.get(i);
+            if (held.drop().isDead() || !held.drop().isHanging()) {
+                this.hanging.remove(i);
+                continue;
+            }
+            if (!DripScanner.isStillValid(world, held.point())) {
+                held.drop().release();
+                this.hanging.remove(i);
+            }
+        }
+    }
+
+    /** A drop we are still holding on to, and the point it hangs from. */
+    private record HangingDrop(DripScanner.DripPoint point, WaterDripParticle drop) {
+    }
+
     private void playDue(long tick) {
         final Iterator<PendingLanding> it = this.pending.iterator();
         while (it.hasNext()) {

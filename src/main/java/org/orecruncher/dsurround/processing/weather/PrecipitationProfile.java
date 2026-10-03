@@ -65,7 +65,12 @@ public enum PrecipitationProfile {
             // Desert precipitation is not a little rain: it is usually nothing and
             // occasionally a cloudburst. No symmetric spread can express that gap,
             // which is what a bimodal shape is for.
-            IntensityDistribution.bimodal()),
+            IntensityDistribution.bimodal(),
+            // Big skies, no cloud deck: an overcast is nearly absent (the
+            // monsoon columns excepted), the horizon is normally hard. One
+            // grey start every couple of game days is already generous. See
+            // the chance fields below.
+            0.010F, 0.045F),
 
     /**
      * Open temperate ground: sparse, short-lived rain, convective summer peak.
@@ -83,7 +88,10 @@ public enum PrecipitationProfile {
             // Convective rain over open ground: mostly light, with a long tail into
             // real downpours. The shape of a place that gets a lot of grey weather
             // and occasional cloudbursts.
-            IntensityDistribution.skewedWeak()),
+            IntensityDistribution.skewedWeak(),
+            // Open ground, changeable air: grey and clear spells both show up,
+            // neither owns the place.
+            0.050F, 0.035F),
 
     /**
      * Steady, unremarkable rain - the DEFAULT when nothing else matches, and the
@@ -95,7 +103,13 @@ public enum PrecipitationProfile {
             new float[] { 0.50F, 0.62F, 0.52F, 0.32F, 0.15F, 0.65F },
             0.28F,
             0.20F,
-            1.00F),
+            1.00F,
+            // The baseline every other profile departs from, for the sky events
+            // too: ~2 grey starts and ~1 hard-clear start per game day, which
+            // puts roughly a quarter of the quiet hours under a lifted grey and
+            // a tenth under a cloudless sky. Everything else is a deliberate
+            // departure from these two numbers.
+            0.055F, 0.028F),
 
     /**
      * Maritime: autumn and winter wettest, summer less so. A coastal low takes a
@@ -110,7 +124,11 @@ public enum PrecipitationProfile {
             40F,
             0.14F,
             GustResponse.FLAT,
-            null),
+            null,
+            // The marine layer: coastal lows park a deck over the water and
+            // it lingers. Grey is the default state; a genuinely cloudless
+            // day on the coast is the exception.
+            0.070F, 0.022F),
 
     /**
      * Swamps, mangroves, lush caves: persistent, fairly even through the year.
@@ -124,7 +142,10 @@ public enum PrecipitationProfile {
             35F,
             0.22F,
             GustResponse.FLAT,
-            null),
+            null,
+            // Damp country under a lid of cloud: grey most days, and the odd
+            // hard blue sky is exactly that - an oddity worth a roll of its own.
+            0.085F, 0.015F),
 
     /**
      * Jungle: heavy year round, monsoon-dominated, strongly thundery.
@@ -154,7 +175,11 @@ public enum PrecipitationProfile {
             7F,
             0.45F,
             GustResponse.GROWING,
-            IntensityDistribution.skewedStrong()),
+            IntensityDistribution.skewedStrong(),
+            // Between the downpours the rainforest sits under a low grey deck;
+            // the fierce clears right after a storm are brief and rarer than
+            // the grey. The monsoon columns swing both hard (see the factors).
+            0.070F, 0.028F),
 
     /**
      * High and cold: summer rain, winter snow, low liquid equivalent in winter.
@@ -171,7 +196,10 @@ public enum PrecipitationProfile {
             GustResponse.BELL,
             // As OPEN: mostly light with a tail into heavier falls. High ground gets
             // a lot of drizzle and the odd proper storm.
-            IntensityDistribution.skewedWeak()),
+            IntensityDistribution.skewedWeak(),
+            // Thin mountain air clears hard and stays clear: when the deck
+            // lifts up there it is gone, and grey is the rarer state.
+            0.030F, 0.060F),
 
     /**
      * Dust storms: <em>the same weather event a desert gets</em>, expressed as
@@ -206,7 +234,10 @@ public enum PrecipitationProfile {
             0.38F,
             GustResponse.GROWING,
             // PLACEHOLDER - see the class comment. Bimodal: haze or haboob.
-            IntensityDistribution.bimodal()),
+            IntensityDistribution.bimodal(),
+            // Never asked for sky events - resolve() never returns this profile
+            // (only resolveDust does). Chances mirror its ARID parent for tidiness.
+            0.010F, 0.045F),
 
     /** Nowhere with a weather cycle: nether, end, void, underground. */
     WASTELAND(
@@ -219,7 +250,10 @@ public enum PrecipitationProfile {
             25F,
             0F,
             GustResponse.FLAT,
-            null);
+            // Zero both ways: no sky, no sky events. This is also the guard the
+            // scheduler reads - a WASTELAND biome never rolls one.
+            null,
+            0F, 0F);
 
     /** Centre of the intensity distribution, indexed by {@link PrecipitationSeason}. */
     private final float[] seasonalMode;
@@ -238,6 +272,28 @@ public enum PrecipitationProfile {
     /** Shape of the base roll, or null for the legacy triangular roll. */
     private final IntensityDistribution distribution;
 
+    /**
+     * <b>The sky-event lottery.</b> The chance, per roll, that a quiet game
+     * hour in this biome starts an overcast ({@code overcastChance}) or a
+     * clear-sky ({@code clearChance}) event - the scheduler rolls once per
+     * game hour while the weather is quiet, and these two numbers ARE the
+     * expectation. They are chances, not relative weights: the question the
+     * roll answers is "does this hour begin an event", and most hours the
+     * answer is no.
+     *
+     * <p>The numbers are climate read literally. A profile that spends its
+     * year under a grey deck (WETLAND 0.12, COASTAL 0.10, TROPICAL 0.10)
+     * rolls grey often; one whose skies clear hard (ARID 0.01 overcast /
+     * 0.06 clear, ALPINE 0.04/0.08) rolls clear instead and almost never
+     * grey. TEMPERATE is the baseline: 0.08/0.04 is roughly two grey starts
+     * and one hard clear per game day - a quarter of the quiet hours grey,
+     * a tenth cloudless - and every other profile is a deliberate departure
+     * from that. Zero both ways (WASTELAND) and the scheduler skips the
+     * biome entirely - there is no sky to have an opinion about.</p>
+     */
+    public final float overcastChance;
+    public final float clearChance;
+
     /** Seconds an event takes to reach its peak, when a profile says nothing. */
     public static final float DEFAULT_ATTACK_SECONDS = 25F;
     /** Wobble size, when a profile says nothing. Matches the pre-curve constant. */
@@ -253,16 +309,19 @@ public enum PrecipitationProfile {
     public static final float EXTREME_RATE = 0.14F;
 
     PrecipitationProfile(final float[] seasonalMode, final float spread,
-                         final float thunderBias, final float seasonSensitivity) {
+                         final float thunderBias, final float seasonSensitivity,
+                         final float overcastChance, final float clearChance) {
         this(seasonalMode, spread, thunderBias, seasonSensitivity,
-                DEFAULT_ATTACK_SECONDS, DEFAULT_GUST_AMPLITUDE, GustResponse.FLAT, null);
+                DEFAULT_ATTACK_SECONDS, DEFAULT_GUST_AMPLITUDE, GustResponse.FLAT, null,
+                overcastChance, clearChance);
     }
 
     PrecipitationProfile(final float[] seasonalMode, final float spread,
                          final float thunderBias, final float seasonSensitivity,
                          final float attackSeconds, final float gustAmplitude,
                          final GustResponse gustResponse,
-                         final IntensityDistribution distribution) {
+                         final IntensityDistribution distribution,
+                         final float overcastChance, final float clearChance) {
         this.seasonalMode = seasonalMode;
         this.spread = spread;
         this.thunderBias = thunderBias;
@@ -271,6 +330,8 @@ public enum PrecipitationProfile {
         this.gustAmplitude = gustAmplitude;
         this.gustResponse = gustResponse == null ? GustResponse.FLAT : gustResponse;
         this.distribution = distribution;
+        this.overcastChance = overcastChance;
+        this.clearChance = clearChance;
     }
 
     /** The four temperate columns - everything a year without a monsoon has. */
@@ -434,6 +495,46 @@ public enum PrecipitationProfile {
      */
     public float curveBias() {
         return this.distribution == null ? 0F : this.distribution.mean();
+    }
+
+    /**
+     * The sky-event chances for a season, following the same pattern as
+     * {@link #modeFor(PrecipitationSeason)}: a per-season multiplier on the
+     * profile's own chance, with the vanilla world (no calendar) falling back
+     * to the untilted chance rather than to one hand-written seventh column.
+     *
+     * <p>The tilt is the year's shape, and it is the same shape meteorology
+     * gives. The dark half of the year carries the deck: autumn and winter
+     * overcast 1.3x and 1.4x the base, summer barely 0.6x. The bright half
+     * clears the other way - summer 1.6x, winter 0.5x, hard freezes sealing
+     * the sky shut under high cloud. The tropical columns follow the monsoon
+     * instead of the sun: the dry season clears 1.8x and greys 0.5x, the wet
+     * season does the reverse (1.6x grey, 0.4x clear). A temperate winter
+     * therefore rolls grey at 0.112 per hour - about 2.7 starts a game day,
+     * a third of the day under lifted grey - while a desert summer rolls
+     * clear at 0.096 and grey at 0.006, which is what a desert is.</p>
+     *
+     * <p>A profile's {@code seasonSensitivity} is deliberately not applied
+     * here - that knob shapes the <em>intensity</em> roll, and whether today
+     * is grey is a coarser question than how hard.</p>
+     */
+    private static final float[] OVERCAST_SEASON_FACTOR =
+            { 1.00F, 0.60F, 1.30F, 1.40F, 0.50F, 1.60F };
+    private static final float[] CLEAR_SEASON_FACTOR =
+            { 1.00F, 1.60F, 0.80F, 0.50F, 1.80F, 0.40F };
+
+    /** Overcast-event chance for a season; null/VANILLA falls back to the base. */
+    public float overcastChanceFor(PrecipitationSeason season) {
+        if (season == null || season == PrecipitationSeason.VANILLA)
+            return this.overcastChance;
+        return this.overcastChance * OVERCAST_SEASON_FACTOR[season.ordinal()];
+    }
+
+    /** Clear-event chance for a season; null/VANILLA falls back to the base. */
+    public float clearChanceFor(PrecipitationSeason season) {
+        if (season == null || season == PrecipitationSeason.VANILLA)
+            return this.clearChance;
+        return this.clearChance * CLEAR_SEASON_FACTOR[season.ordinal()];
     }
 
     /**

@@ -3,6 +3,7 @@ package org.orecruncher.dsurround.mixins.core;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.FogRenderer;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
+import org.orecruncher.dsurround.processing.weather.SkyEventScheduler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -57,9 +58,41 @@ public abstract class MixinFogRendererWeatherColor {
     // inside vanilla's own arithmetic - most likely the biome fog, which arrives
     // here as a discrete colour per biome. This reads the result rather than the
     // input, which is the only way to tell those apart.
+    //
+    // ---- the overcast grey, applied before the read --------------------------
+    //
+    // The fog colour's BASE comes from the biome fog (the CubicSampler lambda
+    // inside setupColor), not from the sky colour, so the grey the sky gets in
+    // MixinClientLevelWeatherColors never reaches it and the horizon stays blue
+    // under a grey sky. setupColor runs once per frame and settles ONE colour
+    // for the sky fog and the terrain fog alike, so lifting its settled value
+    // here re-tints both in the same move, with the same target function and
+    // the same channel the sky uses - the sync is by construction, not by
+    // matched clocks. The small overcast feed into the rain pass above (see
+    // fogColorRainLevel) is vanilla's own arithmetic joining in; this tail pass
+    // is the part that matches the sky. The probe below then reports the value
+    // the renderer will actually use.
 
     @Inject(method = "setupColor", at = @At("TAIL"), require = 0)
     private static void dsurround_fogColorResult(CallbackInfo ci) {
+        final float overcast = SkyEventScheduler.whiteShiftStrength();
+        if (overcast > 0F) {
+            // Doubled: at the channel's own pace the fog converged about twice
+            // as slowly as the sky (the maintainer's blue horizon ring - the
+            // sky went grey while the fog behind it was still blue). Halving
+            // the lag keeps the two in step. At overcast 0 the pass is off and
+            // the fog is byte-for-byte vanilla's.
+            final float strength = Math.min(1F, overcast * 2F);
+            final float[] fog = com.mojang.blaze3d.systems.RenderSystem.getShaderFogColor();
+            if (fog != null && fog.length >= 3) {
+                final float luma = fog[0] * 0.3F + fog[1] * 0.59F + fog[2] * 0.11F;
+                com.mojang.blaze3d.systems.RenderSystem.setShaderFogColor(
+                        fog[0] + (SkyEventScheduler.whiteTarget(fog[0], luma) - fog[0]) * strength,
+                        fog[1] + (SkyEventScheduler.whiteTarget(fog[1], luma) - fog[1]) * strength,
+                        fog[2] + (SkyEventScheduler.whiteTarget(fog[2], luma) - fog[2]) * strength,
+                        fog.length > 3 ? fog[3] : 1.0F);
+            }
+        }
         PrecipitationIntensity.noteFogColorRGB(
                 com.mojang.blaze3d.systems.RenderSystem.getShaderFogColor());
     }

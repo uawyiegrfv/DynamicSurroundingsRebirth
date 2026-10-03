@@ -1,6 +1,8 @@
 package org.orecruncher.dsurround.processing.weather;
 
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
+import net.minecraft.client.renderer.state.level.SkyRenderState;
 import net.neoforged.neoforge.client.event.ExtractLevelRenderStateEvent;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
 
@@ -92,6 +94,16 @@ public final class SkyStateInjector {
             final float vanillaPlain = Math.max(0F, vanillaRain - vanillaThunder);
             final float ourPlain = Math.max(0F,
                     PrecipitationIntensity.skyColorRainLevel(level, partialTick) - ourThunder);
+            // The CLOUD route gets its own level, widened with the overcast grey.
+            // The other two versions feed max(CLOUD, OVERCAST x OVERCAST_CLOUD_GRAY)
+            // into their cloud colour read point; this version's injector runs the
+            // cloud retint from the same plain value as the sky, which would leave
+            // the clouds barely greying during an overcast. Taking the max with the
+            // overcast term (and nothing else) keeps rain behaviour byte-identical
+            // - OVERCAST is zero while it rains - and gives the clouds the same
+            // grey the other two versions get.
+            final float ourPlainCloud = Math.max(ourPlain,
+                    PrecipitationResponse.OVERCAST.value() * PrecipitationIntensity.OVERCAST_CLOUD_GRAY);
 
             // Vanilla smooths the biome FOG across a boundary but never smooths the
             // sky or cloud base colours: those are sampled per block and step the
@@ -108,8 +120,14 @@ public final class SkyStateInjector {
             // taking over this reproduces vanilla's own value.
             sky.rainBrightness = 1F - PrecipitationIntensity.sunAlphaRainLevel(level, partialTick);
 
-            if (ourPlain == vanillaPlain && ourThunder == vanillaThunder)
-                return; // bit-for-bit vanilla - do not touch the colours at all
+            // The dry-weather sky events must also run on the bit-for-bit-vanilla
+            // path below - a cloudless dry day is exactly when that early return
+            // fires, and exactly when the events exist - so both paths end with
+            // the same applySkyEvents call.
+            if (ourPlain == vanillaPlain && ourThunder == vanillaThunder) {
+                applySkyEvents(sky, state);
+                return; // bit-for-bit vanilla (the events aside) - do not touch the colours
+            }
 
             PrecipitationIntensity.noteSkyColorHook();
             sky.skyColor = retint(sky.skyColor,
@@ -119,7 +137,9 @@ public final class SkyStateInjector {
             PrecipitationIntensity.noteCloudColorHook();
             state.cloudColor = retint(state.cloudColor,
                     CLOUD_RAIN_BRIGHT, CLOUD_RAIN_FACTOR, CLOUD_THUNDER_BRIGHT, CLOUD_THUNDER_FACTOR,
-                    vanillaPlain, vanillaThunder, ourPlain, ourThunder, advance, false);
+                    vanillaPlain, vanillaThunder, ourPlainCloud, ourThunder, advance, false);
+
+            applySkyEvents(sky, state);
 
             // 26.1 has no biomeColorDetail probe and no getSkyColor to hang one on,
             // so this is the only way to see what the version actually rendered.
@@ -135,6 +155,48 @@ public final class SkyStateInjector {
             // down. Degrade to vanilla instead - the state was already filled.
             org.orecruncher.dsurround.mixinutils.MixinHelpers.LOGGER
                     .error(t, "SkyStateInjector failed - leaving vanilla render state");
+        }
+    }
+
+    /**
+     * The dry-weather sky events, applied after every other colour decision on
+     * BOTH paths out of the extractor (the bit-for-bit-vanilla early return
+     * included - a cloudless dry day is exactly when that fires and exactly
+     * when the events exist).
+     *
+     * <p>The overcast runs on the final sky RGB for the same reason its 1.20.1
+     * and 1.21.1 implementations do: vanilla's rain blend targets
+     * {@code luma * factor}, which is dark by construction, so "sky going
+     * white" can only be expressed on the colour that has already been through
+     * every darkening pass. The clear event is version-specific: this
+     * version's cloud colour is ARGB and the cloud pass itself refuses to draw
+     * when the alpha is zero, so the fade is a native alpha interpolation
+     * rather than the colour melt the other two versions use.</p>
+     */
+    private static void applySkyEvents(SkyRenderState sky, LevelRenderState state) {
+        final float overcast = SkyEventScheduler.whiteShiftStrength();
+        if (overcast > 0F) {
+            final int argb = sky.skyColor;
+            final float r = (argb >> 16 & 0xFF) / 255F;
+            final float g = (argb >> 8 & 0xFF) / 255F;
+            final float b = (argb & 0xFF) / 255F;
+            final float luma = r * 0.3F + g * 0.59F + b * 0.11F;
+            sky.skyColor = (argb & ALPHA_MASK) | pack(
+                    r + (SkyEventScheduler.whiteTarget(r, luma) - r) * overcast,
+                    g + (SkyEventScheduler.whiteTarget(g, luma) - g) * overcast,
+                    b + (SkyEventScheduler.whiteTarget(b, luma) - b) * overcast);
+        }
+        final float clear = SkyEventScheduler.cloudMeltStrength();
+        if (clear > 0F) {
+            // ★ The alpha write below is INTENTIONAL and is NOT a regression of
+            // the §5.9 bug ("26.1 云被弄没了 - ARGB 的 alpha 被清零"). That bug
+            // cleared the alpha by accident while writing RGB; this writes the
+            // alpha on purpose, driven by the CLEAR channel, because
+            // LevelRenderer only draws the cloud pass when
+            // ARGB.alpha(cloudColor) > 0 - alpha is this version's cloud
+            // on/off switch. Keep the RGB bytes exactly as retint produced them.
+            final int alpha = (int) (255F * (1F - clear) + 0.5F) << 24;
+            state.cloudColor = (alpha & 0xFF000000) | (state.cloudColor & 0x00FFFFFF);
         }
     }
 

@@ -239,6 +239,17 @@ public final class DripScanner {
                 note(STAT_POINT, roof);
                 return null;
             }
+            // A stair sitting on something does not shed off its own nose:
+            // the water runs down onto the block underneath it instead of
+            // leaving the structure. Only a stair with clear air below it
+            // lets go - the landing walk below only ever looked sideways
+            // from the nose, so a stair on solid ground still read as an
+            // eave and dripped.
+            final BlockPos belowStair = roof.below();
+            if (!world.getBlockState(belowStair).getCollisionShape(world, belowStair).isEmpty()) {
+                note(STAT_LANDING, roof);
+                return null;
+            }
             final DripPoint drip = withLanding(world, point, roof,
                     faceBit(low.getOpposite()), undersideOf(world, roof, state), MIN_FALL_STAIRS);
             if (drip == null)
@@ -277,6 +288,21 @@ public final class DripScanner {
             final BlockPos lowest = point.above();
             final DripPoint drip = withLanding(world, point, lowest, 0,
                     undersideOf(world, lowest, world.getBlockState(lowest)), MIN_FALL);
+            if (drip == null)
+                note(STAT_LANDING, roof);
+            return drip;
+        }
+
+        // Poles first: a post has no rim to leave over, it lets go from the
+        // middle of its own underside.
+        if (isPoleLike(state)) {
+            final BlockPos point = roof.below();
+            if (!isPassable(world, point)) {
+                note(STAT_POINT, roof);
+                return null;
+            }
+            final DripPoint drip = withLanding(world, point, roof, FACE_CENTER,
+                    undersideOf(world, roof, state), MIN_FALL);
             if (drip == null)
                 note(STAT_LANDING, roof);
             return drip;
@@ -404,8 +430,33 @@ public final class DripScanner {
      */
     private static boolean holdsWaterFilm(final Level world, final BlockPos pos, final BlockState state) {
         return state.isFaceSturdy(world, pos, Direction.UP, SupportType.FULL)
-                || state.is(BlockTags.SLABS);
+                || state.is(BlockTags.SLABS)
+                || isPoleLike(state);
     }
+
+    /**
+     * Fence posts and iron bars. Their top face is not sturdy, so the general
+     * rule turns them away - but a post is thick, and where one stands over
+     * open air (a lamp post, a railing with nothing beneath) water running
+     * down it lets go from the middle of its underside, which is what a post
+     * actually does. Fences standing on solid ground are rejected by the
+     * landing walk like anything else, so opening these up does not flood the
+     * pool with every fence in a village.
+     */
+    private static boolean isPoleLike(final BlockState state) {
+        // Iron bars are NOT in BlockTags.FENCES - they are their own block,
+        // carrying no fence tag in any of the three versions. Named by class
+        // rather than by tag because there is no tag to ask.
+        return state.is(BlockTags.FENCES)
+                || state.is(net.minecraft.world.level.block.Blocks.IRON_BARS);
+    }
+
+    /**
+     * Faces value meaning "hang in the middle of the cell, exactly". Leaves
+     * use {@code 0}, which the handler sprays across the cell; a post has one
+     * place it drips from, so it needs its own value.
+     */
+    public static final int FACE_CENTER = 0x10;
 
     /**
      * Whether water reaching this side of the roof can leave over it - the
@@ -440,6 +491,20 @@ public final class DripScanner {
      * which would hang the drop a very long way away.
      */
     private static double undersideOf(final Level world, final BlockPos pos, final BlockState state) {
+        // A top slab and an inverted stair keep their bottom face half a block
+        // up. Asking the shape is not enough here: these report a full-cube
+        // collision shape, so the minimum came back as 0 and the drop hung in
+        // mid air half a block below where it should have been. The block
+        // state knows, so ask it - and only for the two families that can be
+        // half-height, behind hasProperty so anything else is untouched.
+        if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.SLAB_TYPE)
+                && state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.SLAB_TYPE)
+                        == net.minecraft.world.level.block.state.properties.SlabType.TOP)
+            return 0.5D;
+        if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.HALF)
+                && state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.HALF)
+                        == net.minecraft.world.level.block.state.properties.Half.TOP)
+            return 0.5D;
         final var shape = state.getCollisionShape(world, pos);
         return shape.isEmpty() ? 0.0D : shape.min(Direction.Axis.Y);
     }

@@ -9,6 +9,7 @@ import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.network.chat.Component;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
 import org.orecruncher.dsurround.processing.weather.PrecipitationRenderer;
+import org.orecruncher.dsurround.processing.weather.SkyEventScheduler;
 
 /**
  * Diagnostics for the graded precipitation system.
@@ -28,18 +29,21 @@ import org.orecruncher.dsurround.processing.weather.PrecipitationRenderer;
  * channels at the same intensity to see whether they agree; if they do not,
  * that is a real disagreement and not a matter of taste.</p>
  *
- * <p>Locks take effect immediately and do not ease. A lock that faded into
- * place would be indistinguishable from a channel that is merely slow, which is
- * precisely the confusion a lock exists to remove.</p>
- *
- * <p>Channels: sky, cloud, fog, fogColor, skyLight, sun, storm, geometry,
- * surface, audio, splash, wet, drip.</p>
- */
+     * <p>Locks take effect immediately and do not ease. A lock that faded into
+     * place would be indistinguishable from a channel that is merely slow, which
+     * is precisely the confusion a lock exists to remove.</p>
+     *
+     * <p>Channels: sky, cloud, fog, fogColor, skyLight, sun, storm, geometry,
+     * surface, audio, splash, wet, drip, overcast, clear. The last two are the
+     * dry-weather sky events - locking one holds the event's channel so the
+     * look can be inspected without waiting for a roll.</p>
+     */
 class PrecipitationCommand extends AbstractClientCommand {
 
     private static final String COMMAND = "dsprecip";
     private static final String LEVEL_PARAMETER = "level";
     private static final String CHANNEL_PARAMETER = "channel";
+    private static final String EVENT_PARAMETER = "event";
 
     public void register(CommandDispatcher<ClientCommandRegistrationEvent.ClientCommandSourceStack> dispatcher,
                          CommandBuildContext registryAccess) {
@@ -58,7 +62,12 @@ class PrecipitationCommand extends AbstractClientCommand {
                         .executes(this::unlockAll)
                         .then(ClientCommandRegistrationEvent
                                 .argument(CHANNEL_PARAMETER, StringArgumentType.word())
-                                .executes(this::unlockChannel))));
+                                .executes(this::unlockChannel)))
+                .then(ClientCommandRegistrationEvent.literal("event")
+                        .executes(this::eventStatus)
+                        .then(ClientCommandRegistrationEvent
+                                .argument(EVENT_PARAMETER, StringArgumentType.word())
+                                .executes(this::eventControl))));
     }
 
     private int status(CommandContext<ClientCommandRegistrationEvent.ClientCommandSourceStack> ctx) {
@@ -83,7 +92,7 @@ class PrecipitationCommand extends AbstractClientCommand {
                         .formatted(name, value));
                     return Component.literal("No channel named '%s'. Try: sky, cloud, fog, fogColor, "
                             .formatted(name)
-                            + "skyLight, sun, storm, geometry, audio, splash, wet, drip");
+                            + "skyLight, sun, storm, geometry, audio, splash, wet, drip, overcast, clear");
         });
     }
 
@@ -101,6 +110,37 @@ class PrecipitationCommand extends AbstractClientCommand {
             PrecipitationIntensity.release();
             PrecipitationIntensity.unlockChannel(null);
             return Component.literal("Intensity and all channels released");
+        });
+    }
+
+    /**
+     * The dry-weather sky events, run by hand. {@code /dsprecip event} alone
+     * reports the scheduler state; a name starts that event (ending whatever
+     * was up); {@code stop} ends the one that is running. A manual start
+     * bypasses the lottery but not the weather: started into rain the event
+     * yields until the rain passes, exactly as a rolled event would.
+     */
+    private int eventStatus(CommandContext<ClientCommandRegistrationEvent.ClientCommandSourceStack> ctx) {
+        return this.execute(ctx, () -> Component.literal("Sky events: " + SkyEventScheduler.diagnostics()));
+    }
+
+    private int eventControl(CommandContext<ClientCommandRegistrationEvent.ClientCommandSourceStack> ctx) {
+        String name = StringArgumentType.getString(ctx, EVENT_PARAMETER);
+        return this.execute(ctx, () -> {
+            if ("stop".equalsIgnoreCase(name) || "end".equalsIgnoreCase(name)
+                    || "none".equalsIgnoreCase(name))
+                return Component.literal(SkyEventScheduler.stopEvent()
+                        ? "Sky event ended"
+                        : "No sky event is running");
+            if (SkyEventScheduler.startEvent(name)) {
+                final String note = PrecipitationIntensity.rainingNow()
+                        ? " (it is raining - the event yields until the rain stops)"
+                        : "";
+                return Component.literal("Sky event %s started%s - /dsprecip event stop to end it"
+                        .formatted(name.toLowerCase(java.util.Locale.ROOT), note));
+            }
+            return Component.literal("No sky event named '%s'. Try: overcast, clear, stop"
+                    .formatted(name));
         });
     }
 }

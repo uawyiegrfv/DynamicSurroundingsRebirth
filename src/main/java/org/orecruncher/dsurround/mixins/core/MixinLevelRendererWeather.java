@@ -6,9 +6,17 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
+import org.orecruncher.dsurround.processing.weather.SkyEventScheduler;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import org.joml.Matrix4f;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -55,7 +63,41 @@ import java.util.concurrent.ThreadLocalRandom;
  * {@code renderSky} / {@code renderClouds}, not calls made from here.</p>
  */
 @Mixin(LevelRenderer.class)
-public class MixinLevelRendererWeather {
+public abstract class MixinLevelRendererWeather {
+
+    @Shadow
+    private ClientLevel level;
+    @Shadow
+    private boolean generateClouds;
+    /** Game tick of the last forced cloud re-bake - see {@link #dsurround_freshClouds}. */
+    @Unique
+    private long dsurround_lastCloudBake = Long.MIN_VALUE;
+
+    // ---- the sky events: keep the cloud mesh honest -------------------------
+    //
+    // The cloud colour is BAKED into the cloud vertex buffer, and vanilla only
+    // rebuilds that buffer when the colour has moved more than 2.0E-4
+    // (about 0.014 per channel) since the last bake. Vanilla's own rain graying
+    // steps the colour 0.0095 per tick and clears that bar every tick; a
+    // seconds-scale sky-event fade moves ~0.0002 per tick and never does. So
+    // both the overcast grey and the clear-sky melt are numerically correct and
+    // invisibly stale - the sheet keeps its old bake until the player crosses a
+    // cloud cell (a visible step) or the render is declined outright (the
+    // clear event's "nothing happens, then they vanish"). While a sky event is
+    // colouring the clouds, force the re-bake on a four-tick cadence: the fade
+    // steps ~0.007 per bake, which reads as continuous, and the rebuild cost
+    // lands once per 200ms instead of once per frame.
+
+    @Inject(method = "renderClouds", at = @At("HEAD"), require = 0)
+    private void dsurround_freshClouds(CallbackInfo ci) {
+        if (!SkyEventScheduler.cloudColourAnimating() || this.level == null)
+            return;
+        final long now = this.level.getGameTime();
+        if (this.dsurround_lastCloudBake >= 0L && now - this.dsurround_lastCloudBake < 4L)
+            return;
+        this.dsurround_lastCloudBake = now;
+        this.generateClouds = true;
+    }
 
     @Redirect(
             method = "renderSky",
@@ -130,5 +172,36 @@ public class MixinLevelRendererWeather {
         PrecipitationIntensity.noteRainAudio(played);
         if (played)
             level.playLocalSound(pos, chosen, source, volume, pitch, global);
+    }
+
+    // ---- clear-sky event: fade the sheet out, do not move it --------------
+    //
+    // The cloud fragment shader is
+    //     color = texture(Sampler0, uv) * vertexColor * ColorModulator
+    // with a discard below alpha 0.1, so ColorModulator's alpha is a true
+    // fade-out of the sheet. RenderSystem.setShaderColor stores the value and
+    // the next setShader applies it, so setting it at HEAD reaches the cloud
+    // pass even though that pass binds its shader further down; RETURN puts it
+    // back so nothing else inherits a transparent sheet.
+    //
+    // This replaces lifting the cloud plane (getCloudHeight), which was the
+    // "clouds launch into the sky" behaviour.
+    @Inject(method = "renderClouds", at = @At("HEAD"), require = 0)
+    private void dsurround_cloudFadeBegin(PoseStack poseStack, Matrix4f projectionMatrix,
+                                          Matrix4f frustumMatrix, float partialTick,
+                                          double camX, double camY, double camZ,
+                                          CallbackInfo ci) {
+        final float clear = SkyEventScheduler.cloudMeltStrength();
+        if (clear > 0F)
+            RenderSystem.setShaderColor(1F, 1F, 1F, Math.max(0F, 1F - clear));
+    }
+
+    @Inject(method = "renderClouds", at = @At("RETURN"), require = 0)
+    private void dsurround_cloudFadeEnd(PoseStack poseStack, Matrix4f projectionMatrix,
+                                        Matrix4f frustumMatrix, float partialTick,
+                                        double camX, double camY, double camZ,
+                                        CallbackInfo ci) {
+        if (SkyEventScheduler.cloudMeltStrength() > 0F)
+            RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
     }
 }

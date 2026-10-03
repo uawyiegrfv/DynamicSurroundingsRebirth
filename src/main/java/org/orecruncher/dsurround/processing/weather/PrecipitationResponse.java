@@ -152,6 +152,70 @@ public final class PrecipitationResponse {
             new PrecipitationResponse("drip", 1F, false, 1F, 0F, 7F, 45F, 150F);
 
     /**
+     * Overcast strength, 0..1 - the dry-weather sky event, driven by
+     * {@code SkyEventScheduler} rather than by any precipitation input.
+     *
+     * <p>A root, and deliberately fed by nothing. Every other root answers
+     * "how hard is it precipitating"; this one answers "the weather today is
+     * grey even though nothing is falling", which no intensity can express.
+     * It cannot derive from {@link #ATMOSPHERE} either: that root is
+     * dust-aware, and a sandstorm is not an overcast.</p>
+     *
+     * <p>Consumers take it with a {@code max} against their own channel - the
+     * read-side blend, not a derivation - so the rain chain and the overcast
+     * event never have to agree on a single number. The weights are in
+     * {@code PrecipitationIntensity.OVERCAST_*}.</p>
+     *
+     * <p>The three constants are the yield design:
+     * <ul>
+     *   <li><b>rise 45s</b> - both the onset of the event and the restore after
+     *       a rain has passed. Rain's own darkening releases in 5s, so the
+     *       overcast coming back must be slower than that or the two would
+     *       cross as a visible pop.</li>
+     *   <li><b>fall 5s</b> - the yield. When precipitation starts, this channel
+     *       steps aside within 3-8s (the rain's SKY rise is 3s); the sky goes
+     *       white - grey - rain-dark as one continuous move.</li>
+     *   <li><b>release 8s</b> - the sweep that guarantees the tail arrives.</li>
+     * </ul></p>
+     *
+     * <p>It is <em>not</em> in {@link #anyActive()}. The idle fast path in
+     * {@code PrecipitationIntensity.update()} returns before {@code tickAll},
+     * and an event that runs for in-game hours would hold that path open for
+     * all of them, dragging the five-point biome sampling into every idle
+     * tick. So this channel is advanced by the scheduler itself, before the
+     * idle branch, and {@link #anyActive()} skips it - which is why the
+     * channel also never appears in {@link #tickAll}: its target is the
+     * scheduler's business, set through {@link #advance}.</p>
+     */
+    public static final PrecipitationResponse OVERCAST =
+            new PrecipitationResponse("overcast", 1F, false, true, 1F, 0F, 45F, 5F, 8F);
+
+    /**
+     * Clear-sky strength, 0..1 - the other dry-weather event: the one that
+     * takes the clouds away. Same shape of life as {@link #OVERCAST} - a
+     * scheduler event, yielded to rain, restored after - so its javadoc is
+     * that channel's, and this one only says what is different.
+     *
+     * <p>What consumes it is version-specific, because the three renderers
+     * disagree about what a cloud is: 26.1's cloud colour is ARGB, so the
+     * alpha byte fades the sheet out natively; 1.20.1 and 1.21.1 have no
+     * alpha and instead melt the cloud colour into the sky colour and then
+     * decline to draw the pass at all past a threshold. The channel is the
+     * same either way, which is the point of keeping it here and not in the
+     * renderers.</p>
+     *
+     * <ul>
+     *   <li><b>rise 10s</b> - clouds thinning out. Faster than the overcast
+     *       onset because disappearing is less of a statement than arriving.</li>
+     *   <li><b>fall 6s</b> - rain must bring its clouds back, and quickly:
+     *       a rain with a bare sky reads as broken.</li>
+     *   <li><b>release 10s</b> - the sweep.</li>
+     * </ul>
+     */
+    public static final PrecipitationResponse CLEAR =
+            new PrecipitationResponse("clear", 1F, false, true, 1F, 0F, 10F, 6F, 10F);
+
+    /**
      * L1 root - what happens where the rain lands.
      *
      * <p>Derived from {@link #GEOMETRY}, and at present numerically identical to
@@ -202,7 +266,7 @@ public final class PrecipitationResponse {
      * because by then every channel that draws anything is already at zero.</p>
      */
     public static final PrecipitationResponse WET =
-            new PrecipitationResponse("wet", SPLASH, 1F, 1F, 0F, 12F, 24F, 30F);
+            new PrecipitationResponse("wet", SPLASH, 1F, 1F, 0F, 12F, 24F, 50F);
 
     /**
      * Rain sound level, derived from {@link #SURFACE}.
@@ -343,7 +407,9 @@ public final class PrecipitationResponse {
     private static final PrecipitationResponse[] ALL = {
             // Roots first, then derived in dependency order: tickAll walks this
             // array exactly once, so a parent must already have advanced this tick.
-            GEOMETRY, ATMOSPHERE, SUN, DRIP,
+            // The two sky-event channels sit with the roots for find()/diagnostics,
+            // but tickAll skips them (see schedulerDriven) and so does anyActive().
+            GEOMETRY, ATMOSPHERE, SUN, DRIP, OVERCAST, CLEAR,
             SURFACE, SPLASH, WET, AUDIO,
             FOG_DIST, FOG_COLOR, AFTER_FOG, SKY, CLOUD, SKY_LIGHT, STORM
     };
@@ -393,6 +459,18 @@ public final class PrecipitationResponse {
      * {@link #ATMOSPHERE} and {@link #DUST_ATMOSPHERE_WEIGHT}.
      */
     private final boolean dustAware;
+    /**
+     * True when this channel is driven by the sky-event scheduler rather than
+     * by a precipitation input.
+     *
+     * <p>Three consequences, all of them the same fact seen from different
+     * sides: {@link #tickAll} skips the channel (its target is the scheduler's
+     * business, handed in through {@link #advance}); {@link #anyActive()}
+     * ignores it (the idle fast path must stay reachable while an event runs
+     * for in-game hours); and {@link #slowestChannel()} still reports it
+     * (diagnostics want to see it holding the frame).</p>
+     */
+    private final boolean schedulerDriven;
     /** Intensity at which the channel is fully spent. */
     private final float saturateAt;
     /** Value the channel holds at zero intensity. */
@@ -419,8 +497,22 @@ public final class PrecipitationResponse {
     private PrecipitationResponse(String name, float gamma, boolean gated,
                                   float saturateAt, float floor,
                                   float riseSeconds, float fallSeconds, float releaseSeconds) {
-        this(name, gamma, gated, false, false, saturateAt, floor, riseSeconds, fallSeconds,
+        this(name, gamma, gated, false, false, false, saturateAt, floor, riseSeconds, fallSeconds,
                 releaseSeconds, null);
+    }
+
+    /**
+     * Scheduler-driven variant. The extra {@code schedulerDriven} flag is what
+     * takes the channel out of {@link #tickAll} and {@link #anyActive()} - see
+     * the field comment for why both are load-bearing.
+     */
+    private PrecipitationResponse(String name, float gamma, boolean gated, boolean schedulerDriven,
+                                  float saturateAt, float floor,
+                                  float riseSeconds, float fallSeconds, float releaseSeconds) {
+        // Master order is (gated, attackDriven, dustAware, schedulerDriven) - the
+        // flags sit in slots three to six.
+        this(name, gamma, gated, false, false, schedulerDriven, saturateAt, floor, riseSeconds,
+                fallSeconds, releaseSeconds, null);
     }
 
     /**
@@ -441,7 +533,7 @@ public final class PrecipitationResponse {
      */
     private PrecipitationResponse(String name, float gamma, float saturateAt,
                                   float riseSeconds, float fallSeconds, float releaseSeconds) {
-        this(name, gamma, false, false, true, saturateAt, 0F, riseSeconds, fallSeconds,
+        this(name, gamma, false, false, true, false, saturateAt, 0F, riseSeconds, fallSeconds,
                 releaseSeconds, null);
     }
 
@@ -452,7 +544,9 @@ public final class PrecipitationResponse {
     private PrecipitationResponse(String name, float gamma,
                                   float saturateAt, float floor,
                                   float riseSeconds, float fallSeconds, float releaseSeconds) {
-        this(name, gamma, false, true, false, saturateAt, floor, riseSeconds, fallSeconds,
+        // (gated, attackDriven, dustAware, schedulerDriven) - SUN reads the
+        // attack clock, and nothing else about it changes.
+        this(name, gamma, false, true, false, false, saturateAt, floor, riseSeconds, fallSeconds,
                 releaseSeconds, null);
     }
 
@@ -465,12 +559,12 @@ public final class PrecipitationResponse {
     private PrecipitationResponse(String name, PrecipitationResponse parent, float gamma,
                                   float saturateAt, float floor,
                                   float extraRise, float extraFall, float extraRelease) {
-        this(name, gamma, false, false, false, saturateAt, floor, extraRise, extraFall,
+        this(name, gamma, false, false, false, false, saturateAt, floor, extraRise, extraFall,
                 extraRelease, parent);
     }
 
     private PrecipitationResponse(String name, float gamma, boolean gated, boolean attackDriven,
-                                  boolean dustAware, float saturateAt, float floor,
+                                  boolean dustAware, boolean schedulerDriven, float saturateAt, float floor,
                                   float riseSeconds, float fallSeconds, float releaseSeconds,
                                   PrecipitationResponse parent) {
         this.name = name;
@@ -478,6 +572,7 @@ public final class PrecipitationResponse {
         this.gated = gated;
         this.attackDriven = attackDriven;
         this.dustAware = dustAware;
+        this.schedulerDriven = schedulerDriven;
         this.saturateAt = saturateAt;
         this.floor = floor;
         this.riseSeconds = riseSeconds;
@@ -520,7 +615,11 @@ public final class PrecipitationResponse {
         // a single forward pass gives each derived channel a parent that has
         // already been advanced this tick - otherwise a chain would be a tick deep
         // per link and the ends of the chain would lag the rain by that much.
+        // Scheduler-driven channels are skipped: their target is not any intensity
+        // we hold here, it is the event state the scheduler hands to advance().
         for (var response : ALL) {
+            if (response.schedulerDriven)
+                continue;
             final float raw;
             if (response.attackDriven)
                 raw = attackProgress;
@@ -553,7 +652,12 @@ public final class PrecipitationResponse {
      */
     public static boolean anyActive() {
         for (var response : ALL)
-            if (response.current > 0F)
+            // Sky-event channels are excluded on purpose. They sit above zero for
+            // in-game hours at a time, and anyActive() is the idle fast path's last
+            // gate - including them would drag the five-point biome sampling into
+            // every dry tick for as long as an event lasted. The read points get
+            // the same effect from ownsAmbient(), which asks the channels directly.
+            if (!response.schedulerDriven && response.current > 0F)
                 return true;
         return false;
     }
@@ -587,6 +691,23 @@ public final class PrecipitationResponse {
     }
 
     private void tick(float intensity, float dtSeconds) {
+        this.easeTo(this.shape(intensity), dtSeconds);
+    }
+
+    /**
+     * Advance toward an explicit target - the sky-event scheduler's entry point.
+     *
+     * <p>{@link #tick} computes its target from an intensity this class never
+     * sees; the scheduler-driven channels have no input intensity at all, their
+     * target <em>is</em> the event state. Same easing, same lock discipline,
+     * same tail sweep - only the source of the target differs, which is why
+     * this is public while {@code tick} is not.</p>
+     */
+    public void advance(float target, float dtSeconds) {
+        this.easeTo(target, dtSeconds);
+    }
+
+    private void easeTo(float target, float dtSeconds) {
         // A lock is applied, not approached. Easing towards it would make a
         // pinned channel indistinguishable from one that is simply slow, which
         // is exactly the confusion a lock exists to remove.
@@ -595,7 +716,6 @@ public final class PrecipitationResponse {
             this.current = pinned;
             return;
         }
-        final float target = this.shape(intensity);
 
         if (this.riseSeconds <= 0F && this.fallSeconds <= 0F && this.releaseSeconds <= 0F) {
             this.current = target;

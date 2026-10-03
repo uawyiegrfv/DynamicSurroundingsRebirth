@@ -3,6 +3,7 @@ package org.orecruncher.dsurround.mixins.core;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.phys.Vec3;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
+import org.orecruncher.dsurround.processing.weather.SkyEventScheduler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -84,6 +85,10 @@ public abstract class MixinClientLevelWeatherColors {
     private static float skyBaseR = -1F;
     private static float skyBaseG = 0F;
     private static float skyBaseB = 0F;
+    /** The last DISPLAYED (grey-lifted) sky colour - the cloud melt's target. */
+    private static float skyShownR = -1F;
+    private static float skyShownG = 0F;
+    private static float skyShownB = 0F;
     private static long skyBaseStamp = Long.MIN_VALUE;
 
     @Inject(method = "getSkyColor", at = @At("RETURN"), cancellable = true, require = 0)
@@ -107,7 +112,56 @@ public abstract class MixinClientLevelWeatherColors {
                 skyBaseB += ((float) value.z - skyBaseB) * SKY_BASE_TRANSITION;
             }
         }
-        cir.setReturnValue(new Vec3(skyBaseR, skyBaseG, skyBaseB));
+
+        // ---- overcast: the grey on the final colour ---------------------------
+        //
+        // The rain branch above interpolates towards luma * 0.6, which is dark
+        // by construction - so no input fed through the rain route can ever
+        // brighten or de-saturate the sky the way an overcast must. The grey
+        // runs on the FINAL RGB instead. The cache stays in VANILLA colour
+        // space: the first cut wrote the lifted value back into it, which made
+        // the smoothing a feedback loop (cache = L(0.88*cache), coefficient
+        // 1.012 > 1) that pins the sky at the cap - grey days stuck at 0.85,
+        // and at night black skies lifted to blinding grey. The displayed value
+        // is lifted; the cloud melt targets the last DISPLAYED value, held in
+        // its own fields (skyShown*) rather than the cache.
+        float r = skyBaseR;
+        float g = skyBaseG;
+        float b = skyBaseB;
+        final float overcast = SkyEventScheduler.whiteShiftStrength();
+        if (overcast > 0F) {
+            final float luma = r * 0.3F + g * 0.59F + b * 0.11F;
+            r += (SkyEventScheduler.whiteTarget(r, luma) - r) * overcast;
+            g += (SkyEventScheduler.whiteTarget(g, luma) - g) * overcast;
+            b += (SkyEventScheduler.whiteTarget(b, luma) - b) * overcast;
+        }
+        skyShownR = r;
+        skyShownG = g;
+        skyShownB = b;
+        cir.setReturnValue(new Vec3(r, g, b));
+    }
+
+    // ---- clear sky: the cloud sheet melting into the sky ---------------------
+    //
+    // The cloud colour has no alpha in this version, so "clouds going away"
+    // cannot be a fade-out; what it CAN be is the cloud colour leaning all the
+    // way onto the sky colour behind it, which reads as the sheet dissolving.
+    // The melt uses the (already final, already lifted) sky base cached above -
+    // one frame stale at worst, and only until getSkyColor has run once.
+
+    @Inject(method = "getCloudColor", at = @At("RETURN"), cancellable = true, require = 0)
+    private void dsurround_cloudMeltIntoSky(float partialTick,
+                                            CallbackInfoReturnable<Vec3> cir) {
+        final float clear = SkyEventScheduler.cloudMeltStrength();
+        if (clear <= 0F || skyShownR < 0F)
+            return;
+        final Vec3 value = cir.getReturnValue();
+        if (value == null)
+            return;
+        cir.setReturnValue(new Vec3(
+                value.x + (skyShownR - value.x) * clear,
+                value.y + (skyShownG - value.y) * clear,
+                value.z + (skyShownB - value.z) * clear));
     }
 
     // ---- the second pass: thunder -------------------------------------------

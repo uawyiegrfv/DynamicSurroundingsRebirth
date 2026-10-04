@@ -100,6 +100,23 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final Identifier[] RAIN_TEXTURE_LEAF = {
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.leaf1"),
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.leaf2")};
+    // 暴雨档：Bosk1 的呼啸段（tools/_make_storm_assets_final.py）。它不是"中雨那批放大声"，
+    // 而是另一条录音 —— 中/小雨那批来自一条树叶实录，空旷地形也带着沙沙，
+    // 这正是"草原还有树叶声"的来处。材质换了，不是音量换了。
+    private static final Identifier[] STORM_WIND_HEAVY = {
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.storm.wind.heavy1"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.storm.wind.heavy2"),
+            Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.storm.wind.heavy3")};
+    // 档位阈值：0=小雨 1=中雨 2=暴雨。降档要比升档多退 HYSTERESIS，否则强度在阈值附近
+    // 微动就会来回换素材，听上去是风无缘无故变了音色。
+    private static final float GUST_TIER_MEDIUM = 0.35F;
+    private static final float GUST_TIER_HEAVY = 0.65F;
+    private static final float GUST_TIER_HYSTERESIS = 0.06F;
+    // 每档自己的音量。暴雨档压在中雨档的天花板上不再往上走 —— 旧式 (0.35+0.65t)x雷暴1.3
+    // 会把暴雨推到 1.3，那是"大雨太吵"的来源；但第一版压到 0.30/0.45/0.50 又压过头了，
+    // 中雨丢了三分之一、暴雨丢了一半，听上去就是"底噪风声没了"。
+    // 现在：中雨回到它一直有的水平，暴雨比旧版低约 4dB 且与中雨同高。
+    private static final float[] GUST_TIER_VOLUME = {0.35F, 0.55F, 0.55F};
     /**
      * Loudness lift for the rain wind bed. The assets are quiet field recordings
      * (wind.ogg sits at -34.8 dB RMS); as one-shot acoustics that was fine, as a
@@ -394,6 +411,8 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private BackgroundSoundLoop rainWindLoop;
     private Object rainWindAsset;
     private long rainGustNextTick;
+    private int rainGustTier = -1;
+    private int rainGustLastIndex = -1;
     private long rainMaterialNextTick;
     // DIAGNOSTIC: shape of the last candidate set - how many surfaces and how
     // many of each material, not which container they arrived in. Comparing by
@@ -604,6 +623,10 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         this.rainWindLoop = null;
         this.rainWindAsset = null;
         this.rainGustNextTick = 0L;
+        // 档位带迟滞 = 有状态，换世界必须清掉，否则上一局在暴雨里退出，
+        // 新世界一开局就还挂在暴雨档（要降档得比阈值再低 0.06）。
+        this.rainGustTier = -1;
+        this.rainGustLastIndex = -1;
     }
 
     @Override
@@ -612,6 +635,8 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         this.rainWindLoop = null;
         this.rainWindAsset = null;
         this.rainGustNextTick = 0L;
+        this.rainGustTier = -1;
+        this.rainGustLastIndex = -1;
     }
 
     private void handleBiomeSounds(final Player player) {
@@ -1550,6 +1575,24 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     }
 
     /**
+     * 阵风档位：0=小雨 1=中雨 2=暴雨。升档到阈值就升，降档要多退
+     * {@link #GUST_TIER_HYSTERESIS} —— 否则强度在阈值附近微动就会来回换素材。
+     */
+    private static int gustTierFor(final float intensity, final int current) {
+        final float h = GUST_TIER_HYSTERESIS;
+        final int t = current < 0 ? 0 : current;
+        if (intensity >= GUST_TIER_HEAVY)
+            return 2;
+        if (intensity >= GUST_TIER_MEDIUM && t < 1)
+            return 1;
+        if (t == 2 && intensity < GUST_TIER_HEAVY - h)
+            return intensity < GUST_TIER_MEDIUM - h ? 0 : 1;
+        if (t == 1 && intensity < GUST_TIER_MEDIUM - h)
+            return 0;
+        return t;
+    }
+
+    /**
      * The gust layer, riding on top of the wind bed. Sparse - tens of seconds
      * apart - and one clip per gust.
      *
@@ -1591,22 +1634,34 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             this.rainGustNextTick = now + 20L; // re-check in a second
             return;
         }
+        final int tier = gustTierFor(intensity, this.rainGustTier);
+        this.rainGustTier = tier;
         float t = (intensity - min) / (1F - min);
         t = t < 0F ? 0F : (t > 1F ? 1F : t);
         float amp = PrecipitationIntensity.gustAmplitude();
         amp = amp < 0F ? 0F : (amp > 2F ? 2F : amp);
+        // 间隔随强度收紧，但每次排期再摇一次随机数：旧版强度给定后间隔是定值，
+        // 那就是"播放太规律"的根因。
         final float seconds =
                 (RAIN_LEAF_INTERVAL_MAX_S + (RAIN_LEAF_INTERVAL_MIN_S - RAIN_LEAF_INTERVAL_MAX_S) * t)
-                        / (0.6F + 0.8F * amp);
+                        / (0.6F + 0.8F * amp)
+                        * (0.65F + RANDOM.nextFloat() * 0.7F);
         // Louder still when it thunders: a storm has to be heard over its own
         // rain, and that was exactly where the gusts were being buried.
-        final float vol = (0.35F + 0.65F * t)
+        final float vol = GUST_TIER_VOLUME[tier]
+                * (0.85F + RANDOM.nextFloat() * 0.3F)
                 * (player.level().isThundering() ? RAIN_GUST_STORM_GAIN : 1F);
         // var, not the resource-location type: it is Identifier on 26.1 and
         // ResourceLocation on the other two.
-        final var pool = wooded ? RAIN_TEXTURE_LEAF : RAIN_TEXTURE_WIND;
+        final var pool = tier >= 2 ? STORM_WIND_HEAVY
+                : (wooded ? RAIN_TEXTURE_LEAF : RAIN_TEXTURE_WIND);
+        // 不连抽同一条：三条的小池子里连着抽到同一条，听感就是"同一声反复"。
+        int idx = RANDOM.nextInt(pool.length);
+        if (pool.length > 1 && idx == this.rainGustLastIndex)
+            idx = (idx + 1 + RANDOM.nextInt(pool.length - 1)) % pool.length;
+        this.rainGustLastIndex = idx;
         var factory = ContainerManager.resolve(ISoundLibrary.class)
-                .getSoundFactoryOrDefault(pool[RANDOM.nextInt(pool.length)]);
+                .getSoundFactoryOrDefault(pool[idx]);
         if (wooded)
             // Canopy surround. The trim keeps three sources from landing 4.8 dB
             // over one; it lives here and not in playLeafSurround because that
@@ -1618,9 +1673,9 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         this.rainGustNextTick = now + (long) (seconds * 20F);
         // One line per gust, so tens of seconds apart: is the wooded test
         // answering what we think it is? The trait set is what decided it.
-        this.logger.info("[RAIN-GUST] wooded=%s traits=%s intensity=%.2f vol=%.2f next=%.0fs",
+        this.logger.info("[RAIN-GUST] wooded=%s traits=%s intensity=%.2f tier=%d vol=%.2f next=%.0fs",
                 wooded, info == null ? "null" : info.getTraits().toString(),
-                intensity, vol, seconds);
+                intensity, tier, vol, seconds);
     }
 
     /**

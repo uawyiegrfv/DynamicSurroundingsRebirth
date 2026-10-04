@@ -1,5 +1,11 @@
 package org.orecruncher.dsurround.client.particle;
 
+import net.minecraft.client.Camera;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.ParticleProvider;
@@ -47,6 +53,7 @@ public class WaterDripParticle extends TextureSheetParticle {
 
     /** Must agree with {@code DripHandler.HANG_TICKS} - the sound is booked on the same clock. */
     public static final int HANG_TICKS = 40;
+
 
     // ---- vanilla's numbers -------------------------------------------------
     /** Vanilla's {@code setSize} for a drip - tiny, it is only a drop. */
@@ -126,6 +133,55 @@ public class WaterDripParticle extends TextureSheetParticle {
     }
 
     @Override
+    /**
+     * Keep the drop upright. Vanilla billboards a particle with the camera's
+     * whole rotation, so a drop tilts with the view: look down and it lies flat,
+     * turn and it swings. Rebuilding the rotation from the camera's yaw alone
+     * gives the cylindrical billboard - the drop always stands vertical and
+     * only turns to face the player.
+     */
+    public void render(final VertexConsumer buffer, final Camera camera, final float partialTicks) {
+        final Vector3f[] corners = new Vector3f[] {
+                new Vector3f(-1.0F, -1.0F, 0.0F),
+                new Vector3f(-1.0F, 1.0F, 0.0F),
+                new Vector3f(1.0F, 1.0F, 0.0F),
+                new Vector3f(1.0F, -1.0F, 0.0F)
+        };
+        final Vec3 eye = camera.getPosition();
+        final float px = (float) (Mth.lerp(partialTicks, this.xo, this.x) - eye.x());
+        final float py = (float) (Mth.lerp(partialTicks, this.yo, this.y) - eye.y());
+        final float pz = (float) (Mth.lerp(partialTicks, this.zo, this.z) - eye.z());
+        // 只绕 Y 轴转向玩家，不带俯仰 —— 水滴永远竖直，同时任何水平角度都能看见。
+        //
+        // 方向是推出来的，不是凑的。四个角点的绕序是 (-1,-1) -> (-1,1) -> (1,1) -> (1,-1)，
+        // 从 +Z 看过去是顺时针，所以这个面的正面朝 -Z（法线 = -Z）。rotateY(t) 把 -Z
+        // 送到 (-sin t, 0, -cos t)；px/pz 是粒子相对相机的坐标，所以"从粒子指向相机"
+        // 的水平向量是 (-px, -pz)。令 -sin t = -px、-cos t = -pz ⇒ t = atan2(px, pz)。
+        // 反过来写（atan2(-px,-pz)）就是正面背对相机，会被背面剔除掉 —— 整个看不见。
+        // 也不要用 camera.getYRot() + 180：那个 180 是猜的，猜错就是"只有侧面看得到"。
+        final Quaternionf rotation = new Quaternionf().rotateY((float) Math.atan2(px, pz));
+        final float size = this.getQuadSize(partialTicks);
+        final int light = this.getLightColor(partialTicks);
+        final float u0 = this.getU0();
+        final float u1 = this.getU1();
+        final float v0 = this.getV0();
+        final float v1 = this.getV1();
+        final float[] us = { u1, u1, u0, u0 };
+        final float[] vs = { v1, v0, v0, v1 };
+        for (int i = 0; i < 4; i++) {
+            final Vector3f corner = corners[i];
+            corner.rotate(rotation);
+            corner.mul(size);
+            corner.add(px, py, pz);
+            // 1.21.1 的 VertexConsumer 用 addVertex/setUv/... —— 见同项目里的
+            // FootprintParticle 与 WaterRippleParticle，它们就是这么写的。
+            buffer.addVertex(corner.x(), corner.y(), corner.z())
+                    .setUv(us[i], vs[i])
+                    .setColor(this.rCol, this.gCol, this.bCol, this.alpha)
+                    .setUv2(light & 0xFFFF, (light >> 16) & 0xFFFF);
+        }
+    }
+
     public ParticleRenderType getRenderType() {
         // Translucent, not opaque: the point of owning the texture is a paler,
         // thinner, softer drop, and an opaque quad would ignore its alpha.

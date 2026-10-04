@@ -589,8 +589,11 @@ public class DripHandler {
                 // second may place another one elsewhere on the same block
                 // (a roof edge can carry two threads). Only half the time, so
                 // "two here" and "one here" mix instead of pairing up neatly.
+                final boolean corner = (candidate.faces() & DripScanner.FACE_CORNER) != 0;
                 for (int attempt = 0; attempt < 2 && kept.size() < want; attempt++) {
-                    if (attempt > 0 && this.random.nextFloat() < 0.5F)
+                    // 转角汇水，更容易挂住：给它的第二次机会大得多。
+                    final float skipSecond = corner ? 0.10F : 0.5F;
+                    if (attempt > 0 && this.random.nextFloat() < skipSecond)
                         break;
                     final double[] hang = hangSpot(candidate);
                     if (!isFree(kept, hang[0], hang[1]))
@@ -601,11 +604,17 @@ public class DripHandler {
                     // is left splits between quick runs and the occasional single
                     // drop, so all three are always present on the same roof.
                     final float roll = this.random.nextFloat();
-                    final float pSteady = steadyChance(value);
+                    // 转角汇水：更可能挂出一道水线，而且那道线跑得更快 ——
+                    // 两片屋面的水都往这个角上来。
+                    float pSteady = steadyChance(value);
+                    if (corner)
+                        pSteady = Math.min(0.95F, pSteady * 1.6F + 0.10F);
                     final float pBursty = burstyChance(value);
                     if (roll < pSteady) {
                         spot.kind = KIND_STEADY;
-                        spot.steadyInterval = steadyInterval(value);
+                        spot.steadyInterval = corner
+                                ? Math.max(2, (int) (steadyInterval(value) * 0.6F))
+                                : steadyInterval(value);
                         spot.steadyUntil = tick + steadyTicks(value);
                         spot.nextSteadyTick = tick + spot.steadyInterval;
                     } else if (roll < pSteady + pBursty) {
@@ -747,6 +756,21 @@ public class DripHandler {
         double hx = point.point().getX() + 0.5D;
         double hz = point.point().getZ() + 0.5D;
         final int mask = point.faces();
+        if ((mask & DripScanner.FACE_STEP_MID) != 0) {
+            // 倒置楼梯的鼻尖滴点：分界线上，高度半格。水平朝另一边（凹进去的那半）
+            // 偏一点，靠近整条边的中点，且夹在半格之内 —— 越过中点就不在这半边了。
+            int index = 0;
+            for (final Direction d : Direction.Plane.HORIZONTAL) {
+                if ((mask & (1 << index)) != 0) {
+                    final double lean = 0.05D + this.random.nextDouble() * 0.13D;
+                    hx += d.getStepX() * lean;
+                    hz += d.getStepZ() * lean;
+                    break;
+                }
+                index++;
+            }
+            return new double[] { hx, hz };
+        }
         if (mask == DripScanner.FACE_CENTER) {
             // A post drips from the middle of its underside, exactly - the
             // spray below is for a leaf canopy, which has no single place.
@@ -909,7 +933,8 @@ public class DripHandler {
                 this.hanging.remove(i);
                 continue;
             }
-            if (!DripScanner.isStillValid(world, held.point())) {
+            // 只问还挂得住吗，不问天还看得到吗 —— 见 DripScanner.isStillHeld。
+            if (!DripScanner.isStillHeld(world, held.point())) {
                 held.drop().release();
                 this.hanging.remove(i);
             }

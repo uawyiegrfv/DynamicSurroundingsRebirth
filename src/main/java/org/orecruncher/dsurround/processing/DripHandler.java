@@ -756,21 +756,6 @@ public class DripHandler {
         double hx = point.point().getX() + 0.5D;
         double hz = point.point().getZ() + 0.5D;
         final int mask = point.faces();
-        if ((mask & DripScanner.FACE_STEP_MID) != 0) {
-            // 倒置楼梯的鼻尖滴点：分界线上，高度半格。水平朝另一边（凹进去的那半）
-            // 偏一点，靠近整条边的中点，且夹在半格之内 —— 越过中点就不在这半边了。
-            int index = 0;
-            for (final Direction d : Direction.Plane.HORIZONTAL) {
-                if ((mask & (1 << index)) != 0) {
-                    final double lean = 0.05D + this.random.nextDouble() * 0.13D;
-                    hx += d.getStepX() * lean;
-                    hz += d.getStepZ() * lean;
-                    break;
-                }
-                index++;
-            }
-            return new double[] { hx, hz };
-        }
         if (mask == DripScanner.FACE_CENTER) {
             // A post drips from the middle of its underside, exactly - the
             // spray below is for a leaf canopy, which has no single place.
@@ -861,7 +846,9 @@ public class DripHandler {
         // a bottom slab, half a block up for a top slab or an inverted stair.
         // The point-side "just under the block" guess is what floated top
         // slabs in mid-air.
-        final double hy = point.roof().getY() + point.undersideY() - 0.05D;
+        // 挂低一点，但只低一点点：0.15 会让水滴明显离开下表面，有的看着是悬空的。
+        // 0.09 约合 4 厘米，还贴着边但不嵌在方块里。
+        final double hy = point.roof().getY() + point.undersideY() - 0.09D;
         // Our own drop particle: pale and a pixel wide (vanilla's
         // dripping_water reads as a wide saturated blob). The hang length and
         // the fall travel ride in through the spawn speeds - a particle
@@ -917,6 +904,7 @@ public class DripHandler {
         if (particle instanceof WaterDripParticle drop)
             this.hanging.add(new HangingDrop(point, drop));
     }
+
 
     /**
      * Let go of every drop whose point has stopped being a drip point - its

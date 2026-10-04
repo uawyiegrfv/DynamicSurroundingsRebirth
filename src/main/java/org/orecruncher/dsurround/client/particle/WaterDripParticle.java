@@ -52,6 +52,7 @@ public class WaterDripParticle extends SingleQuadParticle {
     /** Must agree with {@code DripHandler.HANG_TICKS} - the sound is booked on the same clock. */
     public static final int HANG_TICKS = 40;
 
+
     // ---- vanilla's numbers -------------------------------------------------
     /** Vanilla's {@code setSize} for a drip - tiny, it is only a drop. */
     private static final float VANILLA_SIZE = 0.01F;

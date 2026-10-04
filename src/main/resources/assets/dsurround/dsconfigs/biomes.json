@@ -535,7 +535,13 @@
     "biomeSelector": "@village",
     "_comment": "Village explicit set",
     "additionalSoundChance": "0.015",
+    "moodSoundChance": "weather.getGradedIntensity() >= 0.45 ? 0.0008 : 0.008",
     "acoustics": [
+      {
+        "factory": "biome.village.door_slam_wind",
+        "type": "mood",
+        "conditions": "state.isInVillage() && !state.isInside() && weather.getGradedIntensity() >= 0.45"
+      },
       {
         "factory": "biome.village.rooster",
         "conditions": "state.isInVillage() && !state.isInside() && diurnal.isSunrise() && weather.isNotRaining()",
@@ -613,6 +619,18 @@
     "acoustics": [
       {
         "factory": "dimension.nether"
+      }
+    ]
+  },
+  {
+    "biomeSelector": "FOREST || CONIFEROUS || DECIDUOUS || JUNGLE",
+    "_comment": "暴雨时极罕见的树倒声。只在下雨时压低 mood 概率：森林里所有户外生物 mood 都带 weather.isNotRaining()，一下雨它们就全部退出，所以这里压低不会挤掉鸟叫。",
+    "moodSoundChance": "weather.getGradedIntensity() >= 0.6 ? 0.0003 : 0.008",
+    "acoustics": [
+      {
+        "factory": "biome.storm.tree_fall",
+        "type": "mood",
+        "conditions": "!state.isInside() && weather.getGradedIntensity() >= 0.6"
       }
     ]
   }

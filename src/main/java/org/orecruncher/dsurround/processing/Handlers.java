@@ -105,6 +105,9 @@ public class Handlers {
         // Eave and canopy drips while it rains, and the after-rain tail.
         ContainerManager.resolve(DripHandler.class);
 
+        // Icicles growing under eaves while it snows, dropping and shattering.
+        ContainerManager.resolve(IcicleHandler.class);
+
         this.register(AreaBlockEffects.class); // drives RandomBlockEffectSystem which populates the BlockInfo cache (reflectance/occlusion) used by reverb
         this.register(StepAccentGenerator.class);
         this.register(FogHandler.class);
@@ -246,6 +249,7 @@ public class Handlers {
             .registerSingleton(SpeechBubbleHandler.class)
             .registerSingleton(ThunderHandler.class)
             .registerSingleton(DripHandler.class)
+            .registerSingleton(IcicleHandler.class)
             .registerSingleton(AreaBlockEffects.class)
             .registerSingleton(FootstepAccents.class)
             .registerSingleton(StepAccentGenerator.class)

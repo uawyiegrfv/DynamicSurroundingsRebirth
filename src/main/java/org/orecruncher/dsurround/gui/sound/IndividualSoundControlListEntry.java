@@ -237,13 +237,20 @@ public class IndividualSoundControlListEntry extends ContainerObjectSelectionLis
 
                 if (!metadata.getCredits().isEmpty()) {
                     for (var credit : metadata.getCredits()) {
+                        // name/license decode leniently now (absent when the key is
+                        // missing in sounds.json), so skip the lines that have nothing
+                        // to show instead of drawing an empty styled row.
                         this.cachedToolTip.add(Component.empty().getVisualOrderText());
-                        this.cachedToolTip.add(credit.name().copy().withStyle(STYLE_CREDIT_NAME).getVisualOrderText());
+                        if (!credit.name().getString().isEmpty()) {
+                            this.cachedToolTip.add(credit.name().copy().withStyle(STYLE_CREDIT_NAME).getVisualOrderText());
+                        }
                         this.cachedToolTip.add(credit.author().copy().withStyle(STYLE_CREDIT_AUTHOR).getVisualOrderText());
                         if (credit.webSite().isPresent()) {
                             this.cachedToolTip.add(credit.webSite().get().copy().withStyle(STYLE_CREDIT_AUTHOR).getVisualOrderText());
                         }
-                        this.cachedToolTip.add(credit.license().copy().withStyle(STYLE_CREDIT_LICENSE).getVisualOrderText());
+                        if (!credit.license().getString().isEmpty()) {
+                            this.cachedToolTip.add(credit.license().copy().withStyle(STYLE_CREDIT_LICENSE).getVisualOrderText());
+                        }
                     }
                 }
             }

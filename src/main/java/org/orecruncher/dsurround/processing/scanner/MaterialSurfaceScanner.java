@@ -150,7 +150,15 @@ public final class MaterialSurfaceScanner {
      * already makes to decide whether the player himself is getting wet.</p>
      */
     public static boolean rainReaches(final Level world, final BlockPos pos) {
-        return world.canSeeSky(pos.above());
+        // canSeeSky 是天光测试，不是遮挡测试。半砖和楼梯开着 useShapeForLightOcclusion，
+        // 天光会从空缺的半格 / 缺角穿过去，于是压在玻璃、金属上方的半砖和楼梯被判成
+        // "没有遮挡"，下面那块材质照旧发声 —— 这就是"不完整方块分类有问题"。
+        // 跟 DripScanner.rainReachesTop() 问同一个问题（那边已经写对了三段式），
+        // 再补一条：正上方不能有实体碰撞形状。
+        final BlockPos above = pos.above();
+        if (!DripScanner.rainReachesTop(world, above))
+            return false;
+        return world.getBlockState(above).getCollisionShape(world, above).isEmpty();
     }
 
     /**

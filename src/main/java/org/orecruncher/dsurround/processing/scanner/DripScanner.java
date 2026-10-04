@@ -181,6 +181,17 @@ public final class DripScanner {
      * test can answer "why is my roof silent" from one log line.
      */
     public static ObjectArray<DripPoint> scan(final Level world, final BlockPos center) {
+        return scan(world, center, false);
+    }
+
+    /**
+     * {@code snowAllowed} widens the biome gate of {@code rainReachesTop} to
+     * also accept SNOW biomes: the icicle layer asks for exactly this eave
+     * geometry, but in the biomes where snow falls - the RAIN-only reading
+     * rejected every roof there by definition. The drip layer keeps the
+     * two-arg call, so its semantics are byte-for-byte what they were.
+     */
+    public static ObjectArray<DripPoint> scan(final Level world, final BlockPos center, final boolean snowAllowed) {
         if (TRACE) {
             Arrays.fill(STATS, 0);
             SAMPLES.clear();
@@ -205,7 +216,7 @@ public final class DripScanner {
                         note(STAT_BLACKLIST, cursor);
                         continue;
                     }
-                    final DripPoint point = buildPoint(world, new BlockPos(x, y, z), state);
+                    final DripPoint point = buildPoint(world, new BlockPos(x, y, z), state, snowAllowed);
                     if (point != null) {
                         note(STAT_OK, roofOf(point));
                         result.add(point);
@@ -227,9 +238,13 @@ public final class DripScanner {
      * third-log pick/kill loop again. Every rejection records its reason.
      */
     public static DripPoint buildPoint(final Level world, final BlockPos roof, final BlockState state) {
+        return buildPoint(world, roof, state, false);
+    }
+
+    public static DripPoint buildPoint(final Level world, final BlockPos roof, final BlockState state, final boolean snowAllowed) {
         // Rain has to reach the top face whatever the shape is - asked once,
         // here, so the per-shape code stays about geometry.
-        if (!rainReachesTop(world, roof.above())) {
+        if (!rainReachesTop(world, roof.above(), snowAllowed)) {
             note(STAT_RAIN, roof);
             return null;
         }
@@ -405,16 +420,26 @@ public final class DripScanner {
      * "could this face have caught any".
      */
     public static boolean rainReachesTop(final Level world, final BlockPos face) {
+        return rainReachesTop(world, face, false);
+    }
+
+    public static boolean rainReachesTop(final Level world, final BlockPos face, final boolean snowAllowed) {
         // Glass and bottom slabs pass skylight, so the light test alone would
         // say yes under a glass canopy; the heightmap is what knows better.
         if (!world.canSeeSky(face))
             return false;
-        if (world.getHeight(Heightmap.Types.MOTION_BLOCKING, face.getX(), face.getZ()) > face.getY())
+        // With snow allowed, one motion-blocking block above the roof is the
+        // snow layer the ongoing snowfall has put there - the heightmap then
+        // reads face.getY()+1, and that layer is exactly what an icicle grows
+        // from, not cover. Real cover sits higher and still fails.
+        if (world.getHeight(Heightmap.Types.MOTION_BLOCKING, face.getX(), face.getZ())
+                > face.getY() + (snowAllowed ? 1 : 0))
             return false;
         final var biome = world.getBiome(face).value();
         // 1.20.1/1.21.1: one-arg. 26.1 takes the sea level explicitly - the
         // same call vanilla's own precipitationAt() makes.
-        return biome.getPrecipitationAt(face) == Biome.Precipitation.RAIN;
+        final Biome.Precipitation precip = biome.getPrecipitationAt(face);
+        return precip == Biome.Precipitation.RAIN || (snowAllowed && precip == Biome.Precipitation.SNOW);
     }
 
     /** Finds where a drop from {@code point} would land, within {@code MAX_FALL} and past {@code minFall}. */

@@ -122,6 +122,17 @@ public class WaterDripParticle extends SingleQuadParticle {
         this.setColor(WATER_R, WATER_G, WATER_B);
     }
 
+    /**
+     * Keep the drop upright: vanilla billboards a particle with the camera's full
+     * rotation, so looking down lays the drop flat and turning tilts it. LOOKAT_Y
+     * keeps only the yaw component, which is the cylindrical billboard - the drop
+     * always stands vertical and only turns to face the player.
+     */
+    @Override
+    public SingleQuadParticle.FacingCameraMode getFacingCameraMode() {
+        return SingleQuadParticle.FacingCameraMode.LOOKAT_Y;
+    }
+
     @Override
     public SingleQuadParticle.Layer getLayer() {
         // Translucent: the point of owning the texture is a paler, thinner,

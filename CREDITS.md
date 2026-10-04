@@ -328,3 +328,25 @@ Rebirth.
   not. It is licensed **GPLv2 with the Classpath Exception**, which permits this redistribution;
   the licence text and the corresponding source are available from the project link above. It backs
   `lib/scripting` (the `/dsscript` expression evaluator) and is loaded only when a script is run.
+
+*dsurround:biome.storm.wind.heavy1 / heavy2 / heavy3*
+
+<ul>
+     <li>S: <a href="https://freesound.org/people/Bosk1/sounds/217186/">Wind at door howling 4.wav</a> by <a href="https://freesound.org/people/Bosk1/">Bosk1</a> | License: Attribution 4.0</li>
+     <li>Modifications: sampled to three 8 s howling passages (18.5-26.5 s, 29.5-37.5 s, 40.5-48.0 s of the source), converted to mono, resampled to 48 kHz, high passed at 200 Hz and lifted 12 dB across 600 Hz-2.5 kHz, then given a gust envelope. Normalised to -27.8 dB RMS to match the other rain layers.</li>
+</ul>
+
+*dsurround:biome.village.door_slam_wind*
+
+<ul>
+     <li>S: <a href="https://freesound.org/people/earthsounds/sounds/102571/">Wind moaning through gap in door2.wav</a> by <a href="https://freesound.org/people/earthsounds/">earthsounds</a> | License: Attribution 3.0</li>
+     <li>S: <a href="https://freesound.org/people/NachtmahrTV/sounds/618109/">Closing squeaky door</a> by <a href="https://freesound.org/people/NachtmahrTV/">NachtmahrTV</a> | License: Creative Commons 0</li>
+     <li>Modifications: the wind is taken from 25.0 s of the earthsounds source and the door impact from 3.73-4.30 s of the NachtmahrTV source (its measured impact peak is 3.80-3.95 s). The wind holds full level into the impact and leaves within 0.15 s, so the door's own decay is the ending. Converted to mono, 48 kHz, high passed at 120 Hz and lifted 10 dB across 500 Hz-2 kHz.</li>
+</ul>
+
+*dsurround:biome.storm.tree_fall*
+
+<ul>
+     <li>S: <a href="https://freesound.org/people/Kinoton/sounds/494071/">Big Tree Fall in Forest</a> by <a href="https://freesound.org/people/Kinoton/">Kinoton</a> | License: Creative Commons 0</li>
+     <li>Modifications: trimmed to 0.30-5.90 s (the source is 7.98 s with dead air after the crash), converted to mono, resampled to 48 kHz, fades, normalised to -27.8 dB RMS.</li>
+</ul>

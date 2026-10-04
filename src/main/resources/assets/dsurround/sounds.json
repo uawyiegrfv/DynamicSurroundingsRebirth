@@ -3395,5 +3395,86 @@
         "name": "dsurround:ambient/weather/rain_water_heavy"
       }
     ]
+  },
+  "biome.storm.wind.heavy1": {
+    "ds_credits": [
+      {
+        "name": "Wind at door howling 4.wav",
+        "author": "Bosk1",
+        "website": "https://freesound.org/people/Bosk1/sounds/217186/",
+        "license": "Attribution 4.0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/storm_wind_heavy1"
+      }
+    ]
+  },
+  "biome.storm.wind.heavy2": {
+    "ds_credits": [
+      {
+        "name": "Wind at door howling 4.wav",
+        "author": "Bosk1",
+        "website": "https://freesound.org/people/Bosk1/sounds/217186/",
+        "license": "Attribution 4.0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/storm_wind_heavy2"
+      }
+    ]
+  },
+  "biome.storm.wind.heavy3": {
+    "ds_credits": [
+      {
+        "name": "Wind at door howling 4.wav",
+        "author": "Bosk1",
+        "website": "https://freesound.org/people/Bosk1/sounds/217186/",
+        "license": "Attribution 4.0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/storm_wind_heavy3"
+      }
+    ]
+  },
+  "biome.village.door_slam_wind": {
+    "ds_credits": [
+      {
+        "name": "Wind moaning through gap in door2.wav",
+        "author": "earthsounds",
+        "website": "https://freesound.org/people/earthsounds/sounds/102571/",
+        "license": "Attribution 3.0"
+      },
+      {
+        "name": "Closing squeaky door",
+        "author": "NachtmahrTV",
+        "website": "https://freesound.org/people/NachtmahrTV/sounds/618109/",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/village/door_slam_wind"
+      }
+    ]
+  },
+  "biome.storm.tree_fall": {
+    "ds_credits": [
+      {
+        "name": "Big Tree Fall in Forest",
+        "author": "Kinoton",
+        "website": "https://freesound.org/people/Kinoton/sounds/494071/",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsurround:ambient/outside/tree_fall"
+      }
+    ]
   }
 }

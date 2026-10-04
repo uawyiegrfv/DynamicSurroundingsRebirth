@@ -32,12 +32,26 @@ public record SoundMetadataConfig(Optional<String> title, Optional<String> subti
         return this.title.isEmpty() && this.subtitle.isEmpty() && this.credits.isEmpty() && this.category.isEmpty();
     }
 
-    public record CreditEntry(String name, String author, Optional<String> website, String license) {
+    /**
+     * One attribution entry from a {@code ds_credits} block. {@code name} and
+     * {@code license} decode leniently (absent - not failed - when the key is
+     * missing): the shipped sounds.json carries fifteen entries with
+     * author+website only, and on the newer DataFixerUpper that 26.1 ships,
+     * {@code optionalFieldOf} no longer swallows a decode error inside a
+     * present field - one incomplete credit failed the whole
+     * {@code UnboundedMapCodec}, the entire sounds.json came back empty, no
+     * DSR sound event registered, and every ambient layer fell back to the
+     * missing-sound placeholder. Older DFU (1.20.1 / 1.21.1) silently dropped
+     * just the broken list, which is why the same data parsed there. {@code
+     * author} stays required: it is the one field every shipped entry has,
+     * and a credit without an author is not a credit.
+     */
+    public record CreditEntry(Optional<String> name, String author, Optional<String> website, Optional<String> license) {
         public static final Codec<CreditEntry> CODEC = RecordCodecBuilder.create((instance) -> instance.group(
-                Codec.STRING.fieldOf("name").forGetter(CreditEntry::name),
+                Codec.STRING.optionalFieldOf("name").forGetter(CreditEntry::name),
                 Codec.STRING.fieldOf("author").forGetter(CreditEntry::author),
                 Codec.STRING.optionalFieldOf("website").forGetter(CreditEntry::website),
-                Codec.STRING.fieldOf("license").forGetter(CreditEntry::license))
+                Codec.STRING.optionalFieldOf("license").forGetter(CreditEntry::license))
                 .apply(instance, CreditEntry::new));
     }
 }

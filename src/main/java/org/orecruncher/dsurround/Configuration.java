@@ -584,6 +584,10 @@ public class Configuration extends ConfigurationData {
         public boolean enableWaterDrips = true;
 
         @Property
+        @Comment("Enable/disable icicles growing under eaves while it snows, and their drop and shatter")
+        public boolean enableIcicles = true;
+
+        @Property
         @Comment("Enable/disable the dry-weather sky events (an overcast day, and the day the clouds clear away). Part of the graded weather system: enableGradedPrecipitation off turns these off with it")
         public boolean enableSkyEvents = true;
 

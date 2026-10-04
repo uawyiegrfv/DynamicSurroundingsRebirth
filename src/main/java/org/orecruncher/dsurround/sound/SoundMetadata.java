@@ -49,10 +49,10 @@ public final class SoundMetadata {
         } else {
             var temp = new ArrayList<Credit>(cfg.credits().size());
             for (var entry : cfg.credits()) {
-                var name = Component.nullToEmpty(ChatFormatting.stripFormatting(entry.name()));
+                var name = entry.name().map(n -> Component.nullToEmpty(ChatFormatting.stripFormatting(n))).orElse(Component.empty());
                 var author = Component.nullToEmpty(ChatFormatting.stripFormatting(entry.author()));
                 var webSite = entry.website().map(website -> Component.nullToEmpty(ChatFormatting.stripFormatting(website)));
-                var license = Component.nullToEmpty(ChatFormatting.stripFormatting(entry.license()));
+                var license = entry.license().map(l -> Component.nullToEmpty(ChatFormatting.stripFormatting(l))).orElse(Component.empty());
                 var creditEntry = new Credit(name, author, webSite, license);
                 temp.add(creditEntry);
             }

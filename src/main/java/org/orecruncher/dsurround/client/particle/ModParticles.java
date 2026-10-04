@@ -28,6 +28,15 @@ public final class ModParticles {
      */
     public static final SimpleParticleType WATER_DRIP = new SimpleParticleType(false);
 
+    /** The three icicle SHAPES (size is decoupled - the handler rolls a size
+     * tier from the snowfall-duration curve and the shape from the position
+     * hash, so one texture reads at every size). */
+    public static final SimpleParticleType ICICLE_CONE = new SimpleParticleType(false);
+    public static final SimpleParticleType ICICLE_KNIFE = new SimpleParticleType(false);
+    public static final SimpleParticleType ICICLE_FANG = new SimpleParticleType(false);
+    /** The shard burst when an icicle shatters on the ground. */
+    public static final SimpleParticleType ICICLE_LAND = new SimpleParticleType(false);
+
     private ModParticles() {
     }
 
@@ -47,6 +56,18 @@ public final class ModParticles {
         event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
                 Identifier.fromNamespaceAndPath(Constants.MOD_ID, "water_drip"),
                 () -> WATER_DRIP);
+        event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
+                Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_cone"),
+                () -> ICICLE_CONE);
+        event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
+                Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_knife"),
+                () -> ICICLE_KNIFE);
+        event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
+                Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_fang"),
+                () -> ICICLE_FANG);
+        event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
+                Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land"),
+                () -> ICICLE_LAND);
     }
 
     /**
@@ -56,5 +77,17 @@ public final class ModParticles {
      */
     public static void registerProvider() {
         ParticleProviderRegistry.register(WATER_DRIP, sprites -> new WaterDripParticle.Provider(sprites));
+        ParticleProviderRegistry.register(ICICLE_CONE,
+                sprites -> new IcicleParticle.Provider(11,
+                        Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_cone")));
+        ParticleProviderRegistry.register(ICICLE_KNIFE,
+                sprites -> new IcicleParticle.Provider(11,
+                        Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_knife")));
+        ParticleProviderRegistry.register(ICICLE_FANG,
+                sprites -> new IcicleParticle.Provider(9,
+                        Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_fang")));
+        ParticleProviderRegistry.register(ICICLE_LAND,
+                sprites -> new IcicleLandParticle.Provider(
+                        Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land")));
     }
 }

@@ -416,6 +416,12 @@ public final class PrecipitationRenderer {
     private static volatile int hookCalls = 0;
     /** How many times our own draw stage fired. See {@link #renderCalls()}. */
     private static volatile int renderCalls = 0;
+    /** Frames spent in the "takeover wanted, but vanilla never asked us" state - see
+     * the warn inside {@link #active()}. Frames, not ticks: the hook is a render path. */
+    private static int unhookedTakeoverFrames = 0;
+    /** Set once the warn has fired for the current bad stretch, so a silent failure
+     * surfaces once per incident instead of once per frame. */
+    private static boolean warnedUnhookedTakeover = false;
 
     /**
      * How many times vanilla asked {@code tickRain} - the ground splash particle
@@ -445,6 +451,30 @@ public final class PrecipitationRenderer {
             final boolean locked = PrecipitationIntensity.forced() >= 0F;
             final boolean enabled = locked
                     || (config != null && config.weatherOptions.enableGradedPrecipitation);
+            // The takeover answer is `enabled && takeoverReady() && hookCalls > 0`,
+            // and hookCalls only grows when vanilla actually consults our renderer -
+            // which on this version rides on a require = 0 mixin
+            // (MixinCustomEnvironmentEffectsRendererManager). If a NeoForge update
+            // shifts the target signature, that mixin stops applying SILENTLY,
+            // takeoverReady() stays true, hookCalls stays 0, and the world falls
+            // back to vanilla rain with no error anywhere. Count the frames that sit
+            // in exactly that state and surface it once - the condition below is the
+            // half of the takeover condition that can fail without anyone logging it.
+            final boolean unhooked = enabled
+                    && PrecipitationIntensity.takeoverReady()
+                    && hookCalls == 0;
+            if (unhooked) {
+                if (!warnedUnhookedTakeover && ++unhookedTakeoverFrames >= 100) {
+                    warnedUnhookedTakeover = true;
+                    noteWarn("graded precipitation wants to take over but vanilla never called our renderer "
+                            + "(takeoverReady=true, hookCalls=0 for %d frames) - the "
+                            + "CustomEnvironmentEffectsRenderer hook has likely stopped applying; "
+                            + "rain will fall with vanilla's look", unhookedTakeoverFrames);
+                }
+            } else {
+                unhookedTakeoverFrames = 0;
+                warnedUnhookedTakeover = false;
+            }
             now = enabled
                     && PrecipitationIntensity.takeoverReady()
                     // The dimension must actually point at us (CUSTOM_WEATHER_EFFECTS
@@ -476,6 +506,18 @@ public final class PrecipitationRenderer {
             org.orecruncher.dsurround.lib.di.ContainerManager
                     .resolve(org.orecruncher.dsurround.lib.logging.IModLog.class)
                     .info("Precipitation: " + fmt, args);
+        } catch (Throwable t) {
+            // ignore
+        }
+    }
+
+    /** Same contract as {@link #note}, at warn level - for the one failure mode
+     * that degrades silently to vanilla and must be visible in a normal log. */
+    private static void noteWarn(String fmt, Object... args) {
+        try {
+            org.orecruncher.dsurround.lib.di.ContainerManager
+                    .resolve(org.orecruncher.dsurround.lib.logging.IModLog.class)
+                    .warn("Precipitation: " + fmt, args);
         } catch (Throwable t) {
             // ignore
         }

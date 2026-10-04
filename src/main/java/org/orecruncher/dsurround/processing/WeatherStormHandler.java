@@ -37,7 +37,10 @@ import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.config.libraries.ITagLibrary;
 import org.orecruncher.dsurround.processing.weather.PrecipitationRenderer;
+import org.orecruncher.dsurround.processing.weather.SkyEventScheduler;
+import org.orecruncher.dsurround.processing.weather.SkyStateInjector;
 import org.orecruncher.dsurround.mixinutils.IBiomeExtended;
+import org.jetbrains.annotations.Nullable;
 import org.orecruncher.dsurround.tags.BiomeTags;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -496,6 +499,9 @@ public class WeatherStormHandler extends AbstractClientHandler {
                     PrecipitationIntensity.dustIntensity(), this.horizonWeight);
         }
 
+        final var level = net.minecraft.client.Minecraft.getInstance().level;
+        this.applyWeatherFog(level, event);
+
         final float dust = PrecipitationIntensity.dustIntensity();
         if (dust > 0.01F) {
             final float dMax = Math.max(this.veilR, Math.max(this.veilG, this.veilB));
@@ -506,23 +512,79 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 event.setBlue(lerp(event.getBlue(), event.getBlue() * (this.veilB / dMax), w));
             }
         }
-        if (this.horizonWeight <= 0.01F)
-            return;
-        // Only the atmospheric (horizon) fog - not underwater/lava/powdered snow.
-        if (event.getCamera().getFluidInCamera() != FogType.NONE)
-            return;
+        if (this.horizonWeight > 0.01F
+                // Only the atmospheric (horizon) fog - not underwater/lava/powdered snow.
+                && event.getCamera().getFluidInCamera() == FogType.NONE) {
+            float max = Math.max(this.horizonR, Math.max(this.horizonG, this.horizonB));
+            if (max > 0.001F) {
+                float mR = this.horizonR / max;
+                float mG = this.horizonG / max;
+                float mB = this.horizonB / max;
+                float w = this.horizonWeight;
 
-        float max = Math.max(this.horizonR, Math.max(this.horizonG, this.horizonB));
-        if (max <= 0.001F)
-            return;
-        float mR = this.horizonR / max;
-        float mG = this.horizonG / max;
-        float mB = this.horizonB / max;
-        float w = this.horizonWeight;
+                event.setRed(lerp(event.getRed(), event.getRed() * mR, w));
+                event.setGreen(lerp(event.getGreen(), event.getGreen() * mG, w));
+                event.setBlue(lerp(event.getBlue(), event.getBlue() * mB, w));
+            }
+        }
+        this.applyOvercastFogGrey(event);
+    }
 
-        event.setRed(lerp(event.getRed(), event.getRed() * mR, w));
-        event.setGreen(lerp(event.getGreen(), event.getGreen() * mG, w));
-        event.setBlue(lerp(event.getBlue(), event.getBlue() * mB, w));
+    /**
+     * The weather part of the fog colour, ours instead of vanilla's.
+     *
+     * <p>The colour the event hands us already carries vanilla's own rain and
+     * thunder blends - the FOG_COLOR attribute layers ran before this event
+     * fired, and the [FOG-26] probe data above confirms it (a full storm
+     * arrives as the biome fog times vanilla's thunder multipliers). While we
+     * grade the weather ourselves our level differs from vanilla's, and the
+     * fog then disagrees with the sky the injector just fixed - a graded
+     * drizzle whose horizon still sits at vanilla's full-storm grey. So undo
+     * vanilla's blend and re-apply ours, exactly what SkyStateInjector does
+     * for the sky and the clouds. Skipped underwater/lava - those fogs come
+     * from other attributes - and skipped entirely when our levels equal
+     * vanilla's, which keeps the not-owning path bit-for-bit.</p>
+     */
+    private void applyWeatherFog(@Nullable ClientLevel level, ViewportEvent.ComputeFogColor event) {
+        if (level == null || event.getCamera().getFluidInCamera() != FogType.NONE)
+            return;
+        // The attribute layers evaluate at partialTick 1.0 (WeatherAccess), so
+        // both sides of the comparison must read the same instant.
+        final float vanillaThunder = level.getThunderLevel(1F);
+        final float vanillaPlain = Math.max(0F, level.getRainLevel(1F) - vanillaThunder);
+        final float ourThunder = PrecipitationIntensity.stormRainLevel(level, 1F);
+        final float ourFog = PrecipitationIntensity.fogColorRainLevel(level, 1F);
+        final float ourPlain = Math.max(0F, ourFog - ourThunder);
+        if (ourPlain == vanillaPlain && ourThunder == vanillaThunder)
+            return;
+        final float[] fog = SkyStateInjector.fogWeatherRoundTrip(
+                event.getRed(), event.getGreen(), event.getBlue(),
+                vanillaPlain, vanillaThunder, ourPlain, ourThunder);
+        event.setRed(fog[0]);
+        event.setGreen(fog[1]);
+        event.setBlue(fog[2]);
+    }
+
+    /**
+     * The overcast's final fog grey, applied last for the same reason the
+     * other two versions apply theirs in the fog renderer's tail: the horizon
+     * has to land on the grey the sky already shows, and anything applied
+     * after this would move it again. The doubled ramp is the same one
+     * 1.20.1/1.21.1 use - the fog greys about twice as fast as the sky so the
+     * horizon ring does not stay blue for the last minute of the fade.
+     */
+    private static void applyOvercastFogGrey(ViewportEvent.ComputeFogColor event) {
+        final float overcast = SkyEventScheduler.whiteShiftStrength();
+        if (overcast <= 0F || event.getCamera().getFluidInCamera() != FogType.NONE)
+            return;
+        final float r = event.getRed();
+        final float g = event.getGreen();
+        final float b = event.getBlue();
+        final float luma = r * 0.3F + g * 0.59F + b * 0.11F;
+        final float strength = Math.min(1F, overcast * 2F);
+        event.setRed(r + (SkyEventScheduler.whiteTarget(r, luma) - r) * strength);
+        event.setGreen(g + (SkyEventScheduler.whiteTarget(g, luma) - g) * strength);
+        event.setBlue(b + (SkyEventScheduler.whiteTarget(b, luma) - b) * strength);
     }
 
     private static float lerp(float from, float to, float delta) {

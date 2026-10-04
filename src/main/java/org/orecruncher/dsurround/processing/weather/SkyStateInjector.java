@@ -49,6 +49,21 @@ public final class SkyStateInjector {
     private static final float CLOUD_THUNDER_BRIGHT = 0.095F;
     private static final float CLOUD_THUNDER_FACTOR = 0.94F;
 
+    // Decompiled WeatherAttributes, FOG_COLOR - a different modifier than the
+    // sky and cloud routes: MULTIPLY_RGB, not BLEND_TO_GRAY. Vanilla multiplies
+    // the fog by (0.5, 0.5, 0.6) over the plain rain level and by
+    // (0.25, 0.25, 0.3) over the thunder level, each lerped in by its own
+    // level. Because the passes are per-channel multiplications they invert by
+    // plain division, and they commute with the day/night multiplier that sits
+    // between the weather layers and the final colour - so a round trip on the
+    // final colour is exact at any time of day.
+    private static final float FOG_RAIN_R = 0.5F;
+    private static final float FOG_RAIN_G = 0.5F;
+    private static final float FOG_RAIN_B = 0.6F;
+    private static final float FOG_THUNDER_R = 0.25F;
+    private static final float FOG_THUNDER_G = 0.25F;
+    private static final float FOG_THUNDER_B = 0.3F;
+
     /**
      * Both colours are ARGB, not RGB: vanilla fills {@code cloudColor} from
      * {@code EnvironmentAttributes.CLOUD_COLOR}, an {@code Integer}, and the
@@ -94,16 +109,18 @@ public final class SkyStateInjector {
             final float vanillaPlain = Math.max(0F, vanillaRain - vanillaThunder);
             final float ourPlain = Math.max(0F,
                     PrecipitationIntensity.skyColorRainLevel(level, partialTick) - ourThunder);
-            // The CLOUD route gets its own level, widened with the overcast grey.
-            // The other two versions feed max(CLOUD, OVERCAST x OVERCAST_CLOUD_GRAY)
-            // into their cloud colour read point; this version's injector runs the
-            // cloud retint from the same plain value as the sky, which would leave
-            // the clouds barely greying during an overcast. Taking the max with the
-            // overcast term (and nothing else) keeps rain behaviour byte-identical
-            // - OVERCAST is zero while it rains - and gives the clouds the same
-            // grey the other two versions get.
-            final float ourPlainCloud = Math.max(ourPlain,
-                    PrecipitationResponse.OVERCAST.value() * PrecipitationIntensity.OVERCAST_CLOUD_GRAY);
+            // The CLOUD route gets its own level, exactly like the other two
+            // versions: their cloud colour read point is
+            // max(CLOUD, OVERCAST x OVERCAST_CLOUD_GRAY), which is precisely
+            // what PrecipitationIntensity.cloudColorRainLevel returns - the
+            // overcast widening rides inside it. Feeding the cloud retint from
+            // the sky's plain value instead put the clouds on the SKY channel's
+            // clock, so 26.1's rain clouds tinted at the wrong speed whenever
+            // the CLOUD and SKY channels diverged (different attack/decay).
+            // Subtracting ourThunder mirrors the sky route: the retint applies
+            // thunder as its own pass, so the plain value must not carry it.
+            final float ourPlainCloud = Math.max(0F,
+                    PrecipitationIntensity.cloudColorRainLevel(level, partialTick) - ourThunder);
 
             // Vanilla smooths the biome FOG across a boundary but never smooths the
             // sky or cloud base colours: those are sampled per block and step the
@@ -198,6 +215,62 @@ public final class SkyStateInjector {
             final int alpha = (int) (255F * (1F - clear) + 0.5F) << 24;
             state.cloudColor = (alpha & 0xFF000000) | (state.cloudColor & 0x00FFFFFF);
         }
+    }
+
+    /**
+     * Undoes vanilla's weather blend on the fog colour and re-applies it with
+     * our levels - the fog-side sibling of {@link #retint}, in the multiplier
+     * form the FOG_COLOR attribute uses (see the FOG_* constants above).
+     *
+     * <p>The caller hands us the colour the ComputeFogColor event received,
+     * which already carries vanilla's own rain and thunder blends. When we are
+     * grading the weather ourselves our level differs from vanilla's, and the
+     * fog would then disagree with the sky we just fixed - most visible as a
+     * graded drizzle whose horizon still sits at vanilla's full-storm grey.
+     * When our levels equal vanilla's the caller skips this entirely, so the
+     * vanilla path stays bit-for-bit.</p>
+     *
+     * <p>Empirically confirmed against the [FOG-26] probe: a full storm
+     * delivered {@code biomeFog x (0.25, 0.25, 0.3)} exactly, i.e. the plain
+     * rain term was zero because vanilla's own split counts a full storm as
+     * thunder with no plain rain left over.</p>
+     *
+     * @return the re-applied colour, 0..1 per channel in a 3-element array
+     */
+    public static float[] fogWeatherRoundTrip(float r, float g, float b,
+                                              float vanillaPlain, float vanillaThunder,
+                                              float ourPlain, float ourThunder) {
+        // ---- undo vanilla's passes: thunder first, then plain rain ----
+        r = divideOutMultiplier(r, vanillaThunder, FOG_THUNDER_R);
+        g = divideOutMultiplier(g, vanillaThunder, FOG_THUNDER_G);
+        b = divideOutMultiplier(b, vanillaThunder, FOG_THUNDER_B);
+        r = divideOutMultiplier(r, vanillaPlain, FOG_RAIN_R);
+        g = divideOutMultiplier(g, vanillaPlain, FOG_RAIN_G);
+        b = divideOutMultiplier(b, vanillaPlain, FOG_RAIN_B);
+
+        // ---- re-apply with our levels: plain rain first, then thunder ----
+        r = multiplyInMultiplier(r, ourPlain, FOG_RAIN_R);
+        g = multiplyInMultiplier(g, ourPlain, FOG_RAIN_G);
+        b = multiplyInMultiplier(b, ourPlain, FOG_RAIN_B);
+        r = multiplyInMultiplier(r, ourThunder, FOG_THUNDER_R);
+        g = multiplyInMultiplier(g, ourThunder, FOG_THUNDER_G);
+        b = multiplyInMultiplier(b, ourThunder, FOG_THUNDER_B);
+        return new float[] { r, g, b };
+    }
+
+    /** One MULTIPLY_RGB pass multiplies by {@code lerp(1, mult, level)} - undo it. */
+    private static float divideOutMultiplier(float c, float level, float mult) {
+        if (level <= 0F)
+            return c;
+        final float d = 1F + (mult - 1F) * level;
+        return d < 0.1F ? c : c / d;
+    }
+
+    /** Re-applies one MULTIPLY_RGB pass. */
+    private static float multiplyInMultiplier(float c, float level, float mult) {
+        if (level <= 0F)
+            return c;
+        return c * (1F + (mult - 1F) * level);
     }
 
     /**

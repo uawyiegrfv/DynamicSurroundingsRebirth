@@ -135,49 +135,6 @@ public final class DripScanner {
     private DripScanner() {
     }
 
-    /** A stair whose solid half is the TOP one - a ceiling with a step under it. */
-    private static boolean isInvertedStairs(final BlockState state) {
-        return state.is(BlockTags.STAIRS)
-                && state.hasProperty(BlockStateProperties.HALF)
-                && state.getValue(BlockStateProperties.HALF) == Half.TOP;
-    }
-
-    /**
-     * The inverted stair's second hang point: the step line, where its two underside
- * heights meet.
-     */
-    /**
-     * 倒置楼梯的第二个滴点：分界线那一点，高度半格。水平位置朝另一边（凹进去
-     * 的那半）偏一点，靠近整条边的中点，并且夹在半格之内，不越过中点。
-     * 方向编码在 faces 的低位，交给 DripHandler.hangSpot 去落位。
-     */
-    public static DripPoint buildNosePoint(final Level world, final BlockPos roof,
-                                           final BlockState state) {
-        if (!isInvertedStairs(state))
-            return null;
-        if (!rainReachesTop(world, roof.above()))
-            return null;
-        final BlockPos point = roof.below();
-        if (!isPassable(world, point))
-            return null;
-        int faces = FACE_STEP_MID;
-        // TOP 楼梯是 BOTTOM 楼梯上下翻转来的，垂到方块底面的那半（鼻尖）落在
-        // facing 的反侧，所以另一边就是 facing 这一侧。若实测发现水滴偏到了
-        // 鼻尖那侧，把下面的 facing 换成 facing.getOpposite() 即可，就这一处。
-        if (state.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) {
-            final Direction facing = state.getValue(BlockStateProperties.HORIZONTAL_FACING);
-            int index = 0;
-            for (final Direction d : Direction.Plane.HORIZONTAL) {
-                if (d == facing) {
-                    faces |= 1 << index;
-                    break;
-                }
-                index++;
-            }
-        }
-        return withLanding(world, point, roof, faces, UNDERSIDE_HALF, MIN_FALL);
-    }
-
     /**
      * 正置楼梯的内转角：两片屋面在这里交汇，雨水往这个角上汇。只读形状的名字，
      * 不引入 StairsShape 类型 —— 三个版本里它的位置并不一致。
@@ -252,11 +209,6 @@ public final class DripScanner {
                     if (point != null) {
                         note(STAT_OK, roofOf(point));
                         result.add(point);
-                                        final DripPoint nose = buildNosePoint(world, new BlockPos(x, y, z), state);
-                        if (nose != null) {
-                            note(STAT_OK, roofOf(nose));
-                            result.add(nose);
-                        }
                     }
                 }
             }
@@ -393,11 +345,7 @@ public final class DripScanner {
             note(STAT_POINT, roof);
             return null;
         }
-        // 倒置楼梯：主滴点挂另一半，也就是方块下表面的边缘（高度 0）；
-        // 鼻尖那半另有一个滴点，见 buildNosePoint。两者合起来才是他定的方案 B。
-        final double underside = isInvertedStairs(state)
-                ? 0.0D
-                : undersideOf(world, roof, state);
+        final double underside = undersideOf(world, roof, state);
         // 正置转角楼梯的拐角：两片屋面在这里交汇，水往这个角上汇，标记出来让
         // DripHandler 给它更高的选中概率和更快的水线。
         final int allFaces = isInnerCorner(state) ? faces | FACE_CORNER : faces;
@@ -432,10 +380,7 @@ public final class DripScanner {
         final BlockState roofState = world.getBlockState(point.roof());
         if (roofState.isAir())
             return false;
-        // 倒置楼梯和正置楼梯一样：只看挂点还通不通，不问它挂不挂得住水膜。
-        // 少了这一条，倒置楼梯那个新的鼻尖滴点会在生成后立刻被判无效，
-        // 也就是出现一下就没了。
-        if (isStandingStairs(roofState) || isInvertedStairs(roofState)) {
+        if (isStandingStairs(roofState)) {
             if (!isPassable(world, point.point()))
                 return false;
         } else if (!holdsWaterFilm(world, point.roof(), roofState)) {
@@ -546,15 +491,6 @@ public final class DripScanner {
      */
     public static final int FACE_CENTER = 0x10;
 
-    /**
-     * Faces value meaning "on the step line, leaning towards the far half but
-     * never past the middle of the edge". An inverted stair's underside sits at
-     * two heights, and its nose sheds from the step line rather than the rim.
-     */
-    public static final int FACE_STEP_MID = 0x20;
-
-    /** Half a block, as the underside height of a top slab or inverted stair. */
-    private static final double UNDERSIDE_HALF = 0.5D;
 
     /** Mark on a drip point: the corner of an upright stair run, where two roof planes meet. */
     public static final int FACE_CORNER = 0x40;

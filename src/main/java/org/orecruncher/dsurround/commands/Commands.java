@@ -17,5 +17,6 @@ public final class Commands {
         new MusicManagerCommand().register(dispatcher, registryAccess);
         new TuneCommand().register(dispatcher, registryAccess);
         new PrecipitationCommand().register(dispatcher, registryAccess);
+        new FoliageCommand().register(dispatcher, registryAccess);
     }
 }

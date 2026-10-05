@@ -62,6 +62,22 @@ public final class FoliageProfile {
     public static int statNonParallelogram = 0;
     public static int statNoMask = 0;
 
+    /**
+     * Snapshot of the LAST build. The {@code stat*} counters above are cleared
+     * at the top of every build and are only meaningful while one is running,
+     * so "why did this plant produce no anchors" cannot be answered from them
+     * after the fact. These are written when the build returns.
+     */
+    public static int lastQuads = 0;
+    public static int lastDeduped = 0;
+    public static int lastDegenerate = 0;
+    public static int lastNonParallelogram = 0;
+    public static int lastNoMask = 0;
+    public static int lastPlanes = 0;
+    public static int lastAnchors = 0;
+    public static int lastPaths = 0;
+    public static String lastModel = "<none>";
+
     private static final int MAX_ANCHORS_PER_PLANE = 128;
     private static final int MAX_PATH_POINTS = 48;
     private static final float ALPHA_THRESHOLD = 8.0F;
@@ -85,6 +101,26 @@ public final class FoliageProfile {
      * seed, so weighted-variant models resolve exactly as the renderer would.
      */
     public static FoliageProfile build(final BakedModel model, final BlockState state, final long seed) {
+        final FoliageProfile result = build0(model, state, seed);
+        lastQuads = statQuads;
+        lastDeduped = statDeduped;
+        lastDegenerate = statDegenerate;
+        lastNonParallelogram = statNonParallelogram;
+        lastNoMask = statNoMask;
+        lastPlanes = result.planes.size();
+        int anchors = 0;
+        int paths = 0;
+        for (final Plane p : result.planes) {
+            anchors += p.anchors().length;
+            paths += p.paths().length;
+        }
+        lastAnchors = anchors;
+        lastPaths = paths;
+        lastModel = String.valueOf(model);
+        return result;
+    }
+
+    private static FoliageProfile build0(final BakedModel model, final BlockState state, final long seed) {
         statQuads = 0;
         statDeduped = 0;
         statDegenerate = 0;
@@ -193,7 +229,17 @@ public final class FoliageProfile {
             return null;
         }
         final float d1x = c[3] - c[0], d1y = c[4] - c[1], d1z = c[5] - c[2];
-        final float d2x = c[9] - c[0], d2y = c[10] - c[1], d2z = c[11] - c[2];
+        // VERTEX 2, not vertex 3 - and this is the bug that made the whole
+        // feature produce nothing. Vanilla bakes a quad's corners in the order
+        // (top-right, bottom-right, bottom-left, top-left) - see FaceInfo -
+        // so v0->v1 is an EDGE and v0->v2 is the DIAGONAL. e2 above is the
+        // v0->v2 UV delta, so the geometric vector it pairs with has to be
+        // v0->v2 as well. Pairing the v0->v3 edge with the v0->v2 UV diagonal
+        // maps every mask pixel onto the wrong axis: the parallelogram check
+        // below then fails by a full quad width, EVERY plane is dropped, and
+        // the profile comes back empty - no anchors, no drops, no dew, and
+        // nothing in the log to say why.
+        final float d2x = c[6] - c[0], d2y = c[7] - c[1], d2z = c[8] - c[2];
 
         // Parallelogram check against the fourth corner.
         {

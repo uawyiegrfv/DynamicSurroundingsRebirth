@@ -110,6 +110,27 @@ public class FoliageDewHandler extends AbstractClientHandler {
             ResourceLocation.fromNamespaceAndPath("minecraft", "block.pointed_dripstone.drip_water_into_cauldron");
     /** Drop hang off the plane, toward the viewer. */
     private static final double NORMAL_OFFSET = 0.04D;
+    /** Diagnostics cadence - one status line per 5s, not per tick. */
+    private static final int DIAG_INTERVAL_TICKS = 100;
+
+    /**
+     * Diagnostics only: ignore the dew window and the rain gate so the layer
+     * can be exercised at any in-game hour. Set from
+     * {@code /dsdebug foliage force}; never read by anything else.
+     */
+    public static volatile boolean DEBUG_FORCE = false;
+    /** The live instance, for the diagnostics command. */
+    public static volatile FoliageDewHandler INSTANCE = null;
+    /** How many beads this layer has actually attached since the last clear. */
+    public static int attached = 0;
+    /** Attach failures: null = no provider, wrong = the provider made something else. */
+    public static int spawnNull = 0;
+    public static int spawnWrong = 0;
+    /** Rejection tally for the last scan - which gate turned the plants away. */
+    public static int rejSnow = 0;
+    public static int rejCoeff = 0;
+    public static int rejKeep = 0;
+    public static int rejNoAttach = 0;
 
     private final ITickCount tickCount;
     private final IAudioPlayer audioPlayer;
@@ -131,6 +152,7 @@ public class FoliageDewHandler extends AbstractClientHandler {
     private boolean wasDewy = false;
     private boolean evaporateStarted = false;
     private int failures = 0;
+    private long lastDiagTick = -1000L;
 
     public FoliageDewHandler(final Configuration config, final IModLog logger, final ITickCount tickCount,
                              final IAudioPlayer audioPlayer, final ISoundLibrary soundLibrary,
@@ -145,6 +167,39 @@ public class FoliageDewHandler extends AbstractClientHandler {
         // Landing plips come back as a live callback from the particle (the
         // icicle layer's lesson: announce the moment, never book it ahead).
         FoliageDripParticle.setLandListener(this::onLand);
+        INSTANCE = this;
+    }
+
+    // ---- diagnostics surface ---------------------------------------------
+
+    public int plantCount() {
+        return this.plants.size();
+    }
+
+    public int dropCount() {
+        int n = 0;
+        for (final PlantDew p : this.plants.values())
+            n += p.drops.size();
+        return n;
+    }
+
+    /** The config this instance was built with (the diagnostics command needs it). */
+    public Configuration config() {
+        return this.config;
+    }
+
+    /**
+     * Drops every scan stamp so the next tick rescans instead of waiting out
+     * the chunk-change/top-up cadence - for {@code /dsdebug foliage force}.
+     */
+    public void forceRescan() {
+        this.lastScanTick = -1000L;
+        this.lastScanPos = null;
+        this.lastChunkX = Integer.MIN_VALUE;
+        this.lastChunkZ = Integer.MIN_VALUE;
+        this.lastDiagTick = -1000L;
+        this.wasDewy = false;
+        this.evaporateStarted = false;
     }
 
     private void onTick(final Minecraft client) {
@@ -177,10 +232,20 @@ public class FoliageDewHandler extends AbstractClientHandler {
 
         final long tick = this.tickCount.getTickCount();
         final BlockPos pos = player.blockPosition();
-        final float curve = dewCurve(world.getDayTime());
-        final boolean raining = world.isRaining();
+        final float curve = DEBUG_FORCE ? 1.0F : dewCurve(world.getDayTime());
+        final boolean raining = world.isRaining() && !DEBUG_FORCE;
         // Rain owns the leaves while it falls; dew only exists in clear air.
         final boolean dewy = curve > 0F && !raining;
+
+        // Diagnostics: one line per 5s. curve says whether the window is open,
+        // the scan histogram says whether the plants reached the layer at all.
+        if (tick - this.lastDiagTick >= DIAG_INTERVAL_TICKS) {
+            this.lastDiagTick = tick;
+            this.logger.info("[FoliageDew] enabled=%s dayTime=%d curve=%.3f raining=%s dewy=%s plants=%d drops=%d attached=%d force=%s | %s",
+                    this.config.weatherOptions.enableMorningDew, world.getDayTime() % DAY_LENGTH,
+                    curve, raining, dewy, this.plants.size(), this.dropCount(), attached,
+                    DEBUG_FORCE, FoliageScan.statsLine());
+        }
 
         if (dewy != this.wasDewy)
             this.logger.info("[FoliageDew] dew=%s curve=%.2f raining=%s plants=%d near (%d,%d,%d)",
@@ -272,31 +337,47 @@ public class FoliageDewHandler extends AbstractClientHandler {
 
     private void scanAndAttach(final Level world, final BlockPos center, final long tick,
                                final float curve, final Player player) {
+        rejSnow = 0;
+        rejCoeff = 0;
+        rejKeep = 0;
+        rejNoAttach = 0;
         for (final FoliageScan.FoliageSpot spot : FoliageScan.scan(world, center, FoliageScan.Mode.DEW,
                 this.config.weatherOptions.foliageScanRange)) {
             final Long key = spot.pos().asLong();
             if (this.plants.containsKey(key))
                 continue;
             // Frost has no dew either (and one day, its own frost feature).
-            if (SeasonManager.HANDLER.isSnowTemperature(spot.pos()))
+            if (SeasonManager.HANDLER.isSnowTemperature(spot.pos())) {
+                rejSnow++;
                 continue;
+            }
             final float coeff = this.coefficientOf(world, spot.pos());
             final float density = (float) this.config.weatherOptions.foliageDensity;
-            if (coeff <= 0F)
+            if (coeff <= 0F) {
+                // The biome carries no dew trait - the usual "nothing happened"
+                // answer, and the one the diagnostics has to name.
+                rejCoeff++;
                 continue;
+            }
             final float keep = Math.min(1.0F, 0.15F + 0.85F * curve * coeff) * density;
-            if (this.random.nextFloat() >= keep)
+            if (this.random.nextFloat() >= keep) {
+                rejKeep++;
                 continue;
+            }
             final int beads = Math.max(1, Math.min(MAX_DROPS_PER_PLANT,
                     1 + Math.round(2F * curve * coeff)));
             final PlantDew plant = new PlantDew(spot.pos(), spot.state().getBlock());
             if (!this.attach(world, player, spot, plant, beads, tick)) {
+                rejNoAttach++;
                 for (final DewDrop d : plant.drops)
                     d.particle().remove();
                 continue;
             }
             this.plants.put(key, plant);
         }
+        this.logger.info("[FoliageDew] scan@(%d,%d,%d) curve=%.2f: candidates=%d snow=%d noDewTrait=%d rolled=%d noAnchor=%d -> plants=%d",
+                center.getX(), center.getY(), center.getZ(), curve,
+                FoliageScan.lastFound, rejSnow, rejCoeff, rejKeep, rejNoAttach, this.plants.size());
     }
 
     /** Spawns up to {@code beads} drops on distinct anchors; false if none landed. */
@@ -347,9 +428,21 @@ public class FoliageDewHandler extends AbstractClientHandler {
 
             final Particle particle = ((MixinParticleManager) pm).dsurround_createParticle(
                     ModParticles.FOLIAGE_DROP, ax, ay, az, 0, DEW_SIZE_SCALE, 0.0D);
-            if (!(particle instanceof FoliageDripParticle drop))
+            if (particle == null) {
+                final int n = ++spawnNull;
+                if (n == 1 || n % 100 == 0)
+                    this.logger.warn("[FoliageDew] createParticle returned null x%d - is FOLIAGE_DROP registered?", n);
                 continue;
+            }
+            if (!(particle instanceof FoliageDripParticle drop)) {
+                final int n = ++spawnWrong;
+                if (n == 1 || n % 100 == 0)
+                    this.logger.warn("[FoliageDew] createParticle gave %s, not a FoliageDripParticle x%d",
+                            particle.getClass().getName(), n);
+                continue;
+            }
             pm.add(particle);
+            attached++;
             drop.setPlane(nx, ny, nz, ux, uy, uz, vx, vy, vz);
             drop.setSoundOnLand();
             drop.move(nx * NORMAL_OFFSET, ny * NORMAL_OFFSET, nz * NORMAL_OFFSET);
@@ -473,7 +566,8 @@ public class FoliageDewHandler extends AbstractClientHandler {
         return cached;
     }
 
-    private void clear() {
+    /** Empties the layer (public: the diagnostics command turns the forced gate back off with it). */
+    public void clear() {
         for (final PlantDew plant : this.plants.values())
             for (final DewDrop drop : plant.drops)
                 drop.particle().remove();

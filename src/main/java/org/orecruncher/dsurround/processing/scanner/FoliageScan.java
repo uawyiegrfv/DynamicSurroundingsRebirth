@@ -70,6 +70,20 @@ public final class FoliageScan {
             "air", "notCandidate", "skyBlocked", "noProfile", "ok"
     };
 
+    /**
+     * The histogram of the LAST scan, whatever TRACE was at the time. The
+     * live {@link #STATS} only fill while tracing is on, and a maintainer
+     * asking "why is nothing dripping" has to be able to read the numbers
+     * that the running scans actually produced - not the ones a config flag
+     * happens to be gating. Kept as a snapshot so a diagnostics read never
+     * races a scan's own reset.
+     */
+    public static final int[] LAST = new int[STAT_COUNT];
+    /** What the last scan found (candidate plants), and how long it took. */
+    public static int lastFound = 0;
+    public static long lastNanos = 0;
+    public static int lastRange = 0;
+
     /** One attachable plant: position, its state, and its ready profile. */
     public record FoliageSpot(BlockPos pos, BlockState state, FoliageProfile profile) {
     }
@@ -92,8 +106,8 @@ public final class FoliageScan {
     }
 
     public static ObjectArray<FoliageSpot> scan(final Level world, final BlockPos center, final Mode mode, final int range) {
-        if (TRACE)
-            java.util.Arrays.fill(STATS, 0);
+        final long start = System.nanoTime();
+        java.util.Arrays.fill(STATS, 0);
         final ObjectArray<FoliageSpot> result = new ObjectArray<>(64);
         final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         final int rx = Math.max(2, range);
@@ -130,7 +144,25 @@ public final class FoliageScan {
                 }
             }
         }
+        System.arraycopy(STATS, 0, LAST, 0, STAT_COUNT);
+        lastFound = result.size();
+        lastNanos = System.nanoTime() - start;
+        lastRange = rx;
         return result;
+    }
+
+    /**
+     * The rejection histogram as one line. This is the whole answer to "is the
+     * detection step or the render step broken": if {@code ok} is 0 the plant
+     * never reached the handlers, and the biggest of the other four says why.
+     */
+    public static String statsLine() {
+        final StringBuilder sb = new StringBuilder(128);
+        for (int i = 0; i < STAT_COUNT; i++)
+            sb.append(STAT_NAMES[i]).append('=').append(LAST[i]).append(' ');
+        return sb.append("(found=").append(lastFound)
+                .append(" range=").append(lastRange)
+                .append(" ").append(lastNanos / 1000L).append("us)").toString();
     }
 
     /**

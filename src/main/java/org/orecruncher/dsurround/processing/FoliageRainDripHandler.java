@@ -82,6 +82,22 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     private static final int SPOT_LIFETIME_SPAN_TICKS = 900;
     /** Same value cut the eave layer applies the moment the rain stops. */
     private static final float AFTER_STOP_FACTOR = 0.40F;
+    /** Diagnostics cadence - one status line per 5s, not per tick. */
+    private static final int DIAG_INTERVAL_TICKS = 100;
+
+    /**
+     * Diagnostics only: pretend the rain is falling at full intensity so the
+     * layer can be exercised without waiting for weather. Set from
+     * {@code /dsdebug foliage force}; never read by anything else.
+     */
+    public static volatile boolean DEBUG_FORCE = false;
+    /** The live instance, for the diagnostics command. */
+    public static volatile FoliageRainDripHandler INSTANCE = null;
+    /** How many drops this layer has actually spawned since the last clear. */
+    public static int spawned = 0;
+    /** Spawn failures: null = no provider, wrong = the provider made something else. */
+    public static int spawnNull = 0;
+    public static int spawnWrong = 0;
 
     private final ITickCount tickCount;
     private final IRandomizer random = Randomizer.current();
@@ -98,12 +114,39 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     private float lastAmbient = -1F;
     private int failures = 0;
     private BlockPos lastScanPos;
+    private long lastDiagTick = -1000L;
 
     public FoliageRainDripHandler(final Configuration config, final IModLog logger, final ITickCount tickCount) {
         super("FoliageRainDrips", config, logger);
         this.tickCount = tickCount;
         ClientState.TICK_END.register(this::onTick);
         ClientState.ON_DISCONNECT.register(client -> this.clear());
+        INSTANCE = this;
+    }
+
+    // ---- diagnostics surface ---------------------------------------------
+
+    public int poolSize() {
+        return this.pool.size();
+    }
+
+    public int liveCount() {
+        return this.live.size();
+    }
+
+    /** The config this instance was built with (the diagnostics command needs it). */
+    public Configuration config() {
+        return this.config;
+    }
+
+    /**
+     * Drops the scan stamp so the next tick rescans instead of waiting out the
+     * 30s cadence - for {@code /dsdebug foliage force}.
+     */
+    public void forceRescan() {
+        this.lastScanTick = -1000L;
+        this.lastScanPos = null;
+        this.lastDiagTick = -1000L;
     }
 
     private void onTick(final Minecraft client) {
@@ -146,6 +189,16 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         // Live-drop accounting decay.
         this.live.removeIf(e -> e[1] <= tick);
 
+        // Diagnostics: one line per 5s. "Nothing is dripping" is answered by
+        // this line alone - value says whether the gate is open, the histogram
+        // says whether the plants ever reached the pool at all.
+        if (tick - this.lastDiagTick >= DIAG_INTERVAL_TICKS) {
+            this.lastDiagTick = tick;
+            this.logger.info("[FoliageRain] enabled=%s value=%.3f pool=%d live=%d spawned=%d force=%s | %s",
+                    this.config.weatherOptions.enableFoliageRainDrips, value, this.pool.size(),
+                    this.live.size(), spawned, DEBUG_FORCE, FoliageScan.statsLine());
+        }
+
         if (value <= 0F) {
             if (!this.pool.isEmpty() || this.accumulator != 0F) {
                 this.pool.clear();
@@ -187,6 +240,8 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
 
     /** The drip strength: ambient intensity with the eave layer's after-stop tail. */
     private float valueFor(final Level world) {
+        if (DEBUG_FORCE)
+            return 1.0F;   // diagnostics: skip the weather gate entirely
         final float ambient = PrecipitationIntensity.ambient();
         if (this.lastAmbient > 0F && ambient <= 0F)
             this.afterStop = AFTER_STOP_FACTOR;
@@ -351,11 +406,22 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
 
         final Particle particle = ((MixinParticleManager) pm).dsurround_createParticle(
                 ModParticles.FOLIAGE_DROP, ax, ay, az, rest, sizeScale, 0.0D);
-        if (particle == null)
+        if (particle == null) {
+            // The one hard failure: no provider is registered for FOLIAGE_DROP.
+            final int n = ++spawnNull;
+            if (n == 1 || n % 100 == 0)
+                this.logger.warn("[FoliageRain] createParticle returned null x%d - is FOLIAGE_DROP registered?", n);
             return;
+        }
         pm.add(particle);
-        if (!(particle instanceof FoliageDripParticle drop))
+        spawned++;
+        if (!(particle instanceof FoliageDripParticle drop)) {
+            final int n = ++spawnWrong;
+            if (n == 1 || n % 100 == 0)
+                this.logger.warn("[FoliageRain] createParticle gave %s, not a FoliageDripParticle x%d",
+                        particle.getClass().getName(), n);
             return;
+        }
 
         // Nudge onto the near side of the plane - and never above the anchor.
         drop.setPlane(nx, ny, nz, ux, uy, uz, vx, vy, vz);
@@ -384,7 +450,8 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         this.live.add(new long[] { spot.pos.asLong(), expire });
     }
 
-    private void clear() {
+    /** Empties the layer (public: the diagnostics command turns the forced gate back off with it). */
+    public void clear() {
         this.pool.clear();
         this.live.clear();
         this.accumulator = 0F;

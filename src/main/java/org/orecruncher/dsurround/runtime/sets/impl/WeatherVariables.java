@@ -58,7 +58,8 @@ public class WeatherVariables extends VariableSet<IWeatherVariables> implements 
             this.canWaterFreeze = this.seasonalInformation.isSnowTemperature(player.blockPosition());
             // WIND：风场是游戏时钟的纯函数，这里没有绘制通道，直接用无缓存版本。
             this.windDirection = WindField.angleAt(world.getGameTime(), 0F);
-            this.windSpeed = WindField.speedAt(this.gradedIntensity, PrecipitationIntensity.gustAmplitude());
+            this.windSpeed = WindField.speedAt(this.gradedIntensity, PrecipitationIntensity.gustAmplitude(),
+                    PrecipitationIntensity.windScale());
         } else {
             this.rainIntensity = 0F;
             this.thunderIntensity = 0F;

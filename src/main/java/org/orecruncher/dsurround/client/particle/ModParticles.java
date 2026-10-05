@@ -29,6 +29,9 @@ public final class ModParticles {
     public static final SimpleParticleType ICICLE_WEDGE = new SimpleParticleType(false);
     /** The shard burst when an icicle shatters on the ground. */
     public static final SimpleParticleType ICICLE_LAND = new SimpleParticleType(false);
+    /** A droplet attached to a plant surface - rain sliders/droppers and dew
+     * beads share it; the spawning handler decides the fate via setters. */
+    public static final SimpleParticleType FOLIAGE_DROP = new SimpleParticleType(false);
 
     private ModParticles() {
     }
@@ -61,6 +64,9 @@ public final class ModParticles {
         event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
                 ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land"),
                 () -> ICICLE_LAND);
+        event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
+                ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "foliage_drop"),
+                () -> FOLIAGE_DROP);
     }
 
     /**
@@ -82,5 +88,6 @@ public final class ModParticles {
         ParticleProviderRegistry.register(ICICLE_LAND,
                 sprites -> new IcicleLandParticle.Provider(
                         ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land")));
+        ParticleProviderRegistry.register(FOLIAGE_DROP, sprites -> new FoliageDripParticle.Provider());
     }
 }

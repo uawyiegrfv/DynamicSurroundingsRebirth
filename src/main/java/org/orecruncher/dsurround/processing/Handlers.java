@@ -108,6 +108,12 @@ public class Handlers {
         // Icicles growing under eaves while it snows, dropping and shattering.
         ContainerManager.resolve(IcicleHandler.class);
 
+        // Rain drops sliding down plant leaves while it rains.
+        ContainerManager.resolve(FoliageRainDripHandler.class);
+
+        // Morning dew beads on plants, on the day-clock curve.
+        ContainerManager.resolve(FoliageDewHandler.class);
+
         this.register(AreaBlockEffects.class);
         this.register(StepAccentGenerator.class);
         this.register(FogHandler.class);
@@ -251,6 +257,8 @@ public class Handlers {
             .registerSingleton(ThunderHandler.class)
             .registerSingleton(DripHandler.class)
             .registerSingleton(IcicleHandler.class)
+            .registerSingleton(FoliageRainDripHandler.class)
+            .registerSingleton(FoliageDewHandler.class)
             .registerSingleton(AreaBlockEffects.class)
             .registerSingleton(FootstepAccents.class)
             .registerSingleton(StepAccentGenerator.class)

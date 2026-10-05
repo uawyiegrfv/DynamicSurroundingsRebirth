@@ -474,8 +474,31 @@ public final class DripScanner {
     /** An air block the drop can form in and fall through - tall grass under the eave counts, water does not. */
     private static boolean isPassable(final Level world, final BlockPos pos) {
         final BlockState state = world.getBlockState(pos);
+        // 木栅栏豁免：栅栏是镂空的 —— 屋檐上流下来的水会从它的空隙穿过去，
+        // 冰锥也一样能挂在栅栏后面。它的碰撞形状非空，但那不该被当成实心
+        // 阻挡。只留流体检查（水下的格子仍然不行）。
+        //   注意与 isPoleLike() 是两件事：那个是让栅栏柱**自己当屋檐**
+        //   （水从柱底滴），这个是不让栅栏**把别人的屋檐挡死**。
+        //   冰锥复用 DripScanner.scan()，所以这一处同时惠及滴水与冰锥。
+        if (isWoodenFence(state))
+            return state.getFluidState().isEmpty();
         return state.getCollisionShape(world, pos).isEmpty()
                 && state.getFluidState().isEmpty();
+    }
+
+    /**
+     * A fence, for the "do not let it block the eave above" exemption.
+     *
+     * <p>Asked by <em>class</em>, not by tag: {@code BlockTags.FENCES} does not
+     * cover iron bars (see {@link #isPoleLike}), and a tag lookup depends on
+     * the tag data being loaded, which is one more thing that can silently
+     * disagree between the three versions. {@code FenceBlock} is the same class
+     * in all three, and every wooden fence is one - nether brick fences extend
+     * it too, which is correct here because they are just as openwork.
+     * Iron bars stay excluded: they are a different block and a different look.</p>
+     */
+    private static boolean isWoodenFence(final BlockState state) {
+        return state.getBlock() instanceof net.minecraft.world.level.block.FenceBlock;
     }
 
     /**

@@ -18,6 +18,35 @@ public class WeatherFogRangeCalculator extends VanillaFogRangeCalculator {
     protected static final float MAX_RAIN_FOG_END = 96F;
 
     /**
+     * Floor for the rain fog's FAR plane, as a fraction of the clear (vanilla)
+     * far plane. At 0.8 heavy weather keeps 80% of the render distance - 154
+     * blocks at the usual 12 chunks - however heavy it gets.
+     *
+     * <p>The white-clouds report is this number's fault, not the cloud colour's.
+     * {@code rendertype_clouds} ends with {@code linear_fog}, and at or past
+     * FogEnd that swaps the fragment for the fog colour outright. The cloud
+     * sheet's near edge is about 64 blocks above a sea-level eye (cloudHeight
+     * is 128 in {@code assets/dsurround/dsconfigs/dimensions.json}) and it runs
+     * out to the render distance horizontally, so every visible piece of cloud
+     * sat beyond a far plane of MAX_RAIN_FOG_END = 96 and got replaced
+     * wholesale.</p>
+     *
+     * <p>Vanilla never moves the fog distance for rain - its terrain far plane
+     * IS the render distance - so this one is ours and ours alone to answer
+     * for. It is a look trade, not a bug in someone else's arithmetic: this
+     * clamps how close the far plane may come, MAX_RAIN_FOG_END no longer
+     * binds at ordinary settings, and rain therefore loses some of its "wet".
+     * Compensate with START_IMPACT (the near plane is where thickness lives)
+     * and with the storm darkening of plan B - not by putting this back.</p>
+     *
+     * <p>Expressed as a fraction rather than in blocks so it scales with the
+     * render distance: an absolute floor would cancel the rain fog entirely at
+     * low render distances. 1.0 = the far plane never moves (vanilla); below
+     * about 0.5 the low clouds start being swallowed again.</p>
+     */
+    protected static final float CLOUD_GUARD_END_FRACTION = 0.8F;
+
+    /**
      * How close to the player the after-rain haze may reach, in blocks. Larger
      * than the morning-mist reserves on purpose: what lingers after a storm is
      * a thin haze spread over a long range, not the thick bank you get at dawn.
@@ -86,7 +115,13 @@ public class WeatherFogRangeCalculator extends VanillaFogRangeCalculator {
 
             // Density scale: higher = denser (closer fog). Shrinks the far-plane cap.
             final float densityScale = Math.max((float) this.fogOptions.weatherFogDensity, 0.01F);
-            final float targetEnd = Math.min(clearEnd * (1F - END_IMPACT), MAX_RAIN_FOG_END / densityScale);
+            // Cloud-layer guard: however dense the weather gets, the far plane
+            // may not come closer than CLOUD_GUARD_END_FRACTION of the clear
+            // range, so the cloud layer stays outside the fog it would
+            // otherwise be replaced by. See the constant above.
+            final float cloudGuardEnd = clearEnd * CLOUD_GUARD_END_FRACTION;
+            final float targetEnd = Math.max(cloudGuardEnd,
+                    Math.min(clearEnd * (1F - END_IMPACT), MAX_RAIN_FOG_END / densityScale));
             final float targetStart = Math.min(clearStart * (1F - START_IMPACT), targetEnd);
 
             float end = clearEnd + (targetEnd - clearEnd) * rainStr;

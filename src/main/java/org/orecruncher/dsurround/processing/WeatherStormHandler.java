@@ -565,7 +565,17 @@ public class WeatherStormHandler extends AbstractClientHandler {
         final float vanillaPlain = Math.max(0F, level.getRainLevel(1F) - vanillaThunder);
         final float ourThunder = PrecipitationIntensity.stormRainLevel(level, 1F);
         final float ourFog = PrecipitationIntensity.fogColorRainLevel(level, 1F);
-        final float ourPlain = Math.max(0F, ourFog - ourThunder);
+        // Plan B (2026-10-05): while we own the weather our rain layer carries
+        // the WHOLE graded level and our storm layer rides on top of it - the
+        // two independent channels the other versions' setupColor runs. Splitting
+        // the two here handed the storm only its own half, which left a mid-storm
+        // fog lighter than those versions show (0.47 of the biome colour against
+        // 0.38 at fog=1, storm=0.5). The subtraction stays for the frames we do
+        // not own: there it reproduces vanilla's own rain/thunder split, which is
+        // what lets the equality test above return bit-for-bit vanilla.
+        final float ourPlain = PrecipitationIntensity.ownsAmbient()
+                ? ourFog
+                : Math.max(0F, ourFog - ourThunder);
         if (ourPlain == vanillaPlain && ourThunder == vanillaThunder)
             return;
         final float[] fog = SkyStateInjector.fogWeatherRoundTrip(

@@ -1,6 +1,8 @@
 package org.orecruncher.dsurround.processing.weather;
 
 import net.minecraft.util.Mth;
+import org.orecruncher.dsurround.config.BiomeTrait;
+import org.orecruncher.dsurround.config.biome.biometraits.BiomeTraits;
 
 /**
  * WIND：全模组唯一的水平风来源 —— 风向 + 风速。
@@ -36,10 +38,14 @@ import net.minecraft.util.Mth;
  * <h2>风速</h2>
  *
  * <pre>
- *   bps = WIND_SPEED_MIN_BPS
- *       + WIND_SPEED_RANGE_BPS * strength
- *       + WIND_GUST_SPEED_BPS * gustAmplitude * strength
+ *   bps = (WIND_SPEED_MIN_BPS
+ *        + WIND_SPEED_RANGE_BPS * strength
+ *        + WIND_GUST_SPEED_BPS * gustAmplitude * strength) * biomeScale
  * </pre>
+ *
+ * <p>{@code biomeScale} 是群系风力系数，见 {@link #biomeScale}。strength 和
+ * gustAmplitude 都不带群系信息（gustiness 是每场事件摇出来的 0.5~1.5），
+ * 没有这一项的话全世界任何群系的风都一样大。</p>
  *
  * <p>{@code strength} 是分级降水强度，离散阵风（squall）的大小已经折进
  * 去了 —— 一阵狂风在这里的表现就是风变急，而本类不需要知道 squall 存在。
@@ -76,6 +82,38 @@ public final class WindField {
      *  实机如果发现倒向相反，把这里改成 -1F —— 一处，三版同改。 */
     public static final float SLANT_SIGN = 1F;
 
+    // ================= 群系风力系数（让不同地方的风不一样大） =================
+    //
+    // 风速的另外两个输入（strength、gustAmplitude）都不带群系信息，所以原来
+    // 全世界任何群系的风都一样大。这里用 BiomeTraits 的标签推一个倍率补上那一维。
+    // 刻意不新增配置文件字段：标签已经够用，省掉改 biomes.json 和三版配置同步。
+    //
+    // 调风力就改下面这两张表（一一对应），别的地方都不用动。
+    // WindField.java 三版逐字相同，改这里等于三版同时改。
+
+    /** 会被放大/缩小的群系标签，与 {@link #WIND_BIOME_SCALE_VALUES} 一一对应。
+     *  表里没有的标签一律按 1.0 处理，不用重复列进来。 */
+    private static final BiomeTrait[] WIND_BIOME_SCALE_TRAITS = {
+            BiomeTrait.WINDSWEPT,   // 风袭/风蚀 —— 名字里就写着风大
+            BiomeTrait.MOUNTAIN,    // 山地。BiomeTrait 没有 PEAK，山峰也归这条
+            BiomeTrait.HILLS,       // 丘陵
+            BiomeTrait.PLAINS,      // 平原：开阔，没有遮挡
+            BiomeTrait.SPARSE,      // 植被稀疏
+            BiomeTrait.FOREST,      // 森林：树挡风
+            BiomeTrait.DENSE,       // 密林/郁闭：基本吹不进来
+    };
+
+    /** 上面每个标签对应的风力倍率。 */
+    private static final float[] WIND_BIOME_SCALE_VALUES = {
+            1.35F,
+            1.25F,
+            1.15F,
+            1.10F,
+            1.10F,
+            0.85F,
+            0.75F,
+    };
+
     // ================================================================
 
     private static final double TWO_PI = Math.PI * 2D;
@@ -99,10 +137,12 @@ public final class WindField {
      * @param partialTick   帧内插值，让转向连续
      * @param strength      当前强度，0..1（降水强度 / 沙尘幕的 veilNow）
      * @param gustAmplitude 本场事件的阵风幅度，0..1；沙尘幕传 0
+     * @param biomeScale    群系风力系数，见 {@link #biomeScale}；不区分群系时传 1F
      */
-    public static void update(long gameTime, float partialTick, float strength, float gustAmplitude) {
+    public static void update(long gameTime, float partialTick, float strength, float gustAmplitude,
+                              float biomeScale) {
         final float a = angleAt(gameTime, partialTick);
-        final float bps = speedAt(strength, gustAmplitude);
+        final float bps = speedAt(strength, gustAmplitude, biomeScale);
         angle = a;
         dirX = Mth.cos(a);
         dirZ = Mth.sin(a);
@@ -123,10 +163,38 @@ public final class WindField {
     /**
      * 风速，格/秒。纯函数。
      */
-    public static float speedAt(float strength, float gustAmplitude) {
+    public static float speedAt(float strength, float gustAmplitude, float biomeScale) {
         final float s = Mth.clamp(strength, 0F, 1F);
         final float g = Mth.clamp(gustAmplitude, 0F, 1F);
-        return WIND_SPEED_MIN_BPS + WIND_SPEED_RANGE_BPS * s + WIND_GUST_SPEED_BPS * g * s;
+        final float b = biomeScale > 0F ? biomeScale : 1F;
+        return (WIND_SPEED_MIN_BPS + WIND_SPEED_RANGE_BPS * s + WIND_GUST_SPEED_BPS * g * s) * b;
+    }
+
+    /**
+     * 一个群系的风力倍率，1.0 = 不修正。
+     *
+     * <p>多个标签同时命中时返回<strong>偏离 1.0 最远</strong>的那一条，不累乘 ——
+     * 山地里 WINDSWEPT 和 MOUNTAIN 常见同时成立，累乘出 1.69 这种值会让风失真。
+     * 表外的标签直接返回 1.0。</p>
+     *
+     * <p>调用点每帧/每 tick 只查一次（见 {@code PrecipitationIntensity.update}）：
+     * 一次查询是 7 次 HashSet 查找，放进 per-column 循环里会乘上几百列。</p>
+     */
+    public static float biomeScale(final BiomeTraits traits) {
+        if (traits == null)
+            return 1F;
+        float result = 1F;
+        float bestDeviation = 0F;
+        for (int i = 0; i < WIND_BIOME_SCALE_TRAITS.length; i++) {
+            if (!traits.contains(WIND_BIOME_SCALE_TRAITS[i]))
+                continue;
+            final float deviation = Math.abs(WIND_BIOME_SCALE_VALUES[i] - 1F);
+            if (deviation > bestDeviation) {
+                bestDeviation = deviation;
+                result = WIND_BIOME_SCALE_VALUES[i];
+            }
+        }
+        return result;
     }
 
     /** 缓存的风向，弧度。 */

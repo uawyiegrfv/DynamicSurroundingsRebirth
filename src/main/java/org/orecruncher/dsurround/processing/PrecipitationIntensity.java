@@ -1396,6 +1396,51 @@ public final class PrecipitationIntensity {
         return out;
     }
 
+    /**
+     * How steeply the fog colour's storm darkening rises with our own graded
+     * intensity. See {@link #fogColorStormLevel}.
+     *
+     * <p>1 = the storm pass tracks the rain pass exactly; above 1 it holds back
+     * until the rain is genuinely heavy. Raising it keeps a drizzle's fog pale
+     * and pushes the darkening towards the top of the range; lowering it
+     * darkens mid-strength rain. However this is set the fog can never get
+     * darker than vanilla's own thunderstorm - the two passes top out
+     * together.</p>
+     */
+    private static final float FOG_COLOR_STORM_GAMMA = 1.5F;
+
+    /**
+     * The level the fog COLOUR's storm pass should be computed from.
+     *
+     * <p>Deliberately not {@link #stormRainLevel}, and the difference is the
+     * whole point. That one is the STORM channel - ATMOSPHERE^4 - which is the
+     * right curve for the sky and the light map: a storm is a convective event
+     * and only the top of the range has earned storm darkness. Fog is not that.
+     * Haze builds with the rain, so feeding the fog's storm pass from
+     * ATMOSPHERE^4 leaves it at about 0.13 across the whole middle of the
+     * range and the pass may as well not be there - the fog is then the rain
+     * pass alone, roughly 0.6 of a bright biome colour, which is exactly the
+     * maintainer's "rain paints everything white, a real thunderstorm looks
+     * right".</p>
+     *
+     * <p>So this takes the larger of the two: the storm channel, so real
+     * thunderstorms and the snow damping still behave, and an intensity curve
+     * of its own, {@code FOG_COLOR^FOG_COLOR_STORM_GAMMA}. At full intensity
+     * the two agree; further down the range this is the one that carries it -
+     * heavy rain lands near 0.34 of the biome colour where it used to be
+     * 0.45.</p>
+     *
+     * <p>While we do not own the weather this returns vanilla's thunder level
+     * untouched, which is what keeps the not-owning path bit-for-bit.</p>
+     */
+    public static float fogColorStormLevel(Level level, float partialTick) {
+        if (!ownsAmbient())
+            return level.getThunderLevel(partialTick);
+        final float fog = PrecipitationResponse.FOG_COLOR.value();
+        final float graded = (float) Math.pow(Math.max(fog, 0F), FOG_COLOR_STORM_GAMMA);
+        return Math.max(stormRainLevel(level, partialTick), graded);
+    }
+
     /** Diagnostics only: how many times the sky mixin has been consulted. */
     public static int skyHooks() {
         return skyHooks;

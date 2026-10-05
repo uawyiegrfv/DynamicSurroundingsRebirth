@@ -130,6 +130,13 @@ public class FoliageDripParticle extends TextureSheetParticle {
         this.quadSize = this.baseSize;
         this.setSize(0.02F, 0.02F);
         this.fallSprite = ParticleUtils.getSprite(FALL_SPRITE);
+        // Vanilla's drip texture is GREYSCALE - it only ever looks like water
+        // because the particle tints it. Without this the drop renders white,
+        // which is exactly what the maintainer saw. Tint from the eave layer's
+        // own constants so both layers wear the same colour.
+        this.setColor(WaterDripParticle.WATER_R,
+                WaterDripParticle.WATER_G,
+                WaterDripParticle.WATER_B);
     }
 
     // ---- handler-driven behavior -------------------------------------------
@@ -283,41 +290,24 @@ public class FoliageDripParticle extends TextureSheetParticle {
         final float cy = (float) (Mth.lerp(partialTicks, this.yo, this.y) - eye.y());
         final float cz = (float) (Mth.lerp(partialTicks, this.zo, this.z) - eye.z());
 
+        // ONE size for the drop's whole life. The eave drop does the same and
+        // says why: there is no stretch while it hangs - what reads as
+        // "stretching" is the texture, which is drawn taller than it is wide.
+        // The breathing swell and the slide stretch both changed the quad
+        // between spawn, slide and fall, and that is the "the size keeps
+        // changing" the maintainer reported. Only EVAPORATE shrinks, because
+        // a drop that blinks out of existence is worse than one that dries up.
         float size = this.baseSize;
         float alpha = 1.0F;
-        if (this.phase == Phase.STATIC) {
-            // The bead breathes - a barely-there swell that says "liquid".
-            size *= 1.0F + 0.05F * Mth.sin(this.age * 0.16F);
-        } else if (this.phase == Phase.EVAPORATE) {
+        if (this.phase == Phase.EVAPORATE) {
             final float t = (float) (this.age - this.evapStart) / (float) Math.max(1, this.evapTicks);
             size *= Math.max(0.0F, 1.0F - t);
             if (t > 0.7F)
                 alpha = 1.0F - (t - 0.7F) / 0.3F;
         }
 
-        // Slide stretch: elongate along the motion's dominant in-plane axis
-        // (the path lies IN this plane, so the drop visibly rides the blade).
-        float su = 1.0F, sv = 1.0F;
-        if (this.phase == Phase.SLIDE && this.pathLen >= 6) {
-            final int segs = this.pathLen / 3 - 1;
-            final float t = this.slideProgress();
-            final int i = Math.min(segs - 1, (int) (t * segs));
-            final float dx = this.pathPts[i * 3 + 3] - this.pathPts[i * 3];
-            final float dy = this.pathPts[i * 3 + 4] - this.pathPts[i * 3 + 1];
-            final float dz = this.pathPts[i * 3 + 5] - this.pathPts[i * 3 + 2];
-            final float du = Math.abs(dx * this.ux + dy * this.uy + dz * this.uz);
-            final float dv = Math.abs(dx * this.vx + dy * this.vy + dz * this.vz);
-            if (du >= dv) {
-                su = 1.0F + 0.35F * t;
-                sv = 1.0F - 0.15F * t;
-            } else {
-                sv = 1.0F + 0.35F * t;
-                su = 1.0F - 0.15F * t;
-            }
-        }
-
-        final float hu = size * 0.5F * su;
-        final float hv = size * 0.5F * sv;
+        final float hu = size * 0.5F;
+        final float hv = size * 0.5F;
         final int light = this.getLightColor(partialTicks);
         final float u0 = this.getU0();
         final float u1 = this.getU1();

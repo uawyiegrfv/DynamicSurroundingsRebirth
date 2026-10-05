@@ -93,8 +93,12 @@ public class FoliageDewHandler extends AbstractClientHandler {
      * window, not by every bead being cut to one small size.
      */
     private static final float DEW_SIZE_SCALE = 0.0F;
-    /** Dew slides are unhurried. */
-    private static final float SLIDE_SPEED = 0.5F;
+    /**
+     * Dew slides are unhurried - and now on the same clock the rain layer
+     * uses: see FoliageRainDripHandler.SLIDE_SPEED. Slower still than rain,
+     * because dew has no weight behind it.
+     */
+    private static final float SLIDE_SPEED = 0.2F;
     /** The window's tail: beads shrink out over this. */
     private static final int EVAPORATE_TICKS = 600;
     /** Rain kills dew faster. */

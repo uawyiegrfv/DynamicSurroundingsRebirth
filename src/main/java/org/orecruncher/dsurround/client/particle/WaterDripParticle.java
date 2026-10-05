@@ -106,11 +106,13 @@ public class WaterDripParticle extends TextureSheetParticle {
     // reason the drop used to read as wrong next to vanilla's.
 
     private final int fallTicks;
+    private final int hangTicks;
     private final net.minecraft.client.renderer.texture.TextureAtlasSprite fallSprite;
     private int age = 0;
 
     WaterDripParticle(final ClientLevel level, final double x, final double y, final double z,
-                      final double hangTicks, final double fallTicks, final SpriteSet sprites) {
+                      final double hangTicks, final double fallTicks, final double sizeScale,
+                      final SpriteSet sprites) {
         // No sprite-taking super constructor in this version - that arrived
         // with 26.1's SingleQuadParticle. The sprite is set after, the way
         // 1.20.1 does it.
@@ -119,15 +121,19 @@ public class WaterDripParticle extends TextureSheetParticle {
         // 26.1 one that hands out first().
         this.setSprite(ParticleUtils.getSprite(SPRITE));
         this.fallTicks = Math.max(1, (int) Math.round(fallTicks));
-        this.lifetime = (int) Math.round(hangTicks) + this.fallTicks;
+        this.hangTicks = Math.max(1, (int) Math.round(hangTicks));
+        this.lifetime = this.hangTicks + this.fallTicks;
         this.gravity = 0.0F;      // written out by hand - see tick()
         this.setSize(VANILLA_SIZE, VANILLA_SIZE);
         // Vanilla's own size: SingleQuadParticle sets
         //   0.1 * (random * 0.5 + 0.5) * 2.0
         // which is 0.1..0.2, not a flat 0.1 - a fixed 0.1 is a third smaller
         // than vanilla on average, which is what read as "too small".
-        this.quadSize = VANILLA_QUAD_SIZE
-                * (this.random.nextFloat() * 0.5F + 0.5F) * 2.0F * WIDTH_SCALE;
+        // An explicit size scale pins the size exactly (melt drops all read
+        // the same); without one, vanilla's own size variance applies.
+        final float scale = (float) (sizeScale > 0.0D ? sizeScale : 1.0D);
+        this.quadSize = VANILLA_QUAD_SIZE * 2.0F * WIDTH_SCALE * scale
+                * (sizeScale > 0.0D ? 1.0F : (this.random.nextFloat() * 0.5F + 0.5F));
         this.fallSprite = ParticleUtils.getSprite(FALL_SPRITE);
         this.setColor(WATER_R, WATER_G, WATER_B);
     }
@@ -197,7 +203,7 @@ public class WaterDripParticle extends TextureSheetParticle {
             this.remove();
             return;
         }
-        if (this.age <= HANG_TICKS) {
+        if (this.age <= this.hangTicks) {
             // Hanging: vanilla's hang particle creeps at gravity*0.02 and damps
             // its velocity by 0.02 every tick, which is to say it sits still.
             this.yd -= VANILLA_GRAVITY * HANG_GRAVITY_SCALE;
@@ -208,7 +214,7 @@ public class WaterDripParticle extends TextureSheetParticle {
             return;
         }
         // Let go: vanilla's own fall, on vanilla's falling texture.
-        if (this.age == HANG_TICKS + 1)
+        if (this.age == this.hangTicks + 1)
             this.setSprite(this.fallSprite);
         this.yd -= VANILLA_GRAVITY;
         this.move(this.xd, this.yd, this.zd);
@@ -260,8 +266,8 @@ public class WaterDripParticle extends TextureSheetParticle {
         @Override
         public Particle createParticle(final SimpleParticleType type, final ClientLevel level,
                                        final double x, final double y, final double z,
-                                       final double hangTicks, final double fallTicks, final double unused) {
-            return new WaterDripParticle(level, x, y, z, hangTicks, fallTicks, this.sprites);
+                                       final double hangTicks, final double fallTicks, final double sizeScale) {
+            return new WaterDripParticle(level, x, y, z, hangTicks, fallTicks, sizeScale, this.sprites);
         }
     }
 }

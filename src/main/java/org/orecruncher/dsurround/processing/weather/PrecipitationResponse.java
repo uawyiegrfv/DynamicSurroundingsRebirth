@@ -152,6 +152,27 @@ public final class PrecipitationResponse {
             new PrecipitationResponse("drip", 1F, false, 1F, 0F, 7F, 45F, 150F);
 
     /**
+     * The plant-drip layer's own after-rain tail. Same channel as
+     * {@link #DRIP} - the eave's - with one number changed: the maintainer
+     * asked for the foliage layer to keep making drops for <b>120s</b> after
+     * the rain stops (the eave dries in ~55s), and for that tail to be cut
+     * hard the moment it stops and then decay to nothing.
+     *
+     * <p>A channel, not arithmetic in the handler, because that is what the
+     * rest of the after-rain family does ({@link #DRIP}, {@link #AFTER_FOG}):
+     * the sweep in {@code releaseSeconds} is what guarantees the tail really
+     * arrives at zero instead of sitting on a float residue forever, and
+     * being in {@link #ALL} is what stops the idle fast path in
+     * {@code PrecipitationIntensity.update()} abandoning it mid-drain.</p>
+     *
+     * <p>The "cut hard" part is not in here on purpose - the curve itself is
+     * the same water either way; the step down is the handler's
+     * {@code RESIDUAL_FRACTION}, applied only while the rain is over.</p>
+     */
+    public static final PrecipitationResponse FOLIAGE_DRIP =
+            new PrecipitationResponse("foliageDrip", 1F, false, 1F, 0F, 7F, 120F, 130F);
+
+    /**
      * Overcast strength, 0..1 - the dry-weather sky event, driven by
      * {@code SkyEventScheduler} rather than by any precipitation input.
      *
@@ -409,7 +430,7 @@ public final class PrecipitationResponse {
             // array exactly once, so a parent must already have advanced this tick.
             // The two sky-event channels sit with the roots for find()/diagnostics,
             // but tickAll skips them (see schedulerDriven) and so does anyActive().
-            GEOMETRY, ATMOSPHERE, SUN, DRIP, OVERCAST, CLEAR,
+            GEOMETRY, ATMOSPHERE, SUN, DRIP, FOLIAGE_DRIP, OVERCAST, CLEAR,
             SURFACE, SPLASH, WET, AUDIO,
             FOG_DIST, FOG_COLOR, AFTER_FOG, SKY, CLOUD, SKY_LIGHT, STORM
     };

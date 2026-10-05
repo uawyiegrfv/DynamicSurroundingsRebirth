@@ -26,6 +26,7 @@ import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.mixins.core.MixinParticleManager;
 import org.orecruncher.dsurround.processing.scanner.DripScanner;
 import org.orecruncher.dsurround.processing.scanner.FoliageScan;
+import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 
 /**
  * Rain landing on foliage: droplets form on the leaves' upper edges and, per
@@ -95,8 +96,20 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     /** Spot lifetime - the pool rotation the eave layer tuned. */
     private static final int SPOT_LIFETIME_MIN_TICKS = 600;
     private static final int SPOT_LIFETIME_SPAN_TICKS = 900;
-    /** Same value cut the eave layer applies the moment the rain stops. */
-    private static final float AFTER_STOP_FACTOR = 0.40F;
+    // ---- the after-rain residual channel ------------------------------------
+    /**
+     * Wet plants do not go dry the instant the rain stops. For this long after
+     * the last rain the layer keeps making drops, but as PERSISTENT beads that
+     * sit on the leaf and only rarely let go (see
+     * {@link #RESIDUAL_DROP_CHANCE}), on a rate that is cut hard at the moment
+     * the rain stops and then decays to nothing over the window.
+     */
+    /** The cut applied the moment the rain stops - "突然大幅减少". */
+    private static final float RESIDUAL_FRACTION = 0.15F;
+    /** How often a residual bead rolls for letting go - once a second. */
+    private static final int RESIDUAL_ROLL_INTERVAL = 20;
+    /** ...and how rarely it actually does. */
+    private static final float RESIDUAL_DROP_CHANCE = 0.02F;
     /** Diagnostics cadence - one status line per 5s, not per tick. */
     private static final int DIAG_INTERVAL_TICKS = 100;
 
@@ -125,11 +138,13 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     private Level lastWorld;
     private long lastScanTick = -1000L + 10L;   // phase offset (review G)
     private float accumulator = 0F;
-    private float afterStop = 1F;
-    private float lastAmbient = -1F;
     private int failures = 0;
     private BlockPos lastScanPos;
     private long lastDiagTick = -1000L;
+    /** Beads made by the residual channel, each rolling once a second. */
+    private final List<Residual> residualDrops = new ArrayList<>();
+    /** True while this tick's drops are residual ones (persistent, no slide). */
+    private boolean inResidual = false;
 
     public FoliageRainDripHandler(final Configuration config, final IModLog logger, final ITickCount tickCount) {
         super("FoliageRainDrips", config, logger);
@@ -241,6 +256,10 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
             this.fireOne(world, player, tick, value);
         }
 
+        // The after-rain lottery, whenever there are persistent beads left.
+        if (!this.residualDrops.isEmpty())
+            this.rollResidual(tick);
+
         // Expire spots.
         boolean expired = false;
         for (final Iterator<Spot> it = this.pool.iterator(); it.hasNext(); ) {
@@ -253,17 +272,54 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
             this.rescan(world, pos, tick, value, player);
     }
 
-    /** The drip strength: ambient intensity with the eave layer's after-stop tail. */
+    /**
+     * The gate value for this tick, and it no longer drops to zero the moment
+     * the rain does: wet plants stay wet. While it rains this is the ambient
+     * intensity; once it stops the value is cut to {@link #RESIDUAL_FRACTION}
+     * of what the rain had ("突然大幅减少") and then decays linearly to zero
+     * across 120s by the PrecipitationResponse.FOLIAGE_DRIP channel, after which the layer goes quiet.
+     *
+     * <p>Sets {@link #inResidual} so the spawner knows to make persistent
+     * beads instead of sliders.</p>
+     */
     private float valueFor(final Level world) {
-        if (DEBUG_FORCE)
+        if (DEBUG_FORCE) {
+            this.inResidual = false;
             return 1.0F;   // diagnostics: skip the weather gate entirely
-        final float ambient = PrecipitationIntensity.ambient();
-        if (this.lastAmbient > 0F && ambient <= 0F)
-            this.afterStop = AFTER_STOP_FACTOR;
-        else if (ambient > 0F)
-            this.afterStop = 1F;
-        this.lastAmbient = ambient;
-        return ambient <= 0F ? 0F : ambient * this.afterStop;
+        }
+        // The project already owns an after-rain curve for the eave drips
+        // (PrecipitationResponse.DRIP); this layer reads its own channel off
+        // the same mechanism rather than running arithmetic of its own. The
+        // channel carries the decay AND the sweep that guarantees it reaches
+        // zero, which a hand-rolled linear ramp has to re-solve every time.
+        final float channel = PrecipitationResponse.FOLIAGE_DRIP.value();
+        final boolean raining = PrecipitationIntensity.ambient() > 0F || world.isRaining();
+        // "突然大幅减少": the moment the rain is over the same curve is read at
+        // a fraction of itself. The curve is the same water either way.
+        this.inResidual = !raining && channel > 0F;
+        return this.inResidual ? channel * RESIDUAL_FRACTION : channel;
+    }
+
+    /**
+     * The residual lottery: once a second each persistent bead either stays
+     * where it is or lets go (2%). The falling drop is the same size as the
+     * resting one - see FoliageDripParticle's billboard.
+     */
+    private void rollResidual(final long tick) {
+        for (final Iterator<Residual> it = this.residualDrops.iterator(); it.hasNext(); ) {
+            final Residual r = it.next();
+            if (r.drop.isRemoved()) {
+                it.remove();
+                continue;
+            }
+            if (!r.drop.isStatic())
+                continue;   // already on its way down
+            if (tick < r.nextRoll)
+                continue;
+            r.nextRoll = tick + RESIDUAL_ROLL_INTERVAL;
+            if (this.random.nextFloat() < RESIDUAL_DROP_CHANCE)
+                r.drop.beginFall();
+        }
     }
 
     private void rescan(final Level world, final BlockPos center, final long tick, final float value, final Player player) {
@@ -415,12 +471,18 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         float uy = vz * nx - vx * nz;
         float uz = vx * ny - vy * nx;
 
-        final boolean slider = this.random.nextFloat() < SLIDE_CHANCE && spot.plane.paths().length > 0;
+        // The residual channel makes PERSISTENT beads: they sit on the leaf and
+        // roll once a second to let go. No slide, no self-timed fall - that is
+        // the whole difference from a drop made while it is still raining.
+        final boolean residual = this.inResidual;
+        final boolean slider = !residual
+                && this.random.nextFloat() < SLIDE_CHANCE && spot.plane.paths().length > 0;
         // 0 = let the particle take vanilla's own size variance (0.5..1.0),
         // exactly the roll the eave layer's drops get. Pinning a size here
         // is what WaterDripParticle calls out as wrong for the main path.
         final double sizeScale = SIZE_MIN;
-        final int rest = slider ? 0 : REST_MIN_TICKS + this.random.nextInt(REST_MAX_TICKS - REST_MIN_TICKS + 1);
+        final int rest = residual ? 0
+                : (slider ? 0 : REST_MIN_TICKS + this.random.nextInt(REST_MAX_TICKS - REST_MIN_TICKS + 1));
 
         final Particle particle = ((MixinParticleManager) pm).dsurround_createParticle(
                 ModParticles.FOLIAGE_DROP, ax, ay, az, rest, sizeScale, 0.0D);
@@ -443,9 +505,19 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
 
         // Nudge onto the near side of the plane - and never above the anchor.
         drop.setPlane(nx, ny, nz, ux, uy, uz, vx, vy, vz);
+        drop.setDew(false);      // rain-foliage: pale blue, not the dew white
         drop.move(nx * NORMAL_OFFSET, ny * NORMAL_OFFSET, nz * NORMAL_OFFSET);
 
         final long expire;
+        if (residual) {
+            // Persistent: it stays until the once-a-second roll says let go.
+            this.residualDrops.add(new Residual(drop, tick + RESIDUAL_ROLL_INTERVAL));
+            // A ceiling anyway - a bead that never wins must not sit there
+            // forever after the layer has gone quiet.
+            expire = tick + 2400L;   // 120s ceiling, matches the channel
+            this.live.add(new long[] { spot.pos.asLong(), expire });
+            return;
+        }
         if (slider) {
             final FoliageProfile.SlidePath path = spot.plane.paths()[
                     this.random.nextInt(spot.plane.paths().length)];
@@ -472,11 +544,22 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     public void clear() {
         this.pool.clear();
         this.live.clear();
+        this.residualDrops.clear();
         this.accumulator = 0F;
         this.lastScanTick = -1000L + 10L;
         this.lastScanPos = null;
-        this.afterStop = 1F;
-        this.lastAmbient = -1F;
+        this.inResidual = false;
+    }
+
+    /** One persistent after-rain bead, and the tick it next rolls to let go. */
+    private static final class Residual {
+        final FoliageDripParticle drop;
+        long nextRoll;
+
+        Residual(final FoliageDripParticle drop, final long nextRoll) {
+            this.drop = drop;
+            this.nextRoll = nextRoll;
+        }
     }
 
     /**

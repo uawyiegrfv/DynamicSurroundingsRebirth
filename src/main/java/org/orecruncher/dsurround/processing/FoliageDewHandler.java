@@ -372,13 +372,25 @@ public class FoliageDewHandler extends AbstractClientHandler {
                 rejCoeff++;
                 continue;
             }
-            final float keep = Math.min(1.0F, 0.15F + 0.85F * curve * coeff) * density;
+            // Was 0.15 + 0.85*curve*coeff, which at the peak in a wet biome
+            // came out at 1.0 - EVERY plant got dew, and every one of them got
+            // three beads. The maintainer's "几乎每个植物上都挂满了3滴".
+            // Dew is a scatter, not a coat: at the peak a fifth to a quarter
+            // of the plants carry any at all.
+            final float keep = Math.min(1.0F, 0.03F + 0.20F * curve * coeff) * density;
             if (this.random.nextFloat() >= keep) {
                 rejKeep++;
                 continue;
             }
-            final int beads = Math.max(1, Math.min(MAX_DROPS_PER_PLANT,
-                    1 + Math.round(2F * curve * coeff)));
+            // One bead is the normal answer; a second is a coin flip weighted
+            // by the window, a third is rare. The old 1 + round(2*curve*coeff)
+            // pinned every plant at the cap.
+            int beads = 1;
+            if (this.random.nextFloat() < 0.35F * curve * coeff)
+                beads++;
+            if (this.random.nextFloat() < 0.10F * curve * coeff)
+                beads++;
+            beads = Math.min(MAX_DROPS_PER_PLANT, beads);
             final PlantDew plant = new PlantDew(spot.pos(), spot.state().getBlock());
             if (!this.attach(world, player, spot, plant, beads, tick)) {
                 rejNoAttach++;
@@ -457,6 +469,7 @@ public class FoliageDewHandler extends AbstractClientHandler {
             pm.add(particle);
             attached++;
             drop.setPlane(nx, ny, nz, ux, uy, uz, vx, vy, vz);
+            drop.setDew(true);      // dew: white and half-transparent, not rain blue
             drop.setSoundOnLand();
             drop.move(nx * NORMAL_OFFSET, ny * NORMAL_OFFSET, nz * NORMAL_OFFSET);
             // Review D: the first lottery is phase-shifted per bead, so one

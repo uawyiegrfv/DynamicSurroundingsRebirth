@@ -155,25 +155,23 @@ public final class WindField {
     }
 
     /**
-     * 风在某一幕平面内的切向分量，格/tick。
+     * 风在<em>幕的横轴</em>上的分量，格/tick。
      *
-     * <p>幕是"面朝相机的广告牌"，平面内只有切向和竖直两个轴，径向分量
-     * 表达不出来（风正对着相机吹或正背着相机吹时，倾角会消失 —— 已知限制）。</p>
+     * <p>传入的 (ax, az) 必须是<strong>几何摆顶点用的那一条轴</strong>，也就是
+     * (stripX, stripY) 归一化后的方向。顶点 u0 在 {@code 中心 - strip}、u1 在
+     * {@code 中心 + strip}，所以 u 增加的方向就是这条轴，Δu 加在它上面才对得上。</p>
      *
-     * <p>传进来的是<em>幕中心相对相机的连续偏移</em>，不是 STRIP_X/STRIP_Y
-     * 那张按玩家整数方块索引的查表。原因见 R1：查表在玩家跨格时会让近处幕
-     * 的切向跳 45 度以上，图案是竖直的时候看不出来，一加倾斜就会变成
-     * 倾角抖动。幕的几何朝向仍然用查表值，跟 1.12.2 保持一致。</p>
+     * <p>不要用"从相机位置推出来的切向" {@code (-cz, cx)/r} 来代替它：幕的几何
+     * 朝向是按玩家整数方块查表得到的（1.12.2 的 RAIN_X_COORDS），跟相对相机的
+     * 连续切向不是同一个方向。远处的幕两者几乎重合所以看不出来；近处的幕能差
+     * 到 90 度，投影的符号会翻 —— 表现就是"贴脸的雨朝反方向斜"，以及抬头看
+     * 四周时各幕倾角互相打架、像旋风。脚下那一幕更极端：查表给的是固定的 +X
+     * fallback，连续切向却是任意方向，完全不相关。</p>
      *
-     * @param cx 幕中心 X - 相机 X（gridX + 0.5 - cam.x）
-     * @param cz 幕中心 Z - 相机 Z（gridZ + 0.5 - cam.z）
+     * <p>剩余限制：幕是平面，径向分量表达不出来，风正对或正背相机吹时那一幕
+     * 的倾角会消失。这是围栏模型的固有代价，不是 bug。</p>
      */
-    public static float tangential(float cx, float cz) {
-        final float r = Mth.sqrt(cx * cx + cz * cz);
-        if (r < 0.0001F)
-            return 0F;
-        // 切向 T = (-cz, cx) / r，与 U 轴同向：
-        // 顶点 u0 在 中心 - strip，u1 在 中心 + strip。
-        return (dirX * -cz + dirZ * cx) / r * speedBPT;
+    public static float tangentialAlong(float ax, float az) {
+        return (dirX * ax + dirZ * az) * speedBPT;
     }
 }

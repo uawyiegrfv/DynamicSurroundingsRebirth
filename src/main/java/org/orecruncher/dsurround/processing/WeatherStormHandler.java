@@ -607,8 +607,12 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 final float dustCz = (float) (gridZ + 0.5 - cam.z);
                 // 条带实际宽度（格）= 2 x |(rainX, rainY)|
                 final float dustStripWidth = 2F * Mth.sqrt(rainX * rainX + rainY * rainY);
+                // 与雨幕同理：倾斜必须投影到几何真正用的横轴 (rainX, rainY) 上。
+                final float dustAxisLen = dustStripWidth * 0.5F;
+                final float dustAxisX = dustAxisLen > 0.0001F ? rainX / dustAxisLen : 1F;
+                final float dustAxisZ = dustAxisLen > 0.0001F ? rainY / dustAxisLen : 0F;
                 final float dustTan = dustStripWidth > 0.0001F
-                        ? Mth.clamp(DUST_TILT_GAIN * WindField.tangential(dustCx, dustCz)
+                        ? Mth.clamp(DUST_TILT_GAIN * WindField.tangentialAlong(dustAxisX, dustAxisZ)
                                 / DUST_FALL_SPEED_BPT, -DUST_MAX_TILT_TAN, DUST_MAX_TILT_TAN)
                                 * WindField.SLANT_SIGN
                         : 0F;

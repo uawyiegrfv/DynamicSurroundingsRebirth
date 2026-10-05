@@ -156,11 +156,6 @@ public final class PrecipitationRenderer {
     /** 雪的倾斜增益。雪的下落只有 1/128 格/tick，按物理值算会直接斜成
      *  水平，所以给一个远小于 1 的增益，上限交给 MAX_TILT_TAN 兜住。 */
     private static final float SNOW_TILT_GAIN = 0.02F;
-
-    /** 雪的横向漂移里"跟风"的那一份：风速 1 格/tick 时漂移这么多 UV/tick。
-     *  雪下落只有 1/128 格/tick，风一吹就占主导，所以这个值必须很小。
-     *  实测嫌雪飘得太横就往下调，嫌看不出风就往上调。 */
-    private static final float SNOW_DRIFT_WIND_GAIN = 0.05F;
     /** tan(倾角) 的硬上限，0.36 约 20 度。 */
     private static final float MAX_TILT_TAN = 0.36F;
     /** 雨的下落速度（格/tick）= (2.0 + 2.5 x intensity) / 8，与 d5 的滚动
@@ -783,16 +778,8 @@ public final class PrecipitationRenderer {
                     float u0, u1, v0, v1;
                     if (snow) {
                         final double d8 = ((ticks & 511) + partialTick) / 512.0;
-                        // WIND：横向漂移里"跟风"的那一份。原来只有随机项 ——
-                        // 每个幕各自朝一个高斯随机的方向飘，看上去就是"各飘各的"，
-                        // 静态的 Δu 剪切完全被它淹没，所以看不出风。现在整体朝风向走，
-                        // 随机项降级为每幕的小幅扰动（层次感保留）。
-                        final float snowWindUV = stripWidth > 0.0001F
-                                ? windT * SNOW_DRIFT_WIND_GAIN / stripWidth
-                                : 0F;
                         final double d9 = columnRandom.nextDouble()
-                                + animClock * (snowWindUV
-                                + SNOW_DRIFT_JITTER * (float) columnRandom.nextGaussian());
+                                + animClock * SNOW_DRIFT_JITTER * (float) columnRandom.nextGaussian();
                         final double d10 = columnRandom.nextDouble()
                                 + animClock * (float) columnRandom.nextGaussian() * 0.001D;
                         u0 = (float) d9;

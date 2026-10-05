@@ -237,12 +237,6 @@ public class WeatherStormHandler extends AbstractClientHandler {
     private static final float DUST_DRIFT_RANGE = 0.35F;
     /** 沙尘幕的倾斜增益（对应 PrecipitationRenderer 里的 SNOW_TILT_GAIN）。 */
     private static final float DUST_TILT_GAIN = 0.03F;
-
-    /** 沙尘的横向漂移里"跟风"的那一份（对应雪的 SNOW_DRIFT_WIND_GAIN）。
-     *  沙尘本身漂得比雪快得多（DUST_DRIFT_MIN/RANGE = 0.05~0.40 UV/tick），
-     *  所以这个值必须大：0.4 时跟风项只有 0.10，压不过 0.40 的随机项，
-     *  看上去还是"各飘各的"；1.6 时跟风项与随机项同量级，方向才朝风。 */
-    private static final float DUST_DRIFT_WIND_GAIN = 1.6F;
     /** tan(倾角) 的硬上限，0.36 约 20 度。 */
     private static final float DUST_MAX_TILT_TAN = 0.36F;
     /** 沙尘的下落速度（格/tick）：d8 每 tick 走 1/512 个 v，1 v = 4 格。
@@ -798,15 +792,10 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 final float dustAxisLen = dustStripWidth * 0.5F;
                 final float dustAxisX = dustAxisLen > 0.0001F ? rainX / dustAxisLen : 1F;
                 final float dustAxisZ = dustAxisLen > 0.0001F ? rainY / dustAxisLen : 0F;
-                    final float dustWindT = WindField.tangentialAlong(dustAxisX, dustAxisZ);
                     final float dustTan = dustStripWidth > 0.0001F
-                            ? Mth.clamp(DUST_TILT_GAIN * dustWindT
+                            ? Mth.clamp(DUST_TILT_GAIN * WindField.tangentialAlong(dustAxisX, dustAxisZ)
                                     / DUST_FALL_SPEED_BPT, -DUST_MAX_TILT_TAN, DUST_MAX_TILT_TAN)
                                     * WindField.SLANT_SIGN
-                            : 0F;
-                    // WIND：与雪同理，给横向漂移一个风向基准。
-                    final float dustWindUV = dustStripWidth > 0.0001F
-                            ? dustWindT * DUST_DRIFT_WIND_GAIN / dustStripWidth
                             : 0F;
                     final float slantU = dustStripWidth > 0.0001F
                             ? (l2 - k2) * dustTan / dustStripWidth
@@ -826,8 +815,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
                     // Lateral drift, graded: the dust counterpart of the rain's fall speed.
                     // The 0.2F here used to be a constant, so every sandstorm blew at the
                     // same rate no matter how hard it was blowing.
-                    double d9 = this.columnRandom.nextDouble()
-                        + animClock * (dustWindUV + drift * this.columnRandom.nextGaussian());
+                    double d9 = this.columnRandom.nextDouble() + animClock * drift * this.columnRandom.nextGaussian();
                     double d10 = this.columnRandom.nextDouble() + animClock * this.columnRandom.nextGaussian() * 0.001D;
 
                     double d6 = gridX + 0.5 - player.getX();

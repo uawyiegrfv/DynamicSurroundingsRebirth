@@ -53,6 +53,35 @@ public abstract class MixinFogRendererWeatherColor {
         return PrecipitationIntensity.fogColorRainLevel(level, partialTick);
     }
 
+    /**
+     * The other half of vanilla's weather pass, which this mixin used to leave
+     * on vanilla's own number. {@code setupColor} runs two independent channels
+     * off two independent levels - a rain channel (red and green towards 0.5,
+     * blue towards 0.6) and then a thunder channel (all three towards 0.5) -
+     * and it is the second one that lets a real thunderstorm's fog go near
+     * black. Taking over only the rain read meant our own heavy weather got
+     * half the treatment and stopped there: bright biome fog times one 0.5,
+     * which is precisely the maintainer's "rain paints everything white, a
+     * real thunderstorm looks right".
+     *
+     * <p>Fed from {@link PrecipitationIntensity#stormRainLevel}, the same level
+     * {@link MixinClientLevelWeatherColors} hands to
+     * {@code ClientLevel.getSkyDarken} - so the fog now grades together with
+     * the darkening the world, the rain streaks and the clouds already follow,
+     * instead of meeting it only by accident. While we do not own the weather
+     * the call returns vanilla's thunder level untouched, and the redirect is
+     * {@code require = 0}, so a mapping change degrades to vanilla rather than
+     * failing at startup.</p>
+     */
+    @Redirect(
+            method = "setupColor",
+            at = @At(value = "INVOKE",
+                     target = "Lnet/minecraft/client/multiplayer/ClientLevel;getThunderLevel(F)F"),
+            require = 0)
+    private static float dsurround_fogColorThunderLevel(ClientLevel level, float partialTick) {
+        return PrecipitationIntensity.stormRainLevel(level, partialTick);
+    }
+
     // ---- the overcast grey on the final fog colour ---------------------------
     //
     // The fog colour's BASE comes from the biome fog (the CubicSampler lambda

@@ -99,6 +99,9 @@ public class FoliageDewHandler extends AbstractClientHandler {
      * because dew has no weight behind it.
      */
     private static final float SLIDE_SPEED = 0.2F;
+    /** Per-slide speed spread, as the rain layer has. */
+    private static final float SLIDE_SPEED_JITTER_MIN = 0.7F;
+    private static final float SLIDE_SPEED_JITTER_MAX = 1.8F;
     /** The window's tail: beads shrink out over this. */
     private static final int EVAPORATE_TICKS = 600;
     /** Rain kills dew faster. */
@@ -431,7 +434,9 @@ public class FoliageDewHandler extends AbstractClientHandler {
                         pts[i + 1] = (float) (drop.pos().getY() + offset.y + path.pts()[i + 1]);
                         pts[i + 2] = (float) (drop.pos().getZ() + offset.z + path.pts()[i + 2]);
                     }
-                    final int ticks = Math.max(5, Math.round(path.length() / SLIDE_SPEED * 20F));
+                    final float speed = SLIDE_SPEED * (SLIDE_SPEED_JITTER_MIN
+                            + this.random.nextFloat() * (SLIDE_SPEED_JITTER_MAX - SLIDE_SPEED_JITTER_MIN));
+                    final int ticks = Math.max(5, Math.round(path.length() / speed * 20F));
                     final float endY = path.pts()[path.pts().length - 2];
                     drop.particle().beginSlide(pts, ticks, endY > 0.25F);
                 }

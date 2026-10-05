@@ -88,15 +88,21 @@ public class FoliageDripParticle extends SingleQuadParticle {
      * and sky, not against a wall of falling rain, so they do not have this
      * problem.
      */
-    private static final float DEW_R = 1.0F;
-    private static final float DEW_G = 1.0F;
+    /**
+     * Rain-foliage drops wear the eave's blue - READ FROM IT, not copied. It
+     * is the same water in the same sky; a second set of numbers here would
+     * only be something to drift out of sync.
+     */
+    private static final float RAIN_R = WaterDripParticle.WATER_R;
+    private static final float RAIN_G = WaterDripParticle.WATER_G;
+    private static final float RAIN_B = WaterDripParticle.WATER_B;
+    private static final float RAIN_ALPHA = 0.95F;
+    /** Dew: the pale blue lifted a little further toward blue than rain's. */
+    private static final float DEW_R = 0.45F;
+    private static final float DEW_G = 0.65F;
     private static final float DEW_B = 1.0F;
     /** Dew is the fainter of the two - it is a film, not a drop. */
     private static final float DEW_ALPHA = 0.55F;
-    private static final float RAIN_R = 0.55F;
-    private static final float RAIN_G = 0.75F;
-    private static final float RAIN_B = 1.0F;
-    private static final float RAIN_ALPHA = 0.95F;
 
     private enum Phase {
         STATIC, SLIDE, FALL, EVAPORATE
@@ -176,6 +182,17 @@ public class FoliageDripParticle extends SingleQuadParticle {
     public void beginSlide(final float[] pts, final int ticks, final boolean endWithFall) {
         if (this.phase != Phase.STATIC)
             return;
+        // The path is one of the plane's pre-baked descents, but the bead is
+        // sitting on a RANDOMLY CHOSEN anchor - not on that path's start. Left
+        // alone the first tick moves the bead from its anchor to the path's
+        // first waypoint, and that is the jump the maintainer saw. Pin the
+        // path's first point to wherever the bead actually is; the rest of the
+        // descent is untouched.
+        if (pts.length >= 6) {
+            pts[0] = (float) this.x;
+            pts[1] = (float) this.y;
+            pts[2] = (float) this.z;
+        }
         this.pathPts = pts;
         this.pathLen = pts.length;
         this.slideTicks = Math.max(1, ticks);
@@ -328,6 +345,39 @@ public class FoliageDripParticle extends SingleQuadParticle {
                 alpha = 1.0F - (t - 0.7F) / 0.3F;
         }
 
+        // The quad's axes. Normally the handler's plane basis - but while
+        // sliding, the bead LEANS INTO THE TURN: it takes the direction of
+        // travel (projected into the plane) as its own up axis. On the old
+        // fixed basis a bead running down a curved blade translated sideways
+        // like a rigid square and never turned at all.
+        float au = this.ux, av = this.uy, aw = this.uz;
+        float bu = this.vx, bv = this.vy, bw = this.vz;
+        if (this.phase == Phase.SLIDE && this.pathLen >= 6) {
+            final int segs = this.pathLen / 3 - 1;
+            final float t = this.slideProgress();
+            final int i = Math.min(segs - 1, (int) (t * segs));
+            float dx = this.pathPts[i * 3 + 3] - this.pathPts[i * 3];
+            float dy = this.pathPts[i * 3 + 4] - this.pathPts[i * 3 + 1];
+            float dz = this.pathPts[i * 3 + 5] - this.pathPts[i * 3 + 2];
+            final float dn = dx * this.nx + dy * this.ny + dz * this.nz;
+            dx -= this.nx * dn;
+            dy -= this.ny * dn;
+            dz -= this.nz * dn;
+            final float dl = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dl > 1.0e-6F) {
+                dx /= dl;
+                dy /= dl;
+                dz /= dl;
+                bu = dx;
+                bv = dy;
+                bw = dz;
+                // a = cross(normal, b) - completes the in-plane frame.
+                au = this.ny * bw - this.nz * bv;
+                av = this.nz * bu - this.nx * bw;
+                aw = this.nx * bv - this.ny * bu;
+            }
+        }
+
         final float hu = size * 0.5F;
         final float hv = size * 0.5F;
         final float[] corners = new float[12];
@@ -342,7 +392,7 @@ public class FoliageDripParticle extends SingleQuadParticle {
             final float byx = 0F, byy = 1F, byz = 0F;
             fillCorners(corners, cx, cy, cz, axx, axy, axz, byx, byy, byz, hu, hv);
         } else {
-            fillCorners(corners, cx, cy, cz, this.ux, this.uy, this.uz, this.vx, this.vy, this.vz, hu, hv);
+            fillCorners(corners, cx, cy, cz, au, av, aw, bu, bv, bw, hu, hv);
         }
 
         sink.add(corners, this.getU0(), this.getU1(), this.getV0(), this.getV1(),

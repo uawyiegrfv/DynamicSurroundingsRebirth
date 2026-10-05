@@ -69,6 +69,35 @@ public class FoliageDripParticle extends SingleQuadParticle {
      */
     private static final float VANILLA_DRIP_QUAD_SIZE = 0.2F;
 
+    /**
+     * Dew and rain no longer share the eave's colour. Both wore
+     * {@link WaterDripParticle}'s blue, so against falling rain the
+     * rain-foliage drops were invisible - "分不清" - and dew, which is not
+     * falling water at all, read as just more rain.
+     *
+     * <ul>
+     *   <li><b>DEW is white and half-transparent.</b> Dew is condensation
+     *       sitting on a leaf, not water falling out of the sky, and a pale
+     *       bead is what it looks like.</li>
+     *   <li><b>RAIN is a pale blue</b> - the eave's blue lifted toward white
+     *       ({@code 0.3/0.4/1.0} to {@code 0.55/0.75/1.0}), so it still says
+     *       water but no longer disappears into the rain falling behind it.</li>
+     * </ul>
+     *
+     * The eave's own drops keep their saturated blue: they hang against roofs
+     * and sky, not against a wall of falling rain, so they do not have this
+     * problem.
+     */
+    private static final float DEW_R = 1.0F;
+    private static final float DEW_G = 1.0F;
+    private static final float DEW_B = 1.0F;
+    /** Dew is the fainter of the two - it is a film, not a drop. */
+    private static final float DEW_ALPHA = 0.55F;
+    private static final float RAIN_R = 0.55F;
+    private static final float RAIN_G = 0.75F;
+    private static final float RAIN_B = 1.0F;
+    private static final float RAIN_ALPHA = 0.95F;
+
     private enum Phase {
         STATIC, SLIDE, FALL, EVAPORATE
     }
@@ -115,9 +144,11 @@ public class FoliageDripParticle extends SingleQuadParticle {
         // because the particle tints it. Without this the drop renders white,
         // which is exactly what the maintainer saw. Tint from the eave layer's
         // own constants so both layers wear the same colour.
-        this.setColor(WaterDripParticle.WATER_R,
-                WaterDripParticle.WATER_G,
-                WaterDripParticle.WATER_B);
+        // Default to the rain look. Vanilla's drip texture is GREYSCALE - it
+        // only ever looks like water because the particle tints it, so a drop
+        // that is never told which layer it belongs to renders white. That was
+        // the bug this replaced; the default is what stops it coming back.
+        this.setDew(false);
     }
 
     // ---- handler-driven behavior -------------------------------------------
@@ -183,6 +214,21 @@ public class FoliageDripParticle extends SingleQuadParticle {
         final float raw = Math.min(1.0F,
                 (float) (this.age - this.slideStart) / (float) Math.max(1, this.slideTicks));
         return raw * raw;
+    }
+
+    /**
+     * Which layer this drop belongs to - rain and dew wear different colours
+     * now (see the constants above). The handler knows which one it is making;
+     * the particle just wears it.
+     */
+    public void setDew(final boolean dew) {
+        if (dew) {
+            this.setColor(DEW_R, DEW_G, DEW_B);
+            this.alpha = DEW_ALPHA;
+        } else {
+            this.setColor(RAIN_R, RAIN_G, RAIN_B);
+            this.alpha = RAIN_ALPHA;
+        }
     }
 
     public boolean isStatic() {

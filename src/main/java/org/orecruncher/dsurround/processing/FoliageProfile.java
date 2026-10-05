@@ -80,6 +80,8 @@ public final class FoliageProfile {
 
     private static final int MAX_ANCHORS_PER_PLANE = 128;
     private static final int MAX_PATH_POINTS = 48;
+    /** How far a sliding path may lean sideways before it is cut off. */
+    private static final int MAX_PATH_DRIFT = 3;
     private static final float ALPHA_THRESHOLD = 8.0F;
 
     private final List<Plane> planes;
@@ -278,52 +280,37 @@ public final class FoliageProfile {
             return null;
         }
 
-        // Pixel-domain attachment points. Column tops (rule A - where water
-        // collects) and endpoints (rule B - blade tips). Pixels are kept
-        // alongside: the slide paths need a mask-space start.
+        // Column tops only - the top of each mask column is where water
+        // actually collects on a blade.
+        //
+        // Two things were wrong here and both showed up as "the bead is not
+        // on the plant": the old build added a SECOND anchor family -
+        // "endpoints", pixels with <= 1 opaque neighbour - and those are the
+        // whiskers at the corners of the sprite, where there is no texture
+        // around them at all (maintainer: "贴在草的左右上角没有纹理的地方").
+        // And a column top with nothing UNDER it is that same whisker, so a
+        // bead centred there hangs half off the blade and reads as floating.
+        // Both are gone: a perch has to be a pixel with blade below it.
         final List<int[]> topPixels = new ArrayList<>(mw);
         final List<float[]> topWeights = new ArrayList<>(mw);
         for (int px = 0; px < mw; px++) {
             for (int py = 0; py < mh; py++) {
                 if (!opaque[py * mw + px])
                     continue;
+                if (py + 1 >= mh || !opaque[(py + 1) * mw + px])
+                    continue;   // nothing under it - not a perch
                 topPixels.add(new int[] { px, py });
                 topWeights.add(new float[] {
                         (float) Math.pow(1.0F - py / (float) Math.max(1, mh - 1), 1.5) + 0.1F });
                 break;
             }
         }
-        final List<int[]> tipPixels = new ArrayList<>();
-        for (int py = 0; py < mh; py++) {
-            for (int px = 0; px < mw; px++) {
-                if (!opaque[py * mw + px])
-                    continue;
-                int nb = 0;
-                for (int dy = -1; dy <= 1 && nb <= 1; dy++) {
-                    for (int dx = -1; dx <= 1; dx++) {
-                        if (dx == 0 && dy == 0)
-                            continue;
-                        final int nx = px + dx, ny = py + dy;
-                        if (nx < 0 || ny < 0 || nx >= mw || ny >= mh)
-                            continue;
-                        if (opaque[ny * mw + nx])
-                            nb++;
-                    }
-                }
-                if (nb <= 1)
-                    tipPixels.add(new int[] { px, py });
-            }
-        }
 
-        final List<Anchor> anchors = new ArrayList<>(topPixels.size() + tipPixels.size());
+        final List<Anchor> anchors = new ArrayList<>(topPixels.size());
         for (int i = 0; i < topPixels.size(); i++) {
             final int[] p = topPixels.get(i);
             mapper.map(p[0], p[1], mapped);
             anchors.add(new Anchor(planeIndex, mapped[0], mapped[1], mapped[2], topWeights.get(i)[0]));
-        }
-        for (final int[] p : tipPixels) {
-            mapper.map(p[0], p[1], mapped);
-            anchors.add(new Anchor(planeIndex, mapped[0], mapped[1], mapped[2], 0.5F));
         }
         anchors.sort((x, y) -> Float.compare(y.weight(), x.weight()));
         final List<Anchor> capped = anchors.size() > MAX_ANCHORS_PER_PLANE
@@ -419,9 +406,23 @@ public final class FoliageProfile {
     }
 
     /**
-     * Constrained descent: from the column top, repeatedly step to the
-     * 8-neighbor opaque pixel with the LARGEST y (ties: smallest |dx|), never
-     * leaving the mask - the path hugs the blade and can never cross a gap.
+     * The path a sliding drop takes down the blade: from a column top, step
+     * DOWNWARD only, straight down when the blade allows and diagonally when
+     * it slants, and stop when the blade runs out.
+     *
+     * <p>The previous version also allowed a pure LATERAL step ({@code dy == 0})
+     * and scored candidates mostly by {@code ny}, which produced the
+     * grasshopper the maintainer saw: once a drop reached the wide bottom of
+     * a grass sprite - where nothing is below it any more - it walked
+     * sideways along the row, and because the tie-break always preferred the
+     * same direction it crossed the whole texture and then slid down the far
+     * side, at 45 degrees and at constant speed.</p>
+     *
+     * <p>A drop runs DOWN a blade; it never crawls along a row of pixels. So:
+     * downward neighbours only, straight down preferred, and the sideways
+     * drift is capped - a slanted blade may lean, but it cannot walk the drop
+     * off the side of the leaf. When nothing is below, the path simply ends
+     * and the drop lets go, which is what a real drop does at a leaf tip.</p>
      */
     private static List<int[]> descend(final boolean[] opaque, final int mw, final int mh, final int startPx) {
         int x = startPx;
@@ -436,34 +437,41 @@ public final class FoliageProfile {
             return null;
         final List<int[]> path = new ArrayList<>();
         path.add(new int[] { x, y });
+        int drift = 0;
         while (path.size() < MAX_PATH_POINTS) {
-            int bestDx = 0, bestDy = 0;
-            int bestScore = -1;
-            for (int dy = 1; dy >= 0; dy--) {
-                for (int dx = -1; dx <= 1; dx++) {
-                    if (dy == 0 && dx == 0)
+            int bestDx = 0;
+            boolean found;
+            if (y + 1 < mh && opaque[(y + 1) * mw + x]) {
+                // Straight down wins outright - no lean at all.
+                bestDx = 0;
+                found = true;
+            } else {
+                // Otherwise a diagonal step: take the one that keeps the
+                // accumulated drift smallest, so the path hugs the blade
+                // instead of committing to one side and walking off it.
+                found = false;
+                int bestAbs = Integer.MAX_VALUE;
+                for (int dx = -1; dx <= 1; dx += 2) {
+                    final int nx = x + dx;
+                    if (nx < 0 || nx >= mw || y + 1 >= mh)
                         continue;
-                    final int nx = x + dx, ny = y + dy;
-                    if (nx < 0 || ny < 0 || nx >= mw || ny >= mh)
+                    if (!opaque[(y + 1) * mw + nx])
                         continue;
-                    if (!opaque[ny * mw + nx])
-                        continue;
-                    // Prefer larger ny; ties prefer straighter steps. A pure
-                    // lateral step only wins when nothing below is opaque.
-                    final int score = ny * 4 - Math.abs(dx) + (dy == 1 ? 1 : 0);
-                    if (score > bestScore) {
-                        bestScore = score;
+                    final int abs = Math.abs(drift + dx);
+                    if (abs < bestAbs) {
+                        bestAbs = abs;
                         bestDx = dx;
-                        bestDy = dy;
+                        found = true;
                     }
                 }
-                if (bestDy == 1)
-                    break;   // a downward step beats any lateral one
             }
-            if (bestScore < 0 || (bestDx == 0 && bestDy == 0))
+            if (!found)
+                break;   // ran off the bottom of the blade - the drop lets go
+            if (Math.abs(drift + bestDx) > MAX_PATH_DRIFT)
                 break;
             x += bestDx;
-            y += bestDy;
+            y++;
+            drift += bestDx;
             path.add(new int[] { x, y });
         }
         return path.size() >= 3 ? path : null;

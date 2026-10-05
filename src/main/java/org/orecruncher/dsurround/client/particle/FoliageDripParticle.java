@@ -68,10 +68,23 @@ public class FoliageDripParticle extends TextureSheetParticle {
         landListener = listener;
     }
 
+    /**
+     * VANILLA'S OWN drip sprite, not a custom one. The hand-made dew_drop
+     * texture read as a grain of sugar / a snowball at droplet scale - too
+     * bright, too round, and far too detailed for a 1-pixel bead against
+     * Minecraft's 16x16 blocks. The eave layer has always used
+     * {@code minecraft:drip_hang} and it is the right look here too.
+     */
     static final ResourceLocation DEW_SPRITE =
-            ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "dew_drop");
+            ResourceLocation.fromNamespaceAndPath("minecraft", "drip_hang");
     static final ResourceLocation FALL_SPRITE =
             ResourceLocation.fromNamespaceAndPath("minecraft", "drip_fall");
+
+    /**
+     * The size vanilla's hanging drip renders at (WaterDripParticle's
+     * quadSize base: {@code VANILLA_QUAD_SIZE * 2 * WIDTH_SCALE}).
+     */
+    private static final float VANILLA_DRIP_QUAD_SIZE = 0.2F;
 
     private enum Phase {
         STATIC, SLIDE, FALL, EVAPORATE
@@ -105,8 +118,15 @@ public class FoliageDripParticle extends TextureSheetParticle {
         this.hasPhysics = true;
         this.gravity = 0.0F;
         this.lifetime = 24000;   // managed by the phases; nothing times out silently
+        // The eave drop's own size rule, copied from WaterDripParticle:
+        // a sizeScale of 0 (or less) means "take vanilla's variance"
+        // (0.5..1.0), a positive one pins the size exactly. The eave layer
+        // passes 0 so every drop differs - the maintainer asked for the same
+        // roll here, and a row of beads all cut to one size is exactly the
+        // plastic look the custom texture already had.
         final float scale = (float) (sizeScale > 0.0D ? sizeScale : 1.0D);
-        this.baseSize = 0.09F * scale;
+        final float variance = sizeScale > 0.0D ? 1.0F : (this.random.nextFloat() * 0.5F + 0.5F);
+        this.baseSize = VANILLA_DRIP_QUAD_SIZE * scale * variance;
         this.quadSize = this.baseSize;
         this.setSize(0.02F, 0.02F);
         this.fallSprite = ParticleUtils.getSprite(FALL_SPRITE);
@@ -178,6 +198,18 @@ public class FoliageDripParticle extends TextureSheetParticle {
         return this.phase == Phase.STATIC;
     }
 
+    /**
+     * How far along the slide path the drop is, 0..1 - EASED, so the drop
+     * starts slow and accelerates: a drop let go from rest covers distance as
+     * t^2, and a linear ramp was half of the "grasshopper" the maintainer
+     * saw. Constant speed reads as a bead dragged along a wire, no weight.
+     */
+    private float slideProgress() {
+        final float raw = Math.min(1.0F,
+                (float) (this.age - this.slideStart) / (float) Math.max(1, this.slideTicks));
+        return raw * raw;
+    }
+
     /** 1.20.1's Particle exposes {@code removed} as a field; this is the predicate form. */
     public boolean isRemoved() {
         return this.removed;
@@ -199,7 +231,7 @@ public class FoliageDripParticle extends TextureSheetParticle {
             }
             case SLIDE -> {
                 final int segs = this.pathLen / 3 - 1;
-                final float t = Math.min(1.0F, (float) (this.age - this.slideStart) / (float) this.slideTicks);
+                final float t = this.slideProgress();
                 final float f = t * segs;
                 final int i = Math.min(segs - 1, (int) f);
                 final float frac = f - i;
@@ -268,7 +300,7 @@ public class FoliageDripParticle extends TextureSheetParticle {
         float su = 1.0F, sv = 1.0F;
         if (this.phase == Phase.SLIDE && this.pathLen >= 6) {
             final int segs = this.pathLen / 3 - 1;
-            final float t = Math.min(1.0F, (float) (this.age - this.slideStart) / (float) this.slideTicks);
+            final float t = this.slideProgress();
             final int i = Math.min(segs - 1, (int) (t * segs));
             final float dx = this.pathPts[i * 3 + 3] - this.pathPts[i * 3];
             final float dy = this.pathPts[i * 3 + 4] - this.pathPts[i * 3 + 1];

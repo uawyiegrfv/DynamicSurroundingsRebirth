@@ -72,11 +72,20 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     /** A dropper's rest on the blade before letting go, in ticks. */
     private static final int REST_MIN_TICKS = 10;
     private static final int REST_MAX_TICKS = 20;
-    /** Drop size: the eave drop's range, pulled smaller. */
-    private static final float SIZE_MIN = 0.5F;
-    private static final float SIZE_SPAN = 0.2F;
-    /** How far a drop hangs off its plane, toward the viewer side. */
-    private static final double NORMAL_OFFSET = 0.04D;
+    /**
+     * Drop size. Left at 0 so the particle takes vanilla's own variance
+     * (0.5..1.0 of the vanilla drip quad) - the maintainer asked for the
+     * eave layer's size roll, and a hand-picked range here only pins every
+     * drop to one look again.
+     */
+    private static final float SIZE_MIN = 0.0F;
+    /**
+     * How far a drop hangs off its plane, toward the viewer side. Just enough
+     * to win the depth test against the leaf it sits on - at 0.04 it was
+     * nearly a pixel of pure air, and on a blade one or two pixels wide that
+     * reads as the bead floating in front of the plant rather than on it.
+     */
+    private static final double NORMAL_OFFSET = 0.012D;
     /** Spot lifetime - the pool rotation the eave layer tuned. */
     private static final int SPOT_LIFETIME_MIN_TICKS = 600;
     private static final int SPOT_LIFETIME_SPAN_TICKS = 900;
@@ -401,7 +410,10 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         float uz = vx * ny - vy * nx;
 
         final boolean slider = this.random.nextFloat() < SLIDE_CHANCE && spot.plane.paths().length > 0;
-        final double sizeScale = SIZE_MIN + this.random.nextDouble() * SIZE_SPAN;
+        // 0 = let the particle take vanilla's own size variance (0.5..1.0),
+        // exactly the roll the eave layer's drops get. Pinning a size here
+        // is what WaterDripParticle calls out as wrong for the main path.
+        final double sizeScale = SIZE_MIN;
         final int rest = slider ? 0 : REST_MIN_TICKS + this.random.nextInt(REST_MAX_TICKS - REST_MIN_TICKS + 1);
 
         final Particle particle = ((MixinParticleManager) pm).dsurround_createParticle(

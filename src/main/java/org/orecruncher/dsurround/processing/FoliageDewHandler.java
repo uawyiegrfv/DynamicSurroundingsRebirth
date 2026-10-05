@@ -86,8 +86,13 @@ public class FoliageDewHandler extends AbstractClientHandler {
     private static final float ROLL_SLIDE = 0.10F;
     /** Drops per plant cap (fifth-round ruling). */
     private static final int MAX_DROPS_PER_PLANT = 3;
-    /** Bead size: smaller and quieter than rain. */
-    private static final float DEW_SIZE_SCALE = 0.4F;
+    /**
+     * Bead size: 0, so the particle rolls vanilla's own variance (0.5..1.0 of
+     * the vanilla drip quad) - the same roll the eave layer uses. Dew is
+     * already separated from rain by how many beads there are and by the
+     * window, not by every bead being cut to one small size.
+     */
+    private static final float DEW_SIZE_SCALE = 0.0F;
     /** Dew slides are unhurried. */
     private static final float SLIDE_SPEED = 0.5F;
     /** The window's tail: beads shrink out over this. */
@@ -108,8 +113,12 @@ public class FoliageDewHandler extends AbstractClientHandler {
             ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "weather/drip/ground_small");
     private static final ResourceLocation LANDING_WATER =
             ResourceLocation.fromNamespaceAndPath("minecraft", "block.pointed_dripstone.drip_water_into_cauldron");
-    /** Drop hang off the plane, toward the viewer. */
-    private static final double NORMAL_OFFSET = 0.04D;
+    /**
+     * Drop hang off the plane, toward the viewer. Only enough to win the depth
+     * test against the leaf - at 0.04 it was nearly a pixel of air and the
+     * beads read as floating in front of the plant instead of sitting on it.
+     */
+    private static final double NORMAL_OFFSET = 0.012D;
     /** Diagnostics cadence - one status line per 5s, not per tick. */
     private static final int DIAG_INTERVAL_TICKS = 100;
 

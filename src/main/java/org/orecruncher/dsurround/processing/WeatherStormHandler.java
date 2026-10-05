@@ -28,6 +28,8 @@ import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.config.libraries.ITagLibrary;
 import org.orecruncher.dsurround.processing.weather.PrecipitationRenderer;
+import org.orecruncher.dsurround.processing.weather.WindField;
+
 import org.orecruncher.dsurround.mixinutils.IBiomeExtended;
 import org.orecruncher.dsurround.tags.BiomeTags;
 
@@ -158,6 +160,15 @@ public class WeatherStormHandler extends AbstractClientHandler {
      */
     private static final float DUST_DRIFT_MIN = 0.05F;
     private static final float DUST_DRIFT_RANGE = 0.35F;
+    /** 沙尘幕的倾斜增益（对应 PrecipitationRenderer 里的 SNOW_TILT_GAIN）。 */
+    private static final float DUST_TILT_GAIN = 0.03F;
+    /** tan(倾角) 的硬上限，0.36 约 20 度。 */
+    private static final float DUST_MAX_TILT_TAN = 0.36F;
+    /** 沙尘的下落速度（格/tick）：d8 每 tick 走 1/512 个 v，1 v = 4 格。
+     *  沙尘几乎不下落，物理上按这个值算倾角会直接斜成水平，所以增益和
+     *  上限都得靠 DUST_TILT_GAIN / DUST_MAX_TILT_TAN 定标。 */
+    private static final float DUST_FALL_SPEED_BPT = 1F / 128F;
+
 
 
     private float veilR = 0.85F;
@@ -507,6 +518,9 @@ public class WeatherStormHandler extends AbstractClientHandler {
         final float drift = DUST_DRIFT_MIN + DUST_DRIFT_RANGE * veilNow;
         final float widthScale = VEIL_WIDTH_MIN + VEIL_WIDTH_RANGE * veilNow;
         final float veilDensity = Math.max(veilNow, VEIL_MIN_DENSITY);
+        // WIND：沙尘幕没有自己的降水事件，阵风项传 0，只按幕的强度给风。
+        WindField.update(ticks, partialTick, veilNow, 0F);
+
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -586,6 +600,22 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 // Density channel two: how wide each sheet is.
                 float rainX = RAIN_X_COORDS[coordIdx] * widthScale;
                 float rainY = RAIN_Y_COORDS[coordIdx] * widthScale;
+                // ---- WIND：这一幕的倾斜量 Δu（加在顶顶点上） ----
+                // 同 PrecipitationRenderer：切向用相机连续坐标，不用
+                // RAIN_X_COORDS 的整数方块查表（R1）。
+                final float dustCx = (float) (gridX + 0.5 - cam.x);
+                final float dustCz = (float) (gridZ + 0.5 - cam.z);
+                // 条带实际宽度（格）= 2 x |(rainX, rainY)|
+                final float dustStripWidth = 2F * Mth.sqrt(rainX * rainX + rainY * rainY);
+                final float dustTan = dustStripWidth > 0.0001F
+                        ? Mth.clamp(DUST_TILT_GAIN * WindField.tangential(dustCx, dustCz)
+                                / DUST_FALL_SPEED_BPT, -DUST_MAX_TILT_TAN, DUST_MAX_TILT_TAN)
+                                * WindField.SLANT_SIGN
+                        : 0F;
+                final float slantU = dustStripWidth > 0.0001F
+                        ? (l2 - k2) * dustTan / dustStripWidth
+                        : 0F;
+
                 // 1.12.2 StormRenderer dust curtain: SLOW scroll (512-tick loop) plus
                 // per-column UV shear - each column drifts sideways at its own gaussian
                 // rate, reading as multi-angle particle curtains.
@@ -644,8 +674,8 @@ public class WeatherStormHandler extends AbstractClientHandler {
 
                 buffer.vertex(x0, y0, z0).uv((float) d9, v0 + (float) d10).color(cr, cg, cb, alphaInt).uv2(slX16, blX16).endVertex();
                 buffer.vertex(x1, y0, z1).uv(1F + (float) d9, v0 + (float) d10).color(cr, cg, cb, alphaInt).uv2(slX16, blX16).endVertex();
-                buffer.vertex(x1, y1, z1).uv(1F + (float) d9, v1 + (float) d10).color(cr, cg, cb, alphaInt).uv2(slX16, blX16).endVertex();
-                buffer.vertex(x0, y1, z0).uv((float) d9, v1 + (float) d10).color(cr, cg, cb, alphaInt).uv2(slX16, blX16).endVertex();
+                buffer.vertex(x1, y1, z1).uv(1F + (float) d9 + slantU, v1 + (float) d10).color(cr, cg, cb, alphaInt).uv2(slX16, blX16).endVertex();
+                buffer.vertex(x0, y1, z0).uv((float) d9 + slantU, v1 + (float) d10).color(cr, cg, cb, alphaInt).uv2(slX16, blX16).endVertex();
             }
         }
 

@@ -97,4 +97,18 @@ public interface IWeatherVariables {
      * @return true if the current temperature allows water freezing, false otherwise.
      */
     boolean canWaterFreeze();
+
+    /**
+     * 当前风向，弧度。0 = +X，朝 +Z 旋转，风矢量 = (cos a, sin a)。
+     *
+     * @return 风向，弧度
+     */
+    float getWindDirection();
+
+    /**
+     * 当前风速，格/秒。
+     *
+     * @return 风速，格/秒
+     */
+    float getWindSpeed();
 }

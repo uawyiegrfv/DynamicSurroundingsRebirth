@@ -72,6 +72,15 @@ public abstract class MixinFogRendererWeatherColor {
      * the call returns vanilla's thunder level untouched, and the redirect is
      * {@code require = 0}, so a mapping change degrades to vanilla rather than
      * failing at startup.</p>
+     *
+     * <p>The level it feeds is <b>not</b> plain {@code stormRainLevel}: STORM
+     * is ATMOSPHERE^4, so at anything short of a real thunderstorm it sits
+     * near zero and this pass contributes nothing - bright biome fog times the
+     * rain pass alone, which is the "rain paints everything white" reading. It
+     * now takes the larger of that and
+     * {@link PrecipitationIntensity#fogColorStormLevel}, an intensity curve of
+     * its own, so heavy rain grades in long before it thunders and still tops
+     * out at vanilla's own storm darkness.</p>
      */
     @Redirect(
             method = "setupColor",
@@ -79,7 +88,7 @@ public abstract class MixinFogRendererWeatherColor {
                      target = "Lnet/minecraft/client/multiplayer/ClientLevel;getThunderLevel(F)F"),
             require = 0)
     private static float dsurround_fogColorThunderLevel(ClientLevel level, float partialTick) {
-        return PrecipitationIntensity.stormRainLevel(level, partialTick);
+        return PrecipitationIntensity.fogColorStormLevel(level, partialTick);
     }
 
     // ---- the overcast grey on the final fog colour ---------------------------

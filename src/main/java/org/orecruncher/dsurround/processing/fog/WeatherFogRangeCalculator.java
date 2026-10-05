@@ -8,7 +8,12 @@ import org.orecruncher.dsurround.lib.GameUtils;
 public class WeatherFogRangeCalculator extends VanillaFogRangeCalculator {
 
 
-    protected static final float START_IMPACT = 0.9F;
+    /** 雨雾把近平面推到多近。0.9 时近平面停在约 17 格处，于是 20 格以内
+     * 完全没有雾 —— 维护者要的"雨雾那种湿润感"就是在这一段。
+     * 0.95 把它拉到约 8.6 格，近处立刻有雾。
+     * 注意它只影响"雨雾"那一份（start 是朝 targetStart 按 rainStr 插值的），
+     * 小雨时 rainStr 小、start 仍贴近原值，不会被波及。 */
+    protected static final float START_IMPACT = 0.95F;
     protected static final float END_IMPACT = 0.4F;
     // Cap the rain fog so it stays close to the player (the render-distance basis alone
     // would push it out to ~154 blocks at 16 render distance, noticeably farther than vanilla).
@@ -16,32 +21,38 @@ public class WeatherFogRangeCalculator extends VanillaFogRangeCalculator {
 
     /**
      * Floor for the rain fog's FAR plane, as a fraction of the clear (vanilla)
-     * far plane. At 0.8 heavy weather keeps 80% of the render distance - 154
-     * blocks at the usual 12 chunks - however heavy it gets.
+     * far plane. <b>This is the trade knob: smaller = thicker, wetter fog near
+     * the player; larger = thinner fog and less of the cloud layer sitting
+     * inside it.</b>
      *
-     * <p>The white-clouds report is this number's fault, not the cloud colour's.
-     * {@code rendertype_clouds} ends with {@code linear_fog}, and at or past
-     * FogEnd that swaps the fragment for the fog colour outright. The cloud
-     * sheet's near edge is about 64 blocks above a sea-level eye (cloudHeight
-     * is 128 in {@code assets/dsurround/dsconfigs/dimensions.json}) and it runs
-     * out to the render distance horizontally, so every visible piece of cloud
-     * sat beyond a far plane of MAX_RAIN_FOG_END = 96 and got replaced
-     * wholesale.</p>
+     * <p>Guard first, clamp second - the far plane is
+     * {@code max(clearEnd * this, min(clearEnd * (1 - END_IMPACT), MAX_RAIN_FOG_END / density))}.
+     * The inner term can never exceed {@code clearEnd * 0.6}, so anything
+     * above 0.6 makes the guard the ONLY thing deciding the far plane and both
+     * END_IMPACT and MAX_RAIN_FOG_END go dead. 0.8 did exactly that: at 12
+     * chunks it moved the far plane from 96 to 153.6 blocks and, because fog
+     * opacity is {@code (d - start) / (end - start)}, dropped the near-field
+     * density by roughly 40% - the "no fog anywhere near me, no wet" report.
+     * 0.55 puts it at 105.6, within 10% of where it was before the guard
+     * existed, so the thickness comes back.</p>
      *
-     * <p>Vanilla never moves the fog distance for rain - its terrain far plane
-     * IS the render distance - so this one is ours and ours alone to answer
-     * for. It is a look trade, not a bug in someone else's arithmetic: this
-     * clamps how close the far plane may come, MAX_RAIN_FOG_END no longer
-     * binds at ordinary settings, and rain therefore loses some of its "wet".
-     * Compensate with START_IMPACT (the near plane is where thickness lives)
-     * and with the storm darkening of plan B - not by putting this back.</p>
+     * <p>The "below about 0.5 the low clouds start being swallowed again" that
+     * used to sit here was built on the cloud pass reading the TERRAIN range.
+     * It does not. {@code LevelRenderer.renderLevel} calls
+     * {@code setupFog(FOG_SKY, renderDistance, ...)} before {@code renderSky},
+     * and {@code renderClouds} then only re-reads the fog COLOUR
+     * ({@code FogRenderer.levelFogColor()}) - the range the cloud shader sees is
+     * the sky's, 0..render distance, and all three versions gate the weather
+     * fog on the terrain/atmospheric pass, so this number never reaches it.
+     * Which means going below 0.5 is safe as far as the cloud sheet goes, and
+     * "the clouds look white" is a fog-COLOUR question - answered by
+     * {@code PrecipitationIntensity.fogColorStormLevel}, not by this.</p>
      *
      * <p>Expressed as a fraction rather than in blocks so it scales with the
      * render distance: an absolute floor would cancel the rain fog entirely at
-     * low render distances. 1.0 = the far plane never moves (vanilla); below
-     * about 0.5 the low clouds start being swallowed again.</p>
+     * low render distances. 1.0 = the far plane never moves (vanilla).</p>
      */
-    protected static final float CLOUD_GUARD_END_FRACTION = 0.8F;
+    protected static final float CLOUD_GUARD_END_FRACTION = 0.55F;
 
     /**
      * How close to the player the after-rain haze may reach, in blocks. Larger

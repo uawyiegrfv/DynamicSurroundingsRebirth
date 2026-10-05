@@ -201,7 +201,17 @@ public final class FoliageProfile {
             return null;
         }
         final float d1x = c[3] - c[0], d1y = c[4] - c[1], d1z = c[5] - c[2];
-        final float d2x = c[9] - c[0], d2y = c[10] - c[1], d2z = c[11] - c[2];
+        // VERTEX 2, not vertex 3 - and this is the bug that made the whole
+        // feature produce nothing. Vanilla bakes a quad's corners in the order
+        // (top-right, bottom-right, bottom-left, top-left) - see FaceInfo -
+        // so v0->v1 is an EDGE and v0->v2 is the DIAGONAL. e2 above is the
+        // v0->v2 UV delta, so the geometric vector it pairs with has to be
+        // v0->v2 as well. Pairing the v0->v3 edge with the v0->v2 UV diagonal
+        // maps every mask pixel onto the wrong axis: the parallelogram check
+        // below fails by a full quad width, EVERY plane is dropped, and the
+        // profile comes back empty - no anchors, no drops, no dew, and
+        // nothing in the log to say why.
+        final float d2x = c[6] - c[0], d2y = c[7] - c[1], d2z = c[8] - c[2];
 
         // Parallelogram check against the fourth corner.
         {

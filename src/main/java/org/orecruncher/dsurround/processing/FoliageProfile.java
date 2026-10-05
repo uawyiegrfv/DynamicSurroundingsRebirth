@@ -438,6 +438,7 @@ public final class FoliageProfile {
         final List<int[]> path = new ArrayList<>();
         path.add(new int[] { x, y });
         int drift = 0;
+        int lastDx = 0;
         while (path.size() < MAX_PATH_POINTS) {
             int bestDx = 0;
             boolean found;
@@ -446,23 +447,22 @@ public final class FoliageProfile {
                 bestDx = 0;
                 found = true;
             } else {
-                // Otherwise a diagonal step: take the one that keeps the
-                // accumulated drift smallest, so the path hugs the blade
-                // instead of committing to one side and walking off it.
+                // A diagonal step - and once leaning one way, KEEP leaning
+                // that way. Re-picking the side every step by "smallest drift"
+                // walks the path left, right, left: the zig-zag the maintainer
+                // called a bug in the grass. A blade is slanted, so the drop
+                // rides that slant all the way down instead of oscillating.
                 found = false;
-                int bestAbs = Integer.MAX_VALUE;
-                for (int dx = -1; dx <= 1; dx += 2) {
+                final int first = lastDx != 0 ? lastDx : -1;
+                for (int k = 0; k < 2 && !found; k++) {
+                    final int dx = k == 0 ? first : -first;
                     final int nx = x + dx;
                     if (nx < 0 || nx >= mw || y + 1 >= mh)
                         continue;
                     if (!opaque[(y + 1) * mw + nx])
                         continue;
-                    final int abs = Math.abs(drift + dx);
-                    if (abs < bestAbs) {
-                        bestAbs = abs;
-                        bestDx = dx;
-                        found = true;
-                    }
+                    bestDx = dx;
+                    found = true;
                 }
             }
             if (!found)
@@ -472,6 +472,7 @@ public final class FoliageProfile {
             x += bestDx;
             y++;
             drift += bestDx;
+            lastDx = bestDx;
             path.add(new int[] { x, y });
         }
         return path.size() >= 3 ? path : null;

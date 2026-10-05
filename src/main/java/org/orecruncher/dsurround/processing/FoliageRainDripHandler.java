@@ -67,8 +67,14 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     private static final int COOLDOWN_STORM_TICKS = 4;
     /** Fate odds at spawn (sixth-round ruling: slide-first). */
     private static final float SLIDE_CHANCE = 0.80F;
-    /** Slider speed, blocks per second - rain is the hurried one. */
-    private static final float SLIDE_SPEED = 1.2F;
+    /**
+     * Slider speed, blocks per second. Deliberately slow: the eave layer's
+     * drop hangs for {@code HANG_TICKS = 40} before it even lets go, so a
+     * blade-scale slide that finished in 8 ticks read as teleporting - the
+     * "飞速" half of the complaint. At 0.25 a typical ~0.5 block blade path
+     * takes ~40 ticks, the same two seconds the eave drop hangs.
+     */
+    private static final float SLIDE_SPEED = 0.25F;
     /** A dropper's rest on the blade before letting go, in ticks. */
     private static final int REST_MIN_TICKS = 10;
     private static final int REST_MAX_TICKS = 20;

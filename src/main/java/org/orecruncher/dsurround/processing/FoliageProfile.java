@@ -419,6 +419,12 @@ public final class FoliageProfile {
                 break;   // ran off the bottom of the blade - the drop lets go
             if (Math.abs(drift + bestDx) > MAX_PATH_DRIFT)
                 break;
+            // Stop a row short of the bottom. The last row of the sprite is the
+            // base of the plant, which sits IN the ground block - and a bead
+            // that slides into that block takes its light from inside it, so
+            // it renders BLACK for the moment before it dries up.
+            if (y + 1 >= mh - 1)
+                break;
             x += bestDx;
             y++;
             drift += bestDx;

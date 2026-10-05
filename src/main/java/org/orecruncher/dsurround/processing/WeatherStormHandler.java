@@ -563,7 +563,11 @@ public class WeatherStormHandler extends AbstractClientHandler {
         // both sides of the comparison must read the same instant.
         final float vanillaThunder = level.getThunderLevel(1F);
         final float vanillaPlain = Math.max(0F, level.getRainLevel(1F) - vanillaThunder);
-        final float ourThunder = PrecipitationIntensity.stormRainLevel(level, 1F);
+        // Storm layer: fogColorStormLevel, not stormRainLevel. Plain
+        // stormRainLevel is ATMOSPHERE^4 and contributes ~nothing short of a
+        // real thunderstorm, which left mid-strength rain on the rain layer
+        // alone. Same value 1.20.1/1.21.1 feed setupColor's thunder pass.
+        final float ourThunder = PrecipitationIntensity.fogColorStormLevel(level, 1F);
         final float ourFog = PrecipitationIntensity.fogColorRainLevel(level, 1F);
         // Plan B (2026-10-05): while we own the weather our rain layer carries
         // the WHOLE graded level and our storm layer rides on top of it - the

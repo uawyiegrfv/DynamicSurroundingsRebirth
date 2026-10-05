@@ -3,6 +3,7 @@ package org.orecruncher.dsurround.processing.weather;
 import net.minecraft.util.Mth;
 import org.orecruncher.dsurround.config.BiomeTrait;
 import org.orecruncher.dsurround.config.biome.biometraits.BiomeTraits;
+import org.orecruncher.dsurround.processing.PrecipitationIntensity;
 
 /**
  * WIND：全模组唯一的水平风来源 —— 风向 + 风速。
@@ -40,12 +41,13 @@ import org.orecruncher.dsurround.config.biome.biometraits.BiomeTraits;
  * <pre>
  *   bps = (WIND_SPEED_MIN_BPS
  *        + WIND_SPEED_RANGE_BPS * strength
- *        + WIND_GUST_SPEED_BPS * gustAmplitude * strength) * biomeScale
+ *        + WIND_GUST_SPEED_BPS * gustAmplitude * strength) * biomeScale * seasonScale
  * </pre>
  *
- * <p>{@code biomeScale} 是群系风力系数，见 {@link #biomeScale}。strength 和
- * gustAmplitude 都不带群系信息（gustiness 是每场事件摇出来的 0.5~1.5），
- * 没有这一项的话全世界任何群系的风都一样大。</p>
+ * <p>{@code biomeScale} 是群系风力系数，{@code seasonScale} 是季节风力系数
+ * （见 {@link #seasonScale()}）。strength 和 gustAmplitude 都不带群系信息、
+ * 也不带季节信息（gustiness 是每场事件摇出来的 0.5~1.5），没有这两项的话全
+ * 世界任何地方一年四季的风都一样大。</p>
  *
  * <p>{@code strength} 是分级降水强度，离散阵风（squall）的大小已经折进
  * 去了 —— 一阵狂风在这里的表现就是风变急，而本类不需要知道 squall 存在。
@@ -114,6 +116,37 @@ public final class WindField {
             0.75F,
     };
 
+    // ================= 季节风力系数（让不同季节的风不一样大） =================
+    //
+    // 与上面的群系表并列的第二张倍率表，道理与群系那一维完全相同：strength
+    // 和 gustAmplitude 都不带季节信息，不补这一维的话一年四季风都一样大。
+    //
+    // 取值理由（真实气象里冬天的平均风速明显高于夏天，因为驱动天气系统的南北
+    // 温差冬季最大）：
+    //   冬季 —— 冷空气活动最频繁，取最强；
+    //   秋季 —— 锋面过渡季，阵性大风多，次强；
+    //   春季 —— 冷暖交替，取常年平均，作基准 1.0；
+    //   夏季 —— 以热力对流为主，平均风速最低；
+    //   热带湿季 —— 季风/辐合带带来的持续性大风，略高于 1.0；
+    //   热带干季 —— 只有平稳的哈德利信风，极少阵性大风，低于 1.0；
+    //   无季节信息（VANILLA 或没有季节模组）—— 1.0，不修正。
+    //
+    // 调这张表就改下面这几个常量，别的地方都不用动。WindField.java 三版逐字
+    // 相同，改这里等于三版同时改。
+
+    /** 冬季：冷空气活动频繁，风速常年偏高的季节。 */
+    private static final float WIND_SEASON_SCALE_WINTER = 1.20F;
+    /** 秋季：锋面过渡季，阵性大风多。 */
+    private static final float WIND_SEASON_SCALE_AUTUMN = 1.15F;
+    /** 春季：冷暖交替，基准。 */
+    private static final float WIND_SEASON_SCALE_SPRING = 1.00F;
+    /** 夏季：热力对流为主，平均风速最低。 */
+    private static final float WIND_SEASON_SCALE_SUMMER = 0.90F;
+    /** 热带湿季：季风带来持续性大风。 */
+    private static final float WIND_SEASON_SCALE_TROPICAL_WET = 1.10F;
+    /** 热带干季：平稳信风，少阵风。 */
+    private static final float WIND_SEASON_SCALE_TROPICAL_DRY = 0.95F;
+
     // ================================================================
 
     private static final double TWO_PI = Math.PI * 2D;
@@ -162,12 +195,16 @@ public final class WindField {
 
     /**
      * 风速，格/秒。纯函数。
+     *
+     * <p>季节倍率在这里乘进去 —— 和群系倍率一样走同一条路，所以任何问本类的
+     * 调用方（渲染、沙尘、脚本变量集、风声层）拿到的都是同一阵风，不需要各自
+     * 补一次季节修正。</p>
      */
     public static float speedAt(float strength, float gustAmplitude, float biomeScale) {
         final float s = Mth.clamp(strength, 0F, 1F);
         final float g = Mth.clamp(gustAmplitude, 0F, 1F);
         final float b = biomeScale > 0F ? biomeScale : 1F;
-        return (WIND_SPEED_MIN_BPS + WIND_SPEED_RANGE_BPS * s + WIND_GUST_SPEED_BPS * g * s) * b;
+        return (WIND_SPEED_MIN_BPS + WIND_SPEED_RANGE_BPS * s + WIND_GUST_SPEED_BPS * g * s) * b * seasonScale();
     }
 
     /**
@@ -195,6 +232,33 @@ public final class WindField {
             }
         }
         return result;
+    }
+
+    /**
+     * 当前 {@code PrecipitationIntensity} 正在用的那一列的季节风力倍率。
+     * 1.0 = 不修正（没有季节模组，或 VANILLA 列）。
+     */
+    public static float seasonScale() {
+        return seasonScale(PrecipitationIntensity.season());
+    }
+
+    /**
+     * 某个季节的风力倍率，1.0 = 不修正。
+     *
+     * <p>{@code null}（季节系统还没给出答案）和 VANILLA 都返回 1.0。</p>
+     */
+    public static float seasonScale(final PrecipitationSeason season) {
+        if (season == null)
+            return 1F;
+        return switch (season) {
+            case WINTER -> WIND_SEASON_SCALE_WINTER;
+            case AUTUMN -> WIND_SEASON_SCALE_AUTUMN;
+            case SPRING -> WIND_SEASON_SCALE_SPRING;
+            case SUMMER -> WIND_SEASON_SCALE_SUMMER;
+            case TROPICAL_WET -> WIND_SEASON_SCALE_TROPICAL_WET;
+            case TROPICAL_DRY -> WIND_SEASON_SCALE_TROPICAL_DRY;
+            case VANILLA -> 1F;
+        };
     }
 
     /** 缓存的风向，弧度。 */

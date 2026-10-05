@@ -899,7 +899,11 @@ public class DripHandler {
      */
     private void spawnDrop(final Level world, final DripScanner.DripPoint point,
                            final double x, final double y, final double z) {
-        this.spawnDrop(world, point, x, y, z, 1.0D);
+        // 0 = 用原版自己的大小波动（random*0.5+0.5，即 0.5~1.0 倍）。
+        // 之前这里传 1.0，粒子那边"sizeScale > 0 就固定大小"的分支于是把所有
+        // 屋檐滴都钉成了同一个尺寸 —— 加冰锥时为了给融化滴定尺寸引进的参数，
+        // 顺手把主力路径也一起钉死了。定尺寸只该给融化滴（MELT_DRIP_SIZE）用。
+        this.spawnDrop(world, point, x, y, z, 0.0D);
     }
 
     /**

@@ -785,11 +785,15 @@ public final class PrecipitationRenderer {
                 final float stripX = STRIP_X[idx] * widthScale;
                 final float stripY = STRIP_Y[idx] * widthScale;
                 // ---- WIND：这一幕的倾斜量 Δu（加在顶顶点上） ----
-                // R1：切向用"相机连续坐标"算，不用 STRIP_X/STRIP_Y 的整数方块
-                // 查表 —— 查表按玩家整数方块索引，走动跨格时近处幕的切向会跳
-                // 45 度以上，图案竖直时看不出来，一加倾斜就会变成倾角抖动。
-                // 幕的几何朝向仍然用查表值，与 1.12.2 一致。
-                final float windT = WindField.tangential((float) centreX, (float) centreZ);
+                // ★ 风向必须投影到**几何真正用的那条横轴**上，也就是 (stripX, stripY)。
+                // 之前投影用的是"相对相机的连续切向"，与查表来的横轴差最多 90 度：
+                // 远处两者几乎重合看不出来，近处的幕（尤其脚下那一幕，查表 fallback
+                // 是固定 +X，连续切向却是任意方向）符号直接翻 —— 这就是"贴脸的雨
+                // 朝反方向斜"和"抬头看四周像旋风"。
+                final float axisLen = Mth.sqrt(stripX * stripX + stripY * stripY);
+                final float axisX = axisLen > 0.0001F ? stripX / axisLen : 1F;
+                final float axisZ = axisLen > 0.0001F ? stripY / axisLen : 0F;
+                final float windT = WindField.tangentialAlong(axisX, axisZ);
                 final float fallBPT = snow
                         ? SNOW_FALL_SPEED_BPT
                         : RAIN_FALL_SPEED_MIN_BPT + RAIN_FALL_SPEED_RANGE_BPT * intensity;

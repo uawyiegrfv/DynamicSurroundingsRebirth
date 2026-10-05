@@ -332,6 +332,9 @@ public final class PrecipitationIntensity {
     private static volatile float gustiness = 1F;
     /** Roll two resolved into an amplitude: profile response curve x gustiness. */
     private static volatile float gustAmplitude = 0F;
+    /** WIND：玩家当前群系的风力系数，1.0 = 不修正。由 BiomeInfo 的标签推导，
+     *  每 tick 在 {@link #update} 里更新一次。 */
+    private static volatile float windScale = 1F;
     /**
      * The profile's mode at the position and season the event was rolled at. The
      * rolled base is relative to this, so it is what lets the same base be
@@ -1527,6 +1530,20 @@ public final class PrecipitationIntensity {
         return gustAmplitude;
     }
 
+    /**
+     * WIND：当前群系的风力系数，1.0 = 不修正。
+     *
+     * <p>为什么要单独开这个口子：风速只吃 strength 和 gustAmplitude，而这两个量
+     * 都不带群系信息（gustiness 是每场事件摇的 0.5~1.5），所以全世界任何群系的
+     * 风本来都一样大。渲染侧拿不到 biomeLibrary，于是把这边每 tick 缓存的结果
+     * 交给它。</p>
+     *
+     * @return 风力倍率，通常落在 [0.75, 1.35]
+     */
+    public static float windScale() {
+        return windScale;
+    }
+
     public static float ambient() {
         return ambient;
     }
@@ -1818,6 +1835,12 @@ public final class PrecipitationIntensity {
         // written yet.
         clientLevel = level;
         diagLogger = logger;
+
+        // WIND：群系风力系数也在这里更新一次 —— 每 tick，不是每帧更不是每幕。
+        // 渲染侧没有 biomeLibrary，而这里已经拿到了 BiomeScanner 解析好的
+        // BiomeInfo，正好当它们的转接口。info 可能为 null（还没拿到世界的
+        // 时候），那时给 1.0，行为与没有这个功能时完全一致。
+        windScale = info == null ? 1F : info.windScale();
 
         // The vanilla ramp has to be read FIRST and judged by its direction of
         // travel. Level.isRaining() is derived from it (rainLevel > 0.2) and so

@@ -167,6 +167,11 @@ public final class PrecipitationRenderer {
     private static final float SNOW_TILT_GAIN = 0.02F;
     /** tan(倾角) 的硬上限，0.36 约 20 度。 */
     private static final float MAX_TILT_TAN = 0.36F;
+    /** 每幕倾角的小幅随机扰动幅度（比例，0.25 = 各幕在 +/-25% 之间错开）。
+     *  雨的倾角原本完全由几何和风向决定，各幕非常规整（雪和沙尘都有随机扰动，
+     *  雨没有）；这个值用来打破那种机械感。调大 = 各幕倾角差异更明显，
+     *  超过 0.5 会看到个别幕几乎直立；调回 0 就恢复成规整的样子。 */
+    private static final float RAIN_TILT_JITTER = 0.25F;
     /** 雨的下落速度（格/tick）= (2.0 + 2.5 x intensity) / 8，与 d5 的滚动
      *  速率一致；随机项取均值，不再多抽一次随机数，以免改动 1.12.2 的
      *  随机序列。 */
@@ -617,7 +622,11 @@ public final class PrecipitationRenderer {
         refreshCaches(level, ticks);
         // WIND：风向/风速只依赖游戏时钟，每帧调一次即可，不需要 tick 钩子。
         // 强度里已经折进了离散阵风，gustAmplitude 是本场事件摇出的阵风幅度。
-        WindField.update(ticks, partialTick, intensity, PrecipitationIntensity.gustAmplitude());
+        // 最后一个参数是群系风力系数：多风的地方风更大、密林里风更小。
+        // 它在 PrecipitationIntensity 里每 tick 更新一次，这里只是取用 ——
+        // 千万别改成在这里查 BiomeInfo，更不要放进 per-column 循环。
+        WindField.update(ticks, partialTick, intensity, PrecipitationIntensity.gustAmplitude(),
+                PrecipitationIntensity.windScale());
 
 
         if (PrecipitationIntensity.forced() >= 0F) {
@@ -808,8 +817,12 @@ public final class PrecipitationRenderer {
                 // 这一个量同时给出两件事：竖条在几何体上变斜（形状倾斜），
                 // 以及竖条沿倾斜方向运动（运动倾斜）—— v 里已经含滚动量，
                 // 剪切把滚动量自动耦合进了 U，不需要额外的时间累加器。
+                // 每幕的小幅扰动：原来所有幕的倾角完全由几何和风向决定，太规整。
+                // 用世界锚定的 columnHash（0..1）映射成 -1..1 —— 必须世界锚定，
+                // 用逐帧随机数会让幕在玩家走动/每帧重算时 shimmer。
+                final float tiltJitter = 1F + RAIN_TILT_JITTER * ((columnHash - 0.5F) * 2F);
                 final float slantU = stripWidth > 0.0001F
-                        ? (l2 - k2) * tiltTan / stripWidth
+                        ? (l2 - k2) * tiltTan * tiltJitter / stripWidth
                         : 0F;
 
                 // Measured from the camera rather than from the player's block, so

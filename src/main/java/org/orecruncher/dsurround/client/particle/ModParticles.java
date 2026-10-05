@@ -36,6 +36,9 @@ public final class ModParticles {
     public static final SimpleParticleType ICICLE_WEDGE = new SimpleParticleType(false);
     /** The shard burst when an icicle shatters on the ground. */
     public static final SimpleParticleType ICICLE_LAND = new SimpleParticleType(false);
+    /** A droplet attached to a plant surface - rain sliders/droppers and dew
+     * beads share it; the spawning handler decides the fate via setters. */
+    public static final SimpleParticleType FOLIAGE_DROP = new SimpleParticleType(false);
 
     private ModParticles() {
     }
@@ -68,6 +71,9 @@ public final class ModParticles {
         event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
                 Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land"),
                 () -> ICICLE_LAND);
+        event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
+                Identifier.fromNamespaceAndPath(Constants.MOD_ID, "foliage_drop"),
+                () -> FOLIAGE_DROP);
     }
 
     /**
@@ -79,6 +85,10 @@ public final class ModParticles {
     public static void registerParticleGroups(
             final net.neoforged.neoforge.client.event.RegisterParticleGroupsEvent event) {
         event.register(IcicleParticleGroup.type(), IcicleParticleGroup::new);
+        // The foliage drop carries its whole life in one group - 26.1 assigns a
+        // particle to its group at add time, so the FALL billboard stays here
+        // too rather than moving to a second group.
+        event.register(FoliageDripParticleGroup.type(), FoliageDripParticleGroup::new);
     }
 
     /**
@@ -100,5 +110,6 @@ public final class ModParticles {
         ParticleProviderRegistry.register(ICICLE_LAND,
                 sprites -> new IcicleLandParticle.Provider(
                         Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land")));
+        ParticleProviderRegistry.register(FOLIAGE_DROP, new FoliageDripParticle.Provider());
     }
 }

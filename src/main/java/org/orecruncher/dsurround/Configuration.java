@@ -82,6 +82,8 @@ public class Configuration extends ConfigurationData {
         public static final int WATER_DRIPS = 0x20;
         /** Dry-weather sky events: spawn rolls, yields to rain, and per-tick cost. */
         public static final int SKY_EVENTS = 0x40;
+        /** Foliage drops and dew: scan rejection histogram, pool fills, fate rolls. */
+        public static final int FOLIAGE_DRIPS = 0x80;
     }
 
     public static class Logging {
@@ -91,7 +93,7 @@ public class Configuration extends ConfigurationData {
         public boolean enableDebugLogging = false;
 
         @Property
-        @Comment("Bitmask for toggling various debug traces: 1 audio player, 2 basic sound play, 4 resource loading, 8 crit word, 16 rain-on-material, 32 water drips, 64 sky events")
+        @Comment("Bitmask for toggling various debug traces: 1 audio player, 2 basic sound play, 4 resource loading, 8 crit word, 16 rain-on-material, 32 water drips, 64 sky events, 128 foliage drips")
         public int traceMask = 0;
 
         @Property
@@ -586,6 +588,24 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable icicles growing under eaves while it snows, and their drop and shatter")
         public boolean enableIcicles = true;
+
+        @Property
+        @Comment("Enable/disable rain drops forming and sliding down plant leaves while it rains (no landing sound)")
+        public boolean enableFoliageRainDrips = true;
+
+        @Property
+        @Comment("Enable/disable morning dew on plants - beads appear before dawn, peak just before sunrise, evaporate by mid-morning")
+        public boolean enableMorningDew = true;
+
+        @Property
+        @DoubleRange(min = 0D, max = 1D)
+        @Comment("Global density multiplier for foliage drops and dew beads (0 = off, 1 = full)")
+        public double foliageDensity = 1.0D;
+
+        @Property
+        @IntegerRange(min = 4, max = 16)
+        @Comment("Horizontal scan radius (blocks) for foliage drops and dew")
+        public int foliageScanRange = 10;
 
         @Property
         @Comment("Enable/disable the dry-weather sky events (an overcast day, and the day the clouds clear away). Part of the graded weather system: enableGradedPrecipitation off turns these off with it")

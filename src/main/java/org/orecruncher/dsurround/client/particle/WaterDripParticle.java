@@ -90,9 +90,14 @@ public class WaterDripParticle extends SingleQuadParticle {
      * too saturated, so these are the same blue lifted a little toward white.
      * Put them back to 0.2/0.3/1.0 for vanilla's exact tint.
      */
-    private static final float WATER_R = 0.3F;
-    private static final float WATER_G = 0.4F;
-    private static final float WATER_B = 1.0F;
+    /**
+     * Package-visible so the foliage layer tints its drops from the SAME
+     * source: both wear vanilla's greyscale drip texture, and a second copy
+     * of these numbers is how the two layers drift apart in colour.
+     */
+    static final float WATER_R = 0.3F;
+    static final float WATER_G = 0.4F;
+    static final float WATER_B = 1.0F;
 
     private static final float WIDTH_SCALE = 1.0F;
     /** Applied to the drop's own colour. Drop the blue channel to de-blue it. */

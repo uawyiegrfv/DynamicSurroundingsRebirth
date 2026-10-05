@@ -769,18 +769,21 @@ public final class PrecipitationRenderer {
                     light = lightCache.get(phaseKey);
                 } else {
                     int raw = LevelRenderer.getLightColor(level, cursor.set(gridX, k2, gridZ));
-                    // Snow/dust only: 1.12.2 brightens towards full light so the flakes
-                    // do not disappear into a dark sky. Rain uses the raw value.
-                    // Rain, snow and dust all take the light where they actually are.
-            //
-            // This used to brighten snow towards full light -
-            // (combinedLight * 3 + LightTexture.FULL_BRIGHT) / 4 - so flakes
-            // stayed visible after dark. That is a 1.12.2 behaviour, not a
-            // modern one: vanilla 1.20's weather renderer carries no
-            // FULL_BRIGHT term at all (javap over LevelRenderer: zero
-            // occurrences), so snow that never dims at night was our
-            // artefact rather than vanilla's.
-            light = raw;
+                    // Rain, snow and dust all take the light where they actually
+                    // are, so all three dim after dark.
+                    //
+                    // This used to brighten snow towards full light -
+                    // (combinedLight * 3 + LightTexture.FULL_BRIGHT) / 4 - so
+                    // flakes stayed visible after dark. That is a 1.12.2
+                    // behaviour and dropping it was right, but it was never what
+                    // kept the curtains bright at night: that was the uv2
+                    // argument order at the vertex - see the note there.
+                    //
+                    // Vanilla's snow branch does keep a smaller floor of its own
+                    // ((x * 3 + 240) / 4 per axis, 1.20.1
+                    // LevelRenderer.renderSnowAndRain); rain keeps none. We do not
+                    // copy it - switching it on is a look decision, not a fix.
+                    light = raw;
                     lightCache.put(phaseKey, light);
                 }
                 for (int layer = 0; layer < layers; layer++) {
@@ -821,6 +824,9 @@ public final class PrecipitationRenderer {
 
                     // White for both: 1.12.2 tints only DUST (biome dustColor), rain and
                     // snow use Color.WHITE.
+                    // setLight(light) is setUv2(light & 0xFFFF, light >> 16), i.e.
+                    // (block, sky) - the lightmap's own axis order, and exactly
+                    // what vanilla rain passes. Do not swap it.
                     buffer.addVertex(x0, y0, z0).setUv(u0, v0).setColor(argb).setLight(light);
                     buffer.addVertex(x1, y0, z1).setUv(u1, v0).setColor(argb).setLight(light);
                     buffer.addVertex(x1, y1, z1).setUv(u1 + slantU, v1).setColor(argb).setLight(light);

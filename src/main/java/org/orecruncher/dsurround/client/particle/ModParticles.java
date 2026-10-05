@@ -25,7 +25,7 @@ public final class ModParticles {
      * hash, so one texture reads at every size). */
     public static final SimpleParticleType ICICLE_CONE = new SimpleParticleType(false);
     public static final SimpleParticleType ICICLE_KNIFE = new SimpleParticleType(false);
-    public static final SimpleParticleType ICICLE_FANG = new SimpleParticleType(false);
+    public static final SimpleParticleType ICICLE_WEDGE = new SimpleParticleType(false);
     /** The shard burst when an icicle shatters on the ground. */
     public static final SimpleParticleType ICICLE_LAND = new SimpleParticleType(false);
 
@@ -55,8 +55,8 @@ public final class ModParticles {
                 ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_knife"),
                 () -> ICICLE_KNIFE);
         event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
-                ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_fang"),
-                () -> ICICLE_FANG);
+                ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_wedge"),
+                () -> ICICLE_WEDGE);
         event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
                 ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land"),
                 () -> ICICLE_LAND);
@@ -74,12 +74,12 @@ public final class ModParticles {
         final var engine = GameUtils.getParticleManager();
         if (engine != null) {
             engine.register(WATER_DRIP, new WaterDripParticle.Provider());
-            engine.register(ICICLE_CONE, new IcicleParticle.Provider(11,
+            engine.register(ICICLE_CONE, new IcicleParticle.Provider(12, 5, 0.7F,
                     ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_cone")));
-            engine.register(ICICLE_KNIFE, new IcicleParticle.Provider(11,
+            engine.register(ICICLE_KNIFE, new IcicleParticle.Provider(14, 3, 1.0F,
                     ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_knife")));
-            engine.register(ICICLE_FANG, new IcicleParticle.Provider(9,
-                    ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_fang")));
+            engine.register(ICICLE_WEDGE, new IcicleParticle.Provider(10, 5, 0.45F,
+                    ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_wedge")));
             engine.register(ICICLE_LAND, new IcicleLandParticle.Provider(
                     ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land")));
         }

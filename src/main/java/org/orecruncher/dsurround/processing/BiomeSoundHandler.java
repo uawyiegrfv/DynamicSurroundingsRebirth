@@ -25,6 +25,7 @@ import org.orecruncher.dsurround.sound.IAudioPlayer;
 import org.orecruncher.dsurround.sound.BackgroundSoundLoop;
 import org.orecruncher.dsurround.sound.ISoundFactory;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
+import org.orecruncher.dsurround.processing.weather.WindField;
 
 public final class BiomeSoundHandler extends AbstractClientHandler {
 
@@ -115,8 +116,29 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     // 每档自己的音量。暴雨档压在中雨档的天花板上不再往上走 —— 旧式 (0.35+0.65t)x雷暴1.3
     // 会把暴雨推到 1.3，那是"大雨太吵"的来源；但第一版压到 0.30/0.45/0.50 又压过头了，
     // 中雨丢了三分之一、暴雨丢了一半，听上去就是"底噪风声没了"。
-    // 现在：中雨回到它一直有的水平，暴雨比旧版低约 4dB 且与中雨同高。
-    private static final float[] GUST_TIER_VOLUME = {0.35F, 0.55F, 0.55F};
+    // 现在 tiers 之间拉开：小雨最轻、中雨居中、暴雨最响且用新素材（换素材也要换
+    // 音量，否则中雨和暴雨一样响，"换了新呼啸怎么没变"）。这一组是绝对值，风力
+    // 调制见 GUST_WIND_LEVEL_*。
+    private static final float[] GUST_TIER_VOLUME = {0.30F, 0.44F, 0.55F};
+
+    // ---- WIND：让听得见的风与看得见的风同源 --------------------------------
+    // 以前风声层的大小只吃降水强度，而雨幕的倾斜吃 WindField（强度 + 阵风幅度 +
+    // 群系 + 新的季节系数），两边各有一套大小：密林里雨丝几乎不斜而风声照旧走满，
+    // 风袭/山地里雨丝斜得厉害、风声却一点没变响。现在风床和阵风都改问
+    // WindField.speedAt()，再由下面这几个数把格/秒折回 0..1。
+    //   两个端点必须对得上 WindField 的速度常量：最小 0.8、最大 0.8+4.2+3.0=8.0。
+    //   改 WindField 那几个速度常量时要跟着改这里，否则"同源"就名不副实。
+    private static final float WIND_LEVEL_MIN_BPS = 0.8F;
+    private static final float WIND_LEVEL_SPAN_BPS = 7.2F;
+    /** 阵风音量受风力调制的深度：静风保留 FLOOR，风拉满补到 FLOOR + SPAN。
+     *  FLOOR 抬高 = 所有阵风一起变响；SPAN 加大 = 风大风小的差别更明显。 */
+    private static final float GUST_WIND_LEVEL_FLOOR = 0.70F;
+    private static final float GUST_WIND_LEVEL_SPAN = 0.45F;
+    /** 空旷地形阵风的发声点放在上风侧多远，格。太远会听成"从某个点吹来"，而且
+     *  LINEAR 衰减会顺带吃掉音量（约 -2 dB / 4 格）；太近又退回没有方向。 */
+    private static final float GUST_SOURCE_RANGE_BLOCKS = 4F;
+    /** 发声点的抬升高度，格：贴在脚面上会被雨打材质那一层埋掉。 */
+    private static final float GUST_SOURCE_HEIGHT_M = 2F;
     /**
      * Loudness lift for the rain wind bed. The assets are quiet field recordings
      * (wind.ogg sits at -34.8 dB RMS); as one-shot acoustics that was fine, as a
@@ -132,8 +154,11 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     /** Intensity below which a windless biome gets no rain wind bed at all: it
      *  keeps drizzle from howling across the plains and leaves the sound source
      *  free. Biomes with their own wind asset skip this gate - their bed is a
-     *  pure proportion of the intensity and dies on its own at the low end. */
-    private static final float RAIN_WIND_MIN_INTENSITY = 0.3F;
+     *  pure proportion of the intensity and dies on its own at the low end.
+     *  0.3 -> 0.15: the bed is what a gust is meant to be riding on. At 0.3 it
+     *  was still silent through most of a medium rain, so every gust arrived
+     *  out of nowhere and read as a loud noise rather than as weather. */
+    private static final float RAIN_WIND_MIN_INTENSITY = 0.15F;
     /** Leaf gust pacing: frequency rises with intensity, divided by the event's
      *  rolled gust amplitude (convective profiles gust more often than steady
      *  rain - GustResponse semantics, not a second curve). */
@@ -1496,14 +1521,16 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 }
             }
         }
+        // WIND：床的大小改由 WindField 的风速决定，不再直接用降水强度 —— 风速里
+        // 已经折进了强度、本场阵风幅度、群系和季节，所以耳朵听到的风与眼睛看到的
+        // 雨幕倾斜是同一样东西的两个出口。swell 继续在这个 level 上起呼吸作用。
+        final float bedLevel = windLevel(intensity, PrecipitationIntensity.gustAmplitude());
         float target;
         if (wind != null) {
-            target = intensity;
+            target = bedLevel;
         } else {
             wind = WIND_GENERIC;
-            target = intensity <= RAIN_WIND_MIN_INTENSITY
-                    ? 0F
-                    : (intensity - RAIN_WIND_MIN_INTENSITY) / (1F - RAIN_WIND_MIN_INTENSITY);
+            target = intensity <= RAIN_WIND_MIN_INTENSITY ? 0F : bedLevel;
         }
         if (this.scanner.isInside())
             target *= INDOOR_VOLUME_SCALE;
@@ -1548,6 +1575,34 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         final double b = Math.sin(tick * 2D * Math.PI / (RAIN_WIND_SWELL_PERIOD_B_S * 20F) + 1.3D);
         float s = 0.5F + 0.5F * (float) (0.6D * a + 0.4D * b);
         return RAIN_WIND_SWELL_FLOOR + (RAIN_WIND_SWELL_PEAK - RAIN_WIND_SWELL_FLOOR) * s;
+    }
+
+    /**
+     * WIND：把 WindField 的风速折回 0..1 的"风有多大"。风床和阵风都用它，
+     * 于是耳朵听到的风与眼睛看到的雨幕倾斜是同一个量。
+     *
+     * <p>走 WindField 的纯函数，不读它的缓存：{@code update()} 只在降水渲染里
+     * 被调用，晴天缓存不更新，读 {@code speed()/dirX()} 拿到的是上一场风暴的
+     * 残留值。纯函数则任何时候来问都有答案，也不需要为它开新的 tick 钩子。</p>
+     */
+    private static float windLevel(final float intensity, final float gustAmplitude) {
+        final float bps = WindField.speedAt(intensity, gustAmplitude, PrecipitationIntensity.windScale());
+        final float level = (bps - WIND_LEVEL_MIN_BPS) / WIND_LEVEL_SPAN_BPS;
+        return level < 0F ? 0F : (level > 1F ? 1F : level);
+    }
+
+    /**
+     * WIND：上风侧的发声点，{@code player - windDir x blocks}，再抬高 height 格。
+     *
+     * <p>Minecraft 的 SoundInstance 三版都没有声道 pan 参数，唯一能让玩家听出
+     * 风从哪来的办法就是把声源放到风来的那一侧。WindField 约定 {@code (cos a,
+     * sin a)} 是风<em>吹去</em>的方向，所以这里取反号。</p>
+     */
+    private static Vec3 upwindPosition(final Player player, final float blocks, final float height) {
+        final float a = WindField.angleAt(player.level().getGameTime(), 0F);
+        return new Vec3(player.getX() - Math.cos(a) * blocks,
+                player.getY() + height,
+                player.getZ() - Math.sin(a) * blocks);
     }
 
     /** Whether this factory is one of the wind assets biomes.json can assign. */
@@ -1646,9 +1701,15 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                 (RAIN_LEAF_INTERVAL_MAX_S + (RAIN_LEAF_INTERVAL_MIN_S - RAIN_LEAF_INTERVAL_MAX_S) * t)
                         / (0.6F + 0.8F * amp)
                         * (0.65F + RANDOM.nextFloat() * 0.7F);
+        // WIND：档位只负责挑素材和给基准，真正的大小交给 WindField 的风速 ——
+        // 与雨幕倾斜同源（强度 + 阵风幅度 + 群系 + 季节）。风力还会在 interval
+        // 上体现（见上），但那是疏密，这里是大小。
+        final float gustLevel = windLevel(intensity, amp);
+        final float gustScale = GUST_WIND_LEVEL_FLOOR + GUST_WIND_LEVEL_SPAN * gustLevel;
         // Louder still when it thunders: a storm has to be heard over its own
         // rain, and that was exactly where the gusts were being buried.
         final float vol = GUST_TIER_VOLUME[tier]
+                * gustScale
                 * (0.85F + RANDOM.nextFloat() * 0.3F)
                 * (player.level().isThundering() ? RAIN_GUST_STORM_GAIN : 1F);
         // var, not the resource-location type: it is Identifier on 26.1 and
@@ -1668,8 +1729,11 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             // method is shared with the sunny gust, which is not ours to change.
             playLeafSurround(player, factory, vol * RAIN_LEAF_SOURCE_COMP);
         else
-            // No canopy to answer, so no direction either: a gust is everywhere.
-            this.audioPlayer.play(factory.createAsAdditional(vol));
+            // 没有树冠可以回应，但也不该因此就没有方向：把声源放到上风侧，玩家
+            // 听到的就是"风从那边吹过来"。SoundInstance 三版都没有 pan 参数，位置
+            // 是唯一能写的东西 —— 走 createAtLocation 而不是无位置的 additional。
+            this.audioPlayer.play(factory.createAtLocation(
+                    upwindPosition(player, GUST_SOURCE_RANGE_BLOCKS, GUST_SOURCE_HEIGHT_M), vol));
         this.rainGustNextTick = now + (long) (seconds * 20F);
         // One line per gust, so tens of seconds apart: is the wooded test
         // answering what we think it is? The trait set is what decided it.
@@ -1685,7 +1749,11 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      */
     private void playLeafSurround(final Player player, final ISoundFactory factory, final float volScale) {
         final int sources = 3;
-        final double baseAngle = RANDOM.nextDouble() * Math.PI * 2D;
+        // WIND：随机方位听起来是"四面八方的树冠"，不携带风向。现在把中间那一路
+        // 对准上风侧（= 风向角 + PI），三源还是 120 度散开加抖动，但整体有了来处。
+        // 晴天那次 call 也走这里，所以取风向必须用 WindField 的纯函数：它的缓存
+        // 只在降水渲染里更新，晴天读 dirX()/dirZ() 拿到的是上一场风暴的残留。
+        final double baseAngle = WindField.angleAt(player.level().getGameTime(), 0F) + Math.PI;
         for (int i = 0; i < sources; i++) {
             final double angle = baseAngle + i * (Math.PI * 2D / sources)
                     + (RANDOM.nextDouble() - 0.5D) * 0.8D;

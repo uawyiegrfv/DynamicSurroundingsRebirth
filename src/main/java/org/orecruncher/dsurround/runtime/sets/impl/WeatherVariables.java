@@ -7,6 +7,7 @@ import org.orecruncher.dsurround.lib.scripting.VariableSet;
 import org.orecruncher.dsurround.lib.seasons.ISeasonalInformation;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
 import org.orecruncher.dsurround.runtime.sets.IWeatherVariables;
+import org.orecruncher.dsurround.processing.weather.WindField;
 
 public class WeatherVariables extends VariableSet<IWeatherVariables> implements IWeatherVariables {
 
@@ -22,6 +23,9 @@ public class WeatherVariables extends VariableSet<IWeatherVariables> implements 
     private float gradedPrecipitation;
     private boolean isFrosty;
     private boolean canWaterFreeze;
+    private float windDirection;
+    private float windSpeed;
+
 
     public WeatherVariables(ISeasonalInformation seasonalInformation) {
         super("weather");
@@ -52,6 +56,9 @@ public class WeatherVariables extends VariableSet<IWeatherVariables> implements 
             this.temperature = this.seasonalInformation.getTemperature(player.blockPosition());
             this.isFrosty = this.seasonalInformation.isColdTemperature(player.blockPosition());
             this.canWaterFreeze = this.seasonalInformation.isSnowTemperature(player.blockPosition());
+            // WIND：风场是游戏时钟的纯函数，这里没有绘制通道，直接用无缓存版本。
+            this.windDirection = WindField.angleAt(world.getGameTime(), 0F);
+            this.windSpeed = WindField.speedAt(this.gradedIntensity, PrecipitationIntensity.gustAmplitude());
         } else {
             this.rainIntensity = 0F;
             this.thunderIntensity = 0F;
@@ -62,6 +69,8 @@ public class WeatherVariables extends VariableSet<IWeatherVariables> implements 
             this.temperature = 0;
             this.isFrosty = false;
             this.canWaterFreeze = false;
+            this.windDirection = 0F;
+            this.windSpeed = 0F;
         }
     }
 
@@ -108,5 +117,15 @@ public class WeatherVariables extends VariableSet<IWeatherVariables> implements 
     @Override
     public boolean canWaterFreeze() {
         return this.canWaterFreeze;
+    }
+
+    @Override
+    public float getWindDirection() {
+        return this.windDirection;
+    }
+
+    @Override
+    public float getWindSpeed() {
+        return this.windSpeed;
     }
 }

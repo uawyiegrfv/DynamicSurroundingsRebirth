@@ -147,6 +147,27 @@ public final class PrecipitationRenderer {
      * at all. A power curve rather than a floor, because a floor pops when the
      * intensity reaches zero.
      */
+
+    // ---- WIND：风倾斜的可调参数（实测后只动这一段） ----
+    /** tan(倾角) = 增益 x 切向风 / 下落速度，再夹到 +/-MAX_TILT_TAN。
+     *  增益是艺术系数：物理值是 1.0，但那会让暴雨斜到 24 度以上，
+     *  先给一个保守的 0.5（满强度约 12 度）。 */
+    private static final float RAIN_TILT_GAIN = 0.5F;
+    /** 雪的倾斜增益。雪的下落只有 1/128 格/tick，按物理值算会直接斜成
+     *  水平，所以给一个远小于 1 的增益，上限交给 MAX_TILT_TAN 兜住。 */
+    private static final float SNOW_TILT_GAIN = 0.02F;
+    /** tan(倾角) 的硬上限，0.36 约 20 度。 */
+    private static final float MAX_TILT_TAN = 0.36F;
+    /** 雨的下落速度（格/tick）= (2.0 + 2.5 x intensity) / 8，与 d5 的滚动
+     *  速率一致；随机项取均值，不再多抽一次随机数，以免改动 1.12.2 的
+     *  随机序列。 */
+    private static final float RAIN_FALL_SPEED_MIN_BPT = 0.25F;
+    private static final float RAIN_FALL_SPEED_RANGE_BPT = 0.3125F;
+    /** 雪的下落速度（格/tick）：d8 每 tick 走 1/512 个 v，1 v = 4 格。 */
+    private static final float SNOW_FALL_SPEED_BPT = 1F / 128F;
+    /** 雪的横向抖动幅度（u/tick），1.12.2 的 0.01F。风给出的是均值，
+     *  这个高斯项保留各幕之间的差异（1.12.2 的招牌观感）。 */
+    private static final float SNOW_DRIFT_JITTER = 0.01F;
     private static final float RAIN_ALPHA_GAMMA = 0.4F;
 
     /** Hard cap on layers. Also the vertex buffer multiplier on 26.1. */
@@ -560,6 +581,10 @@ public final class PrecipitationRenderer {
         final int playerZ = Mth.floor(player.getZ());
 
         refreshCaches(level, ticks);
+        // WIND：风向/风速只依赖游戏时钟，每帧调一次即可，不需要 tick 钩子。
+        // 强度里已经折进了离散阵风，gustAmplitude 是本场事件摇出的阵风幅度。
+        WindField.update(ticks, partialTick, intensity, PrecipitationIntensity.gustAmplitude());
+
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -686,6 +711,29 @@ public final class PrecipitationRenderer {
                 final int idx = (gridZ - playerZ + 16) * 32 + gridX - playerX + 16;
                 final float stripX = STRIP_X[idx] * widthScale;
                 final float stripY = STRIP_Y[idx] * widthScale;
+                // ---- WIND：这一幕的倾斜量 Δu（加在顶顶点上） ----
+                // R1：切向用"相机连续坐标"算，不用 STRIP_X/STRIP_Y 的整数方块
+                // 查表 —— 查表按玩家整数方块索引，走动跨格时近处幕的切向会跳
+                // 45 度以上，图案竖直时看不出来，一加倾斜就会变成倾角抖动。
+                // 幕的几何朝向仍然用查表值，与 1.12.2 一致。
+                final float windT = WindField.tangential((float) centreX, (float) centreZ);
+                final float fallBPT = snow
+                        ? SNOW_FALL_SPEED_BPT
+                        : RAIN_FALL_SPEED_MIN_BPT + RAIN_FALL_SPEED_RANGE_BPT * intensity;
+                // 条带实际宽度（格）= 2 x |(stripX, stripY)|。雨/雪正好等于
+                // widthScale，直接算出来就不用再抄一遍半宽常量。
+                final float stripWidth = 2F * Mth.sqrt(stripX * stripX + stripY * stripY);
+                final float tiltTan = stripWidth > 0.0001F
+                        ? Mth.clamp((snow ? SNOW_TILT_GAIN : RAIN_TILT_GAIN) * windT / fallBPT,
+                                -MAX_TILT_TAN, MAX_TILT_TAN) * WindField.SLANT_SIGN
+                        : 0F;
+                // Δu = 幕高(格) x tan(倾角) / 条带宽(格)。
+                // 这一个量同时给出两件事：竖条在几何体上变斜（形状倾斜），
+                // 以及竖条沿倾斜方向运动（运动倾斜）—— v 里已经含滚动量，
+                // 剪切把滚动量自动耦合进了 U，不需要额外的时间累加器。
+                final float slantU = stripWidth > 0.0001F
+                        ? (l2 - k2) * tiltTan / stripWidth
+                        : 0F;
 
                 // Measured from the camera rather than from the player's block, so
                 // the edge falloff is centred on where the view actually is instead
@@ -727,7 +775,7 @@ public final class PrecipitationRenderer {
                     if (snow) {
                         final double d8 = ((ticks & 511) + partialTick) / 512.0;
                         final double d9 = columnRandom.nextDouble()
-                                + animClock * 0.01F * (float) columnRandom.nextGaussian();
+                                + animClock * SNOW_DRIFT_JITTER * (float) columnRandom.nextGaussian();
                         final double d10 = columnRandom.nextDouble()
                                 + animClock * (float) columnRandom.nextGaussian() * 0.001D;
                         u0 = (float) d9;
@@ -758,8 +806,8 @@ public final class PrecipitationRenderer {
                     // snow use Color.WHITE.
                     buffer.addVertex(x0, y0, z0).setUv(u0, v0).setColor(argb).setLight(light);
                     buffer.addVertex(x1, y0, z1).setUv(u1, v0).setColor(argb).setLight(light);
-                    buffer.addVertex(x1, y1, z1).setUv(u1, v1).setColor(argb).setLight(light);
-                    buffer.addVertex(x0, y1, z0).setUv(u0, v1).setColor(argb).setLight(light);
+                    buffer.addVertex(x1, y1, z1).setUv(u1 + slantU, v1).setColor(argb).setLight(light);
+                    buffer.addVertex(x0, y1, z0).setUv(u0 + slantU, v1).setColor(argb).setLight(light);
                     quads++;
                 }
             }

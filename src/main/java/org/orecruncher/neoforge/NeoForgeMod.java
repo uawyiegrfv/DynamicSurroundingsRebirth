@@ -48,6 +48,7 @@ public final class NeoForgeMod {
             // The drip particle's type. Built-in registries are only writable
             // from this event - see ModParticles.registerType.
             modBus.addListener(ModParticles::registerType);
+            modBus.addListener(ModParticles::registerParticleGroups);
             modBus.addListener(AuroraRenderPipelines::onRegisterPipelines);
             // Graded rain/snow: suppresses the vanilla rain pass; the geometry is drawn
             // from the AfterWeather level stage.

@@ -22,8 +22,11 @@ public class IcicleLandParticle extends SingleQuadParticle {
     IcicleLandParticle(final ClientLevel level, final double x, final double y, final double z,
                        final double vx, final double vy, final double vz, final TextureAtlasSprite sprite) {
         super(level, x, y, z, vx, vy, vz, sprite);
-        this.lifetime = 7 + this.random.nextInt(7);
-        this.quadSize = 0.07F + this.random.nextFloat() * 0.05F;
+        this.lifetime = 7 + this.random.nextInt(6);
+        // Bigger spawns come from bigger icicles (the burst passes them higher
+        // velocities), so the chunk reads large: size tracks the spawn speed.
+        final double speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        this.quadSize = 0.10F + 0.10F * Math.min(1.0F, (float) (speed * 3.0D));
         this.friction = 1.0F;
     }
 
@@ -42,7 +45,7 @@ public class IcicleLandParticle extends SingleQuadParticle {
             this.remove();
             return;
         }
-        this.yd = this.yd * 0.98D - 0.01D;
+        this.yd = this.yd * 0.96D - 0.02D;
         this.move(this.xd, this.yd, this.zd);
         if (this.onGround) {
             // Settle where it landed instead of skating on.

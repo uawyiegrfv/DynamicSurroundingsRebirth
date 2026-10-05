@@ -12,6 +12,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -39,24 +40,24 @@ import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
 /**
  * Icicles under eaves while it snows: they grow out of the edges the drip
  * scanner already knows how to find, hang there for as long as the snow
- * lasts, occasionally let go on their own, and when the snow stops they all
- * come down staggered - shattering on the ground with a crack and a scatter
- * of shards, then a spell of melt drips off the same edge.
+ * lasts, occasionally let go on their own, and when the snow stops they
+ * MELT - shrinking back toward the roof edge while the handler rolls each
+ * one's drop dice every ten seconds and sprinkles random drips (a single
+ * drop, a burst, or a stream) off the melting tips. A rolled icicle falls,
+ * shatters on the ground with a crack sized to its tier, and a replacement
+ * grows from a random rim of the last scan.
  *
  * <p>Persistence is bookkeeping, not state: an icicle lives as long as its
  * point survives and the player stays near. Walk away and it is discarded;
- * walk back and the scan finds the same edge again - and because size,
+ * walk back and the scan finds the same edge again - and because shape,
  * placement and growth delay all derive from a STABLE hash of the position,
- * the same eave always grows the same icicles. The "same icicles every time"
- * requirement is the hash, not a save file.</p>
+ * the same eave always grows the same icicles.</p>
  *
- * <p>The scan is the drip scan, verbatim - an icicle hangs exactly where a
- * drop would. What is reused from the drip handler is the landing shape: the
- * falling icicle integrates a known ballistic (gravity 0.06, no drag - see
- * {@link IcicleParticle#tick()}), so the shatter sound is booked in advance
- * for the tick the tip reaches the ground, the same clock trick the drips
- * use, and the melt drips afterward are the drip handler's own particle on
- * its own hang/fall parameters.</p>
+ * <p>The size curve runs on the GLOBAL precipitation event clock, calibrated
+ * by the event's own base intensity (its rolled peak, fixed at event start):
+ * at a base of 0.5 the curve's peak reaches the middle of five tiers after
+ * three game hours (the maintainer's anchor), and the scale is inverse to
+ * the intensity - twice the rain fills an eave in half the time.</p>
  */
 public class IcicleHandler extends AbstractClientHandler {
 
@@ -74,67 +75,91 @@ public class IcicleHandler extends AbstractClientHandler {
     private static final int DENSITY_SPAN = 42;
     /** An icicle whose point is further than this (3D) is discarded outright - the walk-back regrows it identically. */
     private static final long KEEP_DIST_SQ = 48L * 48L;
-    /** How often the staleness/distance pass runs. */
-    private static final int STALE_CHECK_TICKS = 10;
+    /** How often the staleness/distance pass runs. TWO ticks: a broken roof
+     * block must read as a fall almost immediately (the live test's "it
+     * hesitates first" - at 10 the wait was half a second). */
+    private static final int STALE_CHECK_TICKS = 2;
     /** Mean interval between self-drops, GLOBAL across all live icicles (~80s): one lets go now and then, not a shower. */
     private static final int SELF_DROP_MEAN_TICKS = 1600;
-    /** When the snow stops, everything comes down spread across this window (~60s), not at once. */
-    private static final int SNOW_END_SPREAD_TICKS = 1200;
-    /** Precipitation-event duration at which the size curve's peak reaches the
-     * grand tier: 3000 ticks = three game hours - the maintainer's "3 小时后
-     * 中形态" example lands the peak on the middle of five tiers right there.
-     * The clock is the GLOBAL rain/snow event (one clock, world-wide, from the
-     * moment the sky opens) - not per-biome, so walking between biomes never
-     * resets it. */
-    private static final long EVENT_PEAK_TICKS = 3000L;
-    /** Five size tiers under the duration curve (was three, flat-rolled). */
+    /** The size curve's anchor: at a base intensity of 0.5, the peak reaches
+     * the middle of five tiers after 3000 ticks (three game hours - the
+     * maintainer's example). Other intensities scale the clock inversely. */
+    private static final long EVENT_PEAK_TICKS_AT_HALF = 3000L;
+    /** Five size tiers under the duration curve. */
     private static final int TIER_COUNT = 5;
     /** Three shape textures; the hash picks, so a rim keeps its character. */
     private static final int SHAPE_COUNT = 3;
-    /** Extra ticks booked on the shatter clock so the sound never leads the visual. */
-    private static final int SHATTER_DELAY_EXTRA = 2;
-    /** Melt drips per fallen icicle, and when they start after the shatter. */
-    private static final int MELT_DRIPS_PER_ICICLE = 2;
-    private static final int MELT_DRIP_DELAY_MIN = 100;
-    private static final int MELT_DRIP_DELAY_SPAN = 200;
-    /** Sound range for the crack. */
+    /** After the snow stops: the drop lottery cadence and odds (per icicle). */
+    private static final int DROP_ROLL_INTERVAL = 200;
+    private static final float DROP_ROLL_CHANCE = 0.03F;
+    /** Melt drips spawn ABOVE the tip by this much: the drop's own half
+     * height (its top, not its center, touches the tip) plus the drip
+     * animation's arithmetic - the hang phase sinks 0.0012/tick over a 40
+     * tick hang (0.048) and the shrinking tip rises ~0.019 in the same
+     * window (a tier-4 knife), so 0.045 + 0.048 + 0.019 ~= 0.11 keeps the
+     * drop against the tip for its whole hang. */
+    private static final double MELT_DRIP_Y_OFFSET = 0.11D;
+    /** Per-tick chance that ONE melting icicle drips (expected every ~12s).
+     *  The maintainer's ruling: the melt should read slower than the growth,
+     *  drips included - 240 keeps the expected number of drips over a full
+     *  melt the same (3600/240 = 15, was 2400/160) while the melt itself is
+     *  50% longer. */
+    private static final int DRIP_ROLL_ONE_IN = 240;
+    /** Melt drips are the drip layer's own small drops - DripHandler
+     * .icicleMeltDrop plays the whole chain at melt size and volume. */
+    /** Sound range for the crack - scaled further by the size tier. */
     private static final float MIN_VOLUME = 0.45F;
     private static final float MAX_VOLUME = 0.9F;
     private static final float MIN_PITCH = 0.85F;
     private static final float MAX_PITCH = 1.15F;
-    /** Guard on booked shatters, mirroring the drip handler's cap. */
-    private static final int MAX_PENDING = 64;
+    /** After an icicle leaves a rim, the rim stays bare for this long
+     * (~30s): instant re-growth at the same spot reads as the icicle being
+     * lifted back up instead of as a new icicle. */
+    private static final long RIM_COOLDOWN_TICKS = 600L;
 
+    private final DripHandler dripHandler;
     private final IAudioPlayer audioPlayer;
     private final ISoundLibrary soundLibrary;
     private final ITickCount tickCount;
     private final IRandomizer random = Randomizer.current();
 
     private final Map<Long, Attached> attached = new HashMap<>();
-    private final List<PendingShatter> pending = new ArrayList<>();
-    private final List<PendingMeltDrip> melts = new ArrayList<>();
+    private final List<PendingDrip> melts = new ArrayList<>();
     private final Map<Identifier, ISoundFactory> factories = new HashMap<>();
-
-    private boolean wasSnowing = false;
-    /** World-wide precipitation event clock: when the sky last OPENED. The
-     * size curve reads tick - precipStartTick; walking between biomes does
-     * not touch it, only the sky closing and reopening does. */
-    private boolean wasRaining = false;
-    private long precipStartTick = 0L;
     /** The last scan's eave candidates - the pool replacements draw from. */
     private final ObjectArray<DripScanner.DripPoint> lastPool = new ObjectArray<>();
+    /** Rims that just shed an icicle, until when they may not re-grow: an
+     * icicle falling and a fresh one instantly growing at the same spot read
+     * as one icicle being "lifted back up" (the live test's report). */
+    private final Map<Long, Long> rimCooldown = new HashMap<>();
+
+    private boolean wasSnowing = false;
+    /** World-wide precipitation event clock: when the sky last OPENED. */
+    private boolean wasRaining = false;
+    private long precipStartTick = 0L;
+    /** The event's base intensity (its rolled peak), read once per event. */
+    private float eventBaseIntensity = 0.5F;
+    private boolean baseCaptured = false;
     // NOT Long.MIN_VALUE: tick - MIN_VALUE overflows to negative, so
     // `tick - lastScan >= SCAN_TICKS` never fired and the layer sat silent
     // through the whole first live test. -1000 means "due immediately".
     private long lastScan = -1000L;
     private long lastStaleCheck = -1000L;
     private long lastEmptyLog = -1000L;
+    private long lastDropRoll = -1000L;
     /** Consecutive tick failures - see the catch in {@link #onTick}. */
     private int failures = 0;
+    /** BUG-3: a dimension switch leaves `client.player` perfectly alive, so
+     * nothing else noticed the old world's bookkeeping was still here. The
+     * vanilla particle engine empties its queues WITHOUT marking the cleared
+     * particles removed, so `isDead()` could never report them either. */
+    private Level lastWorld;
 
-    public IcicleHandler(final Configuration config, final IModLog logger, final IAudioPlayer audioPlayer,
-                         final ISoundLibrary soundLibrary, final ITickCount tickCount) {
+    public IcicleHandler(final Configuration config, final IModLog logger, final DripHandler dripHandler,
+                         final IAudioPlayer audioPlayer, final ISoundLibrary soundLibrary,
+                         final ITickCount tickCount) {
         super("Icicles", config, logger);
+        this.dripHandler = dripHandler;
         this.audioPlayer = audioPlayer;
         this.soundLibrary = soundLibrary;
         this.tickCount = tickCount;
@@ -144,6 +169,15 @@ public class IcicleHandler extends AbstractClientHandler {
         // only ever calls process() sits constructed but never called - the
         // live test's "no icicles at all", with the mod otherwise clean.
         ClientState.TICK_END.register(this::onTick);
+        // BUG-3: the tick bus was the ONLY thing this layer had - Handlers
+        // resolves this class WITHOUT adding it to its own handler list (see
+        // Handlers.init), so disconnect0() never ran and nothing ever cleaned
+        // up: live icicles and their rims survived into the next world, where
+        // the stale coordinates blocked every regrowth at those spots.
+        ClientState.ON_DISCONNECT.register(client -> this.clear());
+        // 碎冰声改「直播」：冰锥真正碎裂的那一刻由 IcicleParticle.shatter()
+        // 直接回调这里播放。不再预约落点时刻，重力/距离改多少次都不会对不上。
+        IcicleParticle.setShatterListener(this::playShatter);
     }
 
     /**
@@ -165,7 +199,11 @@ public class IcicleHandler extends AbstractClientHandler {
     private void tick0() {
         if (!this.config.weatherOptions.enableIcicles) {
             // Switched off mid-session: bring the live ones down cleanly.
-            if (!this.attached.isEmpty())
+            // BUG-8: `attached` is not the whole layer - a release can leave
+            // melting drips queued and rims on cooldown. With nothing attached
+            // the old test skipped clear() AND stopped consuming the queues,
+            // so re-enabling the option replayed last session's leftovers.
+            if (!this.attached.isEmpty() || !this.melts.isEmpty() || !this.rimCooldown.isEmpty())
                 this.clear();
             return;
         }
@@ -182,44 +220,63 @@ public class IcicleHandler extends AbstractClientHandler {
         final Level world = player.level();
         final BlockPos pos = player.blockPosition();
 
+        if (this.lastWorld != world) {
+            if (this.lastWorld != null)
+                this.clear();
+            this.lastWorld = world;
+        }
+        // BUG-4: nothing ever dropped an expired rim out of this map - every
+        // eave that ever shed an icicle kept an entry forever, and its key (a
+        // packed BlockPos) means the same across worlds.
+        if (!this.rimCooldown.isEmpty())
+            this.rimCooldown.entrySet().removeIf(e -> e.getValue() <= tick);
+
         // The size curve's clock: ONE world-wide precipitation event, from the
         // moment the sky opens. Rain and snow share it, and walking between
-        // biomes cannot reset it - the snow gate below only decides whether
-        // ICICLES may grow here; how big they have earned the right to be is a
-        // property of the weather event itself (maintainer round-6 feedback).
+        // biomes cannot reset it. Its SPEED is calibrated by the event's base
+        // intensity (the rolled peak, constant per event): read once per event.
         final boolean raining = world.isRaining();
-        if (raining && !this.wasRaining)
+        if (raining && !this.wasRaining) {
             this.precipStartTick = tick;
+            this.baseCaptured = false;
+        }
         this.wasRaining = raining;
+        if (raining && !this.baseCaptured) {
+            final float rolled = PrecipitationIntensity.peak();
+            if (rolled > 0F) {
+                this.eventBaseIntensity = rolled;
+                this.baseCaptured = true;
+            }
+        }
 
         // Column-STABLE snow gate. PrecipitationIntensity.phase() answers for
         // the player's own block column - its heightmap check flips to NONE
-        // the moment the player steps under an eave or a tree (the live test's
-        // log flapped SNOW/NONE every few ticks while he walked a village),
-        // which would both block growth and fire the snow-end stagger mid-
-        // snowfall. What the icicles need is "is it snowing in this biome":
-        // vanilla says it is precipitating, the biome sheds snow, and the
-        // temperature is under the snow threshold - no per-column terms.
-        final boolean snowing = world.isRaining()
+        // the moment the player steps under an eave or a tree. What the
+        // icicles need is "is it snowing in this biome": vanilla says it is
+        // precipitating, the biome sheds snow, and the temperature is under
+        // the snow threshold - no per-column terms.
+        final boolean snowing = raining
                 && PrecipitationIntensity.potentialPhase(pos) == Biome.Precipitation.SNOW
                 && SeasonManager.HANDLER.isSnowTemperature(pos);
-        // The INFO line that makes a silent first test readable (the drip
-        // layer's own lesson): on every snow-state change, say what the gate
-        // actually returned.
         if (snowing != this.wasSnowing)
-            this.logger.info("[IcicleHandler] snow=%s (raining=%s potential=%s ambient=%.2f) attached=%d near (%d,%d,%d)",
-                    snowing, world.isRaining(), PrecipitationIntensity.potentialPhase(pos),
-                    PrecipitationIntensity.ambient(), this.attached.size(),
+            this.logger.info("[IcicleHandler] snow=%s (raining=%s potential=%s ambient=%.2f base=%.2f) attached=%d near (%d,%d,%d)",
+                    snowing, raining, PrecipitationIntensity.potentialPhase(pos),
+                    PrecipitationIntensity.ambient(), this.eventBaseIntensity, this.attached.size(),
                     pos.getX(), pos.getY(), pos.getZ());
 
         if (snowing) {
             // Resume edge: a biome-border flap's drop schedule is undone - the
-            // eave only sheds when the snow STAYS over. The curve needs no
-            // resume care: its clock is the world-wide rain event, which
-            // borders cannot flip.
+            // eave only sheds when the snow STAYS over. (The event clock above
+            // needs no resume care: world-wide rain cannot be flipped by a
+            // border walk.)
             if (!this.wasSnowing) {
-                for (final Attached a : this.attached.values())
+                for (final Attached a : this.attached.values()) {
                     a.dropAt = -1;
+                    // BUG-5: the melt was never cancelled. Snow that came back
+                    // after a gap found its old icicles still shrinking, and
+                    // they melted away in the middle of the snowfall.
+                    a.particle.stopMelting();
+                }
             }
             if (tick - this.lastScan >= SCAN_TICKS) {
                 this.lastScan = tick;
@@ -232,12 +289,13 @@ public class IcicleHandler extends AbstractClientHandler {
                     this.scheduleDrop(pick, tick + this.random.nextInt(40));
             }
         } else if (this.wasSnowing && !this.attached.isEmpty()) {
-            // Snow's over: everyone comes down, staggered, melting as they land.
+            // Snow's over: everything enters the MELT - slow shrink toward the
+            // root - while the drop lottery below decides who falls first.
             for (final Attached a : this.attached.values())
-                this.scheduleDrop(a, tick + this.random.nextInt(SNOW_END_SPREAD_TICKS));
+                a.particle.startMelting();
         }
 
-        // Fire scheduled drops; drop bookkeeping for anything that died on its own.
+        // Fire scheduled drops (self-drops during the snow).
         for (final Iterator<Attached> it = this.attached.values().iterator(); it.hasNext(); ) {
             final Attached a = it.next();
             if (a.particle.isDead()) {
@@ -250,7 +308,27 @@ public class IcicleHandler extends AbstractClientHandler {
             }
         }
 
-        // Staleness and distance, on their own slow clock.
+        // The after-snow lottery: every ten seconds each melting icicle rolls
+        // a ten percent chance to let go. Losers keep shrinking; an icicle
+        // that never rolls a fall melts away entirely (the particle handles
+        // that itself).
+        if (!snowing && !this.attached.isEmpty() && tick - this.lastDropRoll >= DROP_ROLL_INTERVAL) {
+            this.lastDropRoll = tick;
+            for (final Iterator<Attached> it = this.attached.values().iterator(); it.hasNext(); ) {
+                final Attached a = it.next();
+                if (a.particle.isDead()) {
+                    it.remove();
+                    continue;
+                }
+                if (this.random.nextFloat() < DROP_ROLL_CHANCE) {
+                    this.release(a, tick);
+                    it.remove();
+                }
+            }
+        }
+
+        // Staleness and distance, on their own clock - TWO ticks: a broken
+        // roof block must read as a fall almost immediately.
         if (tick - this.lastStaleCheck >= STALE_CHECK_TICKS) {
             this.lastStaleCheck = tick;
             for (final Iterator<Attached> it = this.attached.values().iterator(); it.hasNext(); ) {
@@ -264,16 +342,20 @@ public class IcicleHandler extends AbstractClientHandler {
                     it.remove();
                     continue;
                 }
-                // Its support is gone (block broken) - it falls NOW.
+                // Its support is gone (block broken) - it falls NOW. No
+                // replacement: the live test read the pool re-spawn on the
+                // same eave as "the icicle was lifted back up". The next scan
+                // refills the eave wherever it still qualifies.
                 if (!DripScanner.isStillHeld(world, a.point)) {
                     this.release(a, tick);
                     it.remove();
-                    this.reAttach(world, tick, snowing);
                 }
             }
         }
 
-        this.playDue(tick);
+        // Melt drips: the melting icicles leak - a single drop, a burst, or a
+        // short stream, from the icicle's own TIP (the particle position).
+        this.rollDrips(tick);
         this.spawnDueMelts(world, tick);
         this.wasSnowing = snowing;
     }
@@ -286,23 +368,29 @@ public class IcicleHandler extends AbstractClientHandler {
         for (final Attached a : this.attached.values())
             a.particle.discard();
         this.attached.clear();
-        this.pending.clear();
         this.melts.clear();
+        this.lastPool.clear();
         this.wasSnowing = false;
         this.wasRaining = false;
         this.precipStartTick = 0L;
-        this.lastPool.clear();
+        this.baseCaptured = false;
         this.lastScan = -1000L;
         this.lastStaleCheck = -1000L;
+        // BUG-4: without this the cooldown bookkeeping outlived the world it
+        // belonged to - and every entry in it blocked a rim forever.
+        this.rimCooldown.clear();
+        // Every world-bound clock too: otherwise the new world's first melt
+        // dice roll inherits the old world's cadence.
+        this.lastDropRoll = -1000L;
+        this.lastEmptyLog = -1000L;
     }
 
     // ---- growth -------------------------------------------------------------
 
     /**
      * Finds eave edges with the drip scanner and grows an icicle at each new
-     * one. Everything about the icicle - size tier, where it hangs along the
-     * edge, how long before it starts growing - comes from one stable hash of
-     * the point, so a given edge always produces the same icicle.
+     * one. Shape, rim placement and growth delay come from one stable hash of
+     * the point; the SIZE comes from the event curve.
      */
     private void scanAndAttach(final Level world, final BlockPos center, final long tick) {
         // Density rides the precipitation intensity, the drip budget's way.
@@ -323,6 +411,9 @@ public class IcicleHandler extends AbstractClientHandler {
             final Long key = point.point().asLong();
             if (this.attached.containsKey(key))
                 continue;
+            final Long coolingUntil = this.rimCooldown.get(key);
+            if (coolingUntil != null && tick < coolingUntil)
+                continue;
             final long hash = stableHash(point.point());
             final int growthDelay = (int) ((hash >>> 8) % 200);
             final double[] hang = icicleSpot(point, hash);
@@ -338,29 +429,21 @@ public class IcicleHandler extends AbstractClientHandler {
                 failed++;
             }
         }
-        // The replacement pool: what this scan says can hold an icicle. The
-        // pool is refilled wholesale - rims that stopped qualifying fall out
-        // of it with the next scan, which is what keeps the broken-roof loop
-        // dead even without the isStillHeld re-check in reAttach.
+        // The replacement pool: what this scan says can hold an icicle.
         if (candidates > 0) {
             this.lastPool.clear();
             this.lastPool.addAll(found);
         }
-        // The other silent-first-test line: zero candidates means the scan
-        // found no eave in range (stand nearer a roof); a spawn failure means
-        // the provider never registered. Both were invisible before this.
+        // The two log lines that keep a silent first test readable.
         if (candidates == 0 && this.attached.isEmpty() && tick - this.lastEmptyLog >= 100) {
             this.lastEmptyLog = tick;
-            // The scanner's own rejection histogram rides along - it names the
-            // gate that ate the candidates (rainUnreachable high = sky test,
-            // etc.) instead of leaving "zero" unexplained.
             final StringBuilder hist = new StringBuilder();
             for (int i = 0; i < DripScanner.STAT_COUNT; i++)
                 hist.append(' ').append(DripScanner.STAT_NAMES[i]).append('=').append(DripScanner.STATS[i]);
             this.logger.info("[IcicleHandler] snowing but the scan found 0 eave candidates near (%d,%d,%d)%s",
                     center.getX(), center.getY(), center.getZ(), hist);
         } else if (spawned > 0) {
-            this.logger.info("[IcicleHandler] growing %d new icicles (cone=%d knife=%d fang=%d, %d attached, %d failed) near (%d,%d,%d)",
+            this.logger.info("[IcicleHandler] growing %d new icicles (cone=%d knife=%d wedge=%d, %d attached, %d failed) near (%d,%d,%d)",
                     spawned, shapes[0], shapes[1], shapes[2], this.attached.size(), failed,
                     center.getX(), center.getY(), center.getZ());
         } else if (failed > 0 && tick - this.lastEmptyLog >= 100) {
@@ -444,14 +527,17 @@ public class IcicleHandler extends AbstractClientHandler {
     /**
      * Size tier from the precipitation-EVENT duration curve (the maintainer's
      * model): the likeliest size drifts upward as the weather event keeps
-     * going - his example, three game hours in, peaks on the middle of five
-     * tiers. A gaussian around the drifting peak keeps neighboring tiers
-     * common and both extremes rare. The clock restarts only when the sky
-     * closes and opens again.
+     * going - his anchor, a base intensity of 0.5, peaks on the middle of
+     * five tiers after three game hours. Heavier events fill an eave faster:
+     * the clock scales inversely to the event's base intensity. A gaussian
+     * around the drifting peak keeps neighboring tiers common and both
+     * extremes rare.
      */
     private int rollTier(final long tick) {
+        final float base = Math.max(0.15F, this.eventBaseIntensity);
+        final float peakTicks = Mth.clamp(1500F / base, 600F, 12000F);
         final float peak = Math.min(TIER_COUNT - 1F,
-                Math.max(0F, (tick - this.precipStartTick) / (float) EVENT_PEAK_TICKS * (TIER_COUNT - 1F)));
+                Math.max(0F, (tick - this.precipStartTick) / peakTicks * (TIER_COUNT - 1F)));
         final double sigma = 1.1D;
         final double[] weights = new double[TIER_COUNT];
         double total = 0.0D;
@@ -471,8 +557,8 @@ public class IcicleHandler extends AbstractClientHandler {
     /**
      * Spawns one icicle at a rim and files it. The shape comes from the
      * position hash (a rim keeps its character across regrowths), the size
-     * tier from the precipitation-event curve, the growth delay from the
-     * caller (hash-spread on first fill, zero on an immediate replacement).
+     * tier from the event curve, the growth delay from the caller
+     * (hash-spread on first fill, zero on an immediate replacement).
      *
      * @return the shape index that was spawned, or -1 on failure
      */
@@ -489,48 +575,16 @@ public class IcicleHandler extends AbstractClientHandler {
         if (particle == null)
             return -1;
         pm.add(particle);
-        this.attached.put(point.point().asLong(), new Attached(point, (IcicleParticle) particle, hangX, hangZ));
+        this.attached.put(point.point().asLong(), new Attached(point, (IcicleParticle) particle, hangX, hangZ, tier));
         return shape;
     }
 
-    /**
-     * The maintainer's rule: whenever an icicle goes somewhere, a fresh one
-     * immediately starts growing from zero - the eave never empties while the
-     * snow lasts. NOT at the fallen icicle's own rim: that is how a broken
-     * roof block looped grow-and-drop forever in the live test (the rim stops
-     * being valid the moment its block is gone, and forcing the replacement
-     * right back onto it re-fails every staleness pass). The replacement
-     * draws a RANDOM rim from the last scan's candidate pool instead,
-     * skipping rims that are gone or already occupied - the population as a
-     * whole stays where the scan says it can be. Only while it IS snowing:
-     * after the stop, replacements would grow into nothing.
-     */
-    private void reAttach(final Level world, final long tick, final boolean snowing) {
-        if (!snowing || this.lastPool.isEmpty())
-            return;
-        final List<DripScanner.DripPoint> usable = new ArrayList<>(this.lastPool.size());
-        for (final DripScanner.DripPoint point : this.lastPool) {
-            if (this.attached.containsKey(point.point().asLong()))
-                continue;
-            if (!DripScanner.isStillHeld(world, point))
-                continue;
-            usable.add(point);
-        }
-        if (usable.isEmpty())
-            return;
-        final DripScanner.DripPoint pick = usable.get(this.random.nextInt(usable.size()));
-        final long hash = stableHash(pick.point());
-        final double[] hang = icicleSpot(pick, hash);
-        this.spawnOne(pick, hang[0], pick.roof().getY() + pick.undersideY() - 0.02D, hang[1], hash, tick, 0);
-    }
-
+    /** Shape to particle type - a rim keeps its character across regrowths. */
     private static SimpleParticleType typeFor(final int shape) {
-        // Shape to particle type - a switch keeps the shape count here and the
-        // textures in sync by eye.
         return switch (shape) {
             case 0 -> ModParticles.ICICLE_CONE;
             case 1 -> ModParticles.ICICLE_KNIFE;
-            default -> ModParticles.ICICLE_FANG;
+            default -> ModParticles.ICICLE_WEDGE;
         };
     }
 
@@ -567,78 +621,127 @@ public class IcicleHandler extends AbstractClientHandler {
     }
 
     /**
-     * Lets go: the particle switches to its ballistic fall, the shatter sound
-     * is booked for the tick its tip reaches the ground (same analytic clock -
-     * see {@link #fallTicks}), and the melt drips are scheduled off the same
-     * edge a while after: the ice is gone, the snow on the rim melts and
-     * drips.
+     * Lets go: the particle switches to its ballistic fall. The shatter sound
+     * needs no booking - the particle plays it itself from shatter().
      */
     private void release(final Attached a, final long tick) {
         a.particle.release();
-        if (this.pending.size() < MAX_PENDING) {
-            this.pending.add(new PendingShatter(a.point.landing(),
-                    tick + fallTicks(a.point.fall()) + SHATTER_DELAY_EXTRA,
-                    MIN_VOLUME + this.random.nextFloat() * (MAX_VOLUME - MIN_VOLUME)));
-        }
-        for (int i = 0; i < MELT_DRIPS_PER_ICICLE; i++) {
-            this.melts.add(new PendingMeltDrip(a.hangX, a.rootY - 0.05D, a.hangZ,
-                    a.point.fall(),
-                    tick + fallTicks(a.point.fall()) + MELT_DRIP_DELAY_MIN
-                            + this.random.nextInt(MELT_DRIP_DELAY_SPAN)));
-        }
+        // Cooldown the rim: no re-growth here for a while.
+        this.rimCooldown.put(a.point.point().asLong(), tick + RIM_COOLDOWN_TICKS);
+        // BUG-7: drops already queued for this source kept spawning off an
+        // icicle that was on its way down - the tip was falling, but the water
+        // still hung there for another tick or twenty.
+        this.melts.removeIf(m -> m.source() == a.particle);
+        // The melt drops hanging on this rim fall with their ice - the drip
+        // layer's own broken-block release, pointed at this rim.
+        this.dripHandler.releaseHangingAt(a.point);
+        // One INFO line per release: a break is player-initiated and rare,
+        // and this pins the released particle's exact tip - the "lifted up"
+        // report needs the numbers to chase.
+        this.logger.info("[IcicleHandler] released tier=%d tip=(%.2f,%.2f,%.2f) root=%.2f fall=%d",
+                a.tier, a.particle.tipX(), a.particle.tipY(), a.particle.tipZ(),
+                a.point.roof().getY() + a.point.undersideY(), a.point.fall());
     }
 
     /**
-     * Ticks for the icicle's tip to fall {@code fall} blocks on the particle's
-     * exact integration (acceleration 0.06/tick, no drag): distance after n
-     * ticks is 0.03*n*(n+1). Solved in closed form; the particle checks
-     * {@code onGround} anyway, this only places the sound.
+     * The maintainer's rule: whenever an icicle goes somewhere, a fresh one
+     * immediately starts growing from zero - the eave never empties while the
+     * snow lasts. NOT at the fallen icicle's own rim: that is how a broken
+     * roof block looped grow-and-drop forever in the live test (the rim stops
+     * being valid the moment its block is gone, and forcing the replacement
+     * right back onto it re-fails every staleness pass). The replacement
+     * draws a RANDOM rim from the last scan's candidate pool instead,
+     * skipping rims that are gone or already occupied. Only while it IS
+     * snowing: after the stop, the melt handles the wind-down.
      */
-    private static int fallTicks(final int fall) {
-        final double d = Math.max(1, fall);
-        return (int) Math.ceil((Math.sqrt(0.0009D + 0.12D * d) - 0.03D) / 0.06D);
+    private void reAttach(final Level world, final long tick, final boolean snowing) {
+        if (!snowing || this.lastPool.isEmpty())
+            return;
+        final List<DripScanner.DripPoint> usable = new ArrayList<>(this.lastPool.size());
+        for (final DripScanner.DripPoint point : this.lastPool) {
+            final Long key = point.point().asLong();
+            if (this.attached.containsKey(key))
+                continue;
+            final Long coolingUntil = this.rimCooldown.get(key);
+            if (coolingUntil != null && tick < coolingUntil)
+                continue;
+            if (!DripScanner.isStillHeld(world, point))
+                continue;
+            usable.add(point);
+        }
+        if (usable.isEmpty())
+            return;
+        final DripScanner.DripPoint pick = usable.get(this.random.nextInt(usable.size()));
+        final long hash = stableHash(pick.point());
+        final double[] hang = icicleSpot(pick, hash);
+        this.spawnOne(pick, hang[0], pick.roof().getY() + pick.undersideY() - 0.02D, hang[1], hash, tick, 0);
     }
 
-    private void playDue(final long tick) {
-        final Iterator<PendingShatter> it = this.pending.iterator();
-        while (it.hasNext()) {
-            final PendingShatter shatter = it.next();
-            if (shatter.dueTick() > tick)
+    /**
+     * The ice crack, played from {@link IcicleParticle#shatter()} - the tick
+     * the tip actually breaks, whatever the fall turns out to be. Nothing has
+     * to agree with the particle's integration any more: the sound cannot lead
+     * or trail the visual, the extra "+2 tick" cushion the scheduler needed is
+     * gone, and changing the gravity below can never desync anything again.
+     */
+    private void playShatter(final double x, final double y, final double z, final int tier) {
+        final ISoundFactory factory = this.factory(SHATTER);
+        if (factory == null)
+            return;
+        final float volume = (0.40F + 0.12F * tier) + this.random.nextFloat() * 0.10F;
+        this.audioPlayer.play(factory.createAtLocation(x, y, z, Math.min(MAX_VOLUME, volume)));
+    }
+
+    /**
+     * The melt's water: melting icicles leak at random, and every style the
+     * maintainer named rides the same pending list - a single drop, a burst
+     * of three, or a stream (a drop every few ticks for a couple of
+     * seconds). The pending entry holds the ICICLE, not coordinates: the
+     * drop spawns at the tip's LIVE position, so a shrinking icicle never
+     * leaves its drop floating in the air below where the tip used to be.
+     * The drops themselves are the DRIP LAYER's - its spawnDrop + landing
+     * plip chain plays them, whole.
+     */
+    private void rollDrips(final long tick) {
+        for (final Attached a : this.attached.values()) {
+            if (!a.particle.isMelting() || a.particle.isDead())
                 continue;
-            it.remove();
-            final ISoundFactory factory = this.factory(SHATTER);
-            if (factory == null)
+            if (this.random.nextInt(DRIP_ROLL_ONE_IN) != 0)
                 continue;
-            final BlockPos landing = shatter.landing();
-            this.audioPlayer.play(factory.createAtLocation(
-                    landing.getX() + 0.5D, landing.getY() + 1.0D, landing.getZ() + 0.5D,
-                    shatter.volume()));
+            final int style = this.random.nextInt(10);
+            if (style < 5) {
+                // single drop
+                this.melts.add(new PendingDrip(a.particle, a.point, tick));
+            } else if (style < 8) {
+                // burst of three
+                for (int i = 0; i < 3; i++)
+                    this.melts.add(new PendingDrip(a.particle, a.point, tick + i * 3));
+            } else {
+                // stream: a drop every few ticks for ~2.5s
+                for (int i = 0; i < 10; i++)
+                    this.melts.add(new PendingDrip(a.particle, a.point, tick + i * 8));
+            }
         }
     }
 
     /**
-     * Melt drips: the drip handler's own particle, hanging off the edge the
-     * icicle fell from and falling the same travel. No sound of its own - the
-     * drip layer owns landing sounds, and during a snow wind-down these are
-     * few enough to stay background.
+     * Spawns the queued melt drips through the drip layer's public entry: a
+     * drop hangs at the icicle's LIVE tip (read at spawn time - the shrink
+     * keeps moving it), falls the eave's travel, and lands with the layer's
+     * own small plip.
      */
     private void spawnDueMelts(final Level world, final long tick) {
-        final Iterator<PendingMeltDrip> it = this.melts.iterator();
+        final Iterator<PendingDrip> it = this.melts.iterator();
         while (it.hasNext()) {
-            final PendingMeltDrip melt = it.next();
+            final PendingDrip melt = it.next();
             if (melt.spawnAt() > tick)
                 continue;
             it.remove();
-            final var pm = GameUtils.getParticleManager();
-            if (pm == null)
+            final IcicleParticle src = melt.source();
+            if (src.isDead())
                 continue;
-            final Particle particle = ((MixinParticleManager) pm).dsurround_createParticle(
-                    ModParticles.WATER_DRIP, melt.x(), melt.y(), melt.z(),
-                    20 + this.random.nextInt(60),
-                    melt.fall() * 2 + 2, 0.0D);
-            if (particle == null)
-                continue;
-            pm.add(particle);
+            this.dripHandler.icicleMeltDrop(world, melt.point(),
+                    src.tipX(), src.tipY() + MELT_DRIP_Y_OFFSET, src.tipZ());
         }
     }
 
@@ -667,8 +770,7 @@ public class IcicleHandler extends AbstractClientHandler {
     protected void gatherDiagnostics(final CollectDiagnosticsEvent event) {
         event.add(CollectDiagnosticsEvent.Section.Systems,
                 "Icicles: " + this.attached.size() + " attached, "
-                        + this.pending.size() + " shatters pending, "
-                        + this.melts.size() + " melts pending");
+                        + this.melts.size() + " drips pending");
     }
 
     /** One live icicle. {@code dropAt} carries a scheduled end (-1 = none yet). */
@@ -677,22 +779,20 @@ public class IcicleHandler extends AbstractClientHandler {
         final IcicleParticle particle;
         final double hangX;
         final double hangZ;
-        final double rootY;
+        final int tier;
         long dropAt = -1;
 
         Attached(final DripScanner.DripPoint point, final IcicleParticle particle,
-                 final double hangX, final double hangZ) {
+                 final double hangX, final double hangZ, final int tier) {
             this.point = point;
             this.particle = particle;
             this.hangX = hangX;
             this.hangZ = hangZ;
-            this.rootY = point.roof().getY() + point.undersideY() - 0.02D;
+            this.tier = tier;
         }
     }
 
-    private record PendingShatter(BlockPos landing, long dueTick, float volume) {
-    }
-
-    private record PendingMeltDrip(double x, double y, double z, int fall, long spawnAt) {
+    /** A queued melt drop, hanging off its (still shrinking) source icicle. */
+    private record PendingDrip(IcicleParticle source, DripScanner.DripPoint point, long spawnAt) {
     }
 }

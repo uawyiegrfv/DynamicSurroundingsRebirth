@@ -33,7 +33,7 @@ public final class ModParticles {
      * hash, so one texture reads at every size). */
     public static final SimpleParticleType ICICLE_CONE = new SimpleParticleType(false);
     public static final SimpleParticleType ICICLE_KNIFE = new SimpleParticleType(false);
-    public static final SimpleParticleType ICICLE_FANG = new SimpleParticleType(false);
+    public static final SimpleParticleType ICICLE_WEDGE = new SimpleParticleType(false);
     /** The shard burst when an icicle shatters on the ground. */
     public static final SimpleParticleType ICICLE_LAND = new SimpleParticleType(false);
 
@@ -63,11 +63,22 @@ public final class ModParticles {
                 Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_knife"),
                 () -> ICICLE_KNIFE);
         event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
-                Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_fang"),
-                () -> ICICLE_FANG);
+                Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_wedge"),
+                () -> ICICLE_WEDGE);
         event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
                 Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land"),
                 () -> ICICLE_LAND);
+    }
+
+    /**
+     * 26.1: the icicle's own particle group. This version dispatches particles
+     * by their render type, and a custom group is the only way to add a factory
+     * for one - the icicle needs it because its quad is not square (see
+     * {@link IcicleParticleGroup}).
+     */
+    public static void registerParticleGroups(
+            final net.neoforged.neoforge.client.event.RegisterParticleGroupsEvent event) {
+        event.register(IcicleParticleGroup.type(), IcicleParticleGroup::new);
     }
 
     /**
@@ -78,14 +89,14 @@ public final class ModParticles {
     public static void registerProvider() {
         ParticleProviderRegistry.register(WATER_DRIP, sprites -> new WaterDripParticle.Provider(sprites));
         ParticleProviderRegistry.register(ICICLE_CONE,
-                sprites -> new IcicleParticle.Provider(11,
+                sprites -> new IcicleParticle.Provider(12, 5, 0.7F,
                         Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_cone")));
         ParticleProviderRegistry.register(ICICLE_KNIFE,
-                sprites -> new IcicleParticle.Provider(11,
+                sprites -> new IcicleParticle.Provider(14, 3, 1.0F,
                         Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_knife")));
-        ParticleProviderRegistry.register(ICICLE_FANG,
-                sprites -> new IcicleParticle.Provider(9,
-                        Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_fang")));
+        ParticleProviderRegistry.register(ICICLE_WEDGE,
+                sprites -> new IcicleParticle.Provider(10, 5, 0.45F,
+                        Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_wedge")));
         ParticleProviderRegistry.register(ICICLE_LAND,
                 sprites -> new IcicleLandParticle.Provider(
                         Identifier.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land")));

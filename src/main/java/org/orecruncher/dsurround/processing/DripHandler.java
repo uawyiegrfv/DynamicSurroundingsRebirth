@@ -7,6 +7,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.Constants;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
@@ -85,6 +86,9 @@ public class DripHandler {
             Identifier.fromNamespaceAndPath("minecraft", "block.pointed_dripstone.drip_water_into_cauldron");
     /** Ground drips read as the heavier set once the channel passes this. */
     private static final float BIG_FLAVOR_THRESHOLD = 0.5F;
+    /** The icicle layer's melt drops are the small ones (its slot pins the
+     * size exactly). */
+    public static final double MELT_DRIP_SIZE = 0.45D;
 
     // Scan cadence. The roofs do not move; twenty ticks answers a dug-away
     // eave within a second, and fire-time validation answers it immediately.
@@ -368,7 +372,13 @@ public class DripHandler {
         }
 
         final long tick = this.tickCount.getTickCount();
-        final float value = this.valueFor(world);
+        // It is SNOWING here, not raining: the eaves are frozen and the
+        // icicle layer owns what hangs on them - liquid drops on icicles read
+        // as a defect (maintainer report). Zero the value; the pool
+        // bookkeeping keeps running so nothing stateful is skipped.
+        final boolean frozen = world.isRaining()
+                && PrecipitationIntensity.potentialPhase(player.blockPosition()) == Biome.Precipitation.SNOW;
+        final float value = frozen ? 0.0F : this.valueFor(world);
 
         if (value <= 0F) {
             // Clear weather: nothing retained, nothing asked - the scan does
@@ -889,6 +899,44 @@ public class DripHandler {
      */
     private void spawnDrop(final Level world, final DripScanner.DripPoint point,
                            final double x, final double y, final double z) {
+        this.spawnDrop(world, point, x, y, z, 1.0D);
+    }
+
+    /**
+     * One melt drip for the icicle layer: a drop forms at the position given
+     * (the melting icicle's live tip), hangs briefly, falls the eave's travel
+     * and lands with the small plip - the drip layer's own complete chain
+     * (particle, splash, landing sound), at melt size and a quiet volume.
+     * The icicle layer owns WHEN a drop happens; this owns HOW it plays.
+     */
+    /**
+     * Releases every hanging drop parked on this rim, right now - the icicle
+     * layer calls it when the icicle on that rim drops, so a melt drop does
+     * not hang in the air where its ice used to be. The same release the
+     * broken-block pass uses; the drops complete their own fall and plip.
+     */
+    public void releaseHangingAt(final DripScanner.DripPoint point) {
+        for (final HangingDrop held : this.hanging) {
+            if (held.point().point().equals(point.point()) && held.drop().isHanging())
+                held.drop().release();
+        }
+    }
+
+    public void icicleMeltDrop(final Level world, final DripScanner.DripPoint point,
+                               final double x, final double rootY, final double z) {
+        this.spawnDrop(world, point, x, rootY, z, MELT_DRIP_SIZE);
+        if (this.pending.size() < MAX_PENDING)
+            this.pending.add(new PendingLanding(point, GROUND_SMALL,
+                    this.tickCount.getTickCount() + HANG_TICKS
+                            + point.fall() * FALL_TICKS_PER_BLOCK + LANDING_DELAY_EXTRA,
+                    0.3F));
+    }
+
+    /** The drip's own size scale: 1.0 is the eave drop; the icicle layer's
+     * melt drops ask for the small one (the third spawn slot pins the size
+     * exactly, no vanilla variance). */
+    private void spawnDrop(final Level world, final DripScanner.DripPoint point,
+                           final double x, final double y, final double z, final double sizeScale) {
         final var pm = GameUtils.getParticleManager();
         if (pm == null)
             return;
@@ -897,7 +945,7 @@ public class DripHandler {
         // and renders twice.
         final Particle particle = ((MixinParticleManager) pm).dsurround_createParticle(
                 ModParticles.WATER_DRIP, x, y, z, HANG_TICKS,
-                point.fall() * FALL_TICKS_PER_BLOCK + LANDING_DELAY_EXTRA, 0.0D);
+                point.fall() * FALL_TICKS_PER_BLOCK + LANDING_DELAY_EXTRA, sizeScale);
         if (particle == null)
             return;
         pm.add(particle);

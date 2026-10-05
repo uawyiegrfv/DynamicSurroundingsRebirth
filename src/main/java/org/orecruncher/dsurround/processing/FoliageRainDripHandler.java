@@ -11,6 +11,7 @@ import net.minecraft.client.particle.Particle;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.phys.Vec3;
 import org.orecruncher.dsurround.Configuration;
@@ -76,6 +77,9 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
      * takes ~40 ticks, the same two seconds the eave drop hangs.
      */
     private static final float SLIDE_SPEED = 0.25F;
+    /** Per-slide speed spread - some drops run, some dawdle. */
+    private static final float SLIDE_SPEED_JITTER_MIN = 0.7F;
+    private static final float SLIDE_SPEED_JITTER_MAX = 1.8F;
     /** A dropper's rest on the blade before letting go, in ticks. */
     private static final int REST_MIN_TICKS = 10;
     private static final int REST_MAX_TICKS = 20;
@@ -258,7 +262,7 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
 
         // The after-rain lottery, whenever there are persistent beads left.
         if (!this.residualDrops.isEmpty())
-            this.rollResidual(tick);
+            this.rollResidual(world, tick);
 
         // Expire spots.
         boolean expired = false;
@@ -305,10 +309,19 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
      * where it is or lets go (2%). The falling drop is the same size as the
      * resting one - see FoliageDripParticle's billboard.
      */
-    private void rollResidual(final long tick) {
+    private void rollResidual(final Level world, final long tick) {
         for (final Iterator<Residual> it = this.residualDrops.iterator(); it.hasNext(); ) {
             final Residual r = it.next();
             if (r.drop.isRemoved()) {
+                it.remove();
+                continue;
+            }
+            // The blade is gone (broken, harvested, swapped): the water it was
+            // holding falls. Same rule the dew layer already had - water on a
+            // broken blade falls, it does not hang in the air where the plant
+            // used to be.
+            if (world.getBlockState(r.pos).getBlock() != r.block) {
+                r.drop.beginFall();
                 it.remove();
                 continue;
             }
@@ -511,7 +524,8 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         final long expire;
         if (residual) {
             // Persistent: it stays until the once-a-second roll says let go.
-            this.residualDrops.add(new Residual(drop, tick + RESIDUAL_ROLL_INTERVAL));
+            this.residualDrops.add(new Residual(drop, spot.pos, spot.state.getBlock(),
+                    tick + RESIDUAL_ROLL_INTERVAL));
             // A ceiling anyway - a bead that never wins must not sit there
             // forever after the layer has gone quiet.
             expire = tick + 2400L;   // 120s ceiling, matches the channel
@@ -528,7 +542,12 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
                 pts[i + 1] = (float) (spot.pos.getY() + offset.y + path.pts()[i + 1]);
                 pts[i + 2] = (float) (spot.pos.getZ() + offset.z + path.pts()[i + 2]);
             }
-            final int ticks = Math.max(5, Math.round(path.length() / SLIDE_SPEED * 20F));
+            // Every slide gets its own speed. All of them at the same pace read
+            // as one mechanism running; real drops vary with how much water is
+            // on the leaf and how the blade is bent.
+            final float speed = SLIDE_SPEED * (SLIDE_SPEED_JITTER_MIN
+                    + this.random.nextFloat() * (SLIDE_SPEED_JITTER_MAX - SLIDE_SPEED_JITTER_MIN));
+            final int ticks = Math.max(5, Math.round(path.length() / speed * 20F));
             // The path end at model y > 0.25 is mid-air (double-plant upper
             // halves): let go instead of evaporating on the spot.
             final float endY = path.pts()[path.pts().length - 2];
@@ -554,10 +573,14 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     /** One persistent after-rain bead, and the tick it next rolls to let go. */
     private static final class Residual {
         final FoliageDripParticle drop;
+        final BlockPos pos;
+        final Block block;
         long nextRoll;
 
-        Residual(final FoliageDripParticle drop, final long nextRoll) {
+        Residual(final FoliageDripParticle drop, final BlockPos pos, final Block block, final long nextRoll) {
             this.drop = drop;
+            this.pos = pos;
+            this.block = block;
             this.nextRoll = nextRoll;
         }
     }

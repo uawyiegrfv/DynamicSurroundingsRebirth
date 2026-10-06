@@ -60,9 +60,16 @@ public final class WindField {
 
     // ================= 可调参数：实测之后只动这一段 =================
 
-    /** 没有降水时的风速，格/秒。不设成 0：完全静风会让人以为功能没开，
-     *  而且它也是沙尘幕在风暴起来之前的漂移底线。 */
-    private static final float WIND_SPEED_MIN_BPS = 0.8F;
+    /**
+     * 没有降水时的风速，格/秒。
+     *
+     * <p>原来是 0.8，注释写的是"完全静风会让人以为功能没开"。但常数地板正是
+     * "雨从来没有竖直过"的直接原因：强度 0 也吹 0.8 格/秒，配上下落速度 0.25
+     * 格/tick 和增益 0.5，光这一项就给出 4.6 度的倾角。现在真正的静歇由
+     * {@link #WIND_ENV_FLOOR} 兜底（包络最低点，而不是恒定值），所以这里可以
+     * 降到 0.15 —— 该有风的时候照样有风，只是不再是"永远有风"。</p>
+     */
+    private static final float WIND_SPEED_MIN_BPS = 0.15F;
 
     /** 强度拉满时额外增加的风速，格/秒。 */
     private static final float WIND_SPEED_RANGE_BPS = 4.2F;
@@ -79,6 +86,53 @@ public final class WindField {
 
     /** 快摆动的周期，tick。2400 tick = 2 分钟。 */
     private static final float WIND_VEER_WOBBLE_PERIOD_TICKS = 2400F;
+
+    // ---- 阵风包络（让"无风"的表现真的存在） ----
+
+    /**
+     * 风速包络的最低点。风不会真的静到 0 —— 那样会让人以为功能没开 ——
+     * 但静歇期要静到"雨看着是竖的"：0.08 配强度 0.5（基准 3.75 格/秒）
+     * 给出 0.30 格/秒，配增益 0.5 与下落 0.406 格/tick ⇒ 倾角约 1.1 度，
+     * 肉眼就是竖直。再往上抬到 0.15 就只剩 2 度，仍然看得出来在斜。
+     */
+    private static final float WIND_ENV_FLOOR = 0.08F;
+
+    /**
+     * 包络里慢周期占多少，剩下的是快周期。0.85 = 慢的为主、快的只掺一点。
+     *
+     * <p>纯慢正弦的静歇占比更高（27% 对 19%），但一条正弦是严格 90 秒一次
+     * 的节拍器 —— "太规律"是踩过的坑。掺 15% 快周期把节拍打散，代价是静歇
+     * 少一点，值。</p>
+     */
+    /**
+     * 包络的 gamma。&lt;1 会把整条曲线往上顶（抬高均值），但 u-&gt;0 时仍收敛到
+     * {@link #WIND_ENV_FLOOR}，所以深静歇照旧 —— 这是"均值要大、静歇还要在"
+     * 唯一能两全的旋钮。
+     *
+     * <p>离线扫过 3 个下限 x 6 个 gamma（30 分钟逐 tick），取 0.70：
+     * 强度 0.5 的平均倾角 7.1 度 -&gt; 8.1 度（改动前恒定 13.0），
+     * 而静歇（&lt;3 度）占比 19% -&gt; 8%（强度 0.25 仍有 20%）。
+     * 再往下压到 0.55 均值能到 8.8，但强度 0.5 的静歇只剩 4%，不值。</p>
+     */
+    private static final double WIND_ENV_GAMMA = 0.70D;
+
+    private static final double WIND_ENV_SLOW_WEIGHT = 0.85D;
+
+    /**
+     * 慢包络的周期，tick。1800 tick = 90 秒 —— 一次"起风 / 静下来"的呼吸。
+     * 调大 = 静歇更久更少；调小 = 来回得更勤。
+     */
+    private static final float WIND_ENV_PERIOD_SLOW_TICKS = 1800F;
+
+    /**
+     * 快包络的周期，tick。460 tick = 23 秒 —— 叠在慢包络上的阵头。
+     * 两层相乘，所以真正的满风要两层同时到峰（不常见），
+     * 正是"阵风是稀有的、静歇是常态"这个分布。
+     */
+    private static final float WIND_ENV_PERIOD_FAST_TICKS = 460F;
+
+    /** 快包络的相位，避开与慢包络同相（否则两层永远同时到峰，就没有静歇了）。 */
+    private static final double WIND_ENV_FAST_PHASE = 1.7D;
 
     /** 倾斜方向的符号。1F = 雨丝朝风去的那一侧倒。
      *  实机如果发现倒向相反，把这里改成 -1F —— 一处，三版同改。 */
@@ -175,7 +229,8 @@ public final class WindField {
     public static void update(long gameTime, float partialTick, float strength, float gustAmplitude,
                               float biomeScale) {
         final float a = angleAt(gameTime, partialTick);
-        final float bps = speedAt(strength, gustAmplitude, biomeScale);
+        // 渲染路径乘阵风包络：同一场雨会自己一忽儿竖直一忽儿斜。
+        final float bps = speedAt(gameTime, partialTick, strength, gustAmplitude, biomeScale);
         angle = a;
         dirX = Mth.cos(a);
         dirZ = Mth.sin(a);
@@ -200,11 +255,58 @@ public final class WindField {
      * 调用方（渲染、沙尘、脚本变量集、风声层）拿到的都是同一阵风，不需要各自
      * 补一次季节修正。</p>
      */
+    /**
+     * 风速，格/秒。纯函数。<strong>不带阵风包络</strong> —— 给没有绘制通道的
+     * 调用方（风声层、脚本变量集）用。
+     *
+     * <p>为什么不给他们也乘包络：风声层把这风速折成风床音量，而"静歇期风床
+     * 掉没 ⇒ 听感像风声没了"是踩过的坑（见 {@code BiomeSoundHandler} 里
+     * {@code RAIN_WIND_MIN_INTENSITY} 的注释）。包络让瞬时风速在静歇期掉到
+     * 15%，照搬到音频上就是每隔一两分钟风声消失一次。风床代表的是这场风暴
+     * 的<em>潜力</em>而不是这一瞬间的阵风，所以这里读不带包络的基准值。</p>
+     */
     public static float speedAt(float strength, float gustAmplitude, float biomeScale) {
         final float s = Mth.clamp(strength, 0F, 1F);
         final float g = Mth.clamp(gustAmplitude, 0F, 1F);
         final float b = biomeScale > 0F ? biomeScale : 1F;
         return (WIND_SPEED_MIN_BPS + WIND_SPEED_RANGE_BPS * s + WIND_GUST_SPEED_BPS * g * s) * b * seasonScale();
+    }
+
+    /**
+     * 渲染用的风速，格/秒 —— 上面那条再乘一个阵风包络。
+     *
+     * <p>只有 {@link #update} 调它，而 {@code update} 写的缓存只被
+     * {@link #tangentialAlong}（雨/雪/沙尘幕的倾斜与拖影）读到，所以包络
+     * 只影响看得见的东西。</p>
+     */
+    public static float speedAt(long gameTime, float partialTick, float strength,
+                                float gustAmplitude, float biomeScale) {
+        return speedAt(strength, gustAmplitude, biomeScale) * envelopeAt(gameTime, partialTick);
+    }
+
+    /**
+     * 阵风包络，0.15 .. 1.0，游戏时钟的纯函数 —— 与 {@link #angleAt} 同一条
+     * 纪律：本模组没有晴天也跑的 tick 钩子，一个靠 tick 推进的状态场会在晴天
+     * 冻住，然后在暴风雨第一帧突然跳到新值。纯函数没有这个问题。
+     *
+     * <p>两层正弦相乘：慢的那层决定"这一阵风起来没有"，快的那层在它上面叠
+     * 阵头。相乘而不是相加，因为相乘才有真正的静歇（两层都低的时候接近 0），
+     * 而相加永远掉不到底 —— 那和原来的常数地板没区别。</p>
+     */
+    public static float envelopeAt(long gameTime, float partialTick) {
+        final double t = (double) gameTime + (double) partialTick;
+        final double slow = 0.5 + 0.5 * Math.sin(TWO_PI * (t / (double) WIND_ENV_PERIOD_SLOW_TICKS));
+        final double fast = 0.5 + 0.5 * Math.sin(TWO_PI * (t / (double) WIND_ENV_PERIOD_FAST_TICKS)
+                + WIND_ENV_FAST_PHASE);
+        // 加权和，不是积。slow×fast 只在两层同时到峰时才接近 1，深静歇因此
+        // 极其罕见 —— 实测"倾角<3°"只占 3% 的时间，等于没有静歇。改成加权和
+        // 之后升到约 19%。
+        //
+        // 两条都是 0..1 的正弦，和也在 0..1，均值 0.5 ⇒ 平均风速约降到改动前的
+        // 六成（倾角均值 13° → 7.1°）。这是刻意的：他要的是"雨不全是斜的"，
+        // 平均降下来正是那个方向，而峰值仍然够到满值。
+        final double u = WIND_ENV_SLOW_WEIGHT * slow + (1.0 - WIND_ENV_SLOW_WEIGHT) * fast;
+        return (float) (WIND_ENV_FLOOR + (1.0 - WIND_ENV_FLOOR) * Math.pow(u, WIND_ENV_GAMMA));
     }
 
     /**

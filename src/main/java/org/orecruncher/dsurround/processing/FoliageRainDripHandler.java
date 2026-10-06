@@ -57,8 +57,8 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     private static final int SCAN_TICKS = 30;
     private static final int SCAN_PHASE = 10;
     /** Global drop budget: {@code BASE*value + SPAN*value^2} drops a second. */
-    private static final double RATE_BASE = 2.0D;
-    private static final double RATE_SPAN = 14.0D;
+    private static final double RATE_BASE = 5.0D;
+    private static final double RATE_SPAN = 28.0D;
     private static final float TICK_SECONDS = 0.05F;
     /** Pool sizing, the drip budget's way. */
     private static final int MAX_SPOTS = 48;
@@ -76,10 +76,7 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
      * "飞速" half of the complaint. At 0.25 a typical ~0.5 block blade path
      * takes ~40 ticks, the same two seconds the eave drop hangs.
      */
-    private static final float SLIDE_SPEED = 0.25F;
-    /** Per-slide speed spread - some drops run, some dawdle. */
-    private static final float SLIDE_SPEED_JITTER_MIN = 0.7F;
-    private static final float SLIDE_SPEED_JITTER_MAX = 1.8F;
+    private static final float SLIDE_SPEED = 0.0125F;
     /** A dropper's rest on the blade before letting go, in ticks. */
     private static final int REST_MIN_TICKS = 10;
     private static final int REST_MAX_TICKS = 20;
@@ -203,9 +200,14 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
                 * (0.5F + this.random.nextFloat()) * density;
         if (this.accumulator > 2F)
             this.accumulator = 2F;
+        // A starved pool must not silently eat the budget: if no spot is
+        // eligible this tick the drop is not "spent", it rolls over. The
+        // accumulator is still capped, so a long drought cannot build into a
+        // burst - it only hands back what the cooldowns withheld.
         while (this.accumulator >= 1F) {
+            if (!this.fireOne(world, player, tick, value))
+                break;
             this.accumulator -= 1F;
-            this.fireOne(world, player, tick, value);
         }
 
         // The after-rain lottery, whenever there are persistent beads left.
@@ -290,9 +292,16 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
                     FoliageScan.scan(world, center, FoliageScan.Mode.RAIN,
                             this.config.weatherOptions.foliageScanRange);
             candidatePlants = found.size();
-            for (final FoliageScan.FoliageSpot plant : found) {
+            // The walk hands the candidates back in BOX ORDER - the (-x,-z)
+            // corner first - so taking the first `want` of them pinned every
+            // drop to that one corner: a fixed patch of dripping grass that
+            // walked along with the player. Start at a random candidate and
+            // wrap around instead, and the pool is drawn from the whole box.
+            final int first = candidatePlants > 0 ? this.random.nextInt(candidatePlants) : 0;
+            for (int k = 0; k < candidatePlants; k++) {
                 if (kept.size() >= want)
                     break;
+                final FoliageScan.FoliageSpot plant = found.get((first + k) % candidatePlants);
                 // One or two spots per plant: the second only half the time,
                 // the eave layer's spread rule, so plants read unevenly.
                 int existing = 0;
@@ -349,7 +358,7 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
                 + (COOLDOWN_STORM_TICKS - COOLDOWN_CALM_TICKS) * value);
     }
 
-    private void fireOne(final Level world, final Player player, final long tick, final float value) {
+    private boolean fireOne(final Level world, final Player player, final long tick, final float value) {
         Spot best = null;
         int eligible = 0;
         for (final Spot spot : this.pool) {
@@ -364,9 +373,10 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
                 best = spot;
         }
         if (best == null)
-            return;
+            return false;
         best.lastFire = tick;
         this.spawn(world, player, best, tick);
+        return true;
     }
 
     private int plantLiveCount(final BlockPos pos) {
@@ -456,26 +466,32 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
             return;
         }
         if (slider) {
-            final FoliageProfile.SlidePath path = spot.plane.paths()[
-                    this.random.nextInt(spot.plane.paths().length)];
+            // The bead sits on one anchor; the paths were baked from other
+            // column tops. Take the one that STARTS nearest this bead - the
+            // old random pick made the opening move a leap across the sprite.
+            final FoliageProfile.SlidePath path = FoliageProfile.nearestPath(
+                    spot.plane.paths(), anchor.x(), anchor.y(), anchor.z());
             // Waypoints to world space (same block offset as the anchor).
-            final float[] pts = new float[path.pts().length];
-            for (int i = 0; i < path.pts().length; i += 3) {
-                pts[i] = (float) (spot.pos.getX() + offset.x + path.pts()[i]);
-                pts[i + 1] = (float) (spot.pos.getY() + offset.y + path.pts()[i + 1]);
-                pts[i + 2] = (float) (spot.pos.getZ() + offset.z + path.pts()[i + 2]);
+            final float[] pts = path == null ? null : new float[path.pts().length];
+            if (pts != null) {
+                for (int i = 0; i < path.pts().length; i += 3) {
+                    pts[i] = (float) (spot.pos.getX() + offset.x + path.pts()[i]);
+                    pts[i + 1] = (float) (spot.pos.getY() + offset.y + path.pts()[i + 1]);
+                    pts[i + 2] = (float) (spot.pos.getZ() + offset.z + path.pts()[i + 2]);
+                }
             }
-            // Every slide gets its own speed. All of them at the same pace read
-            // as one mechanism running; real drops vary with how much water is
-            // on the leaf and how the blade is bent.
-            final float speed = SLIDE_SPEED * (SLIDE_SPEED_JITTER_MIN
-                    + this.random.nextFloat() * (SLIDE_SPEED_JITTER_MAX - SLIDE_SPEED_JITTER_MIN));
-            final int ticks = Math.max(5, Math.round(path.length() / speed * 20F));
             // The path end at model y > 0.25 is mid-air (double-plant upper
             // halves): let go instead of evaporating on the spot.
-            final float endY = path.pts()[path.pts().length - 2];
-            drop.beginSlide(pts, ticks, endY > 0.25F);
-            expire = tick + ticks + 60L;
+            final float endY = path == null ? 0F : path.pts()[path.pts().length - 2];
+            if (pts != null && drop.beginSlide(pts, SLIDE_SPEED, endY > 0.25F)) {
+                // Nominal slide time, generously - the bead's own pace decides,
+                // and this is only the accounting that frees the plant's slot.
+                expire = tick + Math.round(path.length() / SLIDE_SPEED * 1.6F) + 60L;
+            } else {
+                // Nothing below the bead to slide down: it lets go instead.
+                drop.beginFall();
+                expire = tick + 120L;
+            }
         } else {
             expire = tick + rest + 120L;
         }

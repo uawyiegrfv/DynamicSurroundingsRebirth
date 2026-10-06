@@ -59,7 +59,8 @@ public class WaterDripParticle extends SingleQuadParticle {
     /** Vanilla never sets {@code quadSize}; this is the base class default it gets. */
     private static final float VANILLA_QUAD_SIZE = 0.1F;
     /** {@code DripParticle}'s gravity, and the 0.02 the hanging variant scales it by. */
-    private static final float VANILLA_GRAVITY = 0.06F;
+    /** Package-visible: the foliage layer's falling drop reads it too. */
+    static final float VANILLA_GRAVITY = 0.06F;
     private static final float HANG_GRAVITY_SCALE = 0.02F;
     /** What {@code postMoveUpdate} does to the velocity each phase. */
     private static final float HANG_DAMP = 0.02F;

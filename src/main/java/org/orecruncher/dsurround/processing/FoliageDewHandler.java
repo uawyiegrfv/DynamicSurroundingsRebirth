@@ -98,10 +98,7 @@ public class FoliageDewHandler extends AbstractClientHandler {
      * uses: see FoliageRainDripHandler.SLIDE_SPEED. Slower still than rain,
      * because dew has no weight behind it.
      */
-    private static final float SLIDE_SPEED = 0.2F;
-    /** Per-slide speed spread, as the rain layer has. */
-    private static final float SLIDE_SPEED_JITTER_MIN = 0.7F;
-    private static final float SLIDE_SPEED_JITTER_MAX = 1.8F;
+    private static final float SLIDE_SPEED = 0.010F;
     /** The window's tail: beads shrink out over this. */
     private static final int EVAPORATE_TICKS = 600;
     /** Rain kills dew faster. */
@@ -386,7 +383,7 @@ public class FoliageDewHandler extends AbstractClientHandler {
             // Review D: the first lottery is phase-shifted per bead, so one
             // scan batch never ages in lockstep.
             final long nextRoll = tick + this.random.nextInt(LOTTERY_INTERVAL);
-            plant.drops.add(new DewDrop(drop, plane, spot.pos(), spot.state(), nextRoll, index++));
+            plant.drops.add(new DewDrop(drop, plane, anchor, spot.pos(), spot.state(), nextRoll, index++));
             any = true;
         }
         return any;
@@ -423,8 +420,10 @@ public class FoliageDewHandler extends AbstractClientHandler {
                     // plip booked by the particle's land callback.
                     drop.particle().beginFall();
                 } else if (roll < 0.03F + ROLL_SLIDE && drop.plane().paths().length > 0) {
-                    final FoliageProfile.SlidePath path = drop.plane().paths()[
-                            this.random.nextInt(drop.plane().paths().length)];
+                    final FoliageProfile.SlidePath path = FoliageProfile.nearestPath(
+                            drop.plane().paths(), drop.anchor().x(), drop.anchor().y(), drop.anchor().z());
+                    if (path == null)
+                        continue;
                     final Vec3 offset = drop.state().getOffset(world, drop.pos());
                     final float[] pts = new float[path.pts().length];
                     for (int i = 0; i < path.pts().length; i += 3) {
@@ -432,11 +431,8 @@ public class FoliageDewHandler extends AbstractClientHandler {
                         pts[i + 1] = (float) (drop.pos().getY() + offset.y + path.pts()[i + 1]);
                         pts[i + 2] = (float) (drop.pos().getZ() + offset.z + path.pts()[i + 2]);
                     }
-                    final float speed = SLIDE_SPEED * (SLIDE_SPEED_JITTER_MIN
-                            + this.random.nextFloat() * (SLIDE_SPEED_JITTER_MAX - SLIDE_SPEED_JITTER_MIN));
-                    final int ticks = Math.max(5, Math.round(path.length() / speed * 20F));
                     final float endY = path.pts()[path.pts().length - 2];
-                    drop.particle().beginSlide(pts, ticks, endY > 0.25F);
+                    drop.particle().beginSlide(pts, SLIDE_SPEED, endY > 0.25F);
                 }
                 // else: stay - the common answer.
             }
@@ -548,20 +544,27 @@ public class FoliageDewHandler extends AbstractClientHandler {
     private static final class DewDrop {
         final FoliageDripParticle particle;
         final FoliageProfile.Plane plane;
+        final FoliageProfile.Anchor anchor;
         final BlockPos pos;
         final net.minecraft.world.level.block.state.BlockState state;
         long nextRoll;
         final int index;
 
         DewDrop(final FoliageDripParticle particle, final FoliageProfile.Plane plane,
+                final FoliageProfile.Anchor anchor,
                 final BlockPos pos, final net.minecraft.world.level.block.state.BlockState state,
                 final long nextRoll, final int index) {
             this.particle = particle;
             this.plane = plane;
+            this.anchor = anchor;
             this.pos = pos;
             this.state = state;
             this.nextRoll = nextRoll;
             this.index = index;
+        }
+
+        FoliageProfile.Anchor anchor() {
+            return this.anchor;
         }
 
         FoliageDripParticle particle() {

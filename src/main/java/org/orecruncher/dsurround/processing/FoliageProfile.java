@@ -66,7 +66,57 @@ public final class FoliageProfile {
     private static final int MAX_PATH_POINTS = 48;
     /** How far a sliding path may lean sideways before it is cut off. */
     private static final int MAX_PATH_DRIFT = 3;
+    /**
+     * How far above the block's bottom edge a bead may sit, in BLOCKS.
+     *
+     * <p>A plant's sprite puts the base of its stem on the block's own bottom
+     * edge, so a bead that rides the mask all the way down is standing in the
+     * block the plant is growing out of - and vanilla reads a particle's light
+     * from the block it is inside, which is zero in there, so the bead renders
+     * BLACK for as long as it lasts. The old "stop a row short of the last"
+     * guard was not enough: the row above the last is only 0.09 of a block up,
+     * which is less than a bead's own radius, and a plant whose model is
+     * shorter than a block (crops, flowerbeds, most modded plants) puts even
+     * that row underground.</p>
+     *
+     * <p>0.1 is the radius of the largest bead the particle can make
+     * ({@code VANILLA_DRIP_QUAD_SIZE}), so holding the bead's centre this high
+     * keeps the WHOLE quad inside the plant's block - nothing dips into the
+     * ground, and the light sample can only ever come from a plant, never from
+     * the soil.</p>
+     */
+    private static final float GROUND_CLEARANCE = 0.10F;
     private static final float ALPHA_THRESHOLD = 8.0F;
+
+    /**
+     * The pre-baked descent whose START lies closest to this anchor - a bead
+     * slides down the blade it is actually sitting on.
+     *
+     * <p>The paths are baked from a spread of column tops and the bead is
+     * given a WEIGHTED RANDOM anchor, so the two are unrelated: picking one
+     * at random (the old code) meant the bead's first move was a leap to
+     * wherever that path began - sometimes half a sprite sideways, and when
+     * the bead's own anchor sat lower, upward. Nearest-start keeps the opening
+     * move short; {@code beginSlide} still discards whatever is left above the
+     * bead, so a climb can never survive.</p>
+     */
+    public static SlidePath nearestPath(final SlidePath[] paths, final float ax, final float ay, final float az) {
+        SlidePath best = null;
+        float bestD = Float.MAX_VALUE;
+        for (final SlidePath p : paths) {
+            if (p == null || p.pts().length < 6)
+                continue;
+            final float dx = p.pts()[0] - ax;
+            final float dy = p.pts()[1] - ay;
+            final float dz = p.pts()[2] - az;
+            final float d = dx * dx + dy * dy + dz * dz;
+            if (d < bestD) {
+                bestD = d;
+                best = p;
+            }
+        }
+        return best;
+    }
 
     private final List<Plane> planes;
 
@@ -274,6 +324,10 @@ public final class FoliageProfile {
         for (int i = 0; i < topPixels.size(); i++) {
             final int[] p = topPixels.get(i);
             mapper.map(p[0], p[1], mapped);
+            // A perch down at the base of the stem is a bead standing in the
+            // soil - see GROUND_CLEARANCE. It is not an attachment point.
+            if (mapped[1] < GROUND_CLEARANCE)
+                continue;
             anchors.add(new Anchor(planeIndex, mapped[0], mapped[1], mapped[2], topWeights.get(i)[0]));
         }
         anchors.sort((x, y) -> Float.compare(y.weight(), x.weight()));
@@ -293,10 +347,22 @@ public final class FoliageProfile {
                 if (pixels == null)
                     continue;
                 pixels = smooth(pixels);
-                final float[] pts = new float[pixels.size() * 3];
+                // Cut the descent off above the ground (GROUND_CLEARANCE): the
+                // bottom rows of the mask are the base of the stem, which sits
+                // in the block below, and a bead there reads the soil's light.
+                int usable = 0;
+                for (int i = 0; i < pixels.size(); i++) {
+                    mapper.map(pixels.get(i)[0], pixels.get(i)[1], mapped);
+                    if (mapped[1] < GROUND_CLEARANCE)
+                        break;
+                    usable = i + 1;
+                }
+                if (usable < 3)
+                    continue;
+                final float[] pts = new float[usable * 3];
                 float length = 0F;
                 float lx = 0F, ly = 0F, lz = 0F;
-                for (int i = 0; i < pixels.size(); i++) {
+                for (int i = 0; i < usable; i++) {
                     mapper.map(pixels.get(i)[0], pixels.get(i)[1], mapped);
                     pts[i * 3] = mapped[0];
                     pts[i * 3 + 1] = mapped[1];

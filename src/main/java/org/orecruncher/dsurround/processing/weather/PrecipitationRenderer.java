@@ -179,6 +179,118 @@ public final class PrecipitationRenderer {
     private static final float RAIN_FALL_SPEED_RANGE_BPT = 0.3125F;
     /** 雪的下落速度（格/tick）：d8 每 tick 走 1/512 个 v，1 v = 4 格。 */
     private static final float SNOW_FALL_SPEED_BPT = 1F / 128F;
+
+    // ---- 风致拖影（让 1~3px 的雪/沙尘也能读出风向） ----
+
+    /**
+     * 拖影长度上限，贴图像素。判据是"剪切能让特征顶部让开 tan x 高度"：
+     * 满风 tan=0.36 时 3px 的雪花只让开 1.08px，读不出方向；而 16px 的雨丝
+     * 能让开 5.8px 所以雨一直是对的。6px 是"读得出方向"和"雪变雨丝"的分界。
+     */
+    /**
+     * 拖影是否加在围栏幕上。**关着** —— 离线实测（{@code _trail_spread_check.py}）：
+     * 拖影的方向 = &plusmn;该幕自己的横轴，而围栏的横轴围成一圈，{@code sign(p)} 只能
+     * 把它折到以风向为中心的半圆里，于是划痕方向铺满 180&deg;（标准差 39.6&deg;，
+     * 只有 35% 的方向能量落在 &plusmn;30&deg; 内）。加权平均虽然指向风向（0&deg;），
+     * 但眼睛看到的不是平均、是散布 —— 表现就是"看不出方向，还看得眼花"。
+     *
+     * <p>拖影只能放在"所有幕朝向一致"的流幕上：流幕的横轴就是风向，实测标准差
+     * 0&deg;、100% 能量在 &plusmn;15&deg; 内。流幕上线后这里改成"只有流幕片开拖影"。
+     */
+    // ---- 流幕（与风向平行的一层，叠在围栏上） ----
+
+    /**
+     * 流幕的强度系数（相对围栏那一层）。**0 = 这一层关掉。**
+     *
+     * <p>实测三轮（2026-10-06），反馈依次是"看不出方向、看得眼花缭乱"
+     * &rarr; "加了和没加差不多、半透明、太快像在闪" &rarr; "还是很快很虚，
+     * 围栏也没变"。<b>结论：不是参数没调好，是这条路走不通。</b></p>
+     *
+     * <ol>
+     * <li>围栏的每一片幕只能在自己面内表达，而幕绕成一圈 ⇒ 任何"沿幕"的方向
+     *     表达（倾角、拖影、漂移）在每片幕上方向都不同 —— 实测划痕方向铺满
+     *     180&deg;、标准差 39.6&deg;。</li>
+     * <li>于是只剩"叠一层统一朝向的幕"。但严格平行时顺风看完全 edge-on、覆盖率
+     *     归零，只能当附加层 ⇒ 天生是少数派，改不动"以围栏为主的观感"；改扇形
+     *     （&plusmn;30&deg;）不归零了，可它是半透明、还在动，看着虚。</li>
+     * <li>最根本的一条：<b>雪在贴图上只有 1~3px。</b>任何"把点拉长成划痕"的做法
+     *     本质上都是把雪变成雨丝/雾 —— 方向有了，雪不像雪了。这是美术尺度决定
+     *     的，代码绕不过去。</li>
+     * </ol>
+     *
+     * <p>要真让雪有风向，只有一条彻底的路：把降水改成<b>世界空间的粒子系统</b>
+     * （每颗雪是一颗能朝任意方向运动的粒子），而不是"幕"。那是重写，不是调参。
+     * 参数留在这里是为了将来真要重写时有个对照。</p>
+     */
+    private static final float STREAMER_GAIN = 0F;
+
+    /**
+     * 扇形的半角，度。0 = 严格平行（顺风看完全 edge-on，覆盖率归零，只能当附加层）；
+     * 30 = 轴在风向 &plusmn;30&deg; 内展开，顺风看仍有 38% 的覆盖率，可以当主层。
+     *
+     * <p>复现器实测（{@code _fan_layout_check.py}，强度 1.0，覆盖相对现状围栏）：</p>
+     * <pre>
+     *   半角  顺风   侧风   一圈平均  方向标准差
+     *   15&deg;   19%   154%    100%      8.1&deg;
+     *   25&deg;   32%   151%    100%     13.2&deg;
+     *   35&deg;   44%   146%    100%     18.3&deg;
+     *   45&deg;   56%   141%    100%     23.4&deg;
+     * </pre>
+     * 取 30&deg;：标准差 ~15&deg;（读得出方向），顺风不塌。
+     */
+    private static final float STREAMER_FAN_DEG = 30F;
+
+    /**
+     * 满风风速，格/tick —— 把风速归一化到 0..1 用。
+     * 7.35 格/秒 = (0.15 + 4.2 + 3.0) / 20。
+     */
+    private static final float STREAMER_FULL_WIND_BPT = 0.3675F;
+
+    /**
+     * 流幕的横向漂移，u/tick（满风时），折合每秒 1.0 个纹理周期。
+     *
+     * <p>必须以"每秒几个纹理周期"定标并封顶：v1 的跟风漂移就是没定标，
+     * 实测每秒滚 8 个纹理周期 —— 那不叫风向，那叫闪烁。</p>
+     *
+     * <p>0.02 = 满风每秒 0.4 个纹理周期 &asymp; 0.52 格/秒。第一版给的是 0.05
+     * （1.0 周期/秒），他实测"强度 1.0 时移动太快，根本看不清，像在闪" ——
+     * 先让他看清静态划痕的方向，再谈运动。</p>
+     */
+    private static final float STREAMER_DRIFT_UPT = 0.02F;
+
+    /** 漂移方向的符号。1F = 雪朝风去的那一侧飘。实机若发现反了，这里改 -1F。 */
+    private static final float STREAMER_DRIFT_SIGN = 1F;
+
+    private static final boolean TRAIL_ON_FENCE = false;
+
+    private static final float TRAIL_MAX_PX = 6F;
+
+    /** 快门时间：拖影代表多少 tick 的位移。 */
+    private static final float TRAIL_TICKS = 0.5F;
+
+    /** 采样间距上限，px。1.5px 在屏幕上通常只有 1~2 个像素，看着是连续的。 */
+    private static final float TRAIL_GAP_PX = 1.5F;
+
+    /** 采样数上限，也就是成本上限。 */
+    private static final int TRAIL_MAX_SAMPLES = 4;
+
+    /** 雪花自身的尺寸，px —— 拖影拉到这么长时亮度减半。 */
+    private static final float TRAIL_ALPHA_FEATURE_PX = 3F;
+
+    /** 1px 以下的拖影既看不见也不该扣亮度，保证静歇期精确退化成今天的样子。 */
+    private static final float TRAIL_ALPHA_DEAD_PX = 1F;
+
+    /**
+     * 亮度下限。纯物理（划痕拉长几倍就暗几分之一）会淡到"半透明、看不出存在"，
+     * 他反馈过一次，所以兜到 0.5。
+     */
+    private static final float TRAIL_ALPHA_FLOOR = 0.5F;
+
+    /** 贴图宽度，px = 1 个 u 周期。拖影按"贴图像素"定标，与幕宽无关。 */
+    private static final float TRAIL_TEX_PX = 64F;
+
+    /** 度 -> 弧度。 */
+    private static final float DEG2RAD = (float) (Math.PI / 180.0);
     /** 雪的横向抖动幅度（u/tick），1.12.2 的 0.01F。风给出的是均值，
      *  这个高斯项保留各幕之间的差异（1.12.2 的招牌观感）。 */
     private static final float SNOW_DRIFT_JITTER = 0.01F;
@@ -825,6 +937,41 @@ public final class PrecipitationRenderer {
                         ? (l2 - k2) * tiltTan * tiltJitter / stripWidth
                         : 0F;
 
+                // ---- WIND：风致拖影（trailUV） ----
+                // 剪切只是把整片幕的顶点沿 u 剪斜，它在贴图上"让开"的量是
+                // tan x 特征高度 —— 对 16px 的雨丝有 5.8px 所以雨看着对，
+                // 对 1~3px 的雪/沙尘只有 0.36~1.08px，等于没有。拖影是把这一帧
+                // 沿风的投影方向多画几份、每份 u 错开一点，合成出一条够长的划痕。
+                //
+                // 只有雪走这条：雨丝本身就是长线，剪切已经够用，再叠拖影会变雨幕。
+                // 沙尘在 WeatherStormHandler，形态同样是 1px 的点，下一步照搬。
+                //
+                // 风速 0 => 拖影 0 => samples 1 => 与今天逐顶点完全相同，
+                // 不改任何贴图 —— "无风"的表现照旧存在。
+                final float trailPx = snow && TRAIL_ON_FENCE && stripWidth > 0.0001F
+                        ? Math.min(TRAIL_MAX_PX,
+                                Math.abs(windT) * TRAIL_TICKS / stripWidth * TRAIL_TEX_PX)
+                        : 0F;
+                final int samples = trailPx > 0.0001F
+                        ? Mth.clamp((int) Math.ceil(trailPx / TRAIL_GAP_PX), 1, TRAIL_MAX_SAMPLES)
+                        : 1;
+                // u 增加的方向就是幕的横轴，所以偏移量直接加在 u 上，符号取风在该
+                // 轴上的投影符号 —— 和 slantU 用的是同一个 windT，方向必然一致。
+                final float trailU = trailPx / TRAIL_TEX_PX * (windT >= 0F ? 1F : -1F);
+                // 亮度按快门时间内的占空比给：划痕拉长几倍，每处就只亮几分之一。
+                // 只由拖影长度决定、不由 samples 决定，所以 samples 从 2 跳到 3
+                // 时亮度不会跟着跳。静歇期 trailPx < 1px => fade = 1，精确退化。
+                final float trailFade = samples > 1
+                        ? Math.max(TRAIL_ALPHA_FLOOR, 1F / (1F
+                                + Math.max(0F, trailPx - TRAIL_ALPHA_DEAD_PX) / TRAIL_ALPHA_FEATURE_PX))
+                        : 1F;
+
+                // 流幕的强度 ∝ 风速：无风时 0 ⇒ 这一层根本不画，
+                // 于是"无风"的表现仍然是围栏那一层原封不动的样子。
+                final float windNorm = Mth.clamp(
+                        Math.abs(WindField.speedPerTick()) / STREAMER_FULL_WIND_BPT, 0F, 1F);
+                final float streamerWeight = snow ? STREAMER_GAIN * windNorm : 0F;
+
                 // Measured from the camera rather than from the player's block, so
                 // the edge falloff is centred on where the view actually is instead
                 // of being off by up to a block.
@@ -893,7 +1040,7 @@ public final class PrecipitationRenderer {
                     final float z1 = gridZ + stripY + 0.5F - (float) cam.z;
                     final float y0 = k2 - (float) cam.y;
                     final float y1 = l2 - (float) cam.y;
-                    final int alphaInt = (int) (alpha * layerAlpha * 255F);
+                    final int alphaInt = (int) (alpha * layerAlpha * trailFade * 255F);
                     // White for both: 1.12.2 tints only DUST (biome dustColor), rain and
                     // snow use Color.WHITE.
                     // setLight(light) is setUv2(light & 0xFFFF, light >> 16), i.e.
@@ -901,11 +1048,86 @@ public final class PrecipitationRenderer {
                     // what vanilla rain passes. Do not swap it.
                     final int argb = (alphaInt << 24) | 0x00FFFFFF;
 
-                    buffer.addVertex(x0, y0, z0).setUv(u0, v0).setColor(argb).setLight(light);
-                    buffer.addVertex(x1, y0, z1).setUv(u1, v0).setColor(argb).setLight(light);
-                    buffer.addVertex(x1, y1, z1).setUv(u1 + slantU, v1).setColor(argb).setLight(light);
-                    buffer.addVertex(x0, y1, z0).setUv(u0 + slantU, v1).setColor(argb).setLight(light);
-                    quads++;
+                    for (int smp = 0; smp < samples; smp++) {
+                        // 采样沿拖影方向均匀分布：只画一份时 off=0，与改动前逐顶点相同。
+                        final float off = samples > 1
+                                ? trailU * ((float) smp / (float) (samples - 1))
+                                : 0F;
+                        buffer.addVertex(x0, y0, z0).setUv(u0 + off, v0).setColor(argb).setLight(light);
+                        buffer.addVertex(x1, y0, z1).setUv(u1 + off, v0).setColor(argb).setLight(light);
+                        buffer.addVertex(x1, y1, z1).setUv(u1 + off + slantU, v1).setColor(argb).setLight(light);
+                        buffer.addVertex(x0, y1, z0).setUv(u0 + off + slantU, v1).setColor(argb).setLight(light);
+                        quads++;
+                    }
+                }
+                // ==================== WIND：流幕（与风向平行的一层） ====================
+                // 围栏的横轴围成一圈，所以任何"沿横轴"的表达在每片幕上方向都不同 ——
+                // 拖影在围栏上实测划痕方向铺满 180°、标准差 39.6°，看着就是乱。
+                // 流幕把横轴换成风向本身，于是拖影在每一片流幕上都朝同一个方向
+                // （实测标准差 0°、100% 的方向能量落在 ±15° 内）；而且因为所有流幕
+                // 横轴相同，横向漂移也第一次能用 —— 全体朝同一个方向走，不再是
+                // 围栏上那种"绕圈/横扫"。
+                if (streamerWeight > 0F) {
+                    final float sh = STRIP_HALF_WIDTH * widthScale;
+                    // 扇形：轴 = 风向 &plusmn; STREAMER_FAN_DEG，偏移由世界锚定的
+                    // columnHash 决定（逐帧随机会让幕 shimmer）。严格平行（0&deg;）
+                    // 顺风看会完全 edge-on、覆盖率归零，所以只能当附加层、永远是
+                    // 少数派；扇形不归零，于是它可以当主层。
+                    final float fanA = WindField.angleRad()
+                            + (columnHash * 2F - 1F) * STREAMER_FAN_DEG * DEG2RAD;
+                    final float ssx = Mth.cos(fanA) * sh;
+                    final float ssz = Mth.sin(fanA) * sh;
+                    final float sWidth = 2F * sh;
+                    // 横轴就是风向 ⇒ 风在它上面的投影 = 满风速（不用再点乘一遍）
+                    final float sSpeed = Math.abs(WindField.speedPerTick());
+                    final float sTrailPx = Math.min(TRAIL_MAX_PX,
+                            sSpeed * TRAIL_TICKS / sWidth * TRAIL_TEX_PX);
+                    final int sSamples = Mth.clamp((int) Math.ceil(sTrailPx / TRAIL_GAP_PX),
+                            1, TRAIL_MAX_SAMPLES);
+                    final float sTrailU = sTrailPx / TRAIL_TEX_PX * WindField.SLANT_SIGN;
+                    final float sFade = sSamples > 1
+                            ? Math.max(TRAIL_ALPHA_FLOOR, 1F / (1F
+                                    + Math.max(0F, sTrailPx - TRAIL_ALPHA_DEAD_PX) / TRAIL_ALPHA_FEATURE_PX))
+                            : 1F;
+                    final float sTan = Mth.clamp((snow ? SNOW_TILT_GAIN : RAIN_TILT_GAIN)
+                            * sSpeed / fallBPT, -MAX_TILT_TAN, MAX_TILT_TAN) * WindField.SLANT_SIGN;
+                    final float sSlant = (l2 - k2) * sTan / sWidth;
+                    // 漂移：采样窗口沿 -u 走，纹理内容就朝 +横轴（= 风向）走。
+                    // % 1.0：把偏移永远限制在一个纹理周期内。不这么做它随游戏时长
+                    // 线性增长（一小时就能到几千），float 精度会掉；取模 1.0 则回绕时
+                    // 正好差一个完整周期、纹理是 REPEAT，跳变无缝。
+                    final float driftU = (float) -(animClock * STREAMER_DRIFT_UPT
+                            * windNorm * STREAMER_DRIFT_SIGN % 1.0);
+                    columnRandom.setSeed(seed ^ 0x5bf03635);
+                    final double e8 = ((ticks & 511) + partialTick) / 512.0;
+                    final double e9 = columnRandom.nextDouble()
+                            + animClock * SNOW_DRIFT_JITTER * (float) columnRandom.nextGaussian();
+                    final double e10 = columnRandom.nextDouble()
+                            + animClock * (float) columnRandom.nextGaussian() * 0.001D;
+                    final float su0 = (float) e9 + driftU;
+                    final float su1 = su0 + 1F;
+                    final float sv0 = k2 * 0.25F + (float) e8 + (float) e10;
+                    final float sv1 = l2 * 0.25F + (float) e8 + (float) e10;
+                    final float sx0 = gridX - ssx + 0.5F - (float) cam.x;
+                    final float sz0 = gridZ - ssz + 0.5F - (float) cam.z;
+                    final float sx1 = gridX + ssx + 0.5F - (float) cam.x;
+                    final float sz1 = gridZ + ssz + 0.5F - (float) cam.z;
+                    final float sy0 = k2 - (float) cam.y;
+                    final float sy1 = l2 - (float) cam.y;
+                    final int sAlphaInt = (int) (alpha * streamerWeight * sFade * 255F);
+                    if (sAlphaInt > 0) {
+                        for (int smp = 0; smp < sSamples; smp++) {
+                            // 尾巴留在上风侧：采样从当前位置往后退
+                            final float soff = sSamples > 1
+                                    ? -sTrailU * ((float) smp / (float) (sSamples - 1))
+                                    : 0F;
+                            buffer.addVertex(sx0, sy0, sz0).setUv(su0 + soff, sv0).setColor((sAlphaInt << 24) | 0x00FFFFFF).setLight(light);
+                            buffer.addVertex(sx1, sy0, sz1).setUv(su1 + soff, sv0).setColor((sAlphaInt << 24) | 0x00FFFFFF).setLight(light);
+                            buffer.addVertex(sx1, sy1, sz1).setUv(su1 + soff + sSlant, sv1).setColor((sAlphaInt << 24) | 0x00FFFFFF).setLight(light);
+                            buffer.addVertex(sx0, sy1, sz0).setUv(su0 + soff + sSlant, sv1).setColor((sAlphaInt << 24) | 0x00FFFFFF).setLight(light);
+                            quads++;
+                        }
+                    }
                 }
             }
         }

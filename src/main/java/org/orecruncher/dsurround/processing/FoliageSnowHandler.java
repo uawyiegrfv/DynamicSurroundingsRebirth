@@ -70,6 +70,17 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     /** Round 10: was 36 (six blocks). Three and a half now - a walk has to trigger a rescan sooner than that. */
     private static final double RESCAN_MOVE_SQ = 12.25D;
     /**
+     * Floor on how often the walk test may bring the next scan forward.
+     *
+     * <p>The walk test is the layer's most useful trigger and its most dangerous one: at three and
+     * a half blocks it fires every couple of ticks on an elytra, and a scan here is a 33x33x11
+     * sweep (11979 blocks) - so the layer that costs the most per scan was also the one scanning
+     * most often. Ten ticks keeps a walked-up-to plant answered inside half a second, which is
+     * faster than the eye can attribute, and bounds the rate. The new-chunk test and the slow
+     * top-up keep their own cooldowns, untouched.</p>
+     */
+    private static final int MOVE_RESCAN_MIN_TICKS = 10;
+    /**
      * Round 10: "快靠近才出现粒子". This is the slow top-up's number - with
      * it at 600 a plant you walked up to took 30 seconds per scan and two
      * units per scan to fill in, so the coat visibly GREW while you watched.
@@ -349,8 +360,12 @@ public class FoliageSnowHandler extends AbstractClientHandler {
         final boolean newChunk = chunkX != this.lastChunkX || chunkZ != this.lastChunkZ;
         final boolean moved = this.lastScanPos == null
                 || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= RESCAN_MOVE_SQ;
+        // Moved only brings the next scan forward, and only past the floor - see
+        // MOVE_RESCAN_MIN_TICKS. The first scan after a fresh snowfall still happens at once:
+        // that path resets lastScanTick to the far past on purpose.
+        final boolean movedNow = moved && tick - this.lastScanTick >= MOVE_RESCAN_MIN_TICKS;
         if (snowingHere && (newChunk && tick - this.lastScanTick >= CHUNK_COOLDOWN_TICKS
-                || moved
+                || movedNow
                 || tick - this.lastScanTick >= TOPUP_TICKS)) {
             this.lastChunkX = chunkX;
             this.lastChunkZ = chunkZ;

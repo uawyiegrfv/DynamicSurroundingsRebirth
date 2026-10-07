@@ -17,6 +17,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
@@ -535,6 +536,7 @@ public final class PrecipitationRenderer {
     private static boolean active() {
         boolean now = false;
         if (!broken) {
+            checkEffectsOwnership();
             var config = Client.Config;
             // A diagnostics lock bypasses the config switch on purpose: the whole point
             // of /dsprecip lock is to answer "does the chain work at all", and answering
@@ -565,6 +567,46 @@ public final class PrecipitationRenderer {
         return now;
     }
 
+    /**
+     * Set once the overworld effects slot has been inspected in this world.
+     *
+     * <p>Reset when the world is left, because the next server may load a different set of mods'
+     * registrations - a check that only ever runs once per game session would miss exactly the
+     * pack that added a cloud mod between sessions.</p>
+     */
+    private static volatile boolean effectsOwnershipChecked = false;
+
+    /**
+     * One-shot check that the {@code overworld} dimension effects object is still ours.
+     *
+     * <p>This is the only silent failure mode the counters cannot see. Forge's registry keeps the
+     * <em>last</em> registration, so a mod that registers {@code overworld} after us does not
+     * conflict, does not log, and does not crash - it simply takes vanilla's rain pass and the
+     * cloud pass with it, and every hook we own on that object stops being called. From the
+     * player's side "the rain mod stopped working"; from the log's side nothing happened.</p>
+     *
+     * <p>Deliberately limited to the overworld: the nether and the end have their own effects
+     * objects by design, and reporting those as a loss would be noise. Called from
+     * {@link #active()}, which runs every frame, so the answer is noticed in the frame the world
+     * finishes loading rather than at the next storm.</p>
+     */
+    private static void checkEffectsOwnership() {
+        if (effectsOwnershipChecked)
+            return;
+        final ClientLevel level = Minecraft.getInstance().level;
+        if (level == null || !level.dimension().equals(Level.OVERWORLD))
+            return;
+        effectsOwnershipChecked = true;
+        if (level.effects() instanceof GradedPrecipitationEffects)
+            return;
+        RouteFuse.noteCapabilityLost(RouteFuse.Capability.RAIN,
+                "another mod registered the overworld effects object after us, so vanilla's rain"
+                        + " pass is no longer ours to suppress");
+        RouteFuse.noteCapabilityLost(RouteFuse.Capability.CLOUD,
+                "the same effects object carries the cloud pass and the sky event's cloud"
+                        + " suppression");
+    }
+
     /** Diagnostics only. Logging must never be able to break rendering. */
     private static void note(String fmt, Object... args) {
         try {
@@ -576,11 +618,27 @@ public final class PrecipitationRenderer {
         }
     }
 
+    /**
+     * Error-level variant of {@link #note}. Guarded the same way and for the same reason: the
+     * logging path is not allowed to be the thing that decides whether the renderer recovers.
+     */
+    private static void noteError(Throwable t, String fmt, Object... args) {
+        try {
+            org.orecruncher.dsurround.lib.di.ContainerManager
+                    .resolve(org.orecruncher.dsurround.lib.logging.IModLog.class)
+                    .error(t, "Precipitation: " + fmt, args);
+        } catch (Throwable loggingFailure) {
+            // There is nowhere left to report to: the logger is the reporting channel. The caller
+            // has already disabled the pass, so the failure is contained either way.
+        }
+    }
+
     private static final class GradedPrecipitationEffects extends DimensionSpecialEffects.OverworldEffects {
         @Override
         public boolean renderSnowAndRain(ClientLevel level, int ticks, float partialTick,
                                          LightTexture lightTexture, double camX, double camY, double camZ) {
             hookCalls++;
+            RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
             return active();
         }
 
@@ -590,6 +648,7 @@ public final class PrecipitationRenderer {
             // counter reads "vanilla asked" rather than "we took it over". That is
             // the whole point - see the field comment on tickHooks.
             tickHooks++;
+            RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
             // false means "vanilla, carry on". The bytecode says so and it is the
             // opposite of what the name suggests: offset 19 jumps past the early
             // return when the hook answers false, and 22 is that return - so true
@@ -660,19 +719,25 @@ public final class PrecipitationRenderer {
         } catch (Throwable t) {
             // Never let a render failure take the frame down; the next frame falls
             // back to vanilla because active() drives the takeover too.
-            org.orecruncher.dsurround.lib.logging.IModLog logger =
-                    org.orecruncher.dsurround.lib.di.ContainerManager.resolve(
-                            org.orecruncher.dsurround.lib.logging.IModLog.class);
-            logger.error(t, "PrecipitationRenderer threw while rendering precipitation");
+            //
+            // disable() comes FIRST, and the logging is guarded separately. It used to be the
+            // other way round, which made the recovery depend on the logger: the logger is
+            // resolved through the container and writes to the FML log, and if it threw, the
+            // exception left this catch before disable() ran - so the renderer stayed "not
+            // broken" and threw again on the next frame, every frame, forever.
+            disable();
+            noteError(t, "render threw - the graded precipitation pass is now disabled for this world");
             // The Tesselator is a process-wide singleton: a throw mid-loop leaves
             // its BufferBuilder building, and the next begin() - the sandstorm
             // veil - would throw "Already building" and take the frame down.
             try {
                 Tesselator.getInstance().end();
-            } catch (Throwable ignored) {
-                // not building; nothing to clean up
+            } catch (Throwable cleanupFailure) {
+                // Not silent, on purpose: a BufferBuilder left building is a process-wide
+                // landmine, and knowing it happened is worth one line in the log.
+                note("tesselator cleanup failed (%s) - a later renderer may throw 'Already building'",
+                        cleanupFailure);
             }
-            disable();
         }
     }
 
@@ -691,6 +756,7 @@ public final class PrecipitationRenderer {
      */
     public static void onWorldLeft() {
         broken = false;
+        effectsOwnershipChecked = false;
         resetLevelHysteresis();
         phaseCache.clear();
         surfaceCache.clear();
@@ -733,35 +799,60 @@ public final class PrecipitationRenderer {
                 PrecipitationIntensity.windScale());
 
 
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.enableDepthTest();
-        RenderSystem.depthMask(Minecraft.useShaderTransparency());
-        RenderSystem.disableCull();
-        RenderSystem.setShader(GameRenderer::getParticleShader);
-        mc.gameRenderer.lightTexture().turnOnLightLayer();
+        // The state set below belongs to the particle pass and has to be given back whether the
+        // draw succeeds or not. It used to be set, used, and restored in a straight line, which
+        // meant one throw anywhere in drawPhase left the frame with culling off, blending on and
+        // the light layer on - and the next thing to render (the hotbar, the sandstorm veil, the
+        // GUI) inherited all three. The failure is rare; its symptom, "the world went dark and
+        // the items disappeared", is not diagnosable from the report it produces.
+        try {
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.enableDepthTest();
+            RenderSystem.depthMask(Minecraft.useShaderTransparency());
+            RenderSystem.disableCull();
+            RenderSystem.setShader(GameRenderer::getParticleShader);
+            mc.gameRenderer.lightTexture().turnOnLightLayer();
 
-        if (PrecipitationIntensity.forced() >= 0F) {
-            // Diagnostics lock: draw the locked level as whatever this place
-            // actually precipitates, not as rain everywhere. The lock used to
-            // force RAIN because the per-column phase gate needs
-            // level.isRaining() to be true - see potentialPhase(), which asks
-            // the same question without that test.
-            drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
-                    Biome.Precipitation.RAIN, RAIN_TEXTURES[rainLevel], 1F, false, true, intensity);
-            drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
-                    Biome.Precipitation.SNOW, SNOW_TEXTURES[rainLevel], 1F, true, true, intensity);
-        } else {
-            drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
-                    Biome.Precipitation.RAIN, RAIN_TEXTURES[rainLevel], alphaRatio, false, false, intensity);
-            drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
-                    Biome.Precipitation.SNOW, SNOW_TEXTURES[rainLevel], alphaRatio, true, false, intensity);
+            if (PrecipitationIntensity.forced() >= 0F) {
+                // Diagnostics lock: draw the locked level as whatever this place
+                // actually precipitates, not as rain everywhere. The lock used to
+                // force RAIN because the per-column phase gate needs
+                // level.isRaining() to be true - see potentialPhase(), which asks
+                // the same question without that test.
+                drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
+                        Biome.Precipitation.RAIN, RAIN_TEXTURES[rainLevel], 1F, false, true, intensity);
+                drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
+                        Biome.Precipitation.SNOW, SNOW_TEXTURES[rainLevel], 1F, true, true, intensity);
+            } else {
+                drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
+                        Biome.Precipitation.RAIN, RAIN_TEXTURES[rainLevel], alphaRatio, false, false, intensity);
+                drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
+                        Biome.Precipitation.SNOW, SNOW_TEXTURES[rainLevel], alphaRatio, true, false, intensity);
+            }
+        } finally {
+            restoreRenderState(mc);
         }
+    }
 
-        mc.gameRenderer.lightTexture().turnOffLightLayer();
-        RenderSystem.enableCull();
-        RenderSystem.depthMask(true);
-        RenderSystem.disableBlend();
+    /**
+     * Gives the frame back the state the particle pass borrowed. Each piece is restored
+     * independently: a failure to turn the light layer off must not also leave culling off, since
+     * each one has its own visible symptom and they are read separately.
+     */
+    private static void restoreRenderState(Minecraft mc) {
+        try {
+            mc.gameRenderer.lightTexture().turnOffLightLayer();
+        } catch (Throwable t) {
+            note("light layer restore failed: %s", t);
+        }
+        try {
+            RenderSystem.enableCull();
+            RenderSystem.depthMask(true);
+            RenderSystem.disableBlend();
+        } catch (Throwable t) {
+            note("render state restore failed: %s", t);
+        }
     }
 
     private static void drawPhase(ClientLevel level, Camera camera, Vec3 cam, float partialTick,

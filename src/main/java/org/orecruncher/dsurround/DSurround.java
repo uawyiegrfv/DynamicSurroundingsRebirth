@@ -68,6 +68,10 @@ public final class DSurround {
         // vanilla rain pass, and registers the stage listener that draws ours.
         modBus.addListener(org.orecruncher.dsurround.processing.weather.PrecipitationRenderer::onRegisterDimensionEffects);
         org.orecruncher.dsurround.processing.weather.PrecipitationRenderer.bootstrap();
+        // Route watchdog: counts the consultations of every route we hook and reports the ones
+        // that stop being called. Purely observational - it changes no behaviour, and it is the
+        // only way a silently-missed injection becomes visible.
+        org.orecruncher.dsurround.processing.weather.RouteFuse.bootstrap();
 
         // Cloth Config configuration screen
         if (ModList.get().isLoaded(Constants.CLOTH_CONFIG_NEOFORGE)) {

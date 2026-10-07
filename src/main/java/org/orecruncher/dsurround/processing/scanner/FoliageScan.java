@@ -15,9 +15,11 @@ import org.orecruncher.dsurround.lib.collections.ObjectArray;
  * Where the foliage-drip layers can attach: a plain volume walk around the
  * player (the drip scanner's framework, a different predicate - plants are
  * not overhangs, so this is a sibling of {@link DripScanner}, not a branch of
- * it). The box is deliberately small: radius 10 / up 4 / down 6 is 4851 block
- * reads a pass against the eave scanner's 29k, and never leaves the loaded
- * chunks the client is guaranteed to hold.
+ * it). The box is deliberately small and never leaves the loaded chunks the
+ * client is guaranteed to hold: at the configured range of 16 it is 33x33x7,
+ * about 7.6k block reads a pass, against the eave scanner's 29k. The 7 is
+ * {@link #UP_RANGE} plus {@link #DOWN_RANGE} plus one; the down side used to be
+ * six, and that part of the box was the part nothing ever looked at.
  *
  * <p>The predicate chain, in cost order:</p>
  * <ol>
@@ -60,8 +62,19 @@ public final class FoliageScan {
     public static final int RANGE_XZ = 10;
     /** Vertical reach above the player. */
     public static final int UP_RANGE = 4;
-    /** Vertical reach below the player. */
-    public static final int DOWN_RANGE = 6;
+    /**
+     * Vertical reach below the player.
+     *
+     * <p>Was six. The window is centred on the player, not on the terrain, so the reach below only
+     * matters while the player is <em>above</em> the plants - standing on a wall, or in the air -
+     * and everything it does cover has to be within the four blocks above as well. Two keeps the
+     * cases that are actually seen (a slope one block down, a jump, standing on a plant's own
+     * block) and drops four layers off every sweep: 33x33x11 becomes 33x33x7, a third of the block
+     * reads gone from the most expensive of the three ground layers. Plants that were in range
+     * and drop out are not torn down - the handlers' staleness pass keeps them until the plant
+     * itself goes - so the visible effect is a slower fill from above, not a flicker.</p>
+     */
+    public static final int DOWN_RANGE = 2;
 
     /** Trace switch - driven by the handlers from the logging config. */
     public static volatile boolean TRACE = false;

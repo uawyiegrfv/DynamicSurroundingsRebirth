@@ -12,6 +12,7 @@ import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.processing.fog.FogData;
 import org.orecruncher.dsurround.processing.fog.HolisticFogRangeCalculator;
+import org.orecruncher.dsurround.processing.weather.RouteFuse;
 
 /**
  * 1.20.1 port: the 1.21.x FogRenderer rework (setupFog returning a FogData record stored
@@ -46,6 +47,10 @@ public class FogHandler extends AbstractClientHandler {
     }
 
     private void renderFog(ViewportEvent.RenderFog event) {
+        // Counted before either gate below: the question the watchdog asks is whether Forge fires
+        // this event at all on 1.20.1 (it is the port's stand-in for the 1.21 fog record), not
+        // whether this particular pass is one we modify.
+        RouteFuse.feed(RouteFuse.Route.FOG_RANGE);
         // Only atmospheric (clear-air) fog is modified; water/lava/powdered-snow keep
         // vanilla. 1.20.1 has no FogType.ATMOSPHERIC; the "no fluid" type is FogType.NONE.
         if (event.getType() != FogType.NONE)

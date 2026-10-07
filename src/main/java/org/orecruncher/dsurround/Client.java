@@ -163,6 +163,10 @@ public final class Client {
         // listeners in the constructor; a lazy singleton is otherwise never created.
         ContainerManager.resolve(QuickSoundVolumeOverlay.class);
 
+        // One line naming who owns the fog, the clouds, the rain and the sky. The hand-offs are
+        // silent by nature (see CompatReport), so they are stated rather than inferred.
+        org.orecruncher.dsurround.compat.CompatReport.logStartupSummary();
+
         this.logger.info("[%s] Client initialization complete", Constants.MOD_ID);
     }
 

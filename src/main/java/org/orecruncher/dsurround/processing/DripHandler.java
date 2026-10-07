@@ -95,6 +95,20 @@ public class DripHandler {
     private static final int SCAN_TICKS = 20;
     /** Re-scan sooner than that when the player walks this far (4 blocks). */
     private static final double RESCAN_MOVE_SQ = 16.0D;
+    /**
+     * Floor on how often the walk test may bring the next scan forward.
+     *
+     * <p>Walking is what the move test is for, and at walking speed the twenty-tick cadence is
+     * already the binding constraint. Nothing bounded it from above, though: at elytra speed (about
+     * 1.5 blocks a tick) the four-block test is satisfied every three ticks, so the scan ran six
+     * times as often as intended and the cost of a 33x33x27 box scaled with the player's speed.
+     * Ten ticks keeps the responsiveness that matters (a new eave answered within half a second)
+     * and puts a ceiling on the rate.</p>
+     *
+     * <p>It rations only the <em>extra</em> scans. The twenty-tick period and the still-valid
+     * check are untouched, so a stationary player sees no change at all.</p>
+     */
+    private static final int MOVE_RESCAN_MIN_TICKS = 10;
     /** A point further than this (3D) is neither picked nor kept - beyond it the LINEAR attenuation is already silent. */
     /**
      * Must not be smaller than the scan box, or points the scan found are
@@ -406,7 +420,11 @@ public class DripHandler {
         final BlockPos playerPos = player.blockPosition();
         final boolean moved = this.lastScanPos == null
                 || this.lastScanPos.distToCenterSqr(playerPos.getX(), playerPos.getY(), playerPos.getZ()) >= RESCAN_MOVE_SQ;
-        if (tick - this.lastScanTick >= SCAN_TICKS || moved)
+        // Moved only brings the next scan forward, and only past the floor - see
+        // MOVE_RESCAN_MIN_TICKS. The first scan of a session still happens at once, because
+        // lastScanPos is null and lastScanTick starts far in the past.
+        final boolean movedNow = moved && tick - this.lastScanTick >= MOVE_RESCAN_MIN_TICKS;
+        if (tick - this.lastScanTick >= SCAN_TICKS || movedNow)
             this.rescan(world, playerPos, tick, value);
 
         // The Poisson-ish roll: one shared budget, jittered per tick so the

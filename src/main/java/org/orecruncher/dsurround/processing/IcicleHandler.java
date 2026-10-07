@@ -296,6 +296,18 @@ public class IcicleHandler extends AbstractClientHandler {
         }
 
         // Fire scheduled drops (self-drops during the snow).
+        //
+        // The replacement is spawned AFTER the walk, not from inside it. Calling
+        // reAttach here used to end in spawnOne's attached.put, i.e. a structural
+        // modification of the map this iterator is walking - and a put after
+        // it.remove() still bumps the modCount, so the next element threw
+        // ConcurrentModificationException. The handler's guard caught it and logged
+        // an ERROR, which is how it was found, but the tick's remaining melt and
+        // staleness work was skipped every time it happened. One replacement per
+        // release is kept exactly as before; only the moment changes, and by then
+        // the fallen rim is already free - which is what the no-replacement-at-the-
+        // fallen-rim rule wants anyway.
+        int replacements = 0;
         for (final Iterator<Attached> it = this.attached.values().iterator(); it.hasNext(); ) {
             final Attached a = it.next();
             if (a.particle.isDead()) {
@@ -304,9 +316,11 @@ public class IcicleHandler extends AbstractClientHandler {
                 a.dropAt = -1;
                 this.release(a, tick);
                 it.remove();
-                this.reAttach(world, tick, snowing);
+                replacements++;
             }
         }
+        for (int i = 0; i < replacements; i++)
+            this.reAttach(world, tick, snowing);
 
         // The after-snow lottery: every ten seconds each melting icicle rolls
         // a ten percent chance to let go. Losers keep shrinking; an icicle

@@ -75,6 +75,8 @@ public final class DistantHorizonsCompat {
     private static final String[][] GRAPHICS = { { "Graphics", "graphics" } };
     private static final String[][] FOG = { { "Fog", "fog" } };
     private static final String[][] GENERIC_RENDERING = { { "GenericRendering", "genericRendering" } };
+    /** DH keeps its LOD render distance under Graphics.Quality, not Graphics. */
+    private static final String[][] QUALITY = { { "Quality", "quality" } };
 
     /** Resolved knobs. Null means the probe could not reach it - every use checks. */
     private static volatile Object vanillaFogKnob = null;
@@ -87,7 +89,14 @@ public final class DistantHorizonsCompat {
     private static volatile Object farFogMaxKnob = null;
     private static volatile Object chunkDistanceKnob = null;
     /** How DH spells its LOD render distance; the same setting its API calls chunkRenderDistance. */
-    private static final String[] CHUNK_DISTANCE_NAMES = { "chunkRenderDistance", "renderDistance" };
+    /**
+     * How DH spells its LOD render distance radius, in chunks. Its own API method is
+     * {@code chunkRenderDistance()}, whose implementation reads
+     * {@code Config$Client$Advanced$Graphics$Quality.lodChunkRenderDistanceRadius} - read from the
+     * bytecode, because guessing the name (this field is not called after the API method) is what made
+     * viewScale() answer 1.0 and collapse the whole fog window into a hairline at the LOD boundary.
+     */
+    private static final String[] CHUNK_DISTANCE_NAMES = { "lodChunkRenderDistanceRadius", "chunkRenderDistance", "renderDistance" };
 
     private static final Object PROBE_LOCK = new Object();
     private static volatile boolean probed = false;
@@ -166,7 +175,8 @@ public final class DistantHorizonsCompat {
      * that end point, which is why this cannot collapse into a band the way a scaled copy of DH's own
      * start/end window did.</p>
      */
-    private static final float RAMP_START = 1.0F;
+    /** How far out the fog window spans, in render distances, before the weather pulls it in. */
+    private static final float WINDOW_SPAN = 4.0F;
     private static final float RAMP_MIN = 0.0F;
     private static final float RAMP_MAX = 1.0F;
 
@@ -228,8 +238,19 @@ public final class DistantHorizonsCompat {
         //   - the foreground (vanilla chunks, inside the vanilla render distance) is left to vanilla fog,
         //     which with DH's own vanilla-fog option off is no fog at all. That is expected: there is
         //     almost no fog that close in the first place, and DH's fog pass only covers LOD pixels.
-        final float scale = viewScale();
-        final float rampEnd = clamp(ourEnd / Math.max(vanillaEnd, 1F) * scale, 1.01F, 8F);
+        // A WIDE window, and that word is doing the work. DH's far fog exists only between
+        // farFogStart and farFogEnd - it does not saturate beyond the end. Two live rounds proved it:
+        // a window of [1.0, 1.01] produced no fog at all, and a scaled copy of DH's own window produced
+        // a fog band with clear terrain beyond it (the flat sheet with a hard edge). So the window has
+        // to span the whole LOD range, with thickness 0 at the camera end and full at the far end.
+        //
+        // What the weather controls is how quickly it thickens: a shorter window pulls full thickness
+        // closer, which is what "the view closes in" means. Everything is in DH's own percent units,
+        // which the shader builds by scaling the world distance (uFogScale = 1 / renderDistance), so the
+        // numbers are fractions of the render distance the fog is drawn over - which is also why 1.414
+        // is documented as "the corner": a square render area, not a vanilla-specific constant.
+        final float tightness = clamp(ourEnd / Math.max(vanillaEnd, 1F), 0.35F, 1.0F);
+        final float windowEnd = clamp(WINDOW_SPAN * tightness, 1.2F, 8F);
         // DH's own LOD fog has to exist: another mod (Iris, at world join) writes enableDhFog
         // through this same API, and a mirror into a fog layer that is not drawn is a no-op.
         final Boolean dhFogOn = readBoolean(dhFogKnob);
@@ -246,16 +267,16 @@ public final class DistantHorizonsCompat {
                 return;
             }
         }
-        hold(farFogStartKnob, "farFogStart", RAMP_START);
-        hold(farFogEndKnob, "farFogEnd", rampEnd);
+        hold(farFogStartKnob, "farFogStart", RAMP_MIN);
+        hold(farFogEndKnob, "farFogEnd", windowEnd);
         hold(farFogMinKnob, "farFogMin", RAMP_MIN);
         hold(farFogMaxKnob, "farFogMax", RAMP_MAX);
         hold(farFogFalloffKnob, "farFogFalloff", linearFalloff());
         if (!reportedMirror) {
             reportedMirror = true;
-            log("DH's LOD fog now carries the weather fog: start=" + RAMP_START + " (the vanilla render"
-                    + " distance edge, thickness 0) ramping to " + round(rampEnd) + " of it (view scale "
-                    + round(scale) + ", enableDhFog=" + read(dhFogKnob) + ")");
+            log("DH's LOD fog carries the weather fog: thickness 0 at the camera, full at " + round(windowEnd)
+                    + " render distances (weather tightness " + round(tightness) + ", view scale "
+                    + round(viewScale()) + ", enableDhFog=" + read(dhFogKnob) + ")");
         }
     }
 
@@ -447,7 +468,7 @@ public final class DistantHorizonsCompat {
                 farFogMaxKnob = wrap(resolveEntry(FOG, "farFogMax"));
                 for (final String name : CHUNK_DISTANCE_NAMES) {
                     try {
-                        chunkDistanceKnob = wrap(resolveEntry(GRAPHICS, name));
+                        chunkDistanceKnob = wrap(resolveEntryUnder(QUALITY, name));
                         break;
                     } catch (Throwable notThisName) {
                         // Try the next spelling.
@@ -468,6 +489,16 @@ public final class DistantHorizonsCompat {
                         + "); DSR keeps its own fog and leaves DH's settings alone. Expected if DH"
                         + " changes its config layout.");
         }
+    }
+
+    /** As {@link #resolveEntry}, but for an entry two levels below Graphics. */
+    private static Object resolveEntryUnder(final String[][] level, final String field) throws Exception {
+        Class<?> holder = Class.forName(CONFIG_CLASS);
+        holder = nestedClass(holder, CLIENT[0]);
+        holder = nestedClass(holder, ADVANCED[0]);
+        holder = nestedClass(holder, GRAPHICS[0]);
+        holder = nestedClass(holder, level[0]);
+        return staticField(holder, field);
     }
 
     /**

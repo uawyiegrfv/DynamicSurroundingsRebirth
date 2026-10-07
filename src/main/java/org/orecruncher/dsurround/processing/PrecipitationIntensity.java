@@ -1119,7 +1119,16 @@ public final class PrecipitationIntensity {
      * How much of the storm darkening survives when the precipitation is snow.
      * See the damping in {@link #stormWithVanilla}.
      */
-    private static final float SNOW_STORM_FACTOR = 0.35F;
+    /**
+     * Round 11: was 0.35. Snow dimmed our storm darkening by two thirds, so a
+     * blizzard barely darkened the sky at all - and because snowy biomes have a
+     * near-white vanilla fog colour to begin with, a heavy snowfall read as a
+     * WHITE sky while the same intensity of rain went properly dark. (Touching
+     * water turned it dark instantly, which is the underwater fog - a different
+     * path entirely, which is why it looked like a switch.)
+     * 0.65 now: a blizzard clearly darkens, still short of a downpour.
+     */
+    private static final float SNOW_STORM_FACTOR = 0.65F;
 
     private static float stormWithVanilla(Level level, float partialTick) {
         float ours = PrecipitationResponse.STORM.value();

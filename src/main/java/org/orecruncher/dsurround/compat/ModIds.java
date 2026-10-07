@@ -141,18 +141,63 @@ public final class ModIds {
      * and the conservative one: every shader-aware decision in this mod is a step <em>back</em>
      * from taking over a route, so answering false keeps the mod's own behaviour.</p>
      */
+    /**
+     * The resolved API accessors. The <em>lookups</em> are cached; the <em>answer</em> is not -
+     * see {@link #shadersInUse()}.
+     *
+     * <p>Worth caching because the question is asked far more often than it used to be: the
+     * plant-attached layers ask it every tick (three handlers) once
+     * {@code disableFoliageLayersWithShaders} is on, and each uncached call was a
+     * {@code Class.forName} plus two {@code getMethod} copies. Those are cheap individually and
+     * pointless in aggregate, and "pointless in aggregate" is how a 60-times-a-second reflective
+     * lookup ends up in a frame budget discussion.</p>
+     */
+    private static final Object PROBE_LOCK = new Object();
+    private static volatile boolean probeDone = false;
+    private static volatile Method irisGetInstance = null;
+    private static volatile Method irisIsShaderPackInUse = null;
+
     public static boolean shadersInUse() {
+        if (!probeDone)
+            probeIris();
+        final Method getInstance = irisGetInstance;
+        final Method inUse = irisIsShaderPackInUse;
+        if (getInstance == null || inUse == null)
+            return false;
         try {
-            Class<?> api = Class.forName(IRIS_API_CLASS);
-            Method getInstance = api.getMethod("getInstance");
-            Object instance = getInstance.invoke(null);
+            final Object instance = getInstance.invoke(null);
             if (instance == null)
                 return false;
-            Method inUse = api.getMethod("isShaderPackInUse");
-            Object result = inUse.invoke(instance);
+            final Object result = inUse.invoke(instance);
             return result instanceof Boolean b && b;
         } catch (Throwable t) {
             return false;
+        }
+    }
+
+    /**
+     * Resolves the Iris accessors once. A failure is permanent and silent here on purpose: the
+     * callers all treat "cannot read" as "no pack", and retrying a missing class every tick would
+     * be worse than the answer being wrong in the conservative direction.
+     */
+    private static void probeIris() {
+        if (probeDone)
+            return;
+        synchronized (PROBE_LOCK) {
+            if (probeDone)
+                return;
+            try {
+                final Class<?> api = Class.forName(IRIS_API_CLASS);
+                final Method getInstance = api.getMethod("getInstance");
+                final Method inUse = api.getMethod("isShaderPackInUse");
+                irisGetInstance = getInstance;
+                irisIsShaderPackInUse = inUse;
+            } catch (Throwable t) {
+                irisGetInstance = null;
+                irisIsShaderPackInUse = null;
+            } finally {
+                probeDone = true;
+            }
         }
     }
 

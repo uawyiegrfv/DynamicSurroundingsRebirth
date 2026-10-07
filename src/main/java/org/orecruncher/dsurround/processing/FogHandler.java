@@ -97,9 +97,10 @@ public class FogHandler extends AbstractClientHandler {
                         new FogData(event.getNearPlaneDistance(), event.getFarPlaneDistance()),
                         GameUtils.getMC().options.getEffectiveRenderDistance(),
                         (float) event.getPartialTick());
-                DistantHorizonsCompat.syncFog(visibilityRatio(ours.renderDistanceEnd, event.getFarPlaneDistance()));
+                DistantHorizonsCompat.syncFog(ours.renderDistanceStart, ours.renderDistanceEnd,
+                        event.getFarPlaneDistance());
             } else {
-                DistantHorizonsCompat.clearFogOverride();
+                DistantHorizonsCompat.releaseAll();
             }
             return;
         }
@@ -123,7 +124,7 @@ public class FogHandler extends AbstractClientHandler {
             // DH may not own the vanilla fog and still be drawing LOD terrain beyond it; its LOD fog
             // follows the same visibility so the two agree. A no-op when DH is absent or the
             // integration is switched off.
-            DistantHorizonsCompat.syncFog(visibilityRatio(this.lastData.renderDistanceEnd, end));
+            DistantHorizonsCompat.syncFog(this.lastData.renderDistanceStart, this.lastData.renderDistanceEnd, end);
             // Forge 1.20.1 的 onFogRender 在事件未取消时会跳过用事件值重设雾，
             // 所以这里直接写 RenderSystem，确保雾真正生效。
             RenderSystem.setShaderFogStart(this.lastData.renderDistanceStart);
@@ -131,23 +132,10 @@ public class FogHandler extends AbstractClientHandler {
         } else {
             // Preserve for diagnostic trace even though action was not taken.
             this.lastData = new FogData(start, end);
-            DistantHorizonsCompat.clearFogOverride();
+            DistantHorizonsCompat.releaseAll();
         }
     }
 
-    /**
-     * How far our fog has closed visibility in, as a fraction of the range vanilla asked for.
-     *
-     * <p>One here means "we are not tightening anything" - which is exactly when DH should keep its
-     * own LOD fog, so this doubles as the release condition. Measured against vanilla's own far plane
-     * for the frame rather than against a render-distance constant, so it needs no assumption about
-     * how the player configured either mod.</p>
-     */
-    private static float visibilityRatio(final float ourFar, final float vanillaFar) {
-        if (vanillaFar < 16F || ourFar <= 0F)
-            return 1F;
-        return Math.min(1F, ourFar / vanillaFar);
-    }
 
     @Override
     protected void gatherDiagnostics(CollectDiagnosticsEvent event) {

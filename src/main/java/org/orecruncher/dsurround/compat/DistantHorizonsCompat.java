@@ -82,9 +82,35 @@ public final class DistantHorizonsCompat {
     private static volatile Object farFogStartKnob = null;
     private static volatile Object farFogEndKnob = null;
     private static volatile Object cloudRenderingKnob = null;
+    private static volatile Object farFogFalloffKnob = null;
+    private static volatile Object farFogMinKnob = null;
+    private static volatile Object farFogMaxKnob = null;
 
     private static final Object PROBE_LOCK = new Object();
     private static volatile boolean probed = false;
+
+    /**
+     * One knob this class is currently holding at a value of its own, plus what was there before.
+     *
+     * <p>A ledger rather than a handful of fields, because the mirror is no longer one number: making
+     * DH's LOD fog line up with ours means matching its <em>shape</em>, which is four settings
+     * (start, end, falloff, min/max thickness). Every one of them is put back from here.</p>
+     */
+    private static final class Held {
+        final Object knob;
+        final String name;
+        /** Value found before we touched it; null when the knob was unreadable. */
+        final Object base;
+        Object written;
+
+        Held(final Object knob, final String name, final Object base) {
+            this.knob = knob;
+            this.name = name;
+            this.base = base;
+        }
+    }
+
+    private static final java.util.List<Held> held = new java.util.ArrayList<>();
 
     /** The values we last wrote, so a per-frame sync does not hammer the API. */
     private static volatile boolean fogOverridden = false;
@@ -155,27 +181,25 @@ public final class DistantHorizonsCompat {
      *                        Values at or above {@link #SYNC_THRESHOLD} release the override, so
      *                        clear weather leaves DH exactly as the player configured it.
      */
-    public static void syncFog(final float visibilityRatio) {
-        if (!integrationEnabled()) {
-            clearFogOverride();
+    public static void syncFog(final float ourStart, final float ourEnd, final float vanillaFar) {
+        if (!integrationEnabled() || vanillaFar < 16F) {
+            releaseAll();
             return;
         }
         probe();
-        final Object start = farFogStartKnob;
-        final Object end = farFogEndKnob;
-        if (start == null || end == null)
+        if (farFogEndKnob == null || farFogStartKnob == null)
             return;
-        final float ratio = clamp(visibilityRatio, 0.05F, 1.0F);
-        if (ratio < deepestRatio)
-            deepestRatio = ratio;
-        // Engage low, release high: one threshold chattered at the boundary (see SYNC_THRESHOLD).
-        if (ratio >= (fogOverridden ? RELEASE_THRESHOLD : SYNC_THRESHOLD)) {
-            clearFogOverride();
+        // Only when the weather has actually closed the view in: at or above the release threshold
+        // DH keeps its own fog, untouched. Same hysteresis as before, now on real distances.
+        final float visibility = clamp(ourEnd / vanillaFar, 0.05F, 1.0F);
+        if (visibility < deepestRatio)
+            deepestRatio = visibility;
+        if (visibility >= (held.isEmpty() ? SYNC_THRESHOLD : RELEASE_THRESHOLD)) {
+            releaseAll();
             return;
         }
-        // We are going to mirror, so DH's own LOD fog has to exist. The first live session found it
-        // switched off by another mod (Iris writes enableDhFog through this same API at world join),
-        // which made the whole mirror invisible while looking perfectly healthy in the log.
+        // DH's own LOD fog has to exist: another mod (Iris, at world join) writes enableDhFog
+        // through this same API, and a mirror into a fog layer that is not drawn is a no-op.
         final Boolean dhFogOn = readBoolean(dhFogKnob);
         if (dhFogOn != null && !dhFogOn && !dhFogForcedOn) {
             if (write(dhFogKnob, Boolean.TRUE)) {
@@ -190,64 +214,124 @@ public final class DistantHorizonsCompat {
                 return;
             }
         }
-        if (!fogOverridden) {
-            // DH's configured values are the base, not our idea of a default: a player who tuned
-            // their far fog keeps the shape of it, scaled.
-            baseStart = readFloat(start, 0.4F);
-            baseEnd = readFloat(end, 1.0F);
-            fogOverridden = true;
-            log("weather fog is closing visibility to " + Math.round(ratio * 100F)
-                    + "% of the far plane - scaling Distant Horizons' LOD fog to match");
-        }
-        final float wantStart = clamp(baseStart * ratio, 0.0F, 1.0F);
-        final float wantEnd = clamp(baseEnd * ratio, 0.05F, 1.0F);
-        // Compare against what DH reports NOW, not against what we last wrote. Writing once and
-        // trusting it was the bug behind "the integration looks healthy but nothing changes": the
-        // effective value can be dropped or replaced by anyone (another mod writing the same knob,
-        // or DH falling back to its file value), and a cache of our own last write cannot see that.
-        if (close(readFloat(start, Float.NaN), wantStart) && close(readFloat(end, Float.NaN), wantEnd))
-            return;
-        if (write(start, wantStart) && write(end, wantEnd)) {
-            writtenStart = wantStart;
-            writtenEnd = wantEnd;
-            verifyWrite(start, wantStart, "farFogStart");
-            verifyWrite(end, wantEnd, "farFogEnd");
-            if (Float.isNaN(firstWrittenStart)) {
-                firstWrittenStart = wantStart;
-                firstWrittenEnd = wantEnd;
-                // The numbers matter as much as the fact: a mirror that only ever moves DH's fog by
-                // ten percent is a mirror nobody can see, and this line is what tells the difference
-                // between "it did not run" and "it ran and was too small to notice".
-                // The effective values of the two knobs that decide whether any of this can be SEEN:
-                // another mod can hold DH's own LOD fog off (Iris does exactly that at world join),
-                // and a mirror into a fog layer that is not drawn is a no-op with a healthy log.
-                log("mirroring weather fog into DH's LOD fog: ratio=" + round(ratio)
-                        + " farFogStart " + round(baseStart) + "->" + round(wantStart)
-                        + ", farFogEnd " + round(baseEnd) + "->" + round(wantEnd)
-                        + " (DH reports enableDhFog=" + read(dhFogKnob) + ")");
-            }
+        // DH documents farFogStart/farFogEnd as fractions of the VANILLA render distance (0.0 = the
+        // player, 1.0 = the closest edge of it), so our distances go straight in - no scaling of
+        // DH's own numbers, no assumption about how far DH draws. The three shape settings are the
+        // part that matters for the seam: DH ships EXPONENTIAL_SQUARED falloff with a minimum
+        // thickness of 0, which is a gentle haze where vanilla fog (and ours) is a linear ramp that
+        // can reach opaque. Matching the distances alone leaves our half saturated and DH's half
+        // almost clear - which is exactly the flat white sheet ending in a hard edge.
+        // WIDEN the band, never shrink it. Shrinking was the artefact in the screenshots: DH's far fog
+        // lives in the window [farFogStart, farFogEnd], so moving the end inward turns it into a band
+        // across the near field and leaves everything past it - the whole LOD region - with no fog at
+        // all. That is the flat white sheet that stops at a hard edge. Two live sessions show both
+        // halves of it: a shallow mirror (end 1.00 -> 0.89) was invisible, a deep one (end -> 0.50)
+        // produced the sheet.
+        final float start = clamp(ourStart / vanillaFar, 0.0F, 1.414F);
+        final float base = readFloat(farFogEndKnob, 1.0F);
+        final float end = Math.max(base, 1.414F);
+        hold(farFogStartKnob, "farFogStart", start);
+        hold(farFogEndKnob, "farFogEnd", end);
+        hold(farFogMinKnob, "farFogMin", 0.0F);
+        hold(farFogMaxKnob, "farFogMax", 1.0F);
+        hold(farFogFalloffKnob, "farFogFalloff", linearFalloff());
+        if (Float.isNaN(firstWrittenStart)) {
+            firstWrittenStart = start;
+            firstWrittenEnd = end;
+            log("mirroring the weather fog onto DH's LOD fog: farFogStart=" + round(start)
+                    + " (ours starts at " + Math.round(ourStart) + " blocks) farFogEnd=" + round(end)
+                    + " (DH's own was " + round(base) + ") | visibility " + Math.round(visibility * 100F)
+                    + "%, falloff=LINEAR, thickness 0..1, enableDhFog=" + read(dhFogKnob));
         }
     }
 
-    /** Hands DH's far fog back. Safe to call every frame; only the transition does work. */
-    public static void clearFogOverride() {
-        if (!fogOverridden)
+    /**
+     * Writes one knob and remembers what was there before, at most once per value.
+     *
+     * <p>Re-reads the effective value every frame instead of trusting the last write: the number DH
+     * reports can be changed underneath us (another mod, or DH falling back to its file value), and
+     * a cache of our own writes cannot see that.</p>
+     */
+    private static void hold(final Object knob, final String name, final Object value) {
+        if (knob == null || value == null)
             return;
-        fogOverridden = false;
+        final Object current = read(knob);
+        Held entry = find(name);
+        if (entry == null) {
+            entry = new Held(knob, name, current);
+            held.add(entry);
+        }
+        if (sameValue(current, value))
+            return;
+        if (write(knob, value)) {
+            entry.written = value;
+            verifyWrite(knob, value, name);
+        }
+    }
+
+    private static Held find(final String name) {
+        for (final Held h : held)
+            if (h.name.equals(name))
+                return h;
+        return null;
+    }
+
+    private static boolean sameValue(final Object a, final Object b) {
+        if (a instanceof Number na && b instanceof Number nb)
+            return Math.abs(na.floatValue() - nb.floatValue()) < WRITE_EPSILON;
+        return a == null ? b == null : a.equals(b);
+    }
+
+    /** DH's LINEAR falloff constant, or null when the enum cannot be reached. */
+    private static Object linearFalloff() {
+        try {
+            final Class<?> type = Class.forName(
+                    "com.seibel.distanthorizons.api.enums.rendering.EDhApiFogFalloff");
+            for (final Object constant : type.getEnumConstants())
+                if ("LINEAR".equals(((Enum<?>) constant).name()))
+                    return constant;
+        } catch (Throwable t) {
+            // No enum, no shape change: the distances alone still apply.
+        }
+        return null;
+    }
+
+    /**
+     * Hands every held knob back. Safe to call every frame; only the transition does work.
+     */
+    public static void releaseAll() {
+        if (held.isEmpty())
+            return;
+        final StringBuilder names = new StringBuilder();
+        for (final Held h : held) {
+            if (names.length() > 0)
+                names.append(',');
+            names.append(h.name);
+            if (h.base != null)
+                write(h.knob, h.base);
+            else
+                clear(h.knob);
+        }
+        held.clear();
         writtenStart = Float.NaN;
         writtenEnd = Float.NaN;
-        release(farFogStartKnob, baseStart);
-        release(farFogEndKnob, baseEnd);
+        log("weather fog released - Distant Horizons has its own LOD fog values back (" + names
+                + "; deepest visibility ratio while engaged: " + round(deepestRatio) + ")");
+        deepestRatio = 1F;
         if (dhFogForcedOn) {
-            // Back to what we found: DH's own LOD fog off again, under whoever's name DH records.
             dhFogForcedOn = false;
             write(dhFogKnob, Boolean.FALSE);
         }
-        log("weather fog released - Distant Horizons has its own LOD fog values back (deepest visibility"
-                + " ratio while engaged: " + round(deepestRatio) + ")");
-        deepestRatio = 1F;
     }
 
+    /** Drops an API override without writing a value back. */
+    private static void clear(final Object knob) {
+        try {
+            knob.getClass().getMethod("clearValue").invoke(knob);
+        } catch (Throwable t) {
+            // Raw entry: nothing to clear.
+        }
+    }
     /**
      * Suppresses DH's own LOD clouds while this mod is removing the vanilla cloud sheet.
      *
@@ -280,7 +364,7 @@ public final class DistantHorizonsCompat {
         firstWrittenStart = Float.NaN;
         firstWrittenEnd = Float.NaN;
         deepestRatio = 1F;
-        clearFogOverride();
+        releaseAll();
         setCloudsSuppressed(false);
     }
 
@@ -313,6 +397,9 @@ public final class DistantHorizonsCompat {
                 farFogStartKnob = wrap(resolveEntry(FOG, "farFogStart"));
                 farFogEndKnob = wrap(resolveEntry(FOG, "farFogEnd"));
                 cloudRenderingKnob = wrap(resolveEntry(GENERIC_RENDERING, "enableCloudRendering"));
+                farFogFalloffKnob = wrap(resolveEntry(FOG, "farFogFalloff"));
+                farFogMinKnob = wrap(resolveEntry(FOG, "farFogMin"));
+                farFogMaxKnob = wrap(resolveEntry(FOG, "farFogMax"));
             } catch (Throwable t) {
                 vanillaFogKnob = null;
                 dhFogKnob = null;
@@ -489,18 +576,17 @@ public final class DistantHorizonsCompat {
      * have no effect, because an entry that does not allow API overrides keeps reporting its file
      * value. Without this line that looks exactly like success.</p>
      */
-    private static void verifyWrite(final Object knob, final float want, final String name) {
-        final Float actual = readFloatObject(knob);
-        if (actual == null || Math.abs(actual - want) < WRITE_EPSILON)
+    private static void verifyWrite(final Object knob, final Object want, final String name) {
+        final Object actual = read(knob);
+        if (sameValue(actual, want))
             return;
         if (reportedIneffective)
             return;
         reportedIneffective = true;
-        log("DH reports " + name + "=" + round(actual.floatValue()) + " after we wrote " + round(want)
+        log("DH reports " + name + "=" + actual + " after we wrote " + want
                 + " (overridable=" + canOverride(knob) + "); the weather fog cannot be mirrored into DH's"
                 + " LOD fog on this build. DSR stops trying and leaves the setting alone.");
     }
-
     private static Float readFloatObject(final Object knob) {
         final Object value = read(knob);
         return value instanceof Number n ? n.floatValue() : null;
@@ -534,9 +620,13 @@ public final class DistantHorizonsCompat {
                 + " enableDhFog=" + read(dhFogKnob)
                 + " farFogStart=" + read(farFogStartKnob) + " farFogEnd=" + read(farFogEndKnob)
                 + " cloudRendering=" + read(cloudRenderingKnob)
+                + " falloff=" + read(farFogFalloffKnob) + " min=" + read(farFogMinKnob)
+                + " max=" + read(farFogMaxKnob)
                 + " | overridable: dhFog=" + canOverride(dhFogKnob)
                 + " farStart=" + canOverride(farFogStartKnob)
                 + " farEnd=" + canOverride(farFogEndKnob)
+                + " falloff=" + canOverride(farFogFalloffKnob)
+                + " minMax=" + canOverride(farFogMinKnob) + "/" + canOverride(farFogMaxKnob)
                 + " clouds=" + canOverride(cloudRenderingKnob);
     }
 

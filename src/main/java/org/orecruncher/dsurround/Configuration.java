@@ -253,14 +253,6 @@ public class Configuration extends ConfigurationData {
         public boolean enableBiomeSounds = true;
 
         @Property
-        @Comment("Enable/disable the wind bed that rises with the rain (rain wind, storm wind, leaf wind)")
-        public boolean enableWindSounds = true;
-
-        @Property
-        @Comment("Enable/disable the material rain sound: rain hitting glass, metal, wood, stone, leaves, water")
-        public boolean enableMaterialRainSounds = true;
-
-        @Property
         @DoubleRange(min = 0, max = 2)
         @Comment("Footstep sounds will be multiplied by this factor")
         public double footstepVolume = 1.0D;
@@ -581,6 +573,18 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("With Particle Rain installed, draw our graded rain curtain anyway. Off by default: Particle Rain cancels vanilla's rain pass at HEAD, so both mods would draw rain at once. Turn on only to compare the two")
         public boolean gradedRainOverParticleRain = false;
+
+        // ---- rain and wind sound ------------------------------------------
+        @Property
+        @Comment("Enable/disable the wind bed that rises with the rain (rain wind, storm wind, leaf wind)")
+        public boolean enableWindSounds = true;
+
+        @Property
+        @Comment("Enable/disable the material rain sound: rain hitting glass, metal, wood, stone, leaves, water")
+        public boolean enableMaterialRainSounds = true;
+
+
+        // ---- rain and wind sound ------------------------------------------
 
         // ---- what the weather leaves on the ground --------------------------
         @Property

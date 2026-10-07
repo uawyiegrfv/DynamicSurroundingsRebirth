@@ -106,6 +106,8 @@ public final class DistantHorizonsCompat {
      * setting is put back exactly as found when the weather stops needing it.</p>
      */
     private static volatile boolean dhFogForcedOn = false;
+    /** Set once if DH reports a different value than we wrote - see {@link #verifyWrite}. */
+    private static volatile boolean reportedIneffective = false;
 
     /**
      * Engage below this visibility ratio, release above {@link #RELEASE_THRESHOLD}.
@@ -199,20 +201,30 @@ public final class DistantHorizonsCompat {
         }
         final float wantStart = clamp(baseStart * ratio, 0.0F, 1.0F);
         final float wantEnd = clamp(baseEnd * ratio, 0.05F, 1.0F);
-        if (close(wantStart, writtenStart) && close(wantEnd, writtenEnd))
+        // Compare against what DH reports NOW, not against what we last wrote. Writing once and
+        // trusting it was the bug behind "the integration looks healthy but nothing changes": the
+        // effective value can be dropped or replaced by anyone (another mod writing the same knob,
+        // or DH falling back to its file value), and a cache of our own last write cannot see that.
+        if (close(readFloat(start, Float.NaN), wantStart) && close(readFloat(end, Float.NaN), wantEnd))
             return;
         if (write(start, wantStart) && write(end, wantEnd)) {
             writtenStart = wantStart;
             writtenEnd = wantEnd;
+            verifyWrite(start, wantStart, "farFogStart");
+            verifyWrite(end, wantEnd, "farFogEnd");
             if (Float.isNaN(firstWrittenStart)) {
                 firstWrittenStart = wantStart;
                 firstWrittenEnd = wantEnd;
                 // The numbers matter as much as the fact: a mirror that only ever moves DH's fog by
                 // ten percent is a mirror nobody can see, and this line is what tells the difference
                 // between "it did not run" and "it ran and was too small to notice".
+                // The effective values of the two knobs that decide whether any of this can be SEEN:
+                // another mod can hold DH's own LOD fog off (Iris does exactly that at world join),
+                // and a mirror into a fog layer that is not drawn is a no-op with a healthy log.
                 log("mirroring weather fog into DH's LOD fog: ratio=" + round(ratio)
                         + " farFogStart " + round(baseStart) + "->" + round(wantStart)
-                        + ", farFogEnd " + round(baseEnd) + "->" + round(wantEnd));
+                        + ", farFogEnd " + round(baseEnd) + "->" + round(wantEnd)
+                        + " (DH reports enableDhFog=" + read(dhFogKnob) + ")");
             }
         }
     }
@@ -468,6 +480,64 @@ public final class DistantHorizonsCompat {
 
     private static boolean close(final float a, final float b) {
         return !Float.isNaN(b) && Math.abs(a - b) < WRITE_EPSILON;
+    }
+
+    /**
+     * Reads a knob back after writing it and complains once if DH is not reporting our number.
+     *
+     * <p>The one failure this mod cannot otherwise see: {@code setValue} can be accepted and still
+     * have no effect, because an entry that does not allow API overrides keeps reporting its file
+     * value. Without this line that looks exactly like success.</p>
+     */
+    private static void verifyWrite(final Object knob, final float want, final String name) {
+        final Float actual = readFloatObject(knob);
+        if (actual == null || Math.abs(actual - want) < WRITE_EPSILON)
+            return;
+        if (reportedIneffective)
+            return;
+        reportedIneffective = true;
+        log("DH reports " + name + "=" + round(actual.floatValue()) + " after we wrote " + round(want)
+                + " (overridable=" + canOverride(knob) + "); the weather fog cannot be mirrored into DH's"
+                + " LOD fog on this build. DSR stops trying and leaves the setting alone.");
+    }
+
+    private static Float readFloatObject(final Object knob) {
+        final Object value = read(knob);
+        return value instanceof Number n ? n.floatValue() : null;
+    }
+
+    /** DH's own answer to "may a mod override this", or null when it cannot be asked. */
+    private static Boolean canOverride(final Object knob) {
+        if (knob == null)
+            return null;
+        try {
+            final Object result = knob.getClass().getMethod("getCanBeOverrodeByApi").invoke(knob);
+            return result instanceof Boolean b ? b : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * One line listing every DH knob this class touches, with the value DH is actually using.
+     *
+     * <p>This exists because three rounds were spent guessing which link was broken. The effective
+     * values (plus whether each entry even allows an API override) answer it in one launch.</p>
+     */
+    public static String knobsCensus() {
+        if (!ModIds.present(ModIds.DISTANT_HORIZONS))
+            return "";
+        probe();
+        if (vanillaFogKnob == null)
+            return "DH config unreachable";
+        return "DH knobs: enableVanillaFog=" + read(vanillaFogKnob)
+                + " enableDhFog=" + read(dhFogKnob)
+                + " farFogStart=" + read(farFogStartKnob) + " farFogEnd=" + read(farFogEndKnob)
+                + " cloudRendering=" + read(cloudRenderingKnob)
+                + " | overridable: dhFog=" + canOverride(dhFogKnob)
+                + " farStart=" + canOverride(farFogStartKnob)
+                + " farEnd=" + canOverride(farFogEndKnob)
+                + " clouds=" + canOverride(cloudRenderingKnob);
     }
 
     /** Two decimals, for the log lines above. */

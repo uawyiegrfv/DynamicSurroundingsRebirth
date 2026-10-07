@@ -137,6 +137,9 @@ public final class CompatReport {
         if (cloudMod != null)
             sb.append(sb.length() == 0 ? "" : "; ").append("cloud mod present (").append(cloudMod)
                     .append("): the clear-sky event's cloud fade only reaches the vanilla sheet");
+        final String census = DistantHorizonsCompat.knobsCensus();
+        if (!census.isEmpty())
+            sb.append(sb.length() == 0 ? "" : "; ").append(census);
         if (ModIds.present(ModIds.DISTANT_HORIZONS))
             sb.append(sb.length() == 0 ? "" : "; ").append(DistantHorizonsCompat.status())
                     .append(DistantHorizonsCompat.integrationEnabled()

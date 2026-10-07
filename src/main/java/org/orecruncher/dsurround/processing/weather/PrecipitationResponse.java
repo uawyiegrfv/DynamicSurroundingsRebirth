@@ -173,6 +173,29 @@ public final class PrecipitationResponse {
             new PrecipitationResponse("foliageDrip", 1F, false, 1F, 0F, 7F, 120F, 130F);
 
     /**
+     * Snow settled on plants - the snow layer's depth, 0..1.
+     *
+     * <p>A root driven by the snow handler itself through {@link #advance},
+     * the same shape the sky-event channels use, and for the same reason: its
+     * input is not an intensity this class can see. Snow does not deepen with
+     * "how hard it snows this second" - it deepens with how LONG it has been
+     * snowing, and the faster the storm, the shorter that clock. The handler
+     * owns that clock (the icicle's {@code EVENT_PEAK_AT_BASE / base}) and
+     * feeds its output here every tick, so the value in this channel stays the
+     * one number everything else can read: the depth of the snowpack.</p>
+     *
+     * <p>Scheduler-driven, so {@code tickAll} skips it and {@code anyActive()}
+     * ignores it - a melt runs for a game-hour worth of staggered shrinking,
+     * and the precipitation takeover must not hold the frame for it.</p>
+     *
+     * <p>Locking this channel ({@code /dsprecip lock foliageSnow 0.5}) pins the
+     * depth: the handler reads the pin back instead of its clock, which is how
+     * a given depth is held still long enough to look at.</p>
+     */
+    public static final PrecipitationResponse FOLIAGE_SNOW =
+            new PrecipitationResponse("foliageSnow", 1F, false, true, 1F, 0F, 4F, 90F, 60F);
+
+    /**
      * Overcast strength, 0..1 - the dry-weather sky event, driven by
      * {@code SkyEventScheduler} rather than by any precipitation input.
      *
@@ -430,7 +453,7 @@ public final class PrecipitationResponse {
             // array exactly once, so a parent must already have advanced this tick.
             // The two sky-event channels sit with the roots for find()/diagnostics,
             // but tickAll skips them (see schedulerDriven) and so does anyActive().
-            GEOMETRY, ATMOSPHERE, SUN, DRIP, FOLIAGE_DRIP, OVERCAST, CLEAR,
+            GEOMETRY, ATMOSPHERE, SUN, DRIP, FOLIAGE_DRIP, FOLIAGE_SNOW, OVERCAST, CLEAR,
             SURFACE, SPLASH, WET, AUDIO,
             FOG_DIST, FOG_COLOR, AFTER_FOG, SKY, CLOUD, SKY_LIGHT, STORM
     };

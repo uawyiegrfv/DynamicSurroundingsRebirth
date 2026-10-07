@@ -32,6 +32,11 @@ public final class ModParticles {
      * beads share it; the spawning handler decides the fate via setters. */
     public static final SimpleParticleType FOLIAGE_DROP = new SimpleParticleType(false);
 
+    /** The snow layer's unit resting on a plant. */
+    public static final SimpleParticleType FOLIAGE_SNOW = new SimpleParticleType(false);
+    /** The crumb burst when that unit lands - see {@link SnowBreakParticle}. */
+    public static final SimpleParticleType SNOW_BREAK = new SimpleParticleType(false);
+
     private ModParticles() {
     }
 
@@ -66,6 +71,12 @@ public final class ModParticles {
         event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
                 ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "foliage_drop"),
                 () -> FOLIAGE_DROP);
+        event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
+                ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "foliage_snow"),
+                () -> FOLIAGE_SNOW);
+        event.register(BuiltInRegistries.PARTICLE_TYPE.key(),
+                ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "snow_break"),
+                () -> SNOW_BREAK);
     }
 
     /**
@@ -89,6 +100,9 @@ public final class ModParticles {
             engine.register(ICICLE_LAND, new IcicleLandParticle.Provider(
                     ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land")));
             engine.register(FOLIAGE_DROP, new FoliageDripParticle.Provider());
+            engine.register(FOLIAGE_SNOW, new FoliageSnowParticle.Provider());
+            engine.register(SNOW_BREAK, new SnowBreakParticle.Provider(
+                    ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "snow_dot_a")));
         }
     }
 }

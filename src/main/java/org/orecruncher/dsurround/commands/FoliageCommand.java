@@ -26,6 +26,8 @@ class FoliageCommand extends AbstractClientCommand {
     private static final String PROFILE = "profile";
     private static final String SPAWN = "spawn";
     private static final String FORCE = "force";
+    private static final String SNOW = "snow";
+    private static final String UNITS = "units";
 
     public void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext registryAccess) {
         dispatcher.register(net.minecraft.commands.Commands.literal(COMMAND)
@@ -35,6 +37,12 @@ class FoliageCommand extends AbstractClientCommand {
                         .then(subCommand(PROFILE, FoliageCommandHandler::profile))
                         .then(subCommand(SPAWN, FoliageCommandHandler::spawn))
                         .then(subCommand(FORCE, FoliageCommandHandler::force))
+                        .then(net.minecraft.commands.Commands.literal(SNOW)
+                                .executes(ctx -> this.execute(ctx, FoliageCommandHandler::snowStatus))
+                                .then(net.minecraft.commands.Commands.argument(UNITS,
+                                                com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 64))
+                                        .executes(ctx -> this.execute(ctx, () -> FoliageCommandHandler.snowSet(
+                                                com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, UNITS))))))
                 )
         );
     }

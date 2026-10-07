@@ -18,6 +18,7 @@ import org.orecruncher.dsurround.processing.FoliageDewHandler;
 import org.orecruncher.dsurround.processing.FoliageProfile;
 import org.orecruncher.dsurround.processing.FoliageProfileCache;
 import org.orecruncher.dsurround.processing.FoliageRainDripHandler;
+import org.orecruncher.dsurround.processing.FoliageSnowHandler;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
 import org.orecruncher.dsurround.processing.scanner.FoliageScan;
 
@@ -115,7 +116,21 @@ public final class FoliageCommandHandler {
                     FoliageDewHandler.rejSnow, FoliageDewHandler.rejCoeff,
                     FoliageDewHandler.rejKeep, FoliageDewHandler.rejNoAttach));
 
-        out("下一步: /dsdebug foliage scan 看候选  |  profile 看锚点  |  spawn 只测渲染  |  force 强制开窗");
+        final FoliageSnowHandler snow = FoliageSnowHandler.INSTANCE;
+        final var depthChannel = org.orecruncher.dsurround.processing.weather.PrecipitationResponse.FOLIAGE_SNOW;
+        out("积雪  " + (snow == null
+                ? "⚠ 处理器未实例化（DI 接线没跑？）"
+                : String.format("深度=%.2f%s 植物=%d 单元=%d 已挂=%d (null=%d 类型错=%d) force=%s 每株上限=%s",
+                        depthChannel.value(),
+                        depthChannel.isLocked() ? "(锁定)" : "",
+                        snow.plantCount(), snow.unitCount(), FoliageSnowHandler.attached,
+                        FoliageSnowHandler.spawnNull, FoliageSnowHandler.spawnWrong,
+                        FoliageSnowHandler.DEBUG_FORCE,
+                        FoliageSnowHandler.DEBUG_UNITS > 0 ? FoliageSnowHandler.DEBUG_UNITS : "默认16")));
+        out(String.format("      上次扫描拒绝: 雪温=%d 相位=%d 无锚点=%d",
+                FoliageSnowHandler.rejWarm, FoliageSnowHandler.rejPhase, FoliageSnowHandler.rejNoAttach));
+
+        out("下一步: /dsdebug foliage scan 看候选  |  profile 看锚点  |  spawn 只测渲染  |  force 强制开窗  |  snow 看雪层");
         sb.append("诊断完成（详见聊天与日志）");
         return Component.literal(sb.toString());
     }
@@ -285,13 +300,57 @@ public final class FoliageCommandHandler {
     }
 
     /**
+     * The snow layer's own readout: the depth channel (the ONE number - see
+     * {@code PrecipitationResponse.FOLIAGE_SNOW}), the overrides, the counts.
+     */
+    public static Component snowStatus() {
+        final FoliageSnowHandler snow = FoliageSnowHandler.INSTANCE;
+        if (snow == null)
+            return Component.literal("[foliage] 雪层处理器未实例化（DI 接线没跑？）");
+        final var depth = org.orecruncher.dsurround.processing.weather.PrecipitationResponse.FOLIAGE_SNOW;
+        out(String.format("[foliage-snow] 深度=%.2f %s  强制=%s  每株上限=%s",
+                depth.value(),
+                depth.isLocked() ? "(已锁定)" : "(跟随降雪时钟)",
+                FoliageSnowHandler.DEBUG_FORCE,
+                FoliageSnowHandler.DEBUG_UNITS > 0 ? String.valueOf(FoliageSnowHandler.DEBUG_UNITS) : "默认16"));
+        out(String.format("[foliage-snow] 植物=%d 单元=%d 已挂=%d (null=%d 类型错=%d)",
+                snow.plantCount(), snow.unitCount(), FoliageSnowHandler.attached,
+                FoliageSnowHandler.spawnNull, FoliageSnowHandler.spawnWrong));
+        out("调每株雪量: /dsdebug foliage snow <1-64>   调积雪深度: /dsprecip lock foliageSnow <0-1>（解锁 /dsprecip unlock foliageSnow）");
+        return Component.literal("雪层状态（详见聊天与日志）");
+    }
+
+    /**
+     * Units-per-plant override, plus the gates forced open and a rescan - the
+     * command exists so the density can be exercised without waiting for a
+     * storm deep enough to carry the coat on its own.
+     */
+    public static Component snowSet(final int units) {
+        FoliageSnowHandler.DEBUG_UNITS = Math.max(1, Math.min(64, units));
+        if (!FoliageSnowHandler.DEBUG_FORCE)
+            FoliageSnowHandler.DEBUG_FORCE = true;
+        final FoliageSnowHandler snow = FoliageSnowHandler.INSTANCE;
+        if (snow != null)
+            snow.forceRescan();
+        out(String.format("[foliage-snow] 每株单元上限=%d，强制模式开，已重扫", FoliageSnowHandler.DEBUG_UNITS));
+        out("配 /dsprecip lock foliageSnow <0-1> 可锁定积雪深度；恢复默认: /dsdebug foliage snow 16 再 /dsdebug foliage force 关强制");
+        return Component.literal("雪层每株单元数已设为 " + FoliageSnowHandler.DEBUG_UNITS);
+    }
+
+    /**
      * Toggles the forced-open gate on both layers, and kicks a rescan so the
      * effect lands without waiting for the next cadence.
      */
     public static Component force() {
-        final boolean on = !(FoliageRainDripHandler.DEBUG_FORCE || FoliageDewHandler.DEBUG_FORCE);
+        final boolean on = !(FoliageRainDripHandler.DEBUG_FORCE || FoliageDewHandler.DEBUG_FORCE
+                || FoliageSnowHandler.DEBUG_FORCE);
         FoliageRainDripHandler.DEBUG_FORCE = on;
         FoliageDewHandler.DEBUG_FORCE = on;
+        // Snow too: without a way to force it, the layer can only be seen in a
+        // cold biome that happens to be snowing. (This command exists on 1.20.1
+        // only - the other two versions have no foliage diagnostics yet, which
+        // is why the snow layer also answers to the config switch.)
+        FoliageSnowHandler.DEBUG_FORCE = on;
         if (on) {
             // Drop the scan stamps so the very next tick rescans instead of
             // waiting out its 30s/600t cadence.
@@ -301,6 +360,9 @@ public final class FoliageCommandHandler {
             final FoliageDewHandler dew = FoliageDewHandler.INSTANCE;
             if (dew != null)
                 dew.forceRescan();
+            final FoliageSnowHandler snow = FoliageSnowHandler.INSTANCE;
+            if (snow != null)
+                snow.forceRescan();
         } else {
             final FoliageRainDripHandler rain = FoliageRainDripHandler.INSTANCE;
             if (rain != null)
@@ -308,6 +370,9 @@ public final class FoliageCommandHandler {
             final FoliageDewHandler dew = FoliageDewHandler.INSTANCE;
             if (dew != null)
                 dew.clear();
+            final FoliageSnowHandler snow = FoliageSnowHandler.INSTANCE;
+            if (snow != null)
+                snow.clear();
         }
         out(String.format("[foliage] 强制模式 %s（忽略下雨/晨露时间窗，直接开闸）", on ? "开" : "关"));
         return Component.literal(on ? "强制模式：开（等一两秒看效果）" : "强制模式：关");
@@ -324,6 +389,9 @@ public final class FoliageCommandHandler {
         final FoliageDewHandler dew = FoliageDewHandler.INSTANCE;
         if (dew != null)
             return dew.config();
+        final FoliageSnowHandler snow = FoliageSnowHandler.INSTANCE;
+        if (snow != null)
+            return snow.config();
         return null;
     }
 

@@ -593,6 +593,8 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable morning dew on plants - beads appear before dawn, peak just before sunrise, evaporate by mid-morning")
         public boolean enableMorningDew = true;
+        /** Snow settling on plants: accumulate through a snowfall, linger, melt. */
+        public boolean enableSnowCover = true;
 
         @Property
         @DoubleRange(min = 0D, max = 1D)
@@ -602,7 +604,7 @@ public class Configuration extends ConfigurationData {
         @Property
         @IntegerRange(min = 4, max = 16)
         @Comment("Horizontal scan radius (blocks) for foliage drops and dew")
-        public int foliageScanRange = 10;
+        public int foliageScanRange = 16;
 
         @Property
         @Comment("Enable/disable the dry-weather sky events (an overcast day, and the day the clouds clear away). Part of the graded weather system: enableGradedPrecipitation off turns these off with it")

@@ -31,6 +31,7 @@ import org.orecruncher.dsurround.lib.random.Randomizer;
 import org.orecruncher.dsurround.lib.seasons.SeasonManager;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.mixins.core.MixinParticleManager;
+import org.orecruncher.dsurround.processing.scanner.DistanceLod;
 import org.orecruncher.dsurround.processing.scanner.FoliageScan;
 import org.orecruncher.dsurround.processing.scanner.ScannerCadence;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
@@ -398,7 +399,14 @@ public class FoliageDewHandler extends AbstractClientHandler {
                 beads++;
             if (this.random.nextFloat() < 0.10F * curve * coeff)
                 beads++;
-            beads = Math.min(MAX_DROPS_PER_PLANT, beads);
+            // Distance rule, the snow layer's: a plant at the far edge of the scan carries fewer
+            // beads. This layer never re-sizes a plant it already knows (the loop above skips
+            // those), so there is nothing to remember and no coat to watch grow - the judgement is
+            // made once, when the plant enrols. With a cap of three the middle band rounds back to
+            // three; only the far band changes, which is the honest answer for these numbers.
+            final int beadCap = Math.max(1, Math.round(
+                    MAX_DROPS_PER_PLANT * DistanceLod.scaleAt(spot.pos().distSqr(center))));
+            beads = Math.min(beadCap, beads);
             final PlantDew plant = new PlantDew(spot.pos(), spot.state().getBlock());
             if (!this.attach(world, player, spot, plant, beads, tick)) {
                 rejNoAttach++;

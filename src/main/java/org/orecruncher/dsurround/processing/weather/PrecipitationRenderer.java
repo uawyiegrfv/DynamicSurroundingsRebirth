@@ -54,10 +54,16 @@ import java.util.Random;
  * vanilla pass cannot take our draw down with it, and it keeps one drawing
  * implementation across all three versions instead of three.</p>
  *
- * <p>{@code tickRain} is suppressed - we return false, which drops vanilla's
- * ground splash particles <em>and</em> its rain sound. Neither has a replacement
- * yet, so both are currently <em>absent</em>, not vanilla. Do not read this as
- * "vanilla handles it".</p>
+ * <p>{@code tickRain} is <b>not</b> suppressed: the hook answers false, which is the
+ * answer that lets vanilla's own pass run, and that pass is where the ground splash
+ * particles and the rain sound come from. This paragraph used to say the opposite -
+ * that false dropped both - and it was wrong in the same direction as the method's
+ * name suggests, which is exactly how a wrong comment survives: the bytecode at
+ * offset 19 jumps past the early return when the hook answers false, so false runs
+ * the method and true is what suppresses it. Splashes and the rain sound are graded
+ * from the inside instead (MixinLevelRendererWeather redirects the rain level the
+ * pass reads and the one-shots it plays), and the heightmap sampling, the RAIN phase
+ * gate, lava to SMOKE and the reduced-particle halving are vanilla's own.</p>
  *
  * <h2>The 1.12.2 algorithm</h2>
  *

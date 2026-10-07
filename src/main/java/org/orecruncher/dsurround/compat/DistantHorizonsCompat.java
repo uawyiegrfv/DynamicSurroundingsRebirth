@@ -183,7 +183,12 @@ public final class DistantHorizonsCompat {
     private static final float RAMP_MIN = 0.0F;
     private static final float RAMP_MAX = 1.0F;
     /** Haze floor at full weather strength, scaled down by how clear it is. */
-    private static final float HAZE_FLOOR = 0.55F;
+    private static final float HAZE_FLOOR = 1.5F;
+    /**
+     * Ceiling of the haze floor. 0.85 keeps a little of the world visible even in the worst weather -
+     * the wall distance is what is supposed to finish the job, not the floor.
+     */
+    private static final float HAZE_FLOOR_CAP = 0.85F;
 
     /** Engage once our fog has moved the range by this fraction of it; release well below. */
     private static final float ENGAGE_MOVE = 0.05F;
@@ -268,7 +273,7 @@ public final class DistantHorizonsCompat {
         // which is what "still feels thin" was: at 256 chunks out, most of the visible LODs sit in the
         // first few percent of the ramp. The floor is 0 in clear weather (DH's own look) and grows as
         // the weather closes in, so rain hazes the near LODs as well instead of only the far ones.
-        final float hazeFloor = clamp(HAZE_FLOOR * (1F - tightness), 0F, 0.6F);
+        final float hazeFloor = clamp(HAZE_FLOOR * (1F - tightness), 0F, HAZE_FLOOR_CAP);
         // Full thickness lands at rampEnd render distances, i.e. this many blocks out:
         final float wallBlocks = rampEnd * Math.max(vanillaEnd, 1F) * Math.max(scale, 1F);
         hold(farFogStartKnob, "farFogStart", rampStart);

@@ -96,6 +96,40 @@ public final class FoliageScan {
                 && (config.logging.traceMask & org.orecruncher.dsurround.Configuration.Flags.FOLIAGE_DRIPS) != 0;
     }
 
+    /** Logged once per session when the shader switch suppresses the plant layers. */
+    private static volatile boolean shaderSuppressionReported = false;
+
+    /**
+     * Whether the plant-attached layers may run right now.
+     *
+     * <p>A shader pack that makes plants sway moves the plant in its vertex shader - the geometry
+     * the player sees is displaced, while a particle anchored to that plant stays where the scan
+     * found it. There is no way for us to follow: the displacement lives in the pack's GLSL, the
+     * pack does not publish its parameters, and our particles are not drawn through the plant's
+     * program. So the only honest lever is to stop drawing them, and this is that lever - with the
+     * eave layers deliberately left alone, because blocks do not sway.</p>
+     *
+     * <p>Off by default: plenty of packs do not sway plants at all, and silently removing three
+     * features for every shader user would be a worse default than one config line. The startup
+     * summary names the switch whenever a pack is in use.</p>
+     */
+    public static boolean plantLayersAllowed(final org.orecruncher.dsurround.Configuration config) {
+        if (config == null || !config.weatherOptions.disableFoliageLayersWithShaders)
+            return true;
+        return !org.orecruncher.dsurround.compat.ModIds.shadersInUse();
+    }
+
+    /** One line, once, when the switch above actually takes the layers down. */
+    public static void reportShaderSuppression(final org.orecruncher.dsurround.lib.logging.IModLog logger) {
+        if (shaderSuppressionReported)
+            return;
+        shaderSuppressionReported = true;
+        logger.info("Plant-attached layers (leaf drips / dew / snow) are switched off because a shader"
+                + " pack is in use and some packs sway the plants out from under a particle. Eave drips"
+                + " and icicles are unaffected. Set weatherOptions.disableFoliageLayersWithShaders=false"
+                + " to keep all three layers anyway.");
+    }
+
     public static final int STAT_AIR = 0;
     public static final int STAT_NOT_CANDIDATE = 1;
     public static final int STAT_SKY = 2;

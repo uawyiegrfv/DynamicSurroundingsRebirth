@@ -303,8 +303,15 @@ public class FoliageSnowHandler extends AbstractClientHandler {
         // ---- the event clock ----
         // Snow is a per-COLUMN question (icicle lesson: the column's own phase,
         // never the player's), and so is "is it snowing here at all".
-        final boolean snowingHere = DEBUG_FORCE
-                || (world.isRaining() && PrecipitationIntensity.potentialPhase(pos) == Biome.Precipitation.SNOW);
+        // The shader switch (see FoliageScan.plantLayersAllowed) reads as "not snowing here", so
+        // the layer winds down through its own melt path - scheduleMelt below - instead of having
+        // its units cut off mid-air.
+        final boolean plantLayersOff = !DEBUG_FORCE && !FoliageScan.plantLayersAllowed(this.config);
+        if (plantLayersOff)
+            FoliageScan.reportShaderSuppression(this.logger);
+        final boolean snowingHere = !plantLayersOff
+                && (DEBUG_FORCE
+                    || (world.isRaining() && PrecipitationIntensity.potentialPhase(pos) == Biome.Precipitation.SNOW));
         if (snowingHere && !this.wasSnowing) {
             this.precipStartTick = tick;
             this.meltScheduled = false;

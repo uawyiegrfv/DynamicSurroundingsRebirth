@@ -595,6 +595,10 @@ public class Configuration extends ConfigurationData {
         public boolean enableFoliageRainDrips = true;
 
         @Property
+        @Comment("With a shader pack in use, turn off the three plant-attached layers (leaf drips, morning dew, snow on plants). Some packs make plants sway in the vertex shader, and a particle anchored to a plant cannot follow it - it stays where the plant was. Eave drips and icicles are NOT affected (blocks do not sway)")
+        public boolean disableFoliageLayersWithShaders = false;
+
+        @Property
         @Comment("Enable/disable morning dew on plants - beads appear before dawn, peak just before sunrise, evaporate by mid-morning")
         public boolean enableMorningDew = true;
         /** Snow settling on plants: accumulate through a snowfall, linger, melt. */

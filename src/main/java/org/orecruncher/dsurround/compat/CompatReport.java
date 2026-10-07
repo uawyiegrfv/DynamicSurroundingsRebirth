@@ -100,12 +100,19 @@ public final class CompatReport {
      * The part the reader needs and cannot infer: what the shader pack does to the routes we
      * still own. Stated as a consequence, not as a warning - a pack in use is a choice, and the
      * mod's object layer (drips, icicles, dew, snow) keeps working underneath it.
+     *
+     * <p>The one exception is stated here rather than discovered by the player: a pack that sways
+     * plants moves them in its vertex shader, and a particle anchored to a plant cannot follow. The
+     * eave layers are immune (blocks do not sway), the plant-attached three are not, and the switch
+     * that turns those three off is named so the reader does not have to search for it.</p>
      */
     private static String notes() {
         StringBuilder sb = new StringBuilder();
         if (ModIds.shadersInUse())
             sb.append("shader pack in use: sky, fog and cloud COLOUR belong to the pack, the "
-                    + "ground-object layer (drips/icicles/dew/snow) does not");
+                    + "ground-object layer (drips/icicles/dew/snow) does not; if this pack sways "
+                    + "plants, the plant-attached three (leaf drips/dew/snow) will not follow them "
+                    + "- weatherOptions.disableFoliageLayersWithShaders turns them off");
         if (ModIds.isAny(ModIds.CACHE_MODS))
             sb.append(sb.length() == 0 ? "" : "; ")
                     .append("caching mod present (").append(ModIds.firstPresent(ModIds.CACHE_MODS))

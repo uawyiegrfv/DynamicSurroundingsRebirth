@@ -304,6 +304,13 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
             this.inResidual = false;
             return 1.0F;   // diagnostics: skip the weather gate entirely
         }
+        // Shader switch: zero is this layer's own "nothing to drip" answer, and the caller's
+        // value<=0 branch releases the pool and any residual beads. See plantLayersAllowed.
+        if (!FoliageScan.plantLayersAllowed(this.config)) {
+            FoliageScan.reportShaderSuppression(this.logger);
+            this.inResidual = false;
+            return 0F;
+        }
         // The project already owns an after-rain curve for the eave drips
         // (PrecipitationResponse.DRIP); this layer reads its own channel off
         // the same mechanism rather than running arithmetic of its own. The

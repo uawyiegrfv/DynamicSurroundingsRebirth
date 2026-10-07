@@ -251,7 +251,13 @@ public class FoliageDewHandler extends AbstractClientHandler {
 
         final long tick = this.tickCount.getTickCount();
         final BlockPos pos = player.blockPosition();
-        final float curve = DEBUG_FORCE ? 1.0F : dewCurve(world.getDayTime());
+        // A shader pack that sways plants moves them out from under a bead (see
+        // FoliageScan.plantLayersAllowed). Curve 0 is this layer's own "window closed" answer, so
+        // the beads already placed evaporate through the existing end-of-window path.
+        final boolean plantLayersOff = !DEBUG_FORCE && !FoliageScan.plantLayersAllowed(this.config);
+        if (plantLayersOff)
+            FoliageScan.reportShaderSuppression(this.logger);
+        final float curve = DEBUG_FORCE ? 1.0F : (plantLayersOff ? 0F : dewCurve(world.getDayTime()));
         final boolean raining = world.isRaining() && !DEBUG_FORCE;
         // Rain owns the leaves while it falls; dew only exists in clear air.
         final boolean dewy = curve > 0F && !raining;

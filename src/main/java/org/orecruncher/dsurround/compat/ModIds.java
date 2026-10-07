@@ -41,8 +41,10 @@ public final class ModIds {
     /**
      * Better Clouds: renders its own cloud sheet from a mixin on {@code LevelRenderer.renderClouds}
      * (verified in its jar: a {@code renderClouds} handler in the REQUIRED client mixin set) and
-     * offsets the cloud height through {@code DimensionSpecialEffects.OverworldEffects}. Not in the
-     * original six-mod list; found in the maintainer's own pack, which is where the list came from.
+     * offsets the cloud height through {@code DimensionSpecialEffects.OverworldEffects}. The mod is
+     * not new to this project - 1.3.2's changelog already credits it for the rain/thunder fog flicker
+     * fix - but it was not part of the weather batch's six-mod compatibility list, which is where the
+     * cloud ownership question was missed.
      */
     public static final String BETTER_CLOUDS = "betterclouds";
     /** Every mod known to draw the clouds itself - see the cloud route in RouteFuse. */

@@ -154,6 +154,12 @@ public final class RouteFuse {
      * yes/no answers that depend on where the camera is, and a cloud sheet that is off screen for a
      * moment must not be reported as somebody else's. The failure this catches is permanent (a mod
      * that replaces the cloud pass replaces it every frame), so a slow fuse costs nothing.</p>
+     *
+     * <p>Why the gate is only "clouds are switched on": the 1.20.1 bytecode shows
+     * {@code LevelRenderer.renderClouds} calling {@code DimensionSpecialEffects.renderClouds} at
+     * offset 24 - the first thing it does - and {@code renderLevel} calling it on both sides of the
+     * cloud-status test. So while clouds are enabled and a level is rendering, the colour is asked
+     * for every frame, and a silent window really does mean the pass belongs to someone else.</p>
      */
     private static final int CLOUD_FOREIGN_TICKS = 100;
 

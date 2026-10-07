@@ -120,11 +120,15 @@ public final class DistantHorizonsCompat {
                 Class<?> holder = Class.forName(CONFIG_CLASS);
                 for (final String[] level : HOLDER_LEVELS)
                     holder = nestedClass(holder, level);
-                final Object resolved = field(holder, VANILLA_FOG_NAMES);
-                final java.lang.reflect.Method resolvedGetter = resolved.getClass().getMethod("get");
+                final Object entry = field(holder, VANILLA_FOG_NAMES);
+                // Prefer DH's own API wrapper when it is there: IDhApiConfigValue.getValue() is the
+                // documented read, and it answers with an API override if another mod set one - the
+                // raw ConfigEntry.get() would report the file's value and we would hand the fog off
+                // (or not) based on a number nobody is using. Falls back to the raw entry when the
+                // wrapper is absent, which is today's behaviour.
+                final Object resolved = wrapAsApiValue(entry);
                 option = resolved;
-                getter = resolvedGetter;
-            } catch (Throwable t) {
+                getter = readMethod(resolved);            } catch (Throwable t) {
                 option = null;
                 getter = null;
                 failure = t;
@@ -136,6 +140,45 @@ public final class DistantHorizonsCompat {
         }
     }
 
+    /**
+     * Wraps a resolved DH config entry in DH's own API value object, or returns it unchanged.
+     *
+     * <p>{@code DhApiConfigValue} is what every other mod talks to (Simple Clouds sets DH's cloud
+     * rendering through it, and its {@code setValue(value, caller)} is what produces DH's
+     * "Config [x] was set by [y]" line). It implements {@code IDhApiConfigValue}, whose
+     * {@code getValue()} is the read that respects an API override - so this is the number to make a
+     * hand-off decision on. Constructed reflectively; a failure simply returns the entry, and the
+     * caller reads the raw {@code get()} instead.</p>
+     */
+    /**
+     * The value read method: DH's API {@code getValue()} when the object is an API wrapper, the
+     * raw {@code get()} otherwise. Resolved once, with the reason stated: which one is available is
+     * exactly whether the wrapper was constructed.
+     */
+    private static java.lang.reflect.Method readMethod(final Object value) throws NoSuchMethodException {
+        try {
+            return value.getClass().getMethod("getValue");
+        } catch (NoSuchMethodException notAnApiValue) {
+            return value.getClass().getMethod("get");
+        }
+    }
+    private static Object wrapAsApiValue(final Object entry) {
+        try {
+            final Class<?> wrapper = Class.forName(
+                    "com.seibel.distanthorizons.core.config.api.DhApiConfigValue");
+            // Match the constructor by assignability rather than by a guessed parameter type: the
+            // wrapper takes a ConfigEntry, and the entry we walk to IS one - but a future DH could
+            // hand out a subclass, and a guessed type would then silently skip the wrapper.
+            for (final java.lang.reflect.Constructor<?> candidate : wrapper.getConstructors()) {
+                final Class<?>[] params = candidate.getParameterTypes();
+                if (params.length == 1 && params[0].isInstance(entry))
+                    return candidate.newInstance(entry);
+            }
+        } catch (Throwable t) {
+            // Fall through to the raw entry.
+        }
+        return entry;
+    }
     /**
      * The nested holder class of {@code outer} under any of its known spellings.
      *

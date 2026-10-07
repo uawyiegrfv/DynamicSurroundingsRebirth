@@ -85,6 +85,9 @@ public final class DistantHorizonsCompat {
     private static volatile Object farFogFalloffKnob = null;
     private static volatile Object farFogMinKnob = null;
     private static volatile Object farFogMaxKnob = null;
+    private static volatile Object chunkDistanceKnob = null;
+    /** How DH spells its LOD render distance; the same setting its API calls chunkRenderDistance. */
+    private static final String[] CHUNK_DISTANCE_NAMES = { "chunkRenderDistance", "renderDistance" };
 
     private static final Object PROBE_LOCK = new Object();
     private static volatile boolean probed = false;
@@ -376,6 +379,37 @@ public final class DistantHorizonsCompat {
         setCloudsSuppressed(false);
     }
 
+    /**
+     * How much longer the DH view is than the vanilla one, as a multiplier (1.0 = no change).
+     *
+     * <p>This is the number the redesign turns on. Our fog is built to reach full thickness at the
+     * vanilla render distance edge, and that is exactly what makes the LOD world vanish when the same
+     * range is handed to DH: the fog is already opaque before the first LOD chunk starts. Spread over
+     * DH's view instead - same shape, same relative place in the view, longer view - and it reaches full
+     * thickness at DH's horizon rather than at the vanilla boundary, which also removes the ring of fog
+     * that vanilla draws at its own far chunks. Both renderers then use one ramp: the vanilla chunks show
+     * its early part (thin), the LODs continue it, and there is no boundary to reconcile because both
+     * sides are the same function at the same normalised distance.</p>
+     *
+     * <p>Answers 1.0 when DH is absent, the integration is off, or the setting cannot be read, so every
+     * caller can use it unconditionally.</p>
+     */
+    public static float viewScale() {
+        if (!integrationEnabled())
+            return 1F;
+        probe();
+        if (chunkDistanceKnob == null)
+            return 1F;
+        final Object value = read(chunkDistanceKnob);
+        final float chunks = value instanceof Number n ? n.floatValue() : 0F;
+        if (chunks <= 0F)
+            return 1F;
+        final float dhBlocks = chunks * 16F;
+        final float vanillaBlocks = Math.max(16F,
+                net.minecraft.client.Minecraft.getInstance().options.getEffectiveRenderDistance() * 16F);
+        return Math.max(1F, dhBlocks / vanillaBlocks);
+    }
+
     /** One line for the startup summary and the diagnostics panel. */
     public static String status() {
         if (!ModIds.present(ModIds.DISTANT_HORIZONS))
@@ -408,6 +442,14 @@ public final class DistantHorizonsCompat {
                 farFogFalloffKnob = wrap(resolveEntry(FOG, "farFogFalloff"));
                 farFogMinKnob = wrap(resolveEntry(FOG, "farFogMin"));
                 farFogMaxKnob = wrap(resolveEntry(FOG, "farFogMax"));
+                for (final String name : CHUNK_DISTANCE_NAMES) {
+                    try {
+                        chunkDistanceKnob = wrap(resolveEntry(GRAPHICS, name));
+                        break;
+                    } catch (Throwable notThisName) {
+                        // Try the next spelling.
+                    }
+                }
             } catch (Throwable t) {
                 vanillaFogKnob = null;
                 dhFogKnob = null;

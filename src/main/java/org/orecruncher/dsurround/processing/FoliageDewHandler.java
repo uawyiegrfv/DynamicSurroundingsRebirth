@@ -32,6 +32,7 @@ import org.orecruncher.dsurround.lib.seasons.SeasonManager;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.mixins.core.MixinParticleManager;
 import org.orecruncher.dsurround.processing.scanner.FoliageScan;
+import org.orecruncher.dsurround.processing.scanner.ScannerCadence;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
 import org.orecruncher.dsurround.sound.ISoundFactory;
 import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
@@ -78,16 +79,10 @@ public class FoliageDewHandler extends AbstractClientHandler {
     private static final int CHUNK_COOLDOWN_TICKS = 100;
     /** ...or walks this far (blocks, squared). */
     private static final double RESCAN_MOVE_SQ = 36.0D;
-    /**
-     * Floor on how often the walk test may bring the next scan forward.
-     *
-     * <p>Same rationing as the other two ground layers, and the same reason: the walk test had no
-     * ceiling, so a fast traveller re-swept a 33x33x11 box as often as they crossed six blocks.
-     * The dawn window is short and a player crossing a field at speed should still find dew around
-     * them, so this is a rate limit rather than a gate: ten ticks, with the chunk and top-up
-     * triggers left exactly as they were.</p>
-     */
-    private static final int MOVE_RESCAN_MIN_TICKS = 10;
+    // The move-trigger floor is shared; see ScannerCadence.MOVE_RESCAN_MIN_TICKS. The dawn
+    // window is short and a player crossing a field at speed should still find dew around them,
+    // which is why this is a rate limit rather than a gate - the chunk and top-up triggers are
+    // left exactly as they were.
     /** Slow top-up so standing still still fills the world in. */
     private static final int TOPUP_TICKS = 600;
     /** The bead lottery: every 200t (10s), per ruling. */
@@ -296,9 +291,9 @@ public class FoliageDewHandler extends AbstractClientHandler {
         final boolean newChunk = chunkX != this.lastChunkX || chunkZ != this.lastChunkZ;
         final boolean moved = this.lastScanPos == null
                 || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= RESCAN_MOVE_SQ;
-        // Moved only brings the next scan forward, and only past the floor - see
-        // MOVE_RESCAN_MIN_TICKS.
-        final boolean movedNow = moved && tick - this.lastScanTick >= MOVE_RESCAN_MIN_TICKS;
+        // Moved only brings the next scan forward, and only past the floor.
+        final boolean movedNow = moved
+                && tick - this.lastScanTick >= ScannerCadence.MOVE_RESCAN_MIN_TICKS;
         if (dewy && (newChunk && tick - this.lastScanTick >= CHUNK_COOLDOWN_TICKS
                 || movedNow
                 || tick - this.lastScanTick >= TOPUP_TICKS)) {

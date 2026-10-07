@@ -27,6 +27,7 @@ import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.mixins.core.MixinParticleManager;
 import org.orecruncher.dsurround.processing.scanner.DripScanner;
 import org.orecruncher.dsurround.processing.scanner.FoliageScan;
+import org.orecruncher.dsurround.processing.scanner.ScannerCadence;
 import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 
 /**
@@ -55,6 +56,8 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
 
     /** Scan cadence and phase offset vs the eave layer's 20t clock (review G). */
     private static final int SCAN_TICKS = 30;
+    /** Re-scan sooner than the period when the player walks this far (4 blocks, squared). */
+    private static final double RESCAN_MOVE_SQ = 16.0D;
     private static final int SCAN_PHASE = 10;
     /** Global drop budget: {@code BASE*value + SPAN*value^2} drops a second. */
     private static final double RATE_BASE = 5.0D;
@@ -240,9 +243,14 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
             return;
         }
 
+        // The walk test had no floor here either, so a fast traveller re-swept the box as often as
+        // they crossed four blocks - the same spike the other layers were rationed for. See
+        // ScannerCadence.MOVE_RESCAN_MIN_TICKS.
         final boolean moved = this.lastScanPos == null
-                || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= 16.0D;
-        if (tick - this.lastScanTick >= SCAN_TICKS || moved) {
+                || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= RESCAN_MOVE_SQ;
+        final boolean movedNow = moved
+                && tick - this.lastScanTick >= ScannerCadence.MOVE_RESCAN_MIN_TICKS;
+        if (tick - this.lastScanTick >= SCAN_TICKS || movedNow) {
             this.lastScanTick = tick;
             this.lastScanPos = pos.immutable();
             this.rescan(world, pos, tick, value, player);

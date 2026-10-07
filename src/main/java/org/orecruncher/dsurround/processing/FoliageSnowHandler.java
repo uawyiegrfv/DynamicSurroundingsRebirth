@@ -28,7 +28,9 @@ import org.orecruncher.dsurround.lib.random.Randomizer;
 import org.orecruncher.dsurround.lib.seasons.SeasonManager;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.mixins.core.MixinParticleManager;
+import org.orecruncher.dsurround.processing.scanner.DistanceLod;
 import org.orecruncher.dsurround.processing.scanner.FoliageScan;
+import org.orecruncher.dsurround.processing.scanner.ScannerCadence;
 import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 
 /**
@@ -69,17 +71,10 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     private static final int CHUNK_COOLDOWN_TICKS = 30;
     /** Round 10: was 36 (six blocks). Three and a half now - a walk has to trigger a rescan sooner than that. */
     private static final double RESCAN_MOVE_SQ = 12.25D;
-    /**
-     * Floor on how often the walk test may bring the next scan forward.
-     *
-     * <p>The walk test is the layer's most useful trigger and its most dangerous one: at three and
-     * a half blocks it fires every couple of ticks on an elytra, and a scan here is a 33x33x11
-     * sweep (11979 blocks) - so the layer that costs the most per scan was also the one scanning
-     * most often. Ten ticks keeps a walked-up-to plant answered inside half a second, which is
-     * faster than the eye can attribute, and bounds the rate. The new-chunk test and the slow
-     * top-up keep their own cooldowns, untouched.</p>
-     */
-    private static final int MOVE_RESCAN_MIN_TICKS = 10;
+    // The move-trigger floor is shared; see ScannerCadence.MOVE_RESCAN_MIN_TICKS. This layer
+    // needed it most: at three and a half blocks the walk test fires every couple of ticks on an
+    // elytra, and its scan is the expensive one. The new-chunk test and the slow top-up keep
+    // their own cooldowns, untouched.
     /**
      * Round 10: "快靠近才出现粒子". This is the slow top-up's number - with
      * it at 600 a plant you walked up to took 30 seconds per scan and two
@@ -360,10 +355,10 @@ public class FoliageSnowHandler extends AbstractClientHandler {
         final boolean newChunk = chunkX != this.lastChunkX || chunkZ != this.lastChunkZ;
         final boolean moved = this.lastScanPos == null
                 || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= RESCAN_MOVE_SQ;
-        // Moved only brings the next scan forward, and only past the floor - see
-        // MOVE_RESCAN_MIN_TICKS. The first scan after a fresh snowfall still happens at once:
-        // that path resets lastScanTick to the far past on purpose.
-        final boolean movedNow = moved && tick - this.lastScanTick >= MOVE_RESCAN_MIN_TICKS;
+        // Moved only brings the next scan forward, and only past the floor. The first scan after a
+        // fresh snowfall still happens at once: that path resets lastScanTick to the far past.
+        final boolean movedNow = moved
+                && tick - this.lastScanTick >= ScannerCadence.MOVE_RESCAN_MIN_TICKS;
         if (snowingHere && (newChunk && tick - this.lastScanTick >= CHUNK_COOLDOWN_TICKS
                 || movedNow
                 || tick - this.lastScanTick >= TOPUP_TICKS)) {
@@ -545,13 +540,16 @@ public class FoliageSnowHandler extends AbstractClientHandler {
         for (final FoliageScan.FoliageSpot spot : spots) {
             final float boost = boostOf(spot.profile());
             final double dist = spot.pos().distSqr(center);
-            // A plant at the far edge wears a thinner coat, so the budget
-            // reaches further out than it could otherwise.
-            final float lod = dist > LOD_FAR_SQ ? LOD_FAR_SCALE
-                    : (dist > LOD_NEAR_SQ ? LOD_MID_SCALE : 1F);
-            final int want = Math.max(1, Math.round(this.targetCount(progress, boost) * lod));
             final Long key = spot.pos().asLong();
             final PlantSnow existing = this.plants.get(key);
+            // A plant at the far edge wears a thinner coat, so the budget reaches further out
+            // than it could otherwise. The tier is remembered per plant and only moves when the
+            // distance clears a threshold by a margin (see DistanceLod): recomputing it fresh
+            // every scan made the coat grow while the player walked up to it, which is the
+            // "走近了雪才长出来" read the round-10 scales had already been raised to hide.
+            final int lodTier = DistanceLod.nextTier(existing == null ? DistanceLod.TIER_NEAR : existing.lodTier, dist);
+            final float lod = DistanceLod.scaleFor(lodTier);
+            final int want = Math.max(1, Math.round(this.targetCount(progress, boost) * lod));
             if (existing != null) {
                 // Already watched: grow in slowly, that is the "settling" read.
                 // attach() takes the plant's TARGET here - the dew layer's
@@ -559,6 +557,7 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                 // Handing it the increment instead made the loop condition
                 // units.size() < count false on every scan after the first,
                 // so a plant stopped at whatever it held when it enrolled.
+                existing.lodTier = lodTier;
                 if (existing.units.size() < want)
                     this.attach(world, player, spot, existing, want, tick, progress, boost, existing.units.size());
                 // Depth fell below what the plant holds: the TOP snow goes
@@ -610,6 +609,11 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                 this.plants.remove(far.pos.asLong());
             }
             final PlantSnow plant = new PlantSnow(spot.pos(), spot.state().getBlock());
+            plant.lodTier = lodTier;
+            // (Assigned before attach(): attach reads the tier for nothing today,
+            // but a plant created here is already at its tier - leaving it at the
+            // default until the next scan would give every new plant one scan at
+            // full coat, i.e. exactly the pop this memory exists to prevent.)
             if (!this.attach(world, player, spot, plant, want, tick, progress, boost, 0)) {
                 rejNoAttach++;
                 for (final SnowUnit u : plant.units)
@@ -1005,6 +1009,13 @@ public class FoliageSnowHandler extends AbstractClientHandler {
         final List<SnowUnit> units = new ArrayList<>(4);
         /** When the units were placed - the melt window is shot from here. */
         long meltAtBase;
+        /**
+         * Which distance tier this plant was last judged to be in. Held here, not
+         * recomputed per scan, so the coat only changes when the distance really
+         * changed - see {@link DistanceLod}. A plant's tier is the only per-item
+         * state LOD needs, and the plant is already the thing being remembered.
+         */
+        int lodTier = DistanceLod.TIER_NEAR;
 
         PlantSnow(final BlockPos pos, final net.minecraft.world.level.block.Block block) {
             this.pos = pos;

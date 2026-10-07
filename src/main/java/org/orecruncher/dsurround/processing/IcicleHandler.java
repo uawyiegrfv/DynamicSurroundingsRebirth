@@ -33,6 +33,7 @@ import org.orecruncher.dsurround.lib.seasons.SeasonManager;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.mixins.core.MixinParticleManager;
 import org.orecruncher.dsurround.processing.scanner.DripScanner;
+import org.orecruncher.dsurround.processing.scanner.ScannerCadence;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
 import org.orecruncher.dsurround.sound.ISoundFactory;
 import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
@@ -144,6 +145,10 @@ public class IcicleHandler extends AbstractClientHandler {
     // `tick - lastScan >= SCAN_TICKS` never fired and the layer sat silent
     // through the whole first live test. -1000 means "due immediately".
     private long lastScan = -1000L;
+    /** Where the last scan was centred, for the walk test. Null until the first scan. */
+    private BlockPos lastScanPos;
+    /** Re-scan sooner than the period when the player walks this far (4 blocks, squared). */
+    private static final double RESCAN_MOVE_SQ = 16.0D;
     private long lastStaleCheck = -1000L;
     private long lastEmptyLog = -1000L;
     private long lastDropRoll = -1000L;
@@ -278,8 +283,19 @@ public class IcicleHandler extends AbstractClientHandler {
                     a.particle.stopMelting();
                 }
             }
-            if (tick - this.lastScan >= SCAN_TICKS) {
+            // The period, or a walk that has taken the player somewhere the last scan did
+            // not cover. Until the move trigger was added this layer only ever re-scanned on
+            // its sixty-tick clock, so walking up to a new house could leave its eaves bare
+            // for three seconds - the icicle layer "appears late" next to the drip layer,
+            // which has always had the walk test. Rationed by the shared floor (the box is
+            // the expensive one, 33x33x27) and never allowed to bypass it.
+            final boolean moved = this.lastScanPos == null
+                    || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= RESCAN_MOVE_SQ;
+            final boolean movedNow = moved
+                    && tick - this.lastScan >= ScannerCadence.MOVE_RESCAN_MIN_TICKS;
+            if (tick - this.lastScan >= SCAN_TICKS || movedNow) {
                 this.lastScan = tick;
+                this.lastScanPos = pos.immutable();
                 this.scanAndAttach(world, pos, tick);
             }
             // The occasional lone dropout while it keeps snowing.
@@ -417,7 +433,9 @@ public class IcicleHandler extends AbstractClientHandler {
         int failed = 0;
         final int[] shapes = new int[SHAPE_COUNT];
         final ObjectArray<DripScanner.DripPoint> found = new ObjectArray<>(64);
-        for (final DripScanner.DripPoint point : DripScanner.scan(world, center, true)) {
+        // scanAll rather than scan(..., true): same superset, but it is the one the drip
+        // layer reads from this tick, so the box is walked once for both layers.
+        for (final DripScanner.DripPoint point : DripScanner.scanAll(world, center)) {
             candidates++;
             found.add(point);
             if (this.attached.size() >= want)

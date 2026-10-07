@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import org.orecruncher.dsurround.compat.ModIds;
 
 import java.util.Collection;
 import java.util.Set;
@@ -26,6 +27,11 @@ public final class Constants {
     // Enhanced sound processing.  Check AudioUtilities.java as well.
     public static final String MOD_SOUND_PHYSICS_REMASTERED = "sound_physics_remastered";
     public static final String MOD_PARTICLE_RAIN = "particlerain";
+    // Replaces the vanilla block sound groups (dynamic block sounds), which is what the
+    // footstep material table is keyed by. Values live in ModIds so the id has one home;
+    // both are compile-time constants, so listing them here costs nothing at class load.
+    public static final String MOD_SOUNDS = ModIds.SOUNDS;
+    public static final String MOD_SONANCE = ModIds.SONANCE;   // Sounds' former id
     public static final String CLOTH_CONFIG_FABRIC = "cloth-config";
     public static final String CLOTH_CONFIG_NEOFORGE = "cloth_config";  // NeoForge build uses underscore mod id
     public static final String SERENE_SEASONS = "sereneseasons";
@@ -48,6 +54,8 @@ public final class Constants {
                 MOD_PRESENCE_FOOTSTEPS,
                 MOD_SOUND_PHYSICS_REMASTERED,
                 MOD_PARTICLE_RAIN,
+                MOD_SOUNDS,
+                MOD_SONANCE,
                 CLOTH_CONFIG_FABRIC,
                 CLOTH_CONFIG_NEOFORGE,
                 SERENE_SEASONS,

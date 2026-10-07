@@ -344,12 +344,24 @@ public final class PrecipitationIntensity {
     /** The profile's mode where the player is now, low-passed - see LOCATION_FOLLOW_SECONDS. */
     private static volatile float locationMode = 0F;
     /**
-     * Whether the world is thundering. Read from the thunder <em>level</em>, never
-     * from {@code Level.isThundering()} - on the client that returns a literal
-     * false (ClientLevelData has no thundering field at all; the method is
-     * {@code iconst_0; ireturn}). This is the same trap as {@code isRaining()},
-     * third time it has come up: a boolean that looks like state but is not,
-     * while the float beside it is the thing actually kept in sync.
+     * Whether the world is thundering. Read from the thunder <em>level</em>, not
+     * from {@code Level.isThundering()}, because this is a graded system: the
+     * boolean is a threshold, the float is the number.
+     *
+     * <p><b>A correction, kept visible on purpose.</b> This comment used to say the
+     * client's {@code isThundering()} returns a literal false, and that
+     * {@code ClientLevelData} has no thundering field - offered as the third
+     * instance of "a boolean that is not the state". That is wrong, and it was
+     * wrong in the direction that wastes a debugging session: someone reading it
+     * would conclude the thunder route cannot work on the client at all. Verified
+     * against the 1.20.1 bytecode (official mappings, javap): {@code ClientLevel}
+     * does not override it, and {@code Level.isThundering()} is
+     * {@code dimensionType().hasSkyLight() && !dimensionType().hasCeiling() &&
+     * (double) getThunderLevel(1F) &gt; 0.9} - it reads the interpolated level, which
+     * the client keeps in sync from the weather packets, so it answers correctly
+     * there. The literal false lives in {@code ClientLevelData}, which nothing on
+     * this path reads. Same trap as {@code isRaining()}, except this time the
+     * boolean was fine and the note about it was not.
      */
     private static volatile boolean stormy = false;
     /** Attack length of the event in progress, in ticks. */

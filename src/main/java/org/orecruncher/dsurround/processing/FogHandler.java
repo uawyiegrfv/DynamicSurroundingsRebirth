@@ -98,7 +98,7 @@ public class FogHandler extends AbstractClientHandler {
                         GameUtils.getMC().options.getEffectiveRenderDistance(),
                         (float) event.getPartialTick());
                 DistantHorizonsCompat.syncFog(ours.renderDistanceStart, ours.renderDistanceEnd,
-                        event.getFarPlaneDistance());
+                        event.getNearPlaneDistance(), event.getFarPlaneDistance());
             } else {
                 DistantHorizonsCompat.releaseAll();
             }
@@ -124,7 +124,8 @@ public class FogHandler extends AbstractClientHandler {
             // DH may not own the vanilla fog and still be drawing LOD terrain beyond it; its LOD fog
             // follows the same visibility so the two agree. A no-op when DH is absent or the
             // integration is switched off.
-            DistantHorizonsCompat.syncFog(this.lastData.renderDistanceStart, this.lastData.renderDistanceEnd, end);
+            DistantHorizonsCompat.syncFog(this.lastData.renderDistanceStart, this.lastData.renderDistanceEnd,
+                    start, end);
             // Forge 1.20.1 的 onFogRender 在事件未取消时会跳过用事件值重设雾，
             // 所以这里直接写 RenderSystem，确保雾真正生效。
             RenderSystem.setShaderFogStart(this.lastData.renderDistanceStart);

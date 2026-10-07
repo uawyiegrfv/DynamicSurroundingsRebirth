@@ -134,6 +134,8 @@ public final class DistantHorizonsCompat {
     private static volatile boolean dhFogForcedOn = false;
     /** Set once if DH reports a different value than we wrote - see {@link #verifyWrite}. */
     private static volatile boolean reportedIneffective = false;
+    /** One line the first time the join is written. */
+    private static volatile boolean reportedMirror = false;
 
     /**
      * Engage below this visibility ratio, release above {@link #RELEASE_THRESHOLD}.
@@ -145,6 +147,20 @@ public final class DistantHorizonsCompat {
     private static final float SYNC_THRESHOLD = 0.90F;
     /** Above this the override is handed back. See {@link #SYNC_THRESHOLD}. */
     private static final float RELEASE_THRESHOLD = 0.95F;
+    /**
+     * Where DH's LOD fog joins ours, in DH's units (fractions of the vanilla render distance).
+     *
+     * <p>DH documents 1.0 as the closest edge of the vanilla render distance and 1.414 as its corner.
+     * The join is exactly at that edge - which is also where vanilla fog reaches full thickness.</p>
+     */
+    private static final float JOIN_START = 1.0F;
+    private static final float JOIN_END = 1.414F;
+    /** Thickness at the join: 1.0, because vanilla fog is fully opaque at its own far plane. */
+    private static final float JOIN_THICKNESS = 1.0F;
+    /** Engage once our fog has moved the range by this fraction of it; release well below. */
+    private static final float ENGAGE_MOVE = 0.05F;
+    private static final float RELEASE_MOVE = 0.02F;
+
     /** Smallest change worth another API write. */
     private static final float WRITE_EPSILON = 0.01F;
 
@@ -181,20 +197,21 @@ public final class DistantHorizonsCompat {
      *                        Values at or above {@link #SYNC_THRESHOLD} release the override, so
      *                        clear weather leaves DH exactly as the player configured it.
      */
-    public static void syncFog(final float ourStart, final float ourEnd, final float vanillaFar) {
-        if (!integrationEnabled() || vanillaFar < 16F) {
+    public static void syncFog(final float ourStart, final float ourEnd,
+            final float vanillaStart, final float vanillaEnd) {
+        if (!integrationEnabled() || vanillaEnd < 16F) {
             releaseAll();
             return;
         }
         probe();
-        if (farFogEndKnob == null || farFogStartKnob == null)
+        if (farFogStartKnob == null || farFogMinKnob == null || farFogMaxKnob == null)
             return;
-        // Only when the weather has actually closed the view in: at or above the release threshold
-        // DH keeps its own fog, untouched. Same hysteresis as before, now on real distances.
-        final float visibility = clamp(ourEnd / vanillaFar, 0.05F, 1.0F);
-        if (visibility < deepestRatio)
-            deepestRatio = visibility;
-        if (visibility >= (held.isEmpty() ? SYNC_THRESHOLD : RELEASE_THRESHOLD)) {
+        // How far our fog has moved the range off vanilla's. Both planes count, because rain now
+        // thickens by moving the near plane in and never touches the view distance.
+        final float moved = Math.max(
+                (vanillaStart - ourStart) / Math.max(vanillaStart, 1F),
+                (vanillaEnd - ourEnd) / Math.max(vanillaEnd, 1F));
+        if (moved < (held.isEmpty() ? ENGAGE_MOVE : RELEASE_MOVE)) {
             releaseAll();
             return;
         }
@@ -214,37 +231,28 @@ public final class DistantHorizonsCompat {
                 return;
             }
         }
-        // DH documents farFogStart/farFogEnd as fractions of the VANILLA render distance (0.0 = the
-        // player, 1.0 = the closest edge of it), so our distances go straight in - no scaling of
-        // DH's own numbers, no assumption about how far DH draws. The three shape settings are the
-        // part that matters for the seam: DH ships EXPONENTIAL_SQUARED falloff with a minimum
-        // thickness of 0, which is a gentle haze where vanilla fog (and ours) is a linear ramp that
-        // can reach opaque. Matching the distances alone leaves our half saturated and DH's half
-        // almost clear - which is exactly the flat white sheet ending in a hard edge.
-        // WIDEN the band, never shrink it. Shrinking was the artefact in the screenshots: DH's far fog
-        // lives in the window [farFogStart, farFogEnd], so moving the end inward turns it into a band
-        // across the near field and leaves everything past it - the whole LOD region - with no fog at
-        // all. That is the flat white sheet that stops at a hard edge. Two live sessions show both
-        // halves of it: a shallow mirror (end 1.00 -> 0.89) was invisible, a deep one (end -> 0.50)
-        // produced the sheet.
-        final float start = clamp(ourStart / vanillaFar, 0.0F, 1.414F);
-        final float base = readFloat(farFogEndKnob, 1.0F);
-        final float end = Math.max(base, 1.414F);
-        hold(farFogStartKnob, "farFogStart", start);
-        hold(farFogEndKnob, "farFogEnd", end);
-        hold(farFogMinKnob, "farFogMin", 0.0F);
-        hold(farFogMaxKnob, "farFogMax", 1.0F);
-        hold(farFogFalloffKnob, "farFogFalloff", linearFalloff());
-        if (Float.isNaN(firstWrittenStart)) {
-            firstWrittenStart = start;
-            firstWrittenEnd = end;
-            log("mirroring the weather fog onto DH's LOD fog: farFogStart=" + round(start)
-                    + " (ours starts at " + Math.round(ourStart) + " blocks) farFogEnd=" + round(end)
-                    + " (DH's own was " + round(base) + ") | visibility " + Math.round(visibility * 100F)
-                    + "%, falloff=LINEAR, thickness 0..1, enableDhFog=" + read(dhFogKnob));
+        // The join, in DH's own units - and its documentation is explicit that these are fractions of
+        // the VANILLA render distance: 1.0 is its closest edge, 1.414 its corner. So the LOD fog
+        // starts exactly where vanilla fog ends and carries the thickness vanilla fog has there.
+        // Vanilla fog is fully opaque at its own far plane (its shader takes the terrain all the way
+        // to the fog colour there), so min = max = 1.0 IS "same colour, same thickness" - and a
+        // uniform thickness has no band to collapse, which is what produced the flat sheet and the
+        // hard edge when this was written as a scaled copy of DH's own start/end window.
+        // Colour needs nothing: DH's far fog already uses the world fog colour (USE_WORLD_FOG_COLOR),
+        // which is the one this mod weathers.
+        hold(farFogStartKnob, "farFogStart", JOIN_START);
+        hold(farFogEndKnob, "farFogEnd", JOIN_END);
+        hold(farFogMinKnob, "farFogMin", JOIN_THICKNESS);
+        hold(farFogMaxKnob, "farFogMax", JOIN_THICKNESS);
+        if (!reportedMirror) {
+            reportedMirror = true;
+            log("DH's LOD fog now continues vanilla's: start=" + JOIN_START + " (the vanilla render"
+                    + " distance edge) at the thickness vanilla fog has there (" + JOIN_THICKNESS
+                    + "), same colour. DSR's range is " + Math.round(ourStart) + ".." + Math.round(ourEnd)
+                    + " against vanilla's " + Math.round(vanillaStart) + ".." + Math.round(vanillaEnd)
+                    + " (moved " + Math.round(moved * 100F) + "%, enableDhFog=" + read(dhFogKnob) + ")");
         }
     }
-
     /**
      * Writes one knob and remembers what was there before, at most once per value.
      *

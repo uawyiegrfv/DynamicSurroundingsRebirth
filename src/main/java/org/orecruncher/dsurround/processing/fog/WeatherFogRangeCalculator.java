@@ -147,7 +147,14 @@ public class WeatherFogRangeCalculator extends VanillaFogRangeCalculator {
                     Math.min(clearEnd * (1F - END_IMPACT), MAX_RAIN_FOG_END / densityScale));
             final float targetStart = Math.min(clearStart * (1F - START_IMPACT), targetEnd);
 
-            float end = clearEnd + (targetEnd - clearEnd) * rainStr;
+            // The NEAR plane only. Rain no longer pulls the view distance in: the maintainer's call,
+            // and the reason was visible in the screenshots - a shortened far plane fills the whole
+            // vanilla area with solid fog colour (a flat sheet) and leaves a hard edge where the LOD
+            // region beyond it starts. Moving the near plane in thickens the fog everywhere by itself
+            // (opacity is (d - start) / (end - start)), it reaches full strength exactly at the vanilla
+            // render distance edge - which is where DH's LOD fog joins - and it keeps that join at a
+            // fixed distance in every weather. targetEnd is now only used for the cloud guard below.
+            float end = clearEnd;
             float start = clearStart + (targetStart - clearStart) * rainStr;
 
             // The far-plane half of the residue. Guarded the same way the near

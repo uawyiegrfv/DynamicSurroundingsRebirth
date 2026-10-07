@@ -91,6 +91,7 @@ public final class DistantHorizonsCompat {
     private static volatile Object farFogMaxKnob = null;
     private static volatile Object chunkDistanceKnob = null;
     private static volatile Object heightFogMixKnob = null;
+    private static volatile Object farFogDensityKnob = null;
     /** How DH spells its LOD render distance; the same setting its API calls chunkRenderDistance. */
     /**
      * How DH spells its LOD render distance radius, in chunks. Its own API method is
@@ -182,6 +183,19 @@ public final class DistantHorizonsCompat {
     private static final float WINDOW_SPAN = 4.0F;
     private static final float RAMP_MIN = 0.0F;
     private static final float RAMP_MAX = 1.0F;
+    /**
+     * Density of the S-curve. DH's EXPONENTIAL_SQUARED falloff is
+     * {@code 1 - 1/e^((x * density)^2)} over the window, which is exactly the shape asked for: slow to
+     * start, fast in the middle, then a plateau at farFogMax. 1.6 puts the slow part at roughly the
+     * first third (x=0.35 -> 0.27) and the fast part around two thirds (x=0.65 -> 0.66), with the
+     * plateau reached before the end (x=1 -> 0.92). Raise it to move the rise earlier.
+     */
+    private static final float S_CURVE_DENSITY = 1.6F;
+    /** Below this much weather the override is handed back and DH draws its own fog. */
+    private static final float ENGAGE_WEAKNESS = 0.05F;
+    /** The weather strength that maps to peak = 1.0 (fully blind). */
+    private static final float FULL_WEAKNESS = 0.65F;
+
     /** Haze floor at full weather strength, scaled down by how clear it is. */
     private static final float HAZE_FLOOR = 1.5F;
     /**
@@ -266,29 +280,39 @@ public final class DistantHorizonsCompat {
         // viewScale() is how many vanilla render distances long the LOD view is (256-chunk DH view
         // against a 12-chunk vanilla one is about 21), so the vanilla boundary sits at 1/scale.
         final float scale = viewScale();
-        final float tightness = clamp(ourEnd / Math.max(vanillaEnd, 1F), 0.15F, 1.0F);
+        // The curve the maintainer asked for, expressed in the one shape DH has:
+        //   segment 1 (slow rise) and segment 2 (fast rise) are the two halves of DH's
+        //   EXPONENTIAL_SQUARED falloff, and segment 3 (the plateau) is farFogMax - the thickness the
+        //   curve saturates at for everything past the window's end.
+        // What our own fog decides is the PEAK: how blind the far world gets. Clear weather hands the
+        // fog back to DH entirely, so its own look is untouched when there is nothing to say.
+        final float tightness = clamp(ourEnd / Math.max(vanillaEnd, 1F), 0.35F, 1.0F);
+        final float weakness = 1F - tightness;
+        if (weakness < ENGAGE_WEAKNESS) {
+            releaseAll();
+            return;
+        }
+        final float strength = clamp(weakness / FULL_WEAKNESS, 0F, 1F);
         final float rampStart = clamp(1F / Math.max(scale, 1F), 0F, 0.5F);
-        final float rampEnd = clamp(tightness, rampStart + 0.05F, 1.414F);
-        // A floor under the whole LOD range, or the fog is a ramp that only matters near the wall -
-        // which is what "still feels thin" was: at 256 chunks out, most of the visible LODs sit in the
-        // first few percent of the ramp. The floor is 0 in clear weather (DH's own look) and grows as
-        // the weather closes in, so rain hazes the near LODs as well instead of only the far ones.
-        final float hazeFloor = clamp(HAZE_FLOOR * (1F - tightness), 0F, HAZE_FLOOR_CAP);
+        final float rampEnd = clamp(tightness, rampStart + 0.1F, 1F);
+        final float peak = clamp(0.5F + 0.5F * strength, 0.5F, 1F);
         // Full thickness lands at rampEnd render distances, i.e. this many blocks out:
         final float wallBlocks = rampEnd * Math.max(vanillaEnd, 1F) * Math.max(scale, 1F);
         hold(farFogStartKnob, "farFogStart", rampStart);
         hold(farFogEndKnob, "farFogEnd", rampEnd);
-        hold(farFogMinKnob, "farFogMin", hazeFloor);
-        hold(farFogMaxKnob, "farFogMax", RAMP_MAX);
-        hold(farFogFalloffKnob, "farFogFalloff", linearFalloff());
+        hold(farFogMinKnob, "farFogMin", RAMP_MIN);
+        hold(farFogMaxKnob, "farFogMax", peak);
+        hold(farFogFalloffKnob, "farFogFalloff",
+                enumConstant("com.seibel.distanthorizons.api.enums.rendering.EDhApiFogFalloff",
+                        "EXPONENTIAL_SQUARED"));
+        hold(farFogDensityKnob, "farFogDensity", S_CURVE_DENSITY);
         hold(heightFogMixKnob, "heightFogMixMode",
                 enumConstant("com.seibel.distanthorizons.api.enums.rendering.EDhApiHeightFogMixMode", "MAX"));
         if (!reportedMirror) {
             reportedMirror = true;
-            log("DH's LOD fog carries the weather fog: thickness 0 at " + round(rampStart)
-                    + " render distances (the vanilla boundary; view scale " + round(scale)
-                    + "), full at " + round(rampEnd) + " (= " + Math.round(wallBlocks) + " blocks out,"
-                    + " weather tightness " + round(tightness) + ", haze floor " + round(hazeFloor)
+            log("DH's LOD fog curve: 0 at " + round(rampStart) + ", plateau at " + round(peak)
+                    + " from " + round(rampEnd) + " render distances out (view scale " + round(scale)
+                    + ", weather strength " + round(strength) + ", S-curve density " + S_CURVE_DENSITY
                     + ", enableDhFog=" + read(dhFogKnob) + ")");
         }
     }
@@ -496,6 +520,7 @@ public final class DistantHorizonsCompat {
                 farFogEndKnob = wrap(resolveEntry(FOG, "farFogEnd"));
                 cloudRenderingKnob = wrap(resolveEntry(GENERIC_RENDERING, "enableCloudRendering"));
                 heightFogMixKnob = wrap(resolveHeightFogEntry("heightFogMixMode"));
+                farFogDensityKnob = wrap(resolveEntry(FOG, "farFogDensity"));
                 farFogFalloffKnob = wrap(resolveEntry(FOG, "farFogFalloff"));
                 farFogMinKnob = wrap(resolveEntry(FOG, "farFogMin"));
                 farFogMaxKnob = wrap(resolveEntry(FOG, "farFogMax"));

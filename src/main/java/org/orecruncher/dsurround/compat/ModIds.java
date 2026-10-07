@@ -52,8 +52,15 @@ public final class ModIds {
 
     /** Iris (Fabric/NeoForge) and Oculus (the Forge port). Oculus is the one 1.20.1 sees. */
     public static final String[] IRIS = { "iris", "oculus" };
-    /** Sodium and its two forks - all three rewrite the chunk/render pipeline. */
-    public static final String[] SODIUM = { "sodium", "rubidium", "embeddium" };
+    /**
+     * Sodium and its two forks - all three rewrite the chunk/render pipeline.
+     *
+     * <p>Order matters for what gets REPORTED: Embeddium ships a second mod entry with the id
+     * {@code rubidium} (a compatibility alias, seen in its own {@code mods.toml}), so a player who
+     * installed Embeddium would be told "rubidium" by {@link #firstPresent} if the alias came
+     * first. The concrete ids lead; the alias stays last so it is still detected.</p>
+     */
+    public static final String[] SODIUM = { "sodium", "embeddium", "rubidium" };
     /** Caching mods that can serve a stale resource pack; warned about, never fought. */
     public static final String[] CACHE_MODS = { "badoptimizations" };
 

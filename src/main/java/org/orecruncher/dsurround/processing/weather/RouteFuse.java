@@ -331,6 +331,14 @@ public final class RouteFuse {
         return sb.append(')').toString();
     }
 
+    /**
+     * Whether a mod that cancels the vanilla rain pass at HEAD is installed - the two known ones,
+     * named here only so the window check can tell "explained" silence from "broken" silence.
+     */
+    private static boolean rainDrawingModPresent() {
+        return ModIds.present(ModIds.PARTICLE_RAIN) || ModIds.present(ModIds.SIMPLE_CLOUDS);
+    }
+
     private static void checkWindow() {
         for (Route route : ROUTES) {
             final int index = route.ordinal();
@@ -351,10 +359,24 @@ public final class RouteFuse {
                 REPORTED[index] = true;
                 LOST[index] = true;
                 loseCapabilityFor(route);
-                warn("route '" + route.label + "' was not consulted for " + WINDOW_TICKS
-                        + " ticks while it was expected to be - this version's code path does not "
-                        + "carry our hook, so that feature is silently off rather than broken."
-                        + pipelineHint());
+                if (route == Route.RAIN_RENDER && rainDrawingModPresent()) {
+                    // The first live session produced this case and the message was wrong: a dry
+                    // window in which Particle Rain had cancelled the pass was reported as "this
+                    // version's code path does not carry our hook", i.e. as a broken injection. A
+                    // mod that cancels LevelRenderer.renderSnowAndRain at HEAD is a complete
+                    // explanation for silence, and the WARN that matters is the behavioural one
+                    // (detectForeignRainRoute), which names it. So this case is stated for what
+                    // it is: expected, not broken.
+                    info("the rain render route stayed silent for a " + WINDOW_TICKS
+                            + " tick window; " + ModIds.firstPresent(ModIds.PARTICLE_RAIN, ModIds.SIMPLE_CLOUDS)
+                            + " owns that pass (it cancels it before vanilla can ask us), so this is"
+                            + " the hand-off working, not a missed hook.");
+                } else {
+                    warn("route '" + route.label + "' was not consulted for " + WINDOW_TICKS
+                            + " ticks while it was expected to be - this version's code path does not "
+                            + "carry our hook, so that feature is silently off rather than broken."
+                            + pipelineHint());
+                }
             }
             WINDOW_BASE[index] = hits;
             EXPECTED[index] = false;

@@ -260,6 +260,7 @@ public class FoliageDewHandler extends AbstractClientHandler {
         // the scan histogram says whether the plants reached the layer at all.
         if (tick - this.lastDiagTick >= DIAG_INTERVAL_TICKS) {
             this.lastDiagTick = tick;
+            if (FoliageScan.traceEnabled(this.config))
             this.logger.info("[FoliageDew] enabled=%s dayTime=%d curve=%.3f raining=%s dewy=%s plants=%d drops=%d attached=%d force=%s | %s",
                     this.config.weatherOptions.enableMorningDew, world.getDayTime() % DAY_LENGTH,
                     curve, raining, dewy, this.plants.size(), this.dropCount(), attached,
@@ -416,6 +417,7 @@ public class FoliageDewHandler extends AbstractClientHandler {
             }
             this.plants.put(key, plant);
         }
+        if (FoliageScan.traceEnabled(this.config))
         this.logger.info("[FoliageDew] scan@(%d,%d,%d) curve=%.2f: candidates=%d snow=%d noDewTrait=%d rolled=%d noAnchor=%d -> plants=%d",
                 center.getX(), center.getY(), center.getZ(), curve,
                 FoliageScan.lastFound, rejSnow, rejCoeff, rejKeep, rejNoAttach, this.plants.size());

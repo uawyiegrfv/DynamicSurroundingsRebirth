@@ -419,8 +419,7 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     }
 
     private boolean dripTrace() {
-        return this.config.logging.enableDebugLogging
-                && (this.config.logging.traceMask & Configuration.Flags.FOLIAGE_DRIPS) != 0;
+        return FoliageScan.traceEnabled(this.config);
     }
 
     private int weightedAnchor(final FoliageProfile.Plane plane) {

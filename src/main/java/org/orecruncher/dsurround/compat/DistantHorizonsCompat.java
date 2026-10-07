@@ -30,6 +30,20 @@ public final class DistantHorizonsCompat {
     /** DH's config root. Internal on purpose - see the class comment. */
     private static final String CONFIG_CLASS = "com.seibel.distanthorizons.core.config.Config";
 
+    /**
+     * The config path to {@code enableVanillaFog}, every spelling DH has shipped.
+     *
+     * <p>Found the hard way: the first probe used the 3.3.4 sources' capitalisation and DH 3.3.3's
+     * bytecode has {@code Config.client.advanced.graphics.fog} (all lower case, all static fields),
+     * so the probe failed on the very pack it was written for. Both spellings are listed now, and
+     * the order does not matter because only one of them can exist.</p>
+     */
+    private static final String[] CLIENT_NAMES = { "client", "Client" };
+    private static final String[] ADVANCED_NAMES = { "advanced", "Advanced" };
+    private static final String[] GRAPHICS_NAMES = { "graphics", "Graphics" };
+    private static final String[] FOG_NAMES = { "fog", "Fog" };
+    private static final String[] VANILLA_FOG_NAMES = { "enableVanillaFog" };
+
     /** Resolved accessors, or null when the probe failed. Guarded by {@link #PROBE_LOCK}. */
     private static final Object PROBE_LOCK = new Object();
     private static volatile boolean probed = false;
@@ -79,38 +93,68 @@ public final class DistantHorizonsCompat {
         synchronized (PROBE_LOCK) {
             if (probed)
                 return;
+            Throwable failure = null;
             try {
                 Object node = Class.forName(CONFIG_CLASS);
-                node = staticField(node, "Client");
-                node = instanceField(node, "Advanced");
-                node = instanceField(node, "Graphics");
-                node = instanceField(node, "Fog");
-                final Object resolved = instanceField(node, "enableVanillaFog");
+                node = field(node, CLIENT_NAMES);
+                node = field(node, ADVANCED_NAMES);
+                node = field(node, GRAPHICS_NAMES);
+                node = field(node, FOG_NAMES);
+                final Object resolved = field(node, VANILLA_FOG_NAMES);
                 final java.lang.reflect.Method resolvedGetter = resolved.getClass().getMethod("get");
                 option = resolved;
                 getter = resolvedGetter;
             } catch (Throwable t) {
                 option = null;
                 getter = null;
+                failure = t;
             } finally {
                 probed = true;
             }
+            // Never silent. The first version of this probe looked for one spelling of each
+            // field, found none of them in DH 3.3.3 (whose fields are all lower case, and all
+            // static), and answered "DH does not own the fog" for the rest of the session - which
+            // is the fail-closed answer, so nothing broke, but nothing was reported either. One
+            // line here is the difference between a silent no and a five-minute diagnosis.
+            if (failure != null)
+                log("Distant Horizons fog probe failed (" + failure
+                        + "); DSR keeps its own fog range. This is expected if DH changes its config layout.");
         }
     }
 
-    /** A public static field's value, or a failure the caller's catch will treat as "no probe". */
-    private static Object staticField(final Object owner, final String name) throws Exception {
-        if (owner instanceof Class<?> type) {
-            final Field field = type.getField(name);
-            return field.get(null);
+    /**
+     * Reads a field by any of its known spellings.
+     *
+     * <p>Two things vary across DH's own versions and both are handled here rather than guessed
+     * at: the capitalisation ({@code Config.client} in 3.3.3's bytecode against
+     * {@code Config.Client} in the 3.3.4 sources) and whether a node is a static field or an
+     * instance one (3.3.3 declares every level static). A name that does not resolve simply moves
+     * on to the next candidate, and a chain that resolves nothing fails the whole probe, which the
+     * caller treats as "not DH's fog" - today's behaviour, now with a line in the log.</p>
+     */
+    private static Object field(final Object owner, final String[] names) throws Exception {
+        Exception last = null;
+        for (final String name : names) {
+            try {
+                final Class<?> type = owner instanceof Class<?> c ? c : owner.getClass();
+                final Field found = type.getField(name);
+                return java.lang.reflect.Modifier.isStatic(found.getModifiers())
+                        ? found.get(null)
+                        : found.get(owner);
+            } catch (Exception e) {
+                last = e;
+            }
         }
-        final Field field = owner.getClass().getField(name);
-        return field.get(owner);
+        throw last != null ? last : new NoSuchFieldException(java.util.Arrays.toString(names));
     }
 
-    /** A public instance field's value on a config node. */
-    private static Object instanceField(final Object owner, final String name) throws Exception {
-        final Field field = owner.getClass().getField(name);
-        return field.get(owner);
+    private static void log(final String message) {
+        try {
+            org.orecruncher.dsurround.lib.di.ContainerManager
+                    .resolve(org.orecruncher.dsurround.lib.logging.IModLog.class)
+                    .info("[COMPAT] " + message);
+        } catch (Throwable t) {
+            // Nothing left to report with - see every other logging guard in this batch.
+        }
     }
 }

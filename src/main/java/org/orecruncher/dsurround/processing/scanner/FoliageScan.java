@@ -79,6 +79,23 @@ public final class FoliageScan {
     /** Trace switch - driven by the handlers from the logging config. */
     public static volatile boolean TRACE = false;
 
+    /**
+     * Whether the foliage layers' diagnostics are switched on: debug logging AND the
+     * {@code FOLIAGE_DRIPS} trace flag.
+     *
+     * <p>One copy, because there are three layers and they were already diverging: the rain layer
+     * grew its own {@code dripTrace()} while the dew and snow layers logged their periodic lines
+     * unconditionally, and a live session measured what that costs - <b>650 of 717 layer log lines
+     * in twelve minutes</b> were these three layers' routine status lines. The numbers they carry
+     * (including {@code cap}, the count of plants turned away by the roster cap, which is the only
+     * answer to "is the budget enough") are worth keeping and are kept - behind the flag that
+     * exists for exactly this, instead of in every player's log.</p>
+     */
+    public static boolean traceEnabled(final org.orecruncher.dsurround.Configuration config) {
+        return config != null && config.logging.enableDebugLogging
+                && (config.logging.traceMask & org.orecruncher.dsurround.Configuration.Flags.FOLIAGE_DRIPS) != 0;
+    }
+
     public static final int STAT_AIR = 0;
     public static final int STAT_NOT_CANDIDATE = 1;
     public static final int STAT_SKY = 2;

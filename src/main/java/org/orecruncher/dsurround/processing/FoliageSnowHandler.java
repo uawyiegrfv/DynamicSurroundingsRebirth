@@ -340,6 +340,7 @@ public class FoliageSnowHandler extends AbstractClientHandler {
 
         if (tick - this.lastDiagTick >= DIAG_INTERVAL_TICKS) {
             this.lastDiagTick = tick;
+            if (FoliageScan.traceEnabled(this.config))
             this.logger.info("[FoliageSnow] snowing=%s progress=%.2f base=%.2f plants=%d units=%d attached=%d force=%s | %s",
                     snowingHere, progress, this.base, this.plants.size(), this.unitCount(), attached,
                     DEBUG_FORCE, FoliageScan.statsLine());
@@ -623,6 +624,9 @@ public class FoliageSnowHandler extends AbstractClientHandler {
             plant.meltAtBase = tick;
             this.plants.put(key, plant);
         }
+        // The cap= number stays: it is the only answer to "is the roster budget enough". It is
+        // simply no longer in every player's log - see FoliageScan.traceEnabled.
+        if (FoliageScan.traceEnabled(this.config))
         this.logger.info("[FoliageSnow] scan@(%d,%d,%d) progress=%.2f want=%d: found=%d warm=%d phase=%d noAnchor=%d cap=%d -> plants=%d units=%d",
                 center.getX(), center.getY(), center.getZ(), progress, baseWant,
                 FoliageScan.lastFound, rejWarm, rejPhase, rejNoAttach, rejCap,

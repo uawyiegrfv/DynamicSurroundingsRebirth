@@ -664,6 +664,10 @@ public final class PrecipitationRenderer {
                                          LightTexture lightTexture, double camX, double camY, double camZ) {
             hookCalls++;
             RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
+            // The witness for "someone else is drawing the rain" - see noteRainRenderHook. tickRain
+            // below deliberately does NOT feed it: nothing cancels tickRain, so it would keep the
+            // detector asleep while a rain mod cancels this very call.
+            RouteFuse.noteRainRenderHook();
             return active();
         }
 

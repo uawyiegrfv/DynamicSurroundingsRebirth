@@ -163,6 +163,24 @@ public final class RouteFuse {
      */
     private static final int CLOUD_FOREIGN_TICKS = 100;
 
+    /**
+     * Consultations of the rain RENDER hook specifically - the one that decides who draws the rain.
+     *
+     * <p>Separate from the route counter on purpose, and the separation cost a live session to
+     * learn: {@code Route.RAIN_RENDER} is fed from two places, because "is our effects object still
+     * installed" is answered by either hook firing. But the question "is someone else drawing the
+     * rain" is answered by the render hook <em>alone</em>. Feeding both into one counter meant
+     * {@code tickRain} - which nothing cancels - kept the detector's witness alive while Particle
+     * Rain was cancelling the render call, so the hand-off never happened and the two rains were
+     * drawn on top of each other. The route counter keeps its meaning; this one is the witness.</p>
+     */
+    private static long rainRenderHookHits = 0L;
+
+    /** Called from the rain render hook only - see {@link #rainRenderHookHits}. */
+    public static void noteRainRenderHook() {
+        rainRenderHookHits++;
+    }
+
     /** As {@link #rainSilentTicks}, for the cloud colour route. */
     private static int cloudSilentTicks = 0;
     private static long lastCloudHits = 0L;
@@ -271,8 +289,10 @@ public final class RouteFuse {
             detectForeignRainRoute(level);
             detectForeignCloudRoute(mc);
             markExpectations(mc);
-            if (ticksInWorld % WINDOW_TICKS == 0)
+            if (ticksInWorld % WINDOW_TICKS == 0) {
                 checkWindow();
+                reportFirstWindow();
+            }
         } catch (Throwable t) {
             // A watchdog must never be the reason a frame dies. It also must not go quiet
             // about its own failure - that is the whole point of this class.
@@ -321,10 +341,10 @@ public final class RouteFuse {
         if (level.getRainLevel(1F) <= 0.05F) {
             // Nothing is falling: silence here says nothing at all.
             rainSilentTicks = 0;
-            lastRainHits = HITS[Route.RAIN_RENDER.ordinal()];
+            lastRainHits = rainRenderHookHits;
             return;
         }
-        final long hits = HITS[Route.RAIN_RENDER.ordinal()];
+        final long hits = rainRenderHookHits;
         if (hits != lastRainHits) {
             lastRainHits = hits;
             rainSilentTicks = 0;
@@ -421,6 +441,28 @@ public final class RouteFuse {
         return sb.length() == 0 ? "" : sb.append(')').toString();
     }
 
+    /** Whether the one-per-world "the watchdog is running" line has been written. */
+    private static boolean announced = false;
+
+    /**
+     * Says out loud that the watchdog ran, once per world, with the first window's census.
+     *
+     * <p>Added after a live session in which the watchdog was silent for four minutes and there was
+     * no way to tell whether that meant "every route is fine" or "the watchdog never ticked". The
+     * whole point of this class is that a silent failure must be visible; it owes itself the same
+     * courtesy. One line, once, listing what each route saw.</p>
+     */
+    private static void reportFirstWindow() {
+        if (announced)
+            return;
+        announced = true;
+        final StringBuilder sb = new StringBuilder("watchdog armed (" + WINDOW_TICKS + " ticks): ");
+        for (Route route : ROUTES)
+            sb.append(route.label).append('=').append(HITS[route.ordinal()]).append(' ');
+        sb.append("| rain render hook=").append(rainRenderHookHits);
+        info(sb.toString());
+    }
+
     private static void checkWindow() {
         for (Route route : ROUTES) {
             final int index = route.ordinal();
@@ -514,6 +556,7 @@ public final class RouteFuse {
         cloudSilentTicks = 0;
         lastCloudHits = 0L;
         cloudRouteForeign = false;
+        announced = false;
         resetCounters();
     }
 

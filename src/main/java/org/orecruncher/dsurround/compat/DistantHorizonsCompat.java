@@ -156,10 +156,20 @@ public final class DistantHorizonsCompat {
      * <p>DH documents 1.0 as the closest edge of the vanilla render distance and 1.414 as its corner.
      * The join is exactly at that edge - which is also where vanilla fog reaches full thickness.</p>
      */
-    private static final float JOIN_START = 1.0F;
-    private static final float JOIN_END = 1.414F;
     /** Thickness at the join: 1.0, because vanilla fog is fully opaque at its own far plane. */
-    private static final float JOIN_THICKNESS = 1.0F;
+    /**
+     * Where DH's LOD fog starts and how thick it may get, in DH's units (fractions of the vanilla
+     * render distance; DH documents 1.0 as that distance's closest edge).
+     *
+     * <p>Start is fixed at the edge - that is where the LOD chunks begin - with thickness 0, and the
+     * ramp runs up to full thickness where our own fog would end. Everything the weather does is in
+     * that end point, which is why this cannot collapse into a band the way a scaled copy of DH's own
+     * start/end window did.</p>
+     */
+    private static final float RAMP_START = 1.0F;
+    private static final float RAMP_MIN = 0.0F;
+    private static final float RAMP_MAX = 1.0F;
+
     /** Engage once our fog has moved the range by this fraction of it; release well below. */
     private static final float ENGAGE_MOVE = 0.05F;
     private static final float RELEASE_MOVE = 0.02F;
@@ -209,15 +219,17 @@ public final class DistantHorizonsCompat {
         probe();
         if (farFogStartKnob == null || farFogMinKnob == null || farFogMaxKnob == null)
             return;
-        // How far our fog has moved the range off vanilla's. Both planes count, because rain now
-        // thickens by moving the near plane in and never touches the view distance.
-        final float moved = Math.max(
-                (vanillaStart - ourStart) / Math.max(vanillaStart, 1F),
-                (vanillaEnd - ourEnd) / Math.max(vanillaEnd, 1F));
-        if (moved < (held.isEmpty() ? ENGAGE_MOVE : RELEASE_MOVE)) {
-            releaseAll();
-            return;
-        }
+        // One fog for the whole scene, ramping up from where the LOD chunks begin. The maintainer's
+        // design, and it removes every problem the previous attempts had:
+        //   - the ramp starts at 0 exactly at the vanilla render distance edge (DH unit 1.0, which is
+        //     where its LOD chunks start), so there is no step at the boundary and no band to collapse;
+        //   - it reaches full thickness where OUR fog would end, stretched over DH's view length by
+        //     viewScale() - so the weather still decides how fast the view closes in;
+        //   - the foreground (vanilla chunks, inside the vanilla render distance) is left to vanilla fog,
+        //     which with DH's own vanilla-fog option off is no fog at all. That is expected: there is
+        //     almost no fog that close in the first place, and DH's fog pass only covers LOD pixels.
+        final float scale = viewScale();
+        final float rampEnd = clamp(ourEnd / Math.max(vanillaEnd, 1F) * scale, 1.01F, 8F);
         // DH's own LOD fog has to exist: another mod (Iris, at world join) writes enableDhFog
         // through this same API, and a mirror into a fog layer that is not drawn is a no-op.
         final Boolean dhFogOn = readBoolean(dhFogKnob);
@@ -234,28 +246,19 @@ public final class DistantHorizonsCompat {
                 return;
             }
         }
-        // The join, in DH's own units - and its documentation is explicit that these are fractions of
-        // the VANILLA render distance: 1.0 is its closest edge, 1.414 its corner. So the LOD fog
-        // starts exactly where vanilla fog ends and carries the thickness vanilla fog has there.
-        // Vanilla fog is fully opaque at its own far plane (its shader takes the terrain all the way
-        // to the fog colour there), so min = max = 1.0 IS "same colour, same thickness" - and a
-        // uniform thickness has no band to collapse, which is what produced the flat sheet and the
-        // hard edge when this was written as a scaled copy of DH's own start/end window.
-        // Colour needs nothing: DH's far fog already uses the world fog colour (USE_WORLD_FOG_COLOR),
-        // which is the one this mod weathers.
-        hold(farFogStartKnob, "farFogStart", JOIN_START);
-        hold(farFogEndKnob, "farFogEnd", JOIN_END);
-        hold(farFogMinKnob, "farFogMin", JOIN_THICKNESS);
-        hold(farFogMaxKnob, "farFogMax", JOIN_THICKNESS);
+        hold(farFogStartKnob, "farFogStart", RAMP_START);
+        hold(farFogEndKnob, "farFogEnd", rampEnd);
+        hold(farFogMinKnob, "farFogMin", RAMP_MIN);
+        hold(farFogMaxKnob, "farFogMax", RAMP_MAX);
+        hold(farFogFalloffKnob, "farFogFalloff", linearFalloff());
         if (!reportedMirror) {
             reportedMirror = true;
-            log("DH's LOD fog now continues vanilla's: start=" + JOIN_START + " (the vanilla render"
-                    + " distance edge) at the thickness vanilla fog has there (" + JOIN_THICKNESS
-                    + "), same colour. DSR's range is " + Math.round(ourStart) + ".." + Math.round(ourEnd)
-                    + " against vanilla's " + Math.round(vanillaStart) + ".." + Math.round(vanillaEnd)
-                    + " (moved " + Math.round(moved * 100F) + "%, enableDhFog=" + read(dhFogKnob) + ")");
+            log("DH's LOD fog now carries the weather fog: start=" + RAMP_START + " (the vanilla render"
+                    + " distance edge, thickness 0) ramping to " + round(rampEnd) + " of it (view scale "
+                    + round(scale) + ", enableDhFog=" + read(dhFogKnob) + ")");
         }
     }
+
     /**
      * Writes one knob and remembers what was there before, at most once per value.
      *

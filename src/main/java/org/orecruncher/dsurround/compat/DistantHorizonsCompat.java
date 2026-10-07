@@ -238,45 +238,40 @@ public final class DistantHorizonsCompat {
         //   - the foreground (vanilla chunks, inside the vanilla render distance) is left to vanilla fog,
         //     which with DH's own vanilla-fog option off is no fog at all. That is expected: there is
         //     almost no fog that close in the first place, and DH's fog pass only covers LOD pixels.
-        // A WIDE window, and that word is doing the work. DH's far fog exists only between
-        // farFogStart and farFogEnd - it does not saturate beyond the end. Two live rounds proved it:
-        // a window of [1.0, 1.01] produced no fog at all, and a scaled copy of DH's own window produced
-        // a fog band with clear terrain beyond it (the flat sheet with a hard edge). So the window has
-        // to span the whole LOD range, with thickness 0 at the camera end and full at the far end.
+        // The numbers, derived from the shader rather than guessed - this is the part that took
+        // several rounds, so it is written down here.
         //
-        // What the weather controls is how quickly it thickens: a shorter window pulls full thickness
-        // closer, which is what "the view closes in" means. Everything is in DH's own percent units,
-        // which the shader builds by scaling the world distance (uFogScale = 1 / renderDistance), so the
-        // numbers are fractions of the render distance the fog is drawn over - which is also why 1.414
-        // is documented as "the corner": a square render area, not a vanilla-specific constant.
-        final float tightness = clamp(ourEnd / Math.max(vanillaEnd, 1F), 0.35F, 1.0F);
-        final float windowEnd = clamp(WINDOW_SPAN * tightness, 1.2F, 8F);
-        // DH's own LOD fog has to exist: another mod (Iris, at world join) writes enableDhFog
-        // through this same API, and a mirror into a fog layer that is not drawn is a no-op.
-        final Boolean dhFogOn = readBoolean(dhFogKnob);
-        if (dhFogOn != null && !dhFogOn && !dhFogForcedOn) {
-            if (write(dhFogKnob, Boolean.TRUE)) {
-                dhFogForcedOn = true;
-                log("DH's own LOD fog was switched off (another mod or the DH config) while the weather"
-                        + " wants to close the view in; switching it on for the duration, and putting it"
-                        + " back the way it was when the weather clears.");
-            } else if (!reportedDhFogOff) {
-                reportedDhFogOff = true;
-                log("DH's own LOD fog is switched off and DSR was not allowed to switch it on, so the"
-                        + " weather fog cannot show on LOD terrain. Nothing else is touched.");
-                return;
-            }
-        }
-        hold(farFogStartKnob, "farFogStart", RAMP_MIN);
-        hold(farFogEndKnob, "farFogEnd", windowEnd);
+        // DH's fog shader (shaders/fog/gl/fog.frag) computes, for all three falloffs,
+        //     thickness = farFogMin + (farFogMax - farFogMin) * f((d - start) / length)
+        // with f clamped/saturating at 1. So the fog is a ramp that STARTS at farFogStart and is
+        // FULL from farFogEnd outward: raising the end spreads the ramp, lowering it pulls the
+        // opaque wall in - which is exactly how the weather shrinks the view distance.
+        //
+        // The unit is the render distance the fog is drawn over: the shader scales world distance
+        // with uFogScale = 1/renderDistance, and DH's own defaults (start 0.4, end 1.0, with 1.414
+        // documented as "the corner") only make sense as fractions of DH's own LOD distance. The
+        // LOD area therefore runs 0..1.0 (edge) / 0..1.414 (corner), and a window that ends beyond
+        // 1.0 is a window whose wall is never reached - which is why 4.0 looked like a thin haze.
+        //
+        // viewScale() is how many vanilla render distances long the LOD view is (256-chunk DH view
+        // against a 12-chunk vanilla one is about 21), so the vanilla boundary sits at 1/scale.
+        final float scale = viewScale();
+        final float tightness = clamp(ourEnd / Math.max(vanillaEnd, 1F), 0.15F, 1.0F);
+        final float rampStart = clamp(1F / Math.max(scale, 1F), 0F, 0.5F);
+        final float rampEnd = clamp(tightness, rampStart + 0.05F, 1.414F);
+        // Full thickness lands at rampEnd render distances, i.e. this many blocks out:
+        final float wallBlocks = rampEnd * Math.max(vanillaEnd, 1F) * Math.max(scale, 1F);
+        hold(farFogStartKnob, "farFogStart", rampStart);
+        hold(farFogEndKnob, "farFogEnd", rampEnd);
         hold(farFogMinKnob, "farFogMin", RAMP_MIN);
         hold(farFogMaxKnob, "farFogMax", RAMP_MAX);
         hold(farFogFalloffKnob, "farFogFalloff", linearFalloff());
         if (!reportedMirror) {
             reportedMirror = true;
-            log("DH's LOD fog carries the weather fog: thickness 0 at the camera, full at " + round(windowEnd)
-                    + " render distances (weather tightness " + round(tightness) + ", view scale "
-                    + round(viewScale()) + ", enableDhFog=" + read(dhFogKnob) + ")");
+            log("DH's LOD fog carries the weather fog: thickness 0 at " + round(rampStart)
+                    + " render distances (the vanilla boundary; view scale " + round(scale)
+                    + "), full at " + round(rampEnd) + " (= " + Math.round(wallBlocks) + " blocks out,"
+                    + " weather tightness " + round(tightness) + ", enableDhFog=" + read(dhFogKnob) + ")");
         }
     }
 

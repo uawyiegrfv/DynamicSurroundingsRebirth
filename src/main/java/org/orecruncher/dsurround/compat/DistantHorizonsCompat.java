@@ -93,9 +93,22 @@ public final class DistantHorizonsCompat {
     private static volatile float baseStart = Float.NaN;
     private static volatile float baseEnd = Float.NaN;
     private static volatile boolean cloudsSuppressed = false;
+    /** Deepest visibility ratio seen while engaged, and the first pair actually written. */
+    private static volatile float deepestRatio = 1F;
+    private static volatile float firstWrittenStart = Float.NaN;
+    private static volatile float firstWrittenEnd = Float.NaN;
+    private static volatile boolean reportedDhFogOff = false;
 
-    /** Above this visibility ratio the weather fog is not doing anything worth syncing. */
+    /**
+     * Engage below this visibility ratio, release above {@link #RELEASE_THRESHOLD}.
+     *
+     * <p>Two different numbers, because one number chatters: the first live session engaged at 0.899
+     * and released at 0.900 four seconds apart, twice. A band costs nothing - the fog cannot be
+     * "worth mirroring" and "not worth mirroring" on either side of a single value.</p>
+     */
     private static final float SYNC_THRESHOLD = 0.90F;
+    /** Above this the override is handed back. See {@link #SYNC_THRESHOLD}. */
+    private static final float RELEASE_THRESHOLD = 0.95F;
     /** Smallest change worth another API write. */
     private static final float WRITE_EPSILON = 0.01F;
 
@@ -142,14 +155,26 @@ public final class DistantHorizonsCompat {
         final Object end = farFogEndKnob;
         if (start == null || end == null)
             return;
-        // DH's own LOD fog switched off means our numbers would do nothing at all.
+        // DH's own LOD fog switched off means our numbers would do nothing at all - and the fact is
+        // worth saying out loud, because otherwise "the integration is on" and "the integration is
+        // invisible" look identical from the log. The first live session had exactly that: another
+        // mod (Iris, at world join) had written enableDhFog through the same API.
         final Boolean dhFogOn = readBoolean(dhFogKnob);
         if (dhFogOn != null && !dhFogOn) {
             clearFogOverride();
+            if (!reportedDhFogOff) {
+                reportedDhFogOff = true;
+                log("DH's own LOD fog is switched off right now (another mod or the DH config), so the"
+                        + " weather fog cannot show on LOD terrain. DSR leaves the setting alone.");
+            }
             return;
         }
+        reportedDhFogOff = false;
         final float ratio = clamp(visibilityRatio, 0.05F, 1.0F);
-        if (ratio >= SYNC_THRESHOLD) {
+        if (ratio < deepestRatio)
+            deepestRatio = ratio;
+        // Engage low, release high: one threshold chattered at the boundary (see SYNC_THRESHOLD).
+        if (ratio >= (fogOverridden ? RELEASE_THRESHOLD : SYNC_THRESHOLD)) {
             clearFogOverride();
             return;
         }
@@ -169,6 +194,16 @@ public final class DistantHorizonsCompat {
         if (write(start, wantStart) && write(end, wantEnd)) {
             writtenStart = wantStart;
             writtenEnd = wantEnd;
+            if (Float.isNaN(firstWrittenStart)) {
+                firstWrittenStart = wantStart;
+                firstWrittenEnd = wantEnd;
+                // The numbers matter as much as the fact: a mirror that only ever moves DH's fog by
+                // ten percent is a mirror nobody can see, and this line is what tells the difference
+                // between "it did not run" and "it ran and was too small to notice".
+                log("mirroring weather fog into DH's LOD fog: ratio=" + round(ratio)
+                        + " farFogStart " + round(baseStart) + "->" + round(wantStart)
+                        + ", farFogEnd " + round(baseEnd) + "->" + round(wantEnd));
+            }
         }
     }
 
@@ -181,7 +216,9 @@ public final class DistantHorizonsCompat {
         writtenEnd = Float.NaN;
         release(farFogStartKnob, baseStart);
         release(farFogEndKnob, baseEnd);
-        log("weather fog released - Distant Horizons has its own LOD fog values back");
+        log("weather fog released - Distant Horizons has its own LOD fog values back (deepest visibility"
+                + " ratio while engaged: " + round(deepestRatio) + ")");
+        deepestRatio = 1F;
     }
 
     /**
@@ -213,6 +250,9 @@ public final class DistantHorizonsCompat {
 
     /** Called when the world goes away: every override this class placed is handed back. */
     public static void onWorldLeft() {
+        firstWrittenStart = Float.NaN;
+        firstWrittenEnd = Float.NaN;
+        deepestRatio = 1F;
         clearFogOverride();
         setCloudsSuppressed(false);
     }
@@ -337,7 +377,11 @@ public final class DistantHorizonsCompat {
             final Object result = setter.getParameterCount() == 2
                     ? setter.invoke(knob, value, OWNER)
                     : setter.invoke(knob, value);
-            return !(result instanceof Boolean b) || b;
+            final boolean accepted = !(result instanceof Boolean b) || b;
+            if (!accepted)
+                log("Distant Horizons refused a write (the setting does not allow API overrides);"
+                        + " the weather fog mirror is not in effect");
+            return accepted;
         } catch (Throwable t) {
             log("could not write to Distant Horizons (" + t + ")");
             return false;
@@ -409,6 +453,11 @@ public final class DistantHorizonsCompat {
 
     private static boolean close(final float a, final float b) {
         return !Float.isNaN(b) && Math.abs(a - b) < WRITE_EPSILON;
+    }
+
+    /** Two decimals, for the log lines above. */
+    private static String round(final float v) {
+        return String.format(java.util.Locale.ROOT, "%.2f", v);
     }
 
     private static float clamp(final float v, final float lo, final float hi) {

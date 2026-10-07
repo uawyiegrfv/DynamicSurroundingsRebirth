@@ -77,6 +77,8 @@ public final class DistantHorizonsCompat {
     private static final String[][] GENERIC_RENDERING = { { "GenericRendering", "genericRendering" } };
     /** DH keeps its LOD render distance under Graphics.Quality, not Graphics. */
     private static final String[][] QUALITY = { { "Quality", "quality" } };
+    /** Height fog lives one level below Fog: Config$Client$Advanced$Graphics$Fog$HeightFog. */
+    private static final String[][] HEIGHT_FOG = { { "HeightFog", "heightFog" } };
 
     /** Resolved knobs. Null means the probe could not reach it - every use checks. */
     private static volatile Object vanillaFogKnob = null;
@@ -88,6 +90,7 @@ public final class DistantHorizonsCompat {
     private static volatile Object farFogMinKnob = null;
     private static volatile Object farFogMaxKnob = null;
     private static volatile Object chunkDistanceKnob = null;
+    private static volatile Object heightFogMixKnob = null;
     /** How DH spells its LOD render distance; the same setting its API calls chunkRenderDistance. */
     /**
      * How DH spells its LOD render distance radius, in chunks. Its own API method is
@@ -179,6 +182,8 @@ public final class DistantHorizonsCompat {
     private static final float WINDOW_SPAN = 4.0F;
     private static final float RAMP_MIN = 0.0F;
     private static final float RAMP_MAX = 1.0F;
+    /** Haze floor at full weather strength, scaled down by how clear it is. */
+    private static final float HAZE_FLOOR = 0.55F;
 
     /** Engage once our fog has moved the range by this fraction of it; release well below. */
     private static final float ENGAGE_MOVE = 0.05F;
@@ -259,19 +264,27 @@ public final class DistantHorizonsCompat {
         final float tightness = clamp(ourEnd / Math.max(vanillaEnd, 1F), 0.15F, 1.0F);
         final float rampStart = clamp(1F / Math.max(scale, 1F), 0F, 0.5F);
         final float rampEnd = clamp(tightness, rampStart + 0.05F, 1.414F);
+        // A floor under the whole LOD range, or the fog is a ramp that only matters near the wall -
+        // which is what "still feels thin" was: at 256 chunks out, most of the visible LODs sit in the
+        // first few percent of the ramp. The floor is 0 in clear weather (DH's own look) and grows as
+        // the weather closes in, so rain hazes the near LODs as well instead of only the far ones.
+        final float hazeFloor = clamp(HAZE_FLOOR * (1F - tightness), 0F, 0.6F);
         // Full thickness lands at rampEnd render distances, i.e. this many blocks out:
         final float wallBlocks = rampEnd * Math.max(vanillaEnd, 1F) * Math.max(scale, 1F);
         hold(farFogStartKnob, "farFogStart", rampStart);
         hold(farFogEndKnob, "farFogEnd", rampEnd);
-        hold(farFogMinKnob, "farFogMin", RAMP_MIN);
+        hold(farFogMinKnob, "farFogMin", hazeFloor);
         hold(farFogMaxKnob, "farFogMax", RAMP_MAX);
         hold(farFogFalloffKnob, "farFogFalloff", linearFalloff());
+        hold(heightFogMixKnob, "heightFogMixMode",
+                enumConstant("com.seibel.distanthorizons.api.enums.rendering.EDhApiHeightFogMixMode", "MAX"));
         if (!reportedMirror) {
             reportedMirror = true;
             log("DH's LOD fog carries the weather fog: thickness 0 at " + round(rampStart)
                     + " render distances (the vanilla boundary; view scale " + round(scale)
                     + "), full at " + round(rampEnd) + " (= " + Math.round(wallBlocks) + " blocks out,"
-                    + " weather tightness " + round(tightness) + ", enableDhFog=" + read(dhFogKnob) + ")");
+                    + " weather tightness " + round(tightness) + ", haze floor " + round(hazeFloor)
+                    + ", enableDhFog=" + read(dhFogKnob) + ")");
         }
     }
 
@@ -310,6 +323,25 @@ public final class DistantHorizonsCompat {
         if (a instanceof Number na && b instanceof Number nb)
             return Math.abs(na.floatValue() - nb.floatValue()) < WRITE_EPSILON;
         return a == null ? b == null : a.equals(b);
+    }
+
+    /**
+     * An enum constant of DH by name, or null.
+     *
+     * <p>Both the falloff and the height-fog mix mode are enums in DH's API, and the mix mode is the
+     * one that matters here: the far fog is combined with the height fog by that mode, and modes such
+     * as AVERAGE or MULTIPLY would dilute exactly the thickness this class is trying to set.</p>
+     */
+    private static Object enumConstant(final String className, final String name) {
+        try {
+            final Class<?> type = Class.forName(className);
+            for (final Object constant : type.getEnumConstants())
+                if (name.equals(((Enum<?>) constant).name()))
+                    return constant;
+        } catch (Throwable t) {
+            // No enum, no shape change.
+        }
+        return null;
     }
 
     /** DH's LINEAR falloff constant, or null when the enum cannot be reached. */
@@ -458,6 +490,7 @@ public final class DistantHorizonsCompat {
                 farFogStartKnob = wrap(resolveEntry(FOG, "farFogStart"));
                 farFogEndKnob = wrap(resolveEntry(FOG, "farFogEnd"));
                 cloudRenderingKnob = wrap(resolveEntry(GENERIC_RENDERING, "enableCloudRendering"));
+                heightFogMixKnob = wrap(resolveHeightFogEntry("heightFogMixMode"));
                 farFogFalloffKnob = wrap(resolveEntry(FOG, "farFogFalloff"));
                 farFogMinKnob = wrap(resolveEntry(FOG, "farFogMin"));
                 farFogMaxKnob = wrap(resolveEntry(FOG, "farFogMax"));
@@ -484,6 +517,17 @@ public final class DistantHorizonsCompat {
                         + "); DSR keeps its own fog and leaves DH's settings alone. Expected if DH"
                         + " changes its config layout.");
         }
+    }
+
+    /** The height-fog entries, which sit under Fog. */
+    private static Object resolveHeightFogEntry(final String field) throws Exception {
+        Class<?> holder = Class.forName(CONFIG_CLASS);
+        holder = nestedClass(holder, CLIENT[0]);
+        holder = nestedClass(holder, ADVANCED[0]);
+        holder = nestedClass(holder, GRAPHICS[0]);
+        holder = nestedClass(holder, FOG[0]);
+        holder = nestedClass(holder, HEIGHT_FOG[0]);
+        return staticField(holder, field);
     }
 
     /** As {@link #resolveEntry}, but for an entry two levels below Graphics. */

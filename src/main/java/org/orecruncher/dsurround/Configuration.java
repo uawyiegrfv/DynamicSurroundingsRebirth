@@ -563,6 +563,10 @@ public class Configuration extends ConfigurationData {
 
     public static class WeatherOptions {
         @Property
+        @Comment("Distant Horizons integration: hand our weather fog distance to DH's LOD fog so the near and far fog agree, and hold back DH's own LOD clouds during the clear-sky event. Off leaves DH completely untouched")
+        public boolean enableDistantHorizonsIntegration = true;
+
+        @Property
         @Comment("Enable/disable the desert sandstorm dust effect and yellow screen tint")
         public boolean enableDesertSandstorm = true;
 

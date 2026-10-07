@@ -47,6 +47,9 @@ public class FogHandler extends AbstractClientHandler {
     @Override
     public void onDisconnect() {
         this.fogCalculator.disconnect();
+        // Every DH override this session placed is handed back, so the next world starts from the
+        // player's own DH settings rather than from our last weather frame.
+        DistantHorizonsCompat.onWorldLeft();
     }
 
     private void renderFog(ViewportEvent.RenderFog event) {
@@ -83,7 +86,20 @@ public class FogHandler extends AbstractClientHandler {
         if (DistantHorizonsCompat.ownsVanillaFog()) {
             if (!this.handedOffToDh) {
                 this.handedOffToDh = true;
-                this.logger.info("Fog range handed to Distant Horizons: its vanilla-fog option is off, so it overwrites the terrain fog after this hook. Set DH's fog/vanilla-fog option on to get DSR's fog back.");
+                this.logger.info("Fog range handed to Distant Horizons: its vanilla-fog option is off, so it overwrites the terrain fog after this hook. DSR's weather fog now reaches the world through DH's LOD fog instead - set DH's fog/vanilla-fog option on to get DSR's own range back.");
+            }
+            // The range is DH's, but the WEATHER is ours: ask the calculator what our fog would be and
+            // push the resulting visibility into DH's far fog, so heavy rain closes the LOD terrain in
+            // as well. Without this the near world fogs out and the far world stays crisp - the seam
+            // the integration exists to remove.
+            if (this.fogCalculator.enabled()) {
+                final FogData ours = this.fogCalculator.render(
+                        new FogData(event.getNearPlaneDistance(), event.getFarPlaneDistance()),
+                        GameUtils.getMC().options.getEffectiveRenderDistance(),
+                        (float) event.getPartialTick());
+                DistantHorizonsCompat.syncFog(visibilityRatio(ours.renderDistanceEnd, event.getFarPlaneDistance()));
+            } else {
+                DistantHorizonsCompat.clearFogOverride();
             }
             return;
         }
@@ -104,6 +120,10 @@ public class FogHandler extends AbstractClientHandler {
                     (float) event.getPartialTick());
             event.setNearPlaneDistance(this.lastData.renderDistanceStart);
             event.setFarPlaneDistance(this.lastData.renderDistanceEnd);
+            // DH may not own the vanilla fog and still be drawing LOD terrain beyond it; its LOD fog
+            // follows the same visibility so the two agree. A no-op when DH is absent or the
+            // integration is switched off.
+            DistantHorizonsCompat.syncFog(visibilityRatio(this.lastData.renderDistanceEnd, end));
             // Forge 1.20.1 的 onFogRender 在事件未取消时会跳过用事件值重设雾，
             // 所以这里直接写 RenderSystem，确保雾真正生效。
             RenderSystem.setShaderFogStart(this.lastData.renderDistanceStart);
@@ -111,7 +131,22 @@ public class FogHandler extends AbstractClientHandler {
         } else {
             // Preserve for diagnostic trace even though action was not taken.
             this.lastData = new FogData(start, end);
+            DistantHorizonsCompat.clearFogOverride();
         }
+    }
+
+    /**
+     * How far our fog has closed visibility in, as a fraction of the range vanilla asked for.
+     *
+     * <p>One here means "we are not tightening anything" - which is exactly when DH should keep its
+     * own LOD fog, so this doubles as the release condition. Measured against vanilla's own far plane
+     * for the frame rather than against a render-distance constant, so it needs no assumption about
+     * how the player configured either mod.</p>
+     */
+    private static float visibilityRatio(final float ourFar, final float vanillaFar) {
+        if (vanillaFar < 16F || ourFar <= 0F)
+            return 1F;
+        return Math.min(1F, ourFar / vanillaFar);
     }
 
     @Override

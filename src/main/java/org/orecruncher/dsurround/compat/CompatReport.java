@@ -138,9 +138,10 @@ public final class CompatReport {
             sb.append(sb.length() == 0 ? "" : "; ").append("cloud mod present (").append(cloudMod)
                     .append("): the clear-sky event's cloud fade only reaches the vanilla sheet");
         if (ModIds.present(ModIds.DISTANT_HORIZONS))
-            sb.append(sb.length() == 0 ? "" : "; ")
-                    .append("Distant Horizons disables vanilla clouds while rendering, so the"
-                            + " clear-sky event's cloud half may be invisible under it");
+            sb.append(sb.length() == 0 ? "" : "; ").append(DistantHorizonsCompat.status())
+                    .append(DistantHorizonsCompat.integrationEnabled()
+                            ? " (weather fog is mirrored into DH's LOD fog; weatherOptions.enableDistantHorizonsIntegration turns that off)"
+                            : " (integration off: DH is left completely untouched)");
         if (ModIds.isAny(ModIds.CACHE_MODS))
             sb.append(sb.length() == 0 ? "" : "; ")
                     .append("caching mod present (").append(ModIds.firstPresent(ModIds.CACHE_MODS))

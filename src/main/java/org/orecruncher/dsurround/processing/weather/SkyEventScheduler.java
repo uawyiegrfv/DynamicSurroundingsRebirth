@@ -4,6 +4,7 @@ import java.util.Random;
 
 import org.orecruncher.dsurround.Client;
 import org.orecruncher.dsurround.Configuration;
+import org.orecruncher.dsurround.compat.DistantHorizonsCompat;
 import org.orecruncher.dsurround.config.biome.biometraits.BiomeTraits;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
@@ -244,6 +245,10 @@ public final class SkyEventScheduler {
         }
         try {
             advance(logger, raining, traits, config, overworld);
+            // The clear-sky event is the one moment our cloud handling and DH's disagree: we are
+            // removing vanilla's sheet while DH draws its own LOD layer. Ask it to hold that layer
+            // for the duration - the call is a no-op unless the state actually changes.
+            DistantHorizonsCompat.setCloudsSuppressed(cloudMeltStrength() > 0F);
         } finally {
             if (trace) {
                 advanceNanos += System.nanoTime() - start;

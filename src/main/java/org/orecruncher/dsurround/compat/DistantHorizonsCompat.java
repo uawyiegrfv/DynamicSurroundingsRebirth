@@ -126,6 +126,20 @@ public final class DistantHorizonsCompat {
     }
 
     private static final java.util.List<Held> held = new java.util.ArrayList<>();
+    /**
+     * Monitor for {@link #held}. The ledger is touched from two threads - the render thread through
+     * {@code syncFog}, and the client tick thread through {@code onWorldLeft} on disconnect - and an
+     * unsynchronised ArrayList mutated from both is an ArrayIndexOutOfBounds or a
+     * ConcurrentModificationException waiting for the right frame. Everything that reads or writes
+     * the list, or iterates it, takes this first.
+     */
+    private static final Object HELD_LOCK = new Object();
+    /**
+     * Knobs whose write DH has already refused this world. Retrying them every frame would fill the
+     * log at sixty lines a second and never succeed, so a refusal is final until the overrides are
+     * released.
+     */
+    private static final java.util.Set<String> refused = new java.util.concurrent.ConcurrentHashMap<>().newKeySet();
 
     /** The values we last wrote, so a per-frame sync does not hammer the API. */
     private static volatile boolean fogOverridden = false;
@@ -329,22 +343,29 @@ public final class DistantHorizonsCompat {
      * a cache of our own writes cannot see that.</p>
      */
     private static void hold(final Object knob, final String name, final Object value) {
-        if (knob == null || value == null)
+        if (knob == null || value == null || refused.contains(name))
             return;
         final Object current = read(knob);
-        Held entry = find(name);
-        if (entry == null) {
-            entry = new Held(knob, name, current);
-            held.add(entry);
+        final Held entry;
+        synchronized (HELD_LOCK) {
+            Held existing = find(name);
+            if (existing == null) {
+                existing = new Held(knob, name, current);
+                held.add(existing);
+            }
+            entry = existing;
         }
         if (sameValue(current, value))
             return;
         if (write(knob, value)) {
             entry.written = value;
             verifyWrite(knob, value, name);
+        } else {
+            refused.add(name);
         }
     }
 
+    /** Callers hold {@link #HELD_LOCK}. */
     private static Held find(final String name) {
         for (final Held h : held)
             if (h.name.equals(name))
@@ -395,10 +416,18 @@ public final class DistantHorizonsCompat {
      * Hands every held knob back. Safe to call every frame; only the transition does work.
      */
     public static void releaseAll() {
-        if (held.isEmpty())
-            return;
+        // Snapshot under the lock, then write outside it: the writes are reflective calls into DH
+        // and holding a monitor across them would block the other thread for no reason.
+        final java.util.List<Held> snapshot;
+        synchronized (HELD_LOCK) {
+            if (held.isEmpty())
+                return;
+            snapshot = new java.util.ArrayList<>(held);
+            held.clear();
+            refused.clear();
+        }
         final StringBuilder names = new StringBuilder();
-        for (final Held h : held) {
+        for (final Held h : snapshot) {
             if (names.length() > 0)
                 names.append(',');
             names.append(h.name);
@@ -407,9 +436,6 @@ public final class DistantHorizonsCompat {
             else
                 clear(h.knob);
         }
-        held.clear();
-        writtenStart = Float.NaN;
-        writtenEnd = Float.NaN;
         log("weather fog released - Distant Horizons has its own LOD fog values back (" + names
                 + "; deepest visibility ratio while engaged: " + round(deepestRatio) + ")");
         deepestRatio = 1F;

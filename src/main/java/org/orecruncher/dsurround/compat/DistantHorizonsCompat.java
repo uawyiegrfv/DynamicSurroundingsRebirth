@@ -98,6 +98,14 @@ public final class DistantHorizonsCompat {
     private static volatile float firstWrittenStart = Float.NaN;
     private static volatile float firstWrittenEnd = Float.NaN;
     private static volatile boolean reportedDhFogOff = false;
+    /**
+     * Set while this class has switched DH's own LOD fog ON because something else had it off.
+     *
+     * <p>Without that layer there is nothing for the mirror to act on: DH cancels vanilla fog and
+     * would draw no fog of its own, so the far world stays crisp however thick the weather gets. The
+     * setting is put back exactly as found when the weather stops needing it.</p>
+     */
+    private static volatile boolean dhFogForcedOn = false;
 
     /**
      * Engage below this visibility ratio, release above {@link #RELEASE_THRESHOLD}.
@@ -155,21 +163,6 @@ public final class DistantHorizonsCompat {
         final Object end = farFogEndKnob;
         if (start == null || end == null)
             return;
-        // DH's own LOD fog switched off means our numbers would do nothing at all - and the fact is
-        // worth saying out loud, because otherwise "the integration is on" and "the integration is
-        // invisible" look identical from the log. The first live session had exactly that: another
-        // mod (Iris, at world join) had written enableDhFog through the same API.
-        final Boolean dhFogOn = readBoolean(dhFogKnob);
-        if (dhFogOn != null && !dhFogOn) {
-            clearFogOverride();
-            if (!reportedDhFogOff) {
-                reportedDhFogOff = true;
-                log("DH's own LOD fog is switched off right now (another mod or the DH config), so the"
-                        + " weather fog cannot show on LOD terrain. DSR leaves the setting alone.");
-            }
-            return;
-        }
-        reportedDhFogOff = false;
         final float ratio = clamp(visibilityRatio, 0.05F, 1.0F);
         if (ratio < deepestRatio)
             deepestRatio = ratio;
@@ -177,6 +170,23 @@ public final class DistantHorizonsCompat {
         if (ratio >= (fogOverridden ? RELEASE_THRESHOLD : SYNC_THRESHOLD)) {
             clearFogOverride();
             return;
+        }
+        // We are going to mirror, so DH's own LOD fog has to exist. The first live session found it
+        // switched off by another mod (Iris writes enableDhFog through this same API at world join),
+        // which made the whole mirror invisible while looking perfectly healthy in the log.
+        final Boolean dhFogOn = readBoolean(dhFogKnob);
+        if (dhFogOn != null && !dhFogOn && !dhFogForcedOn) {
+            if (write(dhFogKnob, Boolean.TRUE)) {
+                dhFogForcedOn = true;
+                log("DH's own LOD fog was switched off (another mod or the DH config) while the weather"
+                        + " wants to close the view in; switching it on for the duration, and putting it"
+                        + " back the way it was when the weather clears.");
+            } else if (!reportedDhFogOff) {
+                reportedDhFogOff = true;
+                log("DH's own LOD fog is switched off and DSR was not allowed to switch it on, so the"
+                        + " weather fog cannot show on LOD terrain. Nothing else is touched.");
+                return;
+            }
         }
         if (!fogOverridden) {
             // DH's configured values are the base, not our idea of a default: a player who tuned
@@ -216,6 +226,11 @@ public final class DistantHorizonsCompat {
         writtenEnd = Float.NaN;
         release(farFogStartKnob, baseStart);
         release(farFogEndKnob, baseEnd);
+        if (dhFogForcedOn) {
+            // Back to what we found: DH's own LOD fog off again, under whoever's name DH records.
+            dhFogForcedOn = false;
+            write(dhFogKnob, Boolean.FALSE);
+        }
         log("weather fog released - Distant Horizons has its own LOD fog values back (deepest visibility"
                 + " ratio while engaged: " + round(deepestRatio) + ")");
         deepestRatio = 1F;

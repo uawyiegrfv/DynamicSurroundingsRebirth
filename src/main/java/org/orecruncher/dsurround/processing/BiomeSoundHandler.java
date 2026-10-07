@@ -55,10 +55,12 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.wind2"),
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.wind3")};
     // Rain landing on a surface. Seven materials: glass, metal, wood, log,
-    // stone and leaves, plus water, which is parked until a clip for it
-    // turns up. See the
-    // comment on handleRainMaterial(). Extracted from the footstep pools by
-    // tools/_make_material_rain_assets.py.
+    // stone, leaves and water. Only four of them actually sound -
+    // glass, metal, wood and log - because stone, leaves and water are off in
+    // MaterialSurfaceScanner.MATERIAL_ENABLED. Do not list all seven in any
+    // player-facing text; check that array first.
+    // See the comment on handleRainMaterial(). Extracted from the footstep
+    // pools by tools/_make_material_rain_assets.py.
     private static final Identifier RAIN_MATERIAL_GLASS =
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.glass");
     private static final Identifier RAIN_MATERIAL_METAL =

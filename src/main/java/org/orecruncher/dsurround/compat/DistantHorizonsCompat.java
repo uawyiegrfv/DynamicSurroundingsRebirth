@@ -182,6 +182,18 @@ public final class DistantHorizonsCompat {
     private static final float WINDOW_SPAN = 4.0F;
     private static final float RAMP_MIN = 0.0F;
     private static final float RAMP_MAX = 1.0F;
+    /**
+     * DH's own defaults for the two window knobs (its config ships 0.4 / 1.0). Clear weather has to
+     * land on exactly these, so "clear weather leaves DH alone" is guaranteed by the formula below
+     * rather than by handing the override back - handing it back is what attempt 6 was, and with
+     * Iris having switched DH's fog off it left nobody drawing anything at all.
+     */
+    private static final float DH_NATIVE_START = 0.40F;
+    private static final float DH_NATIVE_END = 1.00F;
+    /** Where the opaque wall sits in the LOD view when the weather is fully socked in (fraction of DH's view). */
+    private static final float WALL_WHEN_SOCKED_IN = 0.30F;
+    /** Haze under the near LODs when the weather is fully socked in. */
+    private static final float HAZE_FLOOR_WHEN_SOCKED_IN = 0.30F;
     /** Haze floor at full weather strength, scaled down by how clear it is. */
     private static final float HAZE_FLOOR = 1.5F;
     /**
@@ -266,14 +278,29 @@ public final class DistantHorizonsCompat {
         // viewScale() is how many vanilla render distances long the LOD view is (256-chunk DH view
         // against a 12-chunk vanilla one is about 21), so the vanilla boundary sits at 1/scale.
         final float scale = viewScale();
-        final float tightness = clamp(ourEnd / Math.max(vanillaEnd, 1F), 0.15F, 1.0F);
-        final float rampStart = clamp(1F / Math.max(scale, 1F), 0F, 0.5F);
-        final float rampEnd = clamp(tightness, rampStart + 0.05F, 1.414F);
-        // A floor under the whole LOD range, or the fog is a ramp that only matters near the wall -
-        // which is what "still feels thin" was: at 256 chunks out, most of the visible LODs sit in the
-        // first few percent of the ramp. The floor is 0 in clear weather (DH's own look) and grows as
-        // the weather closes in, so rain hazes the near LODs as well instead of only the far ones.
-        final float hazeFloor = clamp(HAZE_FLOOR * (1F - tightness), 0F, HAZE_FLOOR_CAP);
+        final float lodStart = clamp(1F / Math.max(scale, 1F), 0F, 0.5F);
+        // ★ How hard the weather is pressing has to be read off the NEAR plane, not the far one.
+        //   WeatherFogRangeCalculator only pushes ourStart in - ourEnd stays at the view distance on
+        //   purpose, that is the maintainer's call - so ourEnd / vanillaEnd is pinned at 1.0 and
+        //   tells us nothing at all. That is why every earlier version "produced fog but felt thin":
+        //   tightness came out 1.0, which put the wall at the LOD horizon and made the haze floor
+        //   (HAZE_FLOOR * (1 - tightness)) exactly zero. Raising HAZE_FLOOR could not help, it was
+        //   being multiplied by zero.
+        //   What actually moves is ourStart: 0 = the same as clear weather, 1 = pushed to the camera.
+        final float press = clamp((vanillaStart - ourStart) / Math.max(vanillaStart, 1F), 0F, 1F);
+        // Clear weather -> DH's own numbers, so its LODs look exactly as the player configured them.
+        // Socked in -> the wall comes in to 30% of the LOD view and the near LODs get a haze floor,
+        // so rain both greys the foreground and closes the horizon.
+        final float rampStart = lerp(DH_NATIVE_START, lodStart, press);
+        // The ceiling used to be 1.414 ("the corner"). Anything past 1.0 puts the wall outside the
+        // LOD view entirely, so the ramp can never reach full thickness - that is what read as a thin
+        // haze, and also what looked like "clean LODs past the wall" when there was no wall at all.
+        final float rampEnd = clamp(lerp(DH_NATIVE_END, WALL_WHEN_SOCKED_IN, press),
+                rampStart + 0.05F, 1.0F);
+        // A floor under the whole LOD range: without it the fog only matters near the wall, and at
+        // 256 chunks most of what you see sits in the first few percent of the ramp.
+        final float hazeFloor = clamp(lerp(nativeValue("farFogMin", 0F), HAZE_FLOOR_WHEN_SOCKED_IN, press),
+                0F, HAZE_FLOOR_CAP);
         // Full thickness lands at rampEnd render distances, i.e. this many blocks out:
         final float wallBlocks = rampEnd * Math.max(vanillaEnd, 1F) * Math.max(scale, 1F);
         hold(farFogStartKnob, "farFogStart", rampStart);
@@ -288,7 +315,8 @@ public final class DistantHorizonsCompat {
             log("DH's LOD fog carries the weather fog: thickness 0 at " + round(rampStart)
                     + " render distances (the vanilla boundary; view scale " + round(scale)
                     + "), full at " + round(rampEnd) + " (= " + Math.round(wallBlocks) + " blocks out,"
-                    + " weather tightness " + round(tightness) + ", haze floor " + round(hazeFloor)
+                    + " weather press " + round(press) + " (start " + round(ourStart)
+                    + " of vanilla " + round(vanillaStart) + "), haze floor " + round(hazeFloor)
                     + ", enableDhFog=" + read(dhFogKnob) + ")");
         }
     }
@@ -761,6 +789,17 @@ public final class DistantHorizonsCompat {
     /** Two decimals, for the log lines above. */
     private static String round(final float v) {
         return String.format(java.util.Locale.ROOT, "%.2f", v);
+    }
+
+    private static float lerp(final float a, final float b, final float t) {
+        return a + (b - a) * t;
+    }
+
+    /** What DH itself had for a knob before we touched it, or {@code fallback} if we never read it. */
+    private static float nativeValue(final String name, final float fallback) {
+        final Held h = find(name);
+        final Object base = h == null ? null : h.base;
+        return base instanceof Number n ? n.floatValue() : fallback;
     }
 
     private static float clamp(final float v, final float lo, final float hi) {

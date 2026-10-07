@@ -253,6 +253,14 @@ public class Configuration extends ConfigurationData {
         public boolean enableBiomeSounds = true;
 
         @Property
+        @Comment("Enable/disable the wind bed that rises with the rain (rain wind, storm wind, leaf wind)")
+        public boolean enableWindSounds = true;
+
+        @Property
+        @Comment("Enable/disable the material rain sound: rain hitting glass, metal, wood, stone, leaves, water")
+        public boolean enableMaterialRainSounds = true;
+
+        @Property
         @DoubleRange(min = 0, max = 2)
         @Comment("Footstep sounds will be multiplied by this factor")
         public double footstepVolume = 1.0D;
@@ -565,24 +573,18 @@ public class Configuration extends ConfigurationData {
     }
 
     public static class WeatherOptions {
+        // ---- master switch -------------------------------------------------
         @Property
-        @Comment("Enable/disable the desert sandstorm dust effect and yellow screen tint")
-        public boolean enableDesertSandstorm = true;
-
-        @Property
-        @Comment("Enable/disable the nether dust rain effect")
-        public boolean enableNetherDust = false;
-
-        @Property
-        @Comment("Enable/disable the biome fog color tint (biomes.json fogColor - desert haze, swamp fog, etc.)")
-        public boolean enableBiomeFogColor = true;
-
-        @Property
-        @Comment("Enable/disable graded rain and snow (intensity varies by biome and season)")
+        @Comment("Enable/disable graded rain and snow (intensity varies by biome and season). This is the master switch for the whole weather system: off and everything below falls back to vanilla.")
         public boolean enableGradedPrecipitation = true;
 
         @Property
-        @Comment("Enable/disable water dripping off eaves and leaves while it rains, and the after-rain tail")
+        @Comment("With Particle Rain installed, draw our graded rain curtain anyway. Off by default: Particle Rain cancels vanilla's rain pass at HEAD, so both mods would draw rain at once. Turn on only to compare the two")
+        public boolean gradedRainOverParticleRain = false;
+
+        // ---- what the weather leaves on the ground --------------------------
+        @Property
+        @Comment("Enable/disable water dripping off eaves and leaves while it rains, and the after-rain tail. Covers the whole effect, hanging bead and falling drop alike")
         public boolean enableWaterDrips = true;
 
         @Property
@@ -596,7 +598,8 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable morning dew on plants - beads appear before dawn, peak just before sunrise, evaporate by mid-morning")
         public boolean enableMorningDew = true;
-        /** Snow settling on plants: accumulate through a snowfall, linger, melt. */
+
+        /** Snow settling on plants: accumulate through a snowfall, linger, melt. Includes the crumbs when a broken plant's snow lands. */
         public boolean enableSnowCover = true;
 
         @Property
@@ -609,6 +612,16 @@ public class Configuration extends ConfigurationData {
         @Comment("Horizontal scan radius (blocks) for foliage drops and dew")
         public int foliageScanRange = 16;
 
+        // ---- dust -----------------------------------------------------------
+        @Property
+        @Comment("Enable/disable the desert sandstorm dust effect and yellow screen tint")
+        public boolean enableDesertSandstorm = true;
+
+        @Property
+        @Comment("Enable/disable the nether dust rain effect")
+        public boolean enableNetherDust = false;
+
+        // ---- dry-weather sky events ----------------------------------------
         @Property
         @Comment("Enable/disable the dry-weather sky events (an overcast day, and the day the clouds clear away). Part of the graded weather system: enableGradedPrecipitation off turns these off with it")
         public boolean enableSkyEvents = true;
@@ -620,7 +633,22 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable the clear-sky event - the cloud sheet thins away. With Sodium/Embeddium installed the clouds go without a fade: their cloud renderer takes over and ignores our alpha")
         public boolean enableClearSkyEvent = true;
+
+        // ---- fog colour ----------------------------------------------------
+        @Property
+        @Comment("Enable/disable the biome fog color tint (biomes.json fogColor - desert haze, swamp fog, etc.)")
+        public boolean enableBiomeFogColor = true;
+
+        // ---- playing well with other mods ----------------------------------
+        @Property
+        @Comment("Distant Horizons integration: hand our weather fog distance to DH's LOD fog so the near and far fog agree, and hold back DH's own LOD clouds during the clear-sky event. Off leaves DH completely untouched")
+        public boolean enableDistantHorizonsIntegration = true;
+
+        @Property
+        @Comment("With a shader pack in use, turn off the three plant-attached layers (leaf drips, morning dew, snow on plants). Some packs make plants sway in the vertex shader, and a particle anchored to a plant cannot follow it - it stays where the plant was. Eave drips and icicles are NOT affected (blocks do not sway)")
+        public boolean disableFoliageLayersWithShaders = false;
     }
+
 
     public static class FogOptions {
         @Property

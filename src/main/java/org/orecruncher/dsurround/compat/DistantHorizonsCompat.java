@@ -31,19 +31,39 @@ public final class DistantHorizonsCompat {
     private static final String CONFIG_CLASS = "com.seibel.distanthorizons.core.config.Config";
 
     /**
-     * The config path to {@code enableVanillaFog}, every spelling DH has shipped.
+     * The config path to {@code enableVanillaFog}, as DH actually stores it.
      *
-     * <p>Found the hard way: the first probe used the 3.3.4 sources' capitalisation and DH 3.3.3's
-     * bytecode has {@code Config.client.advanced.graphics.fog} (all lower case, all static fields),
-     * so the probe failed on the very pack it was written for. Both spellings are listed now, and
-     * the order does not matter because only one of them can exist.</p>
+     * <p><b>Two failed attempts are recorded here, because the third one is only obvious after
+     * them.</b> DH builds its config as a tree of <em>holder classes</em>: each category is a
+     * {@code ConfigCategory} whose payload is the class that declares the next level's fields
+     * (bytecode: {@code new ConfigCategory.Builder().set(Config$Client.class).build()}), and the
+     * entries are {@code public static} fields on those classes. So:</p>
+     *
+     * <ul>
+     * <li>Walking <em>instances</em> ({@code Config.client.getClass().getField("advanced")}) cannot
+     *     work: the value is a plain {@code ConfigCategory}, and the field lives on
+     *     {@code Config$Client} - a class the instance does not reveal. That was attempt one, and it
+     *     failed with {@code NoSuchFieldException: Advanced} on the very pack it was written for.</li>
+     * <li>Guessing at capitalisation does not help either, because the two spellings live in
+     *     different places: the <em>classes</em> are {@code Client/Advanced/Graphics/Fog} while
+     *     3.3.3's <em>fields</em> are {@code client/advanced/graphics/fog}. Attempt two mixed them
+     *     up.</li>
+     * <li>Walking the <em>nested classes</em> by name is the path DH's own source uses
+     *     ({@code Config.Client.Advanced.Graphics.Fog.enableVanillaFog}), and the jar confirms the
+     *     classes are {@code Config$Client$Advanced$Graphics$Fog} in 3.3.3 as well.</li>
+     * </ul>
+     *
+     * <p>Both spellings are still tried at every level, so a rename in either direction degrades to
+     * the other one rather than to nothing.</p>
      */
-    private static final String[] CLIENT_NAMES = { "client", "Client" };
-    private static final String[] ADVANCED_NAMES = { "advanced", "Advanced" };
-    private static final String[] GRAPHICS_NAMES = { "graphics", "Graphics" };
-    private static final String[] FOG_NAMES = { "fog", "Fog" };
+    private static final String[][] HOLDER_LEVELS = {
+            { "Client", "client" },
+            { "Advanced", "advanced" },
+            { "Graphics", "graphics" },
+            { "Fog", "fog" }
+    };
+    /** The leaf field, camelCase in every version seen. */
     private static final String[] VANILLA_FOG_NAMES = { "enableVanillaFog" };
-
     /** Resolved accessors, or null when the probe failed. Guarded by {@link #PROBE_LOCK}. */
     private static final Object PROBE_LOCK = new Object();
     private static volatile boolean probed = false;
@@ -95,12 +115,12 @@ public final class DistantHorizonsCompat {
                 return;
             Throwable failure = null;
             try {
-                Object node = Class.forName(CONFIG_CLASS);
-                node = field(node, CLIENT_NAMES);
-                node = field(node, ADVANCED_NAMES);
-                node = field(node, GRAPHICS_NAMES);
-                node = field(node, FOG_NAMES);
-                final Object resolved = field(node, VANILLA_FOG_NAMES);
+                // Nested classes, not instances: see HOLDER_LEVELS. Each level is a holder class
+                // whose static fields are the next level, so the walk never looks at a value.
+                Class<?> holder = Class.forName(CONFIG_CLASS);
+                for (final String[] level : HOLDER_LEVELS)
+                    holder = nestedClass(holder, level);
+                final Object resolved = field(holder, VANILLA_FOG_NAMES);
                 final java.lang.reflect.Method resolvedGetter = resolved.getClass().getMethod("get");
                 option = resolved;
                 getter = resolvedGetter;
@@ -110,29 +130,39 @@ public final class DistantHorizonsCompat {
                 failure = t;
             } finally {
                 probed = true;
-            }
-            // Never silent. The first version of this probe looked for one spelling of each
-            // field, found none of them in DH 3.3.3 (whose fields are all lower case, and all
-            // static), and answered "DH does not own the fog" for the rest of the session - which
-            // is the fail-closed answer, so nothing broke, but nothing was reported either. One
-            // line here is the difference between a silent no and a five-minute diagnosis.
-            if (failure != null)
+            }            if (failure != null)
                 log("Distant Horizons fog probe failed (" + failure
                         + "); DSR keeps its own fog range. This is expected if DH changes its config layout.");
         }
     }
 
     /**
-     * Reads a field by any of its known spellings.
+     * The nested holder class of {@code outer} under any of its known spellings.
      *
-     * <p>Two things vary across DH's own versions and both are handled here rather than guessed
-     * at: the capitalisation ({@code Config.client} in 3.3.3's bytecode against
-     * {@code Config.Client} in the 3.3.4 sources) and whether a node is a static field or an
-     * instance one (3.3.3 declares every level static). A name that does not resolve simply moves
-     * on to the next candidate, and a chain that resolves nothing fails the whole probe, which the
-     * caller treats as "not DH's fog" - today's behaviour, now with a line in the log.</p>
+     * <p>{@code Class.forName} rather than a field read, because the tree is made of classes: DH
+     * stores {@code ConfigCategory}s whose payload <em>is</em> the holder class. See
+     * {@link #HOLDER_LEVELS} for the two failed walks that led here.</p>
      */
-    private static Object field(final Object owner, final String[] names) throws Exception {
+    private static Class<?> nestedClass(final Class<?> outer, final String[] names)
+            throws ClassNotFoundException {
+        ClassNotFoundException last = null;
+        for (final String name : names) {
+            try {
+                return Class.forName(outer.getName() + "$" + name);
+            } catch (ClassNotFoundException e) {
+                last = e;
+            }
+        }
+        throw last != null ? last : new ClassNotFoundException(java.util.Arrays.toString(names));
+    }
+
+    /**
+     * Reads a public field (static or not) from a class by any of its known spellings.
+     *
+     * <p>Static is the normal case here - every level of DH's tree is a static field on its holder
+     * class - and a static field is read with a null receiver. The instance case is kept because the
+     * leaf entries are values, not classes, and a future DH could hand one out per instance.</p>
+     */    private static Object field(final Object owner, final String[] names) throws Exception {
         Exception last = null;
         for (final String name : names) {
             try {

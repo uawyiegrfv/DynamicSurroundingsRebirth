@@ -84,7 +84,9 @@ public class FoliageDripParticle extends TextureSheetParticle {
      * The size vanilla's hanging drip renders at (WaterDripParticle's
      * quadSize base: {@code VANILLA_QUAD_SIZE * 2 * WIDTH_SCALE}).
      */
-    private static final float VANILLA_DRIP_QUAD_SIZE = 0.2F;
+    /** The eave drop's quad size - package-visible so the snow unit can
+     *  convert its own wanted size into the sizeScale the constructor takes. */
+    static final float VANILLA_DRIP_QUAD_SIZE = 0.2F;
 
     /**
      * Dew and rain no longer share the eave's colour. Both wore
@@ -161,8 +163,16 @@ public class FoliageDripParticle extends TextureSheetParticle {
     private static final float GRIP_SPREAD = 0.45F;
 
     private enum Phase {
-        STATIC, SLIDE, FALL, EVAPORATE
+        STATIC, SLIDE, FALL, FADE, EVAPORATE
     }
+
+    /**
+     * How far a fading unit sinks per tick, in blocks - see {@link #beginFade}.
+     * A whole fade window covers about 0.06 of a block, one plant pixel: the
+     * unit settles into the leaf rather than hanging in the air and blinking
+     * out.
+     */
+    private static final float FADE_SINK_PER_TICK = 0.06F / 60F;
 
     private Phase phase = Phase.STATIC;
     /** &gt;0: a rain dropper that falls on its own at this age. ≤0: handler-driven (dew, sliders). */
@@ -187,10 +197,42 @@ public class FoliageDripParticle extends TextureSheetParticle {
     /** Per-slide grip knots: where the blade holds the bead, where it runs. */
     private float[] grip = null;
     private boolean endWithFall = false;
+    /**
+     * &gt;0: when the slide finishes the unit FADES over this many ticks instead
+     * of falling off the tip or shrinking where it stopped. Round 7: "the
+     * disappear animation is hard to watch, shrinking is not good - let it
+     * slide a good distance and then just fade out".
+     */
+    private int slideFade = 0;
+    /** Fade window - the phase that does NOT shrink. See {@link #beginFade}. */
+    private int fadeStart = -1;
+    private int fadeTicks = 1;
     /** Evaporate window. */
     private int evapStart = -1;
     private int evapTicks = 100;
-    private final TextureAtlasSprite fallSprite;
+    /**
+     * What scatters when this unit hits the ground in the FALL phase, and how
+     * many pieces of it. Both left at 0/null and nothing happens - the eave
+     * drop keeps its vanilla splash. The snow layer fills them in: a clump
+     * that lands bursts into crumbs.
+     */
+    protected net.minecraft.core.particles.ParticleOptions breakParticle = null;
+    protected int breakCount = 0;
+    protected TextureAtlasSprite fallSprite;
+    /**
+     * The fall's own physics. Defaults are the vanilla falling drip's, read
+     * off the eave layer so the two cannot drift; snow overrides all three in
+     * FoliageSnowParticle (round 9: "掉落速度能慢些就好了，这样看起来感觉轻盈蓬松"
+     * - a snowflake does not fall like a drop of water).
+     * <p>{@code fallDrift} is a nudge sideways at the moment it lets go, in
+     * blocks per tick, in a random compass direction: without it a slow fall
+     * reads as a weightless thing sliding down a wire.</p>
+     */
+    protected double fallGravity = WaterDripParticle.VANILLA_GRAVITY;
+    protected double fallDrag = 0.98;
+    protected double fallDrift = 0.0;
+    /** How fast it is already moving the instant it lets go (blocks per tick). */
+    protected double fallKick = 0.02;
     private final float baseSize;
 
     FoliageDripParticle(final ClientLevel level, final double x, final double y, final double z,
@@ -306,6 +348,46 @@ public class FoliageDripParticle extends TextureSheetParticle {
         raw[1] = (float) this.y;
         raw[2] = (float) this.z;
         System.arraycopy(pts, start, raw, 3, pts.length - start);
+        return this.installPath(raw, maxSpeed, endWithFall, GRIP_SPREAD);
+    }
+
+    /**
+     * Straight down and nothing else - the melting snow unit's exit, round 8:
+     * "下滑动画就尽量不要转弯了，直接竖直下落就行了". The old exit rode the
+     * plane's baked slide path, and that path follows the leaf's OUTLINE:
+     * measured offline over the real sprites it averages 80 degrees of turn
+     * and 0.16 lateral drift per unit of fall, which is the swing he saw.
+     * This one is a two-point path from where the unit already stands
+     * straight down, run through the very same physics - so the pace and the
+     * ending are unchanged, and the lean comes out at zero (the direction of
+     * travel IS the plane's up axis, so there is nothing to lean into).
+     */
+    public boolean beginSink(final float drop, final float maxSpeed, final int fadeTicks) {
+        if (this.phase != Phase.STATIC || !(drop > 0F))
+            return false;
+        final float[] raw = new float[] {
+                (float) this.x, (float) this.y, (float) this.z,
+                (float) this.x, (float) this.y - drop, (float) this.z
+        };
+        // No grip down the chute. A bead riding a blade stutters because the
+        // blade's surface stutters; snow settling through still air has
+        // nothing to catch on, and a spread here would make the slowest part
+        // of the whole effect the only one that visibly speeds up and slows
+        // down - offline, GRIP_SPREAD put the step/mean ratio at 1.78.
+        if (!this.installPath(raw, maxSpeed, false, 0F))
+            return false;
+        this.slideFade = Math.max(1, fadeTicks);
+        return true;
+    }
+
+    /**
+     * The tail both exits share: dedupe, arc length, then arm the slide.
+     * Split out in round 8 so {@link #beginSink} can reuse the pace, the
+     * lean and the ending without also reusing the baked path's trimming -
+     * which is exactly what made the old exit turn.
+     */
+    private boolean installPath(final float[] raw, final float maxSpeed, final boolean endWithFall,
+                                final float gripSpread) {
         // Chaikin's integer arithmetic collapses a one-pixel step into two
         // IDENTICAL waypoints, and every baked path has a few. A zero-length
         // segment poisons everything downstream: the bead spends a whole slice
@@ -357,7 +439,7 @@ public class FoliageDripParticle extends TextureSheetParticle {
         this.slideMax = Math.min(maxSpeed, SLIDE_SPEED_CEILING);
         this.grip = new float[GRIP_KNOTS];
         for (int i = 0; i < GRIP_KNOTS; i++)
-            this.grip[i] = 1.0F + (this.random.nextFloat() * 2F - 1F) * GRIP_SPREAD;
+            this.grip[i] = 1.0F + (this.random.nextFloat() * 2F - 1F) * gripSpread;
         this.endWithFall = endWithFall;
         this.phase = Phase.SLIDE;
         return true;
@@ -418,8 +500,13 @@ public class FoliageDripParticle extends TextureSheetParticle {
         this.setSprite(this.fallSprite);
         this.lifetime = this.age + 200;
         this.xd = 0.0F;
-        this.yd = -0.02F;
+        this.yd = -this.fallKick;
         this.zd = 0.0F;
+        if (this.fallDrift > 0.0) {
+            final double ang = this.random.nextDouble() * Math.PI * 2.0;
+            this.xd = Math.cos(ang) * this.fallDrift;
+            this.zd = Math.sin(ang) * this.fallDrift;
+        }
     }
 
     /** Shrinks out over {@code ticks} (rain sliders: quick; dew window end: slow). */
@@ -430,6 +517,39 @@ public class FoliageDripParticle extends TextureSheetParticle {
         this.evapStart = this.age;
         this.evapTicks = Math.max(1, ticks);
         this.lifetime = this.age + this.evapTicks + 2;
+    }
+
+    /**
+     * Fades out where it stands over {@code ticks} - and does NOT shrink.
+     * {@link #beginEvaporate} scales the quad down, which on a snow unit reads
+     * as the snow being sucked into the leaf; that is the round 7 complaint
+     * verbatim ("消失动画有点难绷，直接缩小不太好"). This one holds the quad at
+     * its size, sinks it about a plant pixel, and takes the alpha away from
+     * the first tick - so a unit that has already slid to the bottom of the
+     * blade simply stops being there.
+     */
+    public void beginFade(final int ticks) {
+        if (this.phase == Phase.FADE || this.phase == Phase.FALL)
+            return;
+        this.phase = Phase.FADE;
+        this.fadeStart = this.age;
+        this.fadeTicks = Math.max(1, ticks);
+        this.lifetime = this.age + this.fadeTicks + 2;
+        this.xd = 0.0D;
+        this.yd = 0.0D;
+        this.zd = 0.0D;
+    }
+
+    /**
+     * A slide that ends in a FADE rather than a fall or an in-place shrink -
+     * the melting snow unit's exit. Same path, same physics; only the ending
+     * differs. The fade only takes if the slide actually started.
+     */
+    public boolean beginSlide(final float[] pts, final float maxSpeed, final int fadeTicks) {
+        final boolean started = this.beginSlide(pts, maxSpeed, false);
+        if (started)
+            this.slideFade = Math.max(1, fadeTicks);
+        return started;
     }
 
     /**
@@ -445,6 +565,24 @@ public class FoliageDripParticle extends TextureSheetParticle {
     /** True while the drop is resting on the plant (the dew lottery's target set). */
     public boolean isStatic() {
         return this.phase == Phase.STATIC;
+    }
+
+    /**
+     * Bursts into {@code count} pieces of {@code options} where it stands - the
+     * snow crumb's burst. Deliberately tight: the maintainer asked for
+     * vanilla's snowball break but "原版的那个粒子太大，弹射范围太远太高了",
+     * so the throw is a couple of hundredths of a block a tick and the lift
+     * barely clears the floor.
+     */
+    private void scatter(final net.minecraft.core.particles.ParticleOptions options, final int count) {
+        for (int i = 0; i < count; i++) {
+            final double ang = this.random.nextDouble() * Math.PI * 2.0D;
+            final double spd = 0.016D + this.random.nextDouble() * 0.018D;
+            this.level.addParticle(options, this.x, this.y + 0.02D, this.z,
+                    Math.cos(ang) * spd,
+                    0.020D + this.random.nextDouble() * 0.040D,
+                    Math.sin(ang) * spd);
+        }
     }
 
     /** 1.20.1's Particle exposes {@code removed} as a field; this is the predicate form. */
@@ -496,7 +634,9 @@ public class FoliageDripParticle extends TextureSheetParticle {
                 this.y = Mth.lerp(frac, this.pathPts[i * 3 + 1], this.pathPts[(i + 1) * 3 + 1]);
                 this.z = Mth.lerp(frac, this.pathPts[i * 3 + 2], this.pathPts[(i + 1) * 3 + 2]);
                 if (d >= this.slideLen) {
-                    if (this.endWithFall)
+                    if (this.slideFade > 0)
+                        this.beginFade(this.slideFade);
+                    else if (this.endWithFall)
                         this.beginFall();
                     else
                         this.beginEvaporate(30);
@@ -505,19 +645,32 @@ public class FoliageDripParticle extends TextureSheetParticle {
             case FALL -> {
                 // Vanilla's falling drip: gravity 0.06, drag 0.98, splash on
                 // hit - read from the eave layer so the two cannot drift.
-                this.yd -= WaterDripParticle.VANILLA_GRAVITY;
+                this.yd -= this.fallGravity;
                 this.move(this.xd, this.yd, this.zd);
                 if (this.onGround) {
-                    this.level.addParticle(ParticleTypes.SPLASH, this.x, this.y, this.z, 0.0D, 0.0D, 0.0D);
+                    // A snow unit that lands bursts into crumbs; everything
+                    // else keeps the eave drop's vanilla splash.
+                    if (this.breakParticle != null && this.breakCount > 0)
+                        this.scatter(this.breakParticle, this.breakCount);
+                    else
+                        this.level.addParticle(ParticleTypes.SPLASH, this.x, this.y, this.z, 0.0D, 0.0D, 0.0D);
                     if (this.soundOnLand && landListener != null)
                         landListener.onLand(this.x, this.y, this.z);
                     this.remove();
                     return;
                 }
-                this.xd *= 0.98F;
-                this.yd *= 0.98F;
-                this.zd *= 0.98F;
+                this.xd *= this.fallDrag;
+                this.yd *= this.fallDrag;
+                this.zd *= this.fallDrag;
                 if (this.age >= this.lifetime)
+                    this.remove();
+            }
+            case FADE -> {
+                // Sink a hair while the alpha goes: about one plant pixel over
+                // the whole window, so the unit settles into the leaf instead
+                // of hanging in mid air and blinking out.
+                this.y -= FADE_SINK_PER_TICK;
+                if (this.age >= this.fadeStart + this.fadeTicks)
                     this.remove();
             }
             case EVAPORATE -> {
@@ -531,7 +684,15 @@ public class FoliageDripParticle extends TextureSheetParticle {
 
     @Override
     public void render(final VertexConsumer buffer, final Camera camera, final float partialTicks) {
-        if (this.phase == Phase.FALL || !this.hasPlane) {
+        // Round 8: "掉落时面向玩家，这个不好，建议还是原来的朝向". The
+        // billboard is a yaw-only rotation that re-aims the quad at the
+        // camera every frame - measured over a full circle of camera
+        // bearings its normal sweeps the whole 360 degrees, so a falling
+        // snowflake turned to keep facing you. A unit that has a plane keeps
+        // that plane's basis while it falls: the same face it showed while
+        // it was sitting on the leaf, no re-aiming. Only a unit with no
+        // plane at all has nothing better to do than face the camera.
+        if (!this.hasPlane) {
             this.renderBillboard(buffer, camera, partialTicks);
             return;
         }
@@ -555,6 +716,14 @@ public class FoliageDripParticle extends TextureSheetParticle {
             size *= Math.max(0.0F, 1.0F - t);
             if (t > 0.7F)
                 alpha = 1.0F - (t - 0.7F) / 0.3F;
+        } else if (this.phase == Phase.FADE) {
+            // NO shrink - that is the entire point of the phase. The quad keeps
+            // its size and the alpha goes from the very first tick, so a unit
+            // that has already slid to the bottom of the blade just stops
+            // being there. (Needs the translucent sheet: on the opaque one a
+            // vertex alpha is discarded - see FoliageSnowParticle.)
+            final float t = (float) (this.age - this.fadeStart) / (float) Math.max(1, this.fadeTicks);
+            alpha = 1.0F - Mth.clamp(t, 0F, 1F);
         }
 
         // The quad's axes. Normally the handler's plane basis - but while

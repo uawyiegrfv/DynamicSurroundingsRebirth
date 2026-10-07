@@ -46,7 +46,14 @@ public final class FoliageScan {
         /** Rain landing on the plant: full {@code rainReachesTop} triple. */
         RAIN,
         /** Morning dew: sky open, no biome precipitation term. */
-        DEW
+        DEW,
+        /**
+         * Snow settling on the plant. Same sky test as DEW - "can snow reach
+         * this blade" is exactly "is the sky open above it". The snow PHASE
+         * and the cold-temperature gates are the handler's, asked per spot
+         * (icicle lesson: the column's own phase, not the player's).
+         */
+        SNOW
     }
 
     /** Default horizontal reach (the config's foliageScanRange drives the real one). */
@@ -162,6 +169,9 @@ public final class FoliageScan {
     private static boolean skyOpen(final Level world, final BlockPos pos, final Mode mode) {
         if (mode == Mode.RAIN)
             return DripScanner.rainReachesTop(world, pos.above());
+        // DEW and SNOW share the answer: "can precipitation reach this blade"
+        // is "is the sky open above it". Whether it is RAIN or SNOW up there
+        // is a PHASE question, and that is the handler's (per spot).
         return dewSkyOpen(world, pos);
     }
 

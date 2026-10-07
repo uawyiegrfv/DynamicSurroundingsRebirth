@@ -311,7 +311,7 @@
   "dsurround.config.weatherOptions.enableIcicles": "冰锥",
   "dsurround.config.weatherOptions.enableIcicles.tooltip": "下雪时屋檐下长出的冰锥，之后融化。",
   "dsurround.config.weatherOptions.enableMaterialRainSounds": "材质雨声",
-  "dsurround.config.weatherOptions.enableMaterialRainSounds.tooltip": "雨点打在不同方块上的声音不同。",
+  "dsurround.config.weatherOptions.enableMaterialRainSounds.tooltip": "雨点打在玻璃、金属与木头上的声音各不相同。",
   "dsurround.config.weatherOptions.enableMorningDew": "清晨晨露",
   "dsurround.config.weatherOptions.enableMorningDew.tooltip": "清晨植物上的露珠，上午前蒸发。",
   "dsurround.config.weatherOptions.enableNetherDust": "下界尘雨",

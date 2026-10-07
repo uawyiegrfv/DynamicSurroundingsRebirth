@@ -580,7 +580,7 @@ public class Configuration extends ConfigurationData {
         public boolean enableWindSounds = true;
 
         @Property
-        @Comment("Enable/disable the material rain sound: rain hitting glass, metal, wood, stone, leaves, water")
+        @Comment("Enable/disable the material rain sound: rain hitting glass, metal, wood and logs")
         public boolean enableMaterialRainSounds = true;
 
 

@@ -311,7 +311,7 @@
   "dsurround.config.weatherOptions.enableIcicles": "Icicles",
   "dsurround.config.weatherOptions.enableIcicles.tooltip": "Icicles growing under eaves while it snows, and melting afterwards.",
   "dsurround.config.weatherOptions.enableMaterialRainSounds": "Material Rain Sounds",
-  "dsurround.config.weatherOptions.enableMaterialRainSounds.tooltip": "Rain sounds different on glass, metal, wood, stone, leaves and water.",
+  "dsurround.config.weatherOptions.enableMaterialRainSounds.tooltip": "Rain sounds different on glass, metal and wood.",
   "dsurround.config.weatherOptions.enableMorningDew": "Morning Dew",
   "dsurround.config.weatherOptions.enableMorningDew.tooltip": "Dew on plants before dawn, gone by mid-morning.",
   "dsurround.config.weatherOptions.enableNetherDust": "Nether Dust Rain",

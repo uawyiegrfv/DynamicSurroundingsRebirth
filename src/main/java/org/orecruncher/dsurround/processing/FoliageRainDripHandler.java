@@ -61,7 +61,14 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     private static final double RATE_SPAN = 28.0D;
     private static final float TICK_SECONDS = 0.05F;
     /** Pool sizing, the drip budget's way. */
-    private static final int MAX_SPOTS = 48;
+    /**
+     * Round 11: was 48. The pool is how many plants can be carrying beads at
+     * once, and at full intensity a meadow has far more than 48 candidates -
+     * so the budget, not the scan, was what made "half the plants looked dry".
+     * Doubling it costs beads (up to 96 * MAX_DROPS_PER_PLANT) but no extra
+     * scanning: the scan already visits every candidate every time.
+     */
+    private static final int MAX_SPOTS = 96;
     /** Per-plant live-drop cap (sixth-round ruling). */
     private static final int MAX_DROPS_PER_PLANT = 6;
     /** Per-spot cooldown between drops - a spot is one anchor on one blade. */

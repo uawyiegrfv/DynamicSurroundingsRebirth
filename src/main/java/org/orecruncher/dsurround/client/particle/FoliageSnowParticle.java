@@ -90,7 +90,7 @@ public class FoliageSnowParticle extends FoliageDripParticle {
     private static final double SNOW_FALL_KICK = 0.02;
 
     private static final float[] SIZES = {
-            0.16F, 0.16F,       // dot_a, dot_b   (~1.3 plant px)
+            0.18F, 0.18F,       // dot_a, dot_b   (~1.5 plant px; the vanilla drip hangs at 0.20)
             0.26F, 0.26F,       // clump_a, clump_b (~3.1 px)
             0.56F, 0.56F        // sheet_a, sheet_b (~6.7 px, thin)
     };

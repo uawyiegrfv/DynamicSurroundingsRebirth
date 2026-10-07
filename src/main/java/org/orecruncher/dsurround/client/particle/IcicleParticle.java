@@ -82,6 +82,21 @@ public class IcicleParticle extends SingleQuadParticle {
     /** Growth clock, frozen while melting (BUG-6) and resumed on stopMelting()
      *  (BUG-5) - see {@link #tick}. */
     private int growthClock = 0;
+    /**
+     * Round 11: how far this icicle has grown, in ticks. Exposed so the handler
+     * can carry it across a recycle - an icicle that goes out of range is
+     * discarded, and without this it restarted from nothing (four hundred ticks
+     * of growth replayed) every time you walked away and came back.
+     */
+    public int growthClock() {
+        return this.growthClock;
+    }
+
+    /** Continues from a clock the handler remembered, instead of from zero. */
+    public void resumeGrowthAt(final int ticks) {
+        this.growthClock = Math.max(0, ticks);
+    }
+
     /** How much of its length the melt has taken so far. It survives a melt
      *  CANCELLED by fresh snow, so regrowth starts from the size the icicle
      *  actually is instead of snapping back to full. */

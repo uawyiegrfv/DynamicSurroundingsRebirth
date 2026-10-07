@@ -93,12 +93,18 @@ public class FoliageSnowHandler extends AbstractClientHandler {
 
     // ---- the snow layer's own numbers ---------------------------------------
     /** Units per plant at a fully developed storm. Calibrated: ~59% white coverage on grass. */
-    private static final int MAX_UNITS_PER_PLANT = 16;
+    /** Round 11: was 16 - twenty steps instead of sixteen, so the coat reads as more stages. */
+    private static final int MAX_UNITS_PER_PLANT = 20;
     /**
      * The growth curve's exponent - see {@link #targetCount(float, float)}.
      * Measured in the offline twin over 9 real sprites x 14 seeds.
      */
-    private static final float GROWTH_BETA = 0.55F;
+    /**
+     * Round 11: was 0.55. With an exponent below 1 the count climbs steeply at
+     * the very start - at p=0.05 it was already at 0.19 of the cap, which is
+     * why "the snow arrived almost immediately". 0.80 flattens that opening.
+     */
+    private static final float GROWTH_BETA = 0.80F;
     /** Scatter anchors at which a plant counts as "big" - see {@link #boostOf}. */
     private static final float BOOST_FULL_ANCHORS = 24F;
     /** How much of the boost is left at this depth: all of it at 0, none past it. */
@@ -110,7 +116,12 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     private static final float EARLY_CLUMP_FADE = 0.60F;
     /** How many a plant ALREADY being watched gains per scan (the "settling" read). */
     /** Round 10: was 2 - filling a coat four units short took two or three scans, which at the old top-up rate was a minute. */
-    private static final int ACCUM_PER_SCAN = 4;
+    /**
+     * Round 11: was 4. Four units in one scan is the visible "jump" - the coat
+     * gained a fifth of itself in a single frame. Two at a time now; the faster
+     * top-up rate (TOPUP_TICKS 200) is what keeps it from feeling slow.
+     */
+    private static final int ACCUM_PER_SCAN = 2;
     /**
      * How many plants may carry snow at once. Was the rain-dew layer's 48 -
      * but a storm coats a whole meadow, and the scan finds far more candidates
@@ -428,7 +439,8 @@ public class FoliageSnowHandler extends AbstractClientHandler {
      * the base of the sprite. Seven sprites x 16 seeds say 0.375 spreads
      * the same 16 units over all three height bands instead.
      */
-    private static final float SHEET_SHARE = 0.375F;
+    /** Round 11: was 0.375 - a bigger share of the big pieces, so the coat closes into sheets sooner. */
+    private static final float SHEET_SHARE = 0.44F;
     private static final float CLUMP_SHARE = 0.125F;
 
     /**

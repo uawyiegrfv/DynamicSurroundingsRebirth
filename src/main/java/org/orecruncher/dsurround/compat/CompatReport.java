@@ -56,7 +56,7 @@ public final class CompatReport {
         sb.append(" sodium=").append(ModIds.flagAny(ModIds.SODIUM));
         sb.append(" cache-mods=").append(ModIds.flagAny(ModIds.CACHE_MODS));
         sb.append(" | owners: fog=").append(fogOwner());
-        sb.append(" cloud=").append(owner(RouteFuse.Capability.CLOUD, ModIds.SIMPLE_CLOUDS));
+        sb.append(" cloud=").append(cloudOwner());
         sb.append(" rain=").append(owner(RouteFuse.Capability.RAIN, ModIds.PARTICLE_RAIN));
         sb.append(" sky=").append(owner(RouteFuse.Capability.SKY, (String) null));
         final String notes = notes();
@@ -75,6 +75,23 @@ public final class CompatReport {
         if (DistantHorizonsCompat.ownsVanillaFog())
             return ModIds.DISTANT_HORIZONS;
         return owner(RouteFuse.Capability.FOG, (String) null);
+    }
+
+    /**
+     * The clouds' owner. Three mods can take that pass (Simple Clouds and Better Clouds by drawing
+     * their own sheet, Distant Horizons by switching vanilla clouds off), and the only reliable
+     * answer is behavioural: {@link RouteFuse#cloudRouteForeign()} says whether vanilla's cloud
+     * colour route is still being asked. Presence is used for the NAME, never for the verdict.
+     */
+    private static String cloudOwner() {
+        if (!RouteFuse.cloudRouteForeign())
+            // Vanilla's sheet is still being drawn, so our colour route is in it - whatever else
+            // is installed. The notes below name the mods that also draw clouds.
+            return owner(RouteFuse.Capability.CLOUD, null);
+        final String named = ModIds.firstPresent(ModIds.CLOUD_MODS);
+        if (named != null)
+            return named;
+        return ModIds.present(ModIds.DISTANT_HORIZONS) ? ModIds.DISTANT_HORIZONS : "another mod";
     }
 
     /**
@@ -113,6 +130,17 @@ public final class CompatReport {
                     + "ground-object layer (drips/icicles/dew/snow) does not; if this pack sways "
                     + "plants, the plant-attached three (leaf drips/dew/snow) will not follow them "
                     + "- weatherOptions.disableFoliageLayersWithShaders turns them off");
+        // Cloud mods are named because the clear-sky event has a cloud half: whichever mod draws
+        // the sheet the player sees is the one that half lands on, and ours only ever reaches the
+        // vanilla one.
+        final String cloudMod = ModIds.firstPresent(ModIds.CLOUD_MODS);
+        if (cloudMod != null)
+            sb.append(sb.length() == 0 ? "" : "; ").append("cloud mod present (").append(cloudMod)
+                    .append("): the clear-sky event's cloud fade only reaches the vanilla sheet");
+        if (ModIds.present(ModIds.DISTANT_HORIZONS))
+            sb.append(sb.length() == 0 ? "" : "; ")
+                    .append("Distant Horizons disables vanilla clouds while rendering, so the"
+                            + " clear-sky event's cloud half may be invisible under it");
         if (ModIds.isAny(ModIds.CACHE_MODS))
             sb.append(sb.length() == 0 ? "" : "; ")
                     .append("caching mod present (").append(ModIds.firstPresent(ModIds.CACHE_MODS))

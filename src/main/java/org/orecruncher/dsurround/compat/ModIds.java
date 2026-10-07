@@ -38,6 +38,15 @@ public final class ModIds {
     public static final String VOXY = "voxy";
     /** Simple Clouds: cancels {@code renderClouds} at HEAD (priority 1001), so it wins the clouds. */
     public static final String SIMPLE_CLOUDS = "simpleclouds";
+    /**
+     * Better Clouds: renders its own cloud sheet from a mixin on {@code LevelRenderer.renderClouds}
+     * (verified in its jar: a {@code renderClouds} handler in the REQUIRED client mixin set) and
+     * offsets the cloud height through {@code DimensionSpecialEffects.OverworldEffects}. Not in the
+     * original six-mod list; found in the maintainer's own pack, which is where the list came from.
+     */
+    public static final String BETTER_CLOUDS = "betterclouds";
+    /** Every mod known to draw the clouds itself - see the cloud route in RouteFuse. */
+    public static final String[] CLOUD_MODS = { SIMPLE_CLOUDS, BETTER_CLOUDS };
     /** Particle Rain: cancels {@code renderSnowAndRain} at HEAD, so it wins the rain curtain. */
     public static final String PARTICLE_RAIN = "particlerain";
 

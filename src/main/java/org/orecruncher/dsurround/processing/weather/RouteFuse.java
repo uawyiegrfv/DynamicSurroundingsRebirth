@@ -147,6 +147,21 @@ public final class RouteFuse {
      */
     private static final int RAIN_FOREIGN_TICKS = 40;
 
+    /**
+     * The same detector for the cloud route, with a longer fuse.
+     *
+     * <p>Five seconds rather than two, because "is the vanilla cloud sheet being drawn" has honest
+     * yes/no answers that depend on where the camera is, and a cloud sheet that is off screen for a
+     * moment must not be reported as somebody else's. The failure this catches is permanent (a mod
+     * that replaces the cloud pass replaces it every frame), so a slow fuse costs nothing.</p>
+     */
+    private static final int CLOUD_FOREIGN_TICKS = 100;
+
+    /** As {@link #rainSilentTicks}, for the cloud colour route. */
+    private static int cloudSilentTicks = 0;
+    private static long lastCloudHits = 0L;
+    private static volatile boolean cloudRouteForeign = false;
+
     private static volatile boolean inWorld = false;
     private static int ticksInWorld = 0;
     private static volatile boolean bootstrapped = false;
@@ -185,6 +200,14 @@ public final class RouteFuse {
      */
     public static boolean rainRouteForeign() {
         return rainRouteForeign;
+    }
+
+    /**
+     * Whether the cloud route has been proven to belong to another mod - read by the compatibility
+     * summary so that {@code cloud=} names the real owner instead of guessing from a mod list.
+     */
+    public static boolean cloudRouteForeign() {
+        return cloudRouteForeign;
     }
 
     /** Whether the route is currently believed dead. Diagnostics only. */
@@ -240,6 +263,7 @@ public final class RouteFuse {
             }
             ticksInWorld++;
             detectForeignRainRoute(level);
+            detectForeignCloudRoute(mc);
             markExpectations(mc);
             if (ticksInWorld % WINDOW_TICKS == 0)
                 checkWindow();
@@ -336,7 +360,59 @@ public final class RouteFuse {
      * named here only so the window check can tell "explained" silence from "broken" silence.
      */
     private static boolean rainDrawingModPresent() {
+        // Simple Clouds is in this list as well as the cloud one: it cancels the rain pass too.
         return ModIds.present(ModIds.PARTICLE_RAIN) || ModIds.present(ModIds.SIMPLE_CLOUDS);
+    }
+
+    /** Whether a mod known to draw the cloud sheet itself is installed. */
+    private static boolean cloudDrawingModPresent() {
+        return ModIds.isAny(ModIds.CLOUD_MODS) || ModIds.present(ModIds.DISTANT_HORIZONS);
+    }
+
+    /**
+     * Notices that the vanilla cloud sheet is not being drawn by vanilla - see
+     * {@link #detectForeignRainRoute} for the pattern. Better Clouds and Simple Clouds both draw
+     * their own sheet from a mixin on the same method, Distant Horizons disables vanilla clouds
+     * outright, and in all three cases {@code ClientLevel.getCloudColor} - the route this mod hooks
+     * for the clear-sky event's cloud fade - stops being asked.
+     */
+    private static void detectForeignCloudRoute(final Minecraft mc) {
+        if (mc.options.getCloudsType() == CloudStatus.OFF) {
+            // The player turned clouds off: silence here says nothing about ownership.
+            cloudSilentTicks = 0;
+            lastCloudHits = HITS[Route.CLOUD_COLOR.ordinal()];
+            return;
+        }
+        final long hits = HITS[Route.CLOUD_COLOR.ordinal()];
+        if (hits != lastCloudHits) {
+            lastCloudHits = hits;
+            cloudSilentTicks = 0;
+            if (cloudRouteForeign) {
+                cloudRouteForeign = false;
+                info("the cloud route is ours again (vanilla is drawing its own cloud sheet once more)");
+            }
+            return;
+        }
+        if (cloudRouteForeign)
+            return;
+        if (++cloudSilentTicks < CLOUD_FOREIGN_TICKS)
+            return;
+        cloudRouteForeign = true;
+        warn("clouds are switched on and the cloud colour route has not been consulted for "
+                + CLOUD_FOREIGN_TICKS + " ticks: another mod is drawing the cloud sheet"
+                + cloudSuspects() + ". The clear-sky event's cloud fade belongs to it, and this"
+                + " mod's cloud colour route is standing down.");
+    }
+
+    /** Names the mods known to draw their own clouds, so the WARN above is not a mystery. */
+    private static String cloudSuspects() {
+        final StringBuilder sb = new StringBuilder();
+        for (final String id : ModIds.CLOUD_MODS)
+            if (ModIds.present(id))
+                sb.append(sb.length() == 0 ? " (" : ", ").append(id);
+        if (ModIds.present(ModIds.DISTANT_HORIZONS))
+            sb.append(sb.length() == 0 ? " (" : ", ").append(ModIds.DISTANT_HORIZONS);
+        return sb.length() == 0 ? "" : sb.append(')').toString();
     }
 
     private static void checkWindow() {
@@ -359,7 +435,14 @@ public final class RouteFuse {
                 REPORTED[index] = true;
                 LOST[index] = true;
                 loseCapabilityFor(route);
-                if (route == Route.RAIN_RENDER && rainDrawingModPresent()) {
+                if (route == Route.CLOUD_COLOR && cloudDrawingModPresent()) {
+                    // Same reasoning as the rain case below: a mod that draws the cloud sheet itself
+                    // is a complete explanation for the route going quiet, and the behavioural
+                    // detector (detectForeignCloudRoute) is the line that names it.
+                    info("the cloud colour route stayed silent for a " + WINDOW_TICKS
+                            + " tick window; " + cloudSuspects().trim()
+                            + " draws the cloud sheet, so this is the hand-off working, not a missed hook.");
+                } else if (route == Route.RAIN_RENDER && rainDrawingModPresent()) {
                     // The first live session produced this case and the message was wrong: a dry
                     // window in which Particle Rain had cancelled the pass was reported as "this
                     // version's code path does not carry our hook", i.e. as a broken injection. A
@@ -422,6 +505,9 @@ public final class RouteFuse {
         rainSilentTicks = 0;
         lastRainHits = 0L;
         rainRouteForeign = false;
+        cloudSilentTicks = 0;
+        lastCloudHits = 0L;
+        cloudRouteForeign = false;
         resetCounters();
     }
 

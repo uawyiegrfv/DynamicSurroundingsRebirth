@@ -125,6 +125,28 @@ public final class RouteFuse {
     /** Capability loss, set either by a route failure or by the effects re-check. */
     private static final boolean[] CAPABILITY_LOST = new boolean[CAPABILITIES.length];
 
+    /**
+     * Ticks of visible rain during which the rain route was consulted zero times.
+     *
+     * <p>This is the behavioural detector for "another mod cancelled
+     * {@code LevelRenderer.renderSnowAndRain} before vanilla could ask us" - which is exactly what
+     * Particle Rain and Simple Clouds do at HEAD of that method. It needs no knowledge of either
+     * mod: if it is raining and vanilla never asks who should draw the rain, someone above us owns
+     * it, whoever that is. Presence is then only used to NAME the suspect in the log.</p>
+     */
+    private static int rainSilentTicks = 0;
+    /** Rain route hits as of the previous tick, for the comparison above. */
+    private static long lastRainHits = 0L;
+    /** True once the rain route has been proven to belong to someone else. */
+    private static volatile boolean rainRouteForeign = false;
+
+    /**
+     * How long the rain route may stay silent, in ticks of visible rain, before the hand-off.
+     * Two seconds: long enough that a single stalled frame cannot trigger it, short enough that
+     * the player does not spend a storm watching two rains on top of each other.
+     */
+    private static final int RAIN_FOREIGN_TICKS = 40;
+
     private static volatile boolean inWorld = false;
     private static int ticksInWorld = 0;
     private static volatile boolean bootstrapped = false;
@@ -155,6 +177,14 @@ public final class RouteFuse {
     /** Total consultations of a route in this world. Diagnostics only. */
     public static long hits(Route route) {
         return HITS[route.ordinal()];
+    }
+
+    /**
+     * Whether the rain render route has been proven to belong to another mod. Read by
+     * {@code PrecipitationRenderer.active()} to stand down before drawing a second rain.
+     */
+    public static boolean rainRouteForeign() {
+        return rainRouteForeign;
     }
 
     /** Whether the route is currently believed dead. Diagnostics only. */
@@ -209,6 +239,7 @@ public final class RouteFuse {
                 resetCounters();
             }
             ticksInWorld++;
+            detectForeignRainRoute(level);
             markExpectations(mc);
             if (ticksInWorld % WINDOW_TICKS == 0)
                 checkWindow();
@@ -232,7 +263,10 @@ public final class RouteFuse {
     private static void markExpectations(Minecraft mc) {
         for (Route route : ROUTES) {
             final boolean expected = switch (route.expect) {
-                case ALWAYS -> true;
+                // A rain route proven to belong to another mod is not a failure when it stays
+                // silent - it is the hand-off working. The detectForeignRainRoute() report is the
+                // one that matters; this only stops the window check from repeating it.
+                case ALWAYS -> route != Route.RAIN_RENDER || !rainRouteForeign;
                 case WHEN_CLOUDS -> mc.options.getCloudsType() != CloudStatus.OFF;
                 case SELF_CALIBRATED -> false;
             };
@@ -242,6 +276,59 @@ public final class RouteFuse {
         // SELF_CALIBRATED routes are deliberately not marked here. They are judged against their
         // own history in checkWindow instead, so that a route which is legitimately idle on a
         // clear day is not reported as broken.
+    }
+
+    /**
+     * Notices that the rain route is not ours, from behaviour rather than from a mod list.
+     *
+     * <p>The rain pass is asked for once per frame through the dimension effects object, so the
+     * hit count moves every tick there is a level to draw - unless something cancelled the call
+     * before it reached us. Vanilla's own rain level is the witness: while rain is visibly falling
+     * and our counter has not moved, the pass is being drawn by somebody else (or, in the worst
+     * case, not at all). Two seconds of that and the hand-off is made.</p>
+     */
+    private static void detectForeignRainRoute(final ClientLevel level) {
+        if (level.getRainLevel(1F) <= 0.05F) {
+            // Nothing is falling: silence here says nothing at all.
+            rainSilentTicks = 0;
+            lastRainHits = HITS[Route.RAIN_RENDER.ordinal()];
+            return;
+        }
+        final long hits = HITS[Route.RAIN_RENDER.ordinal()];
+        if (hits != lastRainHits) {
+            lastRainHits = hits;
+            rainSilentTicks = 0;
+            if (rainRouteForeign) {
+                rainRouteForeign = false;
+                info("the rain render route is ours again (vanilla is asking us once more)");
+            }
+            return;
+        }
+        if (rainRouteForeign)
+            return;
+        if (++rainSilentTicks < RAIN_FOREIGN_TICKS)
+            return;
+        rainRouteForeign = true;
+        warn("it is raining and the rain render route has not been consulted for "
+                + RAIN_FOREIGN_TICKS + " ticks: another mod cancels LevelRenderer.renderSnowAndRain"
+                + " before vanilla can ask us" + rainSuspects()
+                + ". Our graded rain curtain is standing down so that only one rain is drawn -"
+                + " set 'gradedRainOverParticleRain' to force ours back on.");
+    }
+
+    /**
+     * Names the mods known to cancel that call, so the WARN above does not read as a mystery.
+     * Only a hint: the detection itself never used this list.
+     */
+    private static String rainSuspects() {
+        final StringBuilder sb = new StringBuilder();
+        if (ModIds.present(ModIds.PARTICLE_RAIN))
+            sb.append(sb.length() == 0 ? " (" : ", ").append(ModIds.PARTICLE_RAIN);
+        if (ModIds.present(ModIds.SIMPLE_CLOUDS))
+            sb.append(sb.length() == 0 ? " (" : ", ").append(ModIds.SIMPLE_CLOUDS);
+        if (sb.length() == 0)
+            return "";
+        return sb.append(')').toString();
     }
 
     private static void checkWindow() {
@@ -310,6 +397,9 @@ public final class RouteFuse {
     private static void reset() {
         inWorld = false;
         ticksInWorld = 0;
+        rainSilentTicks = 0;
+        lastRainHits = 0L;
+        rainRouteForeign = false;
         resetCounters();
     }
 

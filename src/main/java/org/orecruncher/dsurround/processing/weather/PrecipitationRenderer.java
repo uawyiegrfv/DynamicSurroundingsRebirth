@@ -26,6 +26,7 @@ import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.common.MinecraftForge;
 import org.joml.Matrix4f;
 import org.orecruncher.dsurround.Client;
+import org.orecruncher.dsurround.compat.ModIds;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
 
 import java.util.Random;
@@ -545,15 +546,32 @@ public final class PrecipitationRenderer {
             final boolean locked = PrecipitationIntensity.forced() >= 0F;
             final boolean enabled = locked
                     || (config != null && config.weatherOptions.enableGradedPrecipitation);
+            // ---- hand-off: Particle Rain owns the rain curtain ----
+            //
+            // PR cancels vanilla's rain pass at HEAD, which means our suppression hook is never
+            // consulted and our own curtain (drawn from AFTER_WEATHER) would land on top of PR's
+            // rain: two rains, one of them blind to the other's settings. Standing down leaves
+            // one rain, drawn by the mod that was installed for it.
+            //
+            // Two exceptions, both deliberate: a diagnostics lock (/dsprecip lock) always draws,
+            // because the lock exists to show OUR layer whatever else is installed; and the
+            // config option lets a pack compare the two on purpose.
+            // Detection is behavioural, not a mod list: RouteFuse watches whether vanilla has asked
+            // us at all while rain is falling, which catches Particle Rain and Simple Clouds (both
+            // cancel LevelRenderer.renderSnowAndRain at HEAD) and anything else that ever does the
+            // same. Presence is only used for the message.
+            final boolean someoneElseOwnsRain = !locked
+                    && RouteFuse.rainRouteForeign()
+                    && !(config != null && config.weatherOptions.gradedRainOverParticleRain);
             // Suppression is owned for the whole event, not only while the intensity
             // is above zero - gating it on intensity is what let vanilla draw the
             // opening seconds of every storm before we took over. See
             // PrecipitationIntensity.takeoverReady().
-            now = enabled && PrecipitationIntensity.takeoverReady();
+            now = enabled && !someoneElseOwnsRain && PrecipitationIntensity.takeoverReady();
         }
         if (now != lastActive) {
             lastActive = now;
-            note("takeover=%s intensity=%.3f peak=%.3f hookCalls=%d tickHooks=%d renderCalls=%d config=%s locked=%s broken=%s",
+            note("takeover=%s intensity=%.3f peak=%.3f hookCalls=%d tickHooks=%d renderCalls=%d config=%s locked=%s rain-owner=%s broken=%s",
                     now,
                     PrecipitationIntensity.intensity(),
                     PrecipitationIntensity.peak(),
@@ -562,6 +580,7 @@ public final class PrecipitationRenderer {
                     renderCalls,
                     Client.Config == null ? "null" : String.valueOf(Client.Config.weatherOptions.enableGradedPrecipitation),
                     PrecipitationIntensity.forced() >= 0F,
+                    RouteFuse.rainRouteForeign() ? "another mod" : "dsr",
                     broken);
         }
         return now;
@@ -678,6 +697,14 @@ public final class PrecipitationRenderer {
             // invisible. Deliberately NOT routed through active() - that gate is
             // the precipitation takeover, and the sky events must work on a
             // cloudless dry day, which active() would answer false for.
+            // Simple Clouds owns the cloud pass when it is installed: its mixin cancels
+            // LevelRenderer.renderClouds at HEAD, so this override is not reached at all - but if
+            // it ever were (another SC version, or SC's own cancel failing), answering true here
+            // would take the pass from a mod that is drawing it. Stand down explicitly rather
+            // than relying on the other mod's injection to protect us from our own.
+            if (ModIds.present(ModIds.SIMPLE_CLOUDS))
+                return super.renderClouds(level, ticks, partialTick, poseStack,
+                        camX, camY, camZ, projectionMatrix);
             if (SkyEventScheduler.suppressCloudRendering())
                 return true;
             return super.renderClouds(level, ticks, partialTick, poseStack,

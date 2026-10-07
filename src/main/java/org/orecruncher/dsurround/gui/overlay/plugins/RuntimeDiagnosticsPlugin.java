@@ -50,6 +50,14 @@ public class RuntimeDiagnosticsPlugin implements IDiagnosticPlugin {
             var particleLoad = "Particle Manager: %s".formatted(GameUtils.getParticleManager().countParticles());
             event.add(CollectDiagnosticsEvent.Section.Systems, particleLoad);
 
+            // Who owns the fog, the clouds, the rain and the sky right now, and which of our
+            // routes are still being consulted. Both lines are the same text the startup summary
+            // logs, so the panel and the log cannot disagree about it.
+            event.add(CollectDiagnosticsEvent.Section.Systems,
+                    org.orecruncher.dsurround.compat.CompatReport.summary());
+            event.add(CollectDiagnosticsEvent.Section.Systems,
+                    org.orecruncher.dsurround.processing.weather.RouteFuse.summary());
+
             var musicManager = ((IMusicManager)(GameUtils.getMC().getMusicManager())).dsurround_getDiagnosticText();
             event.add(CollectDiagnosticsEvent.Section.Systems, musicManager);
 

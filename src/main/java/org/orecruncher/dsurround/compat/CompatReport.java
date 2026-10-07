@@ -33,6 +33,12 @@ public final class CompatReport {
      */
     public static void logStartupSummary() {
         log("[COMPAT] " + summary());
+        if (ModIds.isAny(ModIds.CACHE_MODS))
+            warn("[COMPAT] " + ModIds.firstPresent(ModIds.CACHE_MODS)
+                    + " is installed: it caches resources, so DSR's data files (biome config, sound"
+                    + " factories, tags) can be served from a stale copy after a resource-pack or"
+                    + " data change. Not fought - if the sounds or the biome fog look wrong after an"
+                    + " update, clear its cache first. See the DSR docs, 现状/THIRD-PARTY-CONFLICTS.md.");
     }
 
     /**
@@ -49,7 +55,7 @@ public final class CompatReport {
         sb.append(" iris=").append(ModIds.irisFlag());
         sb.append(" sodium=").append(ModIds.flagAny(ModIds.SODIUM));
         sb.append(" cache-mods=").append(ModIds.flagAny(ModIds.CACHE_MODS));
-        sb.append(" | owners: fog=").append(owner(RouteFuse.Capability.FOG, ModIds.DISTANT_HORIZONS));
+        sb.append(" | owners: fog=").append(fogOwner());
         sb.append(" cloud=").append(owner(RouteFuse.Capability.CLOUD, ModIds.SIMPLE_CLOUDS));
         sb.append(" rain=").append(owner(RouteFuse.Capability.RAIN, ModIds.PARTICLE_RAIN));
         sb.append(" sky=").append(owner(RouteFuse.Capability.SKY, (String) null));
@@ -57,6 +63,18 @@ public final class CompatReport {
         if (!notes.isEmpty())
             sb.append(" | ").append(notes);
         return sb.toString();
+    }
+
+    /**
+     * The fog's owner, which is the one capability whose answer depends on a setting rather than
+     * on presence: Distant Horizons only takes the terrain fog while its own vanilla-fog option is
+     * off. See {@link DistantHorizonsCompat} - and note that this reports what DH is doing, not
+     * what it could do.
+     */
+    private static String fogOwner() {
+        if (DistantHorizonsCompat.ownsVanillaFog())
+            return ModIds.DISTANT_HORIZONS;
+        return owner(RouteFuse.Capability.FOG, (String) null);
     }
 
     /**
@@ -93,6 +111,15 @@ public final class CompatReport {
                     .append("caching mod present (").append(ModIds.firstPresent(ModIds.CACHE_MODS))
                     .append("): if textures or sounds look stale after a resource pack change, it is that");
         return sb.toString();
+    }
+
+    /** Warn-level sibling of {@link #log}. Same guard: reporting must never be what fails. */
+    private static void warn(String message) {
+        try {
+            ContainerManager.resolve(IModLog.class).warn(message);
+        } catch (Throwable t) {
+            // Nothing to do - see log().
+        }
     }
 
     private static void log(String message) {

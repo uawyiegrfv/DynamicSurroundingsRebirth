@@ -579,6 +579,10 @@ public class Configuration extends ConfigurationData {
         public boolean enableGradedPrecipitation = true;
 
         @Property
+        @Comment("With Particle Rain installed, draw our graded rain curtain anyway. Off by default: Particle Rain cancels vanilla's rain pass at HEAD, so both mods would draw rain at once. Turn on only to compare the two")
+        public boolean gradedRainOverParticleRain = false;
+
+        @Property
         @Comment("Enable/disable water dripping off eaves and leaves while it rains, and the after-rain tail")
         public boolean enableWaterDrips = true;
 

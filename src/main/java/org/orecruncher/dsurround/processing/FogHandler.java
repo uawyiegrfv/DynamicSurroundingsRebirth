@@ -11,6 +11,7 @@ import org.orecruncher.dsurround.eventing.CollectDiagnosticsEvent;
 import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.processing.fog.FogData;
+import org.orecruncher.dsurround.compat.DistantHorizonsCompat;
 import org.orecruncher.dsurround.processing.fog.HolisticFogRangeCalculator;
 import org.orecruncher.dsurround.processing.weather.RouteFuse;
 
@@ -25,6 +26,8 @@ public class FogHandler extends AbstractClientHandler {
 
     private final HolisticFogRangeCalculator fogCalculator;
     private FogData lastData;
+    /** Whether the range is currently Distant Horizons' business - also gates the one-off logs. */
+    private boolean handedOffToDh = false;
 
     public FogHandler(Configuration config, IModLog logger) {
         super("Fog Handler", config, logger);
@@ -66,6 +69,29 @@ public class FogHandler extends AbstractClientHandler {
         // a port divergence rather than a deliberate difference.
         if (event.getMode() != FogRenderer.FogMode.FOG_TERRAIN)
             return;
+
+        // ---- hand-off: Distant Horizons owns the terrain fog when it wants it ----
+        //
+        // Its mixin runs at the RETURN of this very method, i.e. after the Forge event we are
+        // inside, and when it cancels vanilla fog it pushes the fog planes out to 4.2e14 - our
+        // values, written a moment earlier, are simply gone. Writing them anyway would be a
+        // frame-by-frame fight we always lose, with no way for the player to tell why their fog
+        // settings do nothing. So we stand down and say so, once.
+        //
+        // Note the condition is DH's OWN option, not its presence: with "vanilla fog" left on
+        // (its default) DH does not touch the fog and ours applies as usual.
+        if (DistantHorizonsCompat.ownsVanillaFog()) {
+            if (!this.handedOffToDh) {
+                this.handedOffToDh = true;
+                this.logger.info("Fog range handed to Distant Horizons: its vanilla-fog option is off, so it overwrites the terrain fog after this hook. Set DH's fog/vanilla-fog option on to get DSR's fog back.");
+            }
+            return;
+        }
+        if (this.handedOffToDh) {
+            // DH's option went back on mid-session (its config screen applies live).
+            this.handedOffToDh = false;
+            this.logger.info("Fog range back with DSR: Distant Horizons is no longer overriding the terrain fog.");
+        }
 
         // 1.20.1: near plane == FogData.start (renderDistanceStart), far plane == FogData.end.
         final float start = event.getNearPlaneDistance();

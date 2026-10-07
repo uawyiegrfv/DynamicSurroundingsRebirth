@@ -368,6 +368,13 @@ public class IcicleHandler extends AbstractClientHandler {
                     continue;
                 }
                 if (a.point.point().distSqr(pos) > KEEP_DIST_SQ) {
+                    // Round 11: remember how far along it was. Walking out of
+                    // range discards the particle, and with it the growth clock,
+                    // so coming back used to replay all twenty seconds of growth
+                    // from zero - "it started over" was exactly that. The tier is
+                    // not what was lost (that comes off the event clock and is
+                    // the same on return); the elapsed growth was.
+                    this.rememberGrowth(a);
                     a.particle.discard();
                     it.remove();
                     continue;
@@ -398,6 +405,8 @@ public class IcicleHandler extends AbstractClientHandler {
         for (final Attached a : this.attached.values())
             a.particle.discard();
         this.attached.clear();
+        // A fresh world (or the snow being over) is a fresh start for growth too.
+        this.grown.clear();
         this.melts.clear();
         this.lastPool.clear();
         this.wasSnowing = false;
@@ -607,8 +616,29 @@ public class IcicleHandler extends AbstractClientHandler {
         if (particle == null)
             return -1;
         pm.add(particle);
+        // Round 11: pick the growth back up where this eave left it. The key is
+        // the same position, so the hash-spread delay is the same too, and the
+        // clock we stored is directly comparable - no replay, no double delay.
+        final Integer prior = this.grown.remove(point.point().asLong());
+        if (prior != null)
+            ((IcicleParticle) particle).resumeGrowthAt(prior);
         this.attached.put(point.point().asLong(), new Attached(point, (IcicleParticle) particle, hangX, hangZ, tier));
         return shape;
+    }
+
+    /**
+     * Round 11: growth elapsed per eave, kept while the icicle is out of range.
+     * Keyed by the drip point's position; bounded, because it only ever needs to
+     * hold the eaves just walked away from, and cleared whenever the layer is
+     * emptied (a new world or the snow being over is a fresh start anyway).
+     */
+    private final java.util.Map<Long, Integer> grown = new java.util.HashMap<>();
+    private static final int GROWN_CAP = 512;
+
+    private void rememberGrowth(final Attached a) {
+        if (this.grown.size() >= GROWN_CAP)
+            this.grown.clear();
+        this.grown.put(a.point.point().asLong(), a.particle.growthClock());
     }
 
     /** Shape to particle type - a rim keeps its character across regrowths. */

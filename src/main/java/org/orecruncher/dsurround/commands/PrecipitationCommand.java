@@ -92,7 +92,7 @@ class PrecipitationCommand extends AbstractClientCommand {
                         .formatted(name, value));
             return Component.literal("No channel named '%s'. Try: sky, cloud, fog, fogColor, "
                     .formatted(name)
-                    + "skyLight, sun, storm, geometry, audio, splash, wet, drip, overcast, clear");
+                    + "skyLight, sun, storm, geometry, audio, splash, wet, drip, foliageDrip, foliageSnow, afterFog, overcast, clear");
         });
     }
 

@@ -39,16 +39,30 @@ public final class FoliageProfile {
     public static final FoliageProfile EMPTY = new FoliageProfile(List.of());
 
     /** One attachment point, in MODEL space (0..1 within the block). */
-    public record Anchor(int plane, float x, float y, float z, float weight) {
+    /**
+     * One landing spot. {@code room} is how wide a unit this spot can carry:
+     * the largest {@code r <= 3} whose {@code (2r+1)^2} window is mostly leaf
+     * (0 = the spot sits on an edge or a leaf tip, 2 = a 5x5 window is solid).
+     *
+     * <p>The snow layer reads it to keep a wide unit off a narrow blade - a
+     * sheet dropped on a leaf tip hangs half of itself in the air. Measured on
+     * a real grass sprite: without this, 25% of the snow pixels were overhang;
+     * with it, back under 10%. The bead layer ignores it (a bead is 0.2 of a
+     * block and only ever rides a column top, which is solid by definition).</p>
+     */
+    public record Anchor(int plane, float x, float y, float z, float weight, int room) {
     }
 
     /** One pre-baked descent, waypoints in MODEL space, {@code length} in blocks. */
     public record SlidePath(int plane, float[] pts, float length) {
     }
 
-    /** One deduped unculled quad plane: corners, unit normal, anchors, paths. */
+    /**
+     * One deduped unculled quad plane: corners, unit normal, anchors, paths,
+     * and {@code scatter} - the whole-plant landing spots for snow units.
+     */
     public record Plane(float[] corners, float nx, float ny, float nz,
-                        Anchor[] anchors, SlidePath[] paths) {
+                        Anchor[] anchors, SlidePath[] paths, Anchor[] scatter) {
     }
 
     // Trace counters - read by the handlers' diagnostics, reset per build.
@@ -57,6 +71,18 @@ public final class FoliageProfile {
     public static int statDegenerate = 0;
     public static int statNonParallelogram = 0;
     public static int statNoMask = 0;
+    /** 散布锚点计数（诊断用，构建期累加）。 */
+    public static int statScatter = 0;
+
+    /**
+     * 散布锚点数（每平面）。雪不像水珠那样只挂列顶 —— 整株上中下都要有落点
+     * （维护者：只贴列顶太单调）。24 x 2 平面 = 48 个落点；定标页实测每株
+     * 16 个单元时白覆盖率 ~33%，落点必须比它多才够挑。
+     */
+    private static final int MAX_SCATTER_PER_PLANE = 24;
+
+    /** 散布点的最小间距（贴图像素），防两个雪单元叠在一起（重叠是纯浪费）。 */
+    private static final int SCATTER_MIN_DIST_PX = 2;
 
     private static final int MAX_ANCHORS_PER_PLANE = 128;
     private static final int MAX_PATH_POINTS = 48;
@@ -334,7 +360,10 @@ public final class FoliageProfile {
             // soil - see GROUND_CLEARANCE. It is not an attachment point.
             if (mapped[1] < GROUND_CLEARANCE)
                 continue;
-            anchors.add(new Anchor(planeIndex, mapped[0], mapped[1], mapped[2], topWeights.get(i)[0]));
+            // room 0: a bead rides a column top, which is solid by definition,
+            // and it is far too small to overhang anything.
+            anchors.add(new Anchor(planeIndex, mapped[0], mapped[1], mapped[2],
+                    topWeights.get(i)[0], 0));
         }
         anchors.sort((x, y) -> Float.compare(y.weight(), x.weight()));
         final List<Anchor> capped = anchors.size() > MAX_ANCHORS_PER_PLANE
@@ -394,7 +423,133 @@ public final class FoliageProfile {
         ny /= nl;
         nz /= nl;
 
-        return new Plane(c, nx, ny, nz, capped.toArray(new Anchor[0]), paths.toArray(new SlidePath[0]));
+        // ---- 散布锚点：整株零散雪单元的落点 ----
+        // 与列顶锚点的差别在"依托规则"：列顶要求下方有不透明像素（水珠挂叶尖
+        // 的规则），雪还可以落在叶面内部 —— 8 邻域 >= 3 说明周围有纹理，不是
+        // 贴图角上的"须须"（悬空就出自那里）。两者都要过 GROUND_CLEARANCE：
+        // 茎基部其实在下面那个方块里，挂上去会读到泥土的光（入地变黑那个坑）。
+        final List<int[]> scatterPix = new ArrayList<>(Math.min(128, opaqueCount));
+        final List<Float> scatterWt = new ArrayList<>(Math.min(128, opaqueCount));
+        for (int spy = 0; spy < mh; spy++) {
+            for (int spx = 0; spx < mw; spx++) {
+                if (!opaque[spy * mw + spx])
+                    continue;
+                mapper.map(spx, spy, mapped);
+                if (mapped[1] < GROUND_CLEARANCE)
+                    continue;
+                final boolean below = spy + 1 < mh && opaque[(spy + 1) * mw + spx];
+                if (!below && neighbours8(opaque, mw, mh, spx, spy) < 3)
+                    continue;
+                final boolean edge = !(spx > 0 && opaque[spy * mw + spx - 1])
+                        || !(spx + 1 < mw && opaque[spy * mw + spx + 1])
+                        || !(spy > 0 && opaque[(spy - 1) * mw + spx])
+                        || !(spy + 1 < mh && opaque[(spy + 1) * mw + spx]);
+                scatterPix.add(new int[] { spx, spy });
+                // 上重下轻（雪积在朝上的面）+ 边缘加成（轮廓像素更容易挂雪）。
+                // 权重与定标页的 Python 实现一致，改这里要同步改那边。
+                scatterWt.add(0.7F * (1.0F - spy / (float) Math.max(1, mh - 1))
+                        + 0.3F * (edge ? 1.0F : 0.0F));
+            }
+        }
+        final List<Anchor> scatter = new ArrayList<>(MAX_SCATTER_PER_PLANE);
+        final int nCand = scatterPix.size();
+        final boolean[] sUsed = new boolean[nCand];
+        final List<Integer> sChosen = new ArrayList<>(MAX_SCATTER_PER_PLANE);
+        // 确定性 LCG（不用 Random）：构建期一次性、每个模型可复现。
+        // 逐帧随机会让单元在玩家走动时 shimmer —— 这是踩过的坑。
+        long sSeed = 0x5BF03635L ^ (long) planeIndex * 0x9E3779B9L ^ (long) opaqueCount * 0x85EBCA6BL;
+        for (int attempt = 0; attempt < 500 && scatter.size() < MAX_SCATTER_PER_PLANE; attempt++) {
+            float sTotal = 0F;
+            for (int i = 0; i < nCand; i++)
+                if (!sUsed[i])
+                    sTotal += scatterWt.get(i);
+            if (sTotal <= 0F)
+                break;
+            sSeed = sSeed * 6364136223846793005L + 1442695040888963407L;
+            float roll = ((sSeed >>> 33) / (float) (1L << 31)) * sTotal;
+            int pick = -1;
+            for (int i = 0; i < nCand; i++) {
+                if (sUsed[i])
+                    continue;
+                roll -= scatterWt.get(i);
+                if (roll <= 0F) {
+                    pick = i;
+                    break;
+                }
+            }
+            if (pick < 0)
+                continue;
+            final int[] q = scatterPix.get(pick);
+            boolean far = true;
+            for (final Integer ci : sChosen) {
+                final int[] prev = scatterPix.get(ci);
+                if (Math.max(Math.abs(prev[0] - q[0]), Math.abs(prev[1] - q[1])) < SCATTER_MIN_DIST_PX) {
+                    far = false;
+                    break;
+                }
+            }
+            if (!far)
+                continue;
+            sUsed[pick] = true;
+            sChosen.add(pick);
+            mapper.map(q[0], q[1], mapped);
+            scatter.add(new Anchor(planeIndex, mapped[0], mapped[1], mapped[2],
+                    scatterWt.get(pick), roomAt(opaque, mw, mh, q[0], q[1])));
+        }
+        statScatter += scatter.size();
+
+        return new Plane(c, nx, ny, nz, capped.toArray(new Anchor[0]), paths.toArray(new SlidePath[0]), scatter.toArray(new Anchor[0]));
+    }
+
+    /** How much solid leaf surrounds a mask pixel - see {@link Anchor#room()}. */
+    private static final float ROOM_SOLIDITY = 0.6F;
+    private static final int ROOM_MAX = 3;
+
+    /**
+     * The largest {@code r} (capped at {@link #ROOM_MAX}) whose square window
+     * around this pixel is at least {@link #ROOM_SOLIDITY} leaf. Out-of-bounds
+     * cells count as empty - a window hanging off the sprite's edge is exactly
+     * the overhang the snow layer is trying to avoid.
+     */
+    private static int roomAt(final boolean[] opaque, final int mw, final int mh,
+                              final int px, final int py) {
+        int room = 0;
+        for (int r = 1; r <= ROOM_MAX; r++) {
+            int total = 0;
+            int hit = 0;
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dx = -r; dx <= r; dx++) {
+                    total++;
+                    final int nx = px + dx;
+                    final int ny = py + dy;
+                    if (nx >= 0 && nx < mw && ny >= 0 && ny < mh && opaque[ny * mw + nx])
+                        hit++;
+                }
+            }
+            if ((float) hit / (float) total < ROOM_SOLIDITY)
+                break;
+            room = r;
+        }
+        return room;
+    }
+
+    /** Opaque pixels in the 8-neighbourhood of a mask pixel (bounds-safe). */
+    private static int neighbours8(final boolean[] opaque, final int mw, final int mh,
+                                   final int px, final int py) {
+        int n = 0;
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                if (dx == 0 && dy == 0)
+                    continue;
+                final int nx = px + dx;
+                final int ny = py + dy;
+                if (nx < 0 || nx >= mw || ny < 0 || ny >= mh)
+                    continue;
+                if (opaque[ny * mw + nx])
+                    n++;
+            }
+        }
+        return n;
     }
 
     /** The pixel-center affine: mask pixel -> model space. */

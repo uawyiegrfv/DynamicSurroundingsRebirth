@@ -1382,7 +1382,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * tick and the answer is a biome lookup plus a temperature read.</p>
      */
     private boolean rainMaterialAllowedHere(final Player player) {
-        if (!this.config.soundOptions.enableMaterialRainSounds)
+        if (!this.config.weatherOptions.enableMaterialRainSounds)
             return false;
         final long now = this.tickCount.getTickCount();
         if (now - this.rainMatBiomeCheckTick >= RAIN_MATERIAL_BIOME_CHECK_TICKS) {
@@ -1507,7 +1507,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      */
     private void handleRainWindBed(final Player player) {
         if (!PrecipitationIntensity.grading() || !doBiomeSounds()
-                || !this.config.soundOptions.enableWindSounds) {
+                || !this.config.weatherOptions.enableWindSounds) {
             fadeRainWind();
             return;
         }

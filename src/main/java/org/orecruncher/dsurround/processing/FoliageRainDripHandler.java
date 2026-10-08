@@ -87,7 +87,11 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
      * "飞速" half of the complaint. At 0.25 a typical ~0.5 block blade path
      * takes ~40 ticks, the same two seconds the eave drop hangs.
      */
-    private static final float SLIDE_SPEED = 0.0125F;
+    // Round 12: 0.0125 -> 0.0075. The slide was over in about two seconds, which is too
+    // fast for any difference in pace to be visible - offline, six beads sent down the
+    // same blade finished within 0.8s of each other and nobody could tell which was
+    // quicker. Slower gives the eye time to see one overtake another.
+    private static final float SLIDE_SPEED = 0.0075F;
     /** A dropper's rest on the blade before letting go, in ticks. */
     private static final int REST_MIN_TICKS = 10;
     private static final int REST_MAX_TICKS = 20;

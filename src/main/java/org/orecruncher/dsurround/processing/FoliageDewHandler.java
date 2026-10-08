@@ -104,7 +104,9 @@ public class FoliageDewHandler extends AbstractClientHandler {
      * uses: see FoliageRainDripHandler.SLIDE_SPEED. Slower still than rain,
      * because dew has no weight behind it.
      */
-    private static final float SLIDE_SPEED = 0.010F;
+    // Round 12: 0.010 -> 0.006. Same reasoning as the rain layer's slide speed - see
+    // the note there. Dew is the slower of the two on purpose: it beads and creeps.
+    private static final float SLIDE_SPEED = 0.006F;
     /** The window's tail: beads shrink out over this. */
     private static final int EVAPORATE_TICKS = 600;
     /** Rain kills dew faster. */

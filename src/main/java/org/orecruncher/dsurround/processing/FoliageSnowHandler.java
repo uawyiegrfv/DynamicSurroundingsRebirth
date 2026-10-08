@@ -241,6 +241,25 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     private long lastStaleCheck = -1000L;
     private int lastChunkX = Integer.MIN_VALUE;
     private int lastChunkZ = Integer.MIN_VALUE;
+    /**
+     * Round 12: telling a plant the snow fell on from one the player just put there.
+     *
+     * <p>While it is melting the layer still looks around, so a plant can be new to us for two
+     * quite different reasons: we walked into ground we had never swept (it snowed there too, so
+     * it should be dressed), or the player placed it after the snow stopped (the snow never fell
+     * on it). Both read as "never seen before". Hence two records - chunks this snowfall has
+     * swept, and plants this snowfall has actually seen snow on. A plant sitting in a swept chunk
+     * that is missing from the second set arrived after the snow did.</p>
+     */
+    private final java.util.Set<Long> scannedChunks = new java.util.HashSet<>();
+    private final java.util.Set<Long> seenPlants = new java.util.HashSet<>();
+    /** Bounded: a long walk in heavy snow could otherwise sit on thousands of entries. */
+    private static final int SEEN_CAP = 8192;
+
+    private static long chunkKey(final BlockPos pos) {
+        return (((long) (pos.getX() >> 4)) << 32) | ((pos.getZ() >> 4) & 0xFFFFFFFFL);
+    }
+
     private BlockPos lastScanPos = null;
     private int failures = 0;
     private long lastDiagTick = -1000L;
@@ -332,6 +351,9 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                 && (DEBUG_FORCE
                     || (world.isRaining() && PrecipitationIntensity.potentialPhase(pos) == Biome.Precipitation.SNOW));
         if (snowingHere && !this.wasSnowing) {
+            // A new snowfall: what the last one saw is no longer evidence.
+            this.scannedChunks.clear();
+            this.seenPlants.clear();
             this.precipStartTick = tick;
             this.meltScheduled = false;
             this.base = Math.max(0.05F, PrecipitationIntensity.peak());
@@ -410,9 +432,12 @@ public class FoliageSnowHandler extends AbstractClientHandler {
             this.lastChunkZ = chunkZ;
             this.lastScanTick = tick;
             this.lastScanPos = pos.immutable();
+            if (this.scannedChunks.size() < SEEN_CAP)
+                this.scannedChunks.add(chunkKey(pos));
             // Melting: hand the scan the real depth, so a plant found now wears what its
             // neighbours wear instead of a fresh full coat.
-            this.scanAndAttach(world, pos, tick, snowingHere ? progress : depthChannel.value(), player);
+            this.scanAndAttach(world, pos, tick, snowingHere ? progress : depthChannel.value(), player,
+                    !snowingHere);
         }
 
         if (tick - this.lastStaleCheck >= STALE_CHECK_TICKS) {
@@ -555,7 +580,7 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     // ---- scanning and attaching --------------------------------------------
 
     private void scanAndAttach(final Level world, final BlockPos center, final long tick,
-                               final float progress, final Player player) {
+                               final float progress, final Player player, final boolean melting) {
         rejWarm = 0;
         rejPhase = 0;
         rejNoAttach = 0;
@@ -588,6 +613,14 @@ public class FoliageSnowHandler extends AbstractClientHandler {
             final float boost = boostOf(spot.profile());
             final double dist = spot.pos().distSqr(center);
             final Long key = spot.pos().asLong();
+            // Round 12: melting, in a chunk we have already swept, and this snowfall
+            // never saw it - it was placed after the snow stopped. A plant in a chunk we
+            // have never swept is just new ground and is dressed like its neighbours.
+            if (melting && this.scannedChunks.contains(chunkKey(spot.pos()))
+                    && !this.seenPlants.contains(key))
+                continue;
+            if (this.seenPlants.size() < SEEN_CAP)
+                this.seenPlants.add(key);
             final PlantSnow existing = this.plants.get(key);
             // A plant at the far edge wears a thinner coat, so the budget reaches further out
             // than it could otherwise. The tier is remembered per plant and only moves when the

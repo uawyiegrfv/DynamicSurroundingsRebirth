@@ -227,6 +227,83 @@ public final class DripScanner {
         return result;
     }
 
+    // ---- one traversal, two callers ----------------------------------------
+    //
+    // The eave layer and the icicle layer ask this scanner for the same
+    // geometry over the same box: the player's position plus HORIZONTAL_RANGE,
+    // 33x33x27, 29403 block reads. Before this, each ran its own traversal - 20
+    // ticks apart for the drips and 60 for the icicles, and 60 is a multiple of
+    // 20, so the icicle's traversal always landed on a tick the drip layer had
+    // already walked. One box, walked twice, for one answer.
+    //
+    // The merge is not a plain "scan once and share": the two layers do not ask
+    // the same question. snowAllowed widens rainReachesTop in exactly two places
+    // (the heightmap gets one extra block of tolerance for the snow layer itself,
+    // and the biome gate also accepts SNOW), and both widenings only ever ACCEPT
+    // more - so the snow reading is a strict superset of the rain reading, and the
+    // rain points can be recovered from it by asking the narrow question again,
+    // per point. That is what scanRain does: one predicate call per candidate
+    // instead of a second traversal of twenty-nine thousand blocks.
+    //
+    // The cache is one entry deep and keyed by the exact centre and the game tick,
+    // because that is precisely the window in which the two callers agree: they
+    // run from the same client tick, over the same player position. Nothing is
+    // reused across ticks - a roof broken a tick ago must not be served from a
+    // stale scan, and the whole point of the scan cadence is that it is cheap
+    // enough to redo.
+    //
+    // Boundary worth knowing: if the drip layer is switched off and the icicle
+    // layer is on, only scanAll runs, the cache never has a second reader, and the
+    // benefit is zero. That is not a defect - the icicle layer is doing exactly the
+    // work it did before. The diagnostic histograms (STATS/LAST) now describe the
+    // SUPERSET scan, so 'ok' includes points only a snow reading accepts.
+
+    /** Centre the cached traversal was made for, or null. */
+    private static BlockPos cacheCenter = null;
+    /** Game tick of the cached traversal. */
+    private static long cacheTick = Long.MIN_VALUE;
+    /** The snow reading (superset) of the cached traversal. */
+    private static ObjectArray<DripPoint> cachePoints = null;
+
+    /**
+     * The rain reading of the box: what the eave-drip layer wants, and exactly
+     * what the old two-argument {@code scan} returned. Served from the superset
+     * traversal when the icicle layer already asked for the same box this tick.
+     */
+    public static ObjectArray<DripPoint> scanRain(final Level world, final BlockPos center) {
+        final ObjectArray<DripPoint> all = superset(world, center);
+        final ObjectArray<DripPoint> rain = new ObjectArray<>(all.size());
+        for (int i = 0; i < all.size(); i++) {
+            final DripPoint point = all.get(i);
+            // The narrow question, asked again: see the block comment above. A
+            // point only the snow reading accepts stays out of the drip layer's
+            // pool, which is the behaviour the two-traversal version had.
+            if (rainReachesTop(world, point.roof().above(), false))
+                rain.add(point);
+        }
+        return rain;
+    }
+
+    /**
+     * Every point in the box, rain or snow: what the icicle layer wants. The
+     * returned array is the cached one and must be treated as read-only.
+     */
+    public static ObjectArray<DripPoint> scanAll(final Level world, final BlockPos center) {
+        return superset(world, center);
+    }
+
+    private static ObjectArray<DripPoint> superset(final Level world, final BlockPos center) {
+        final long tick = world.getGameTime();
+        final ObjectArray<DripPoint> cached = cachePoints;
+        if (cached != null && tick == cacheTick && center.equals(cacheCenter))
+            return cached;
+        final ObjectArray<DripPoint> points = scan(world, center, true);
+        cacheCenter = center.immutable();
+        cacheTick = tick;
+        cachePoints = points;
+        return points;
+    }
+
     private static BlockPos roofOf(final DripPoint point) {
         return point.roof();
     }

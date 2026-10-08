@@ -93,7 +93,7 @@ public class Configuration extends ConfigurationData {
         public boolean enableDebugLogging = false;
 
         @Property
-        @Comment("Bitmask for toggling various debug traces: 1 audio player, 2 basic sound play, 4 resource loading, 8 crit word, 16 rain-on-material, 32 water drips, 64 sky events")
+        @Comment("Bitmask for toggling various debug traces: 1 audio player, 2 basic sound play, 4 resource loading, 8 crit word, 16 rain-on-material, 32 water drips, 64 sky events, 128 foliage drips")
         public int traceMask = 0;
 
         @Property

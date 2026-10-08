@@ -4,6 +4,7 @@ import java.util.Random;
 
 import org.orecruncher.dsurround.Client;
 import org.orecruncher.dsurround.Configuration;
+import org.orecruncher.dsurround.compat.DistantHorizonsCompat;
 import org.orecruncher.dsurround.config.biome.biometraits.BiomeTraits;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
@@ -226,9 +227,11 @@ public final class SkyEventScheduler {
      * before its idle fast path - see the class comment for why the position
      * is load-bearing. {@code raining} is the ramp-derived answer update() has
      * already computed; {@code traits} may be null (an unresolvable biome
-     * falls back to TEMPERATE chances at roll time).
+     * falls back to TEMPERATE chances at roll time); {@code overworld} is the
+     * dimension test, handed in by the caller that already holds the level,
+     * because this class is not allowed to reach for one in its tick path.
      */
-    public static void tick(IModLog logger, boolean raining, BiomeTraits traits) {
+    public static void tick(IModLog logger, boolean raining, BiomeTraits traits, boolean overworld) {
         final boolean trace;
         final long start;
         var config = Client.Config;
@@ -241,7 +244,11 @@ public final class SkyEventScheduler {
             start = 0L;
         }
         try {
-            advance(logger, raining, traits, config);
+            advance(logger, raining, traits, config, overworld);
+            // The clear-sky event is the one moment our cloud handling and DH's disagree: we are
+            // removing vanilla's sheet while DH draws its own LOD layer. Ask it to hold that layer
+            // for the duration - the call is a no-op unless the state actually changes.
+            DistantHorizonsCompat.setCloudsSuppressed(cloudMeltStrength() > 0F);
         } finally {
             if (trace) {
                 advanceNanos += System.nanoTime() - start;
@@ -251,7 +258,7 @@ public final class SkyEventScheduler {
     }
 
     private static void advance(IModLog logger, boolean raining, BiomeTraits traits,
-                                Configuration config) {
+                                Configuration config, boolean overworld) {
         if (config == null || !config.weatherOptions.enableSkyEvents) {
             // Switched off (or starting up): walk both channels home and keep the
             // state machine parked. advance() rather than a pin, so an event that
@@ -266,7 +273,32 @@ public final class SkyEventScheduler {
         if (PrecipitationIntensity.forced() >= 0F) {
             // A diagnostics lock holds the whole chain still, this scheduler with
             // it - no new rolls, no fades. /dsprecip lock is there to answer
-            // questions one variable at a time.
+            // questions one variable at a time. The dimension gate below sits AFTER this
+            // one on purpose: a lock is the maintainer asking to see a channel at a value,
+            // in whatever dimension they are standing in.
+            return;
+        }
+        if (!overworld) {
+            // Neither event is an overworld-only idea in the code, but both are applied by
+            // mixins that run in every dimension - FogRenderer.levelFogColor and
+            // ClientLevel.getSkyColor are called in the Nether exactly as they are in the
+            // overworld - so an overcast event that was up when the player stepped through a
+            // portal turned the Nether's fog grey. That was the report.
+            //
+            // Walk both channels home and park the machine, the same way the disabled
+            // branch above does. Parked rather than suspended: a grey day is weather in a
+            // place, not a property of the player, so it does not travel. No roll happens
+            // here either - the sky lottery belongs to the overworld's clock.
+            PrecipitationResponse.OVERCAST.advance(0F, DT);
+            PrecipitationResponse.CLEAR.advance(0F, DT);
+            if (phase != Phase.GAP)
+                logTrace(logger, "sky event parked: the player left the overworld");
+            phase = Phase.GAP;
+            channel = null;
+            durationRemaining = 0;
+            fadeRemaining = 0;
+            suspendedTicks = 0;
+            rollRemaining = ROLL_INTERVAL_TICKS;
             return;
         }
 

@@ -33,6 +33,7 @@ import org.orecruncher.dsurround.lib.seasons.SeasonManager;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.mixins.core.MixinParticleManager;
 import org.orecruncher.dsurround.processing.scanner.DripScanner;
+import org.orecruncher.dsurround.processing.scanner.ScannerCadence;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
 import org.orecruncher.dsurround.sound.ISoundFactory;
 import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
@@ -144,6 +145,10 @@ public class IcicleHandler extends AbstractClientHandler {
     // `tick - lastScan >= SCAN_TICKS` never fired and the layer sat silent
     // through the whole first live test. -1000 means "due immediately".
     private long lastScan = -1000L;
+    /** Where the last scan was centred, for the walk test. Null until the first scan. */
+    private BlockPos lastScanPos;
+    /** Re-scan sooner than the period when the player walks this far (4 blocks, squared). */
+    private static final double RESCAN_MOVE_SQ = 16.0D;
     private long lastStaleCheck = -1000L;
     private long lastEmptyLog = -1000L;
     private long lastDropRoll = -1000L;
@@ -278,8 +283,19 @@ public class IcicleHandler extends AbstractClientHandler {
                     a.particle.stopMelting();
                 }
             }
-            if (tick - this.lastScan >= SCAN_TICKS) {
+            // The period, or a walk that has taken the player somewhere the last scan did
+            // not cover. Until the move trigger was added this layer only ever re-scanned on
+            // its sixty-tick clock, so walking up to a new house could leave its eaves bare
+            // for three seconds - the icicle layer "appears late" next to the drip layer,
+            // which has always had the walk test. Rationed by the shared floor (the box is
+            // the expensive one, 33x33x27) and never allowed to bypass it.
+            final boolean moved = this.lastScanPos == null
+                    || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= RESCAN_MOVE_SQ;
+            final boolean movedNow = moved
+                    && tick - this.lastScan >= ScannerCadence.MOVE_RESCAN_MIN_TICKS;
+            if (tick - this.lastScan >= SCAN_TICKS || movedNow) {
                 this.lastScan = tick;
+                this.lastScanPos = pos.immutable();
                 this.scanAndAttach(world, pos, tick);
             }
             // The occasional lone dropout while it keeps snowing.
@@ -296,6 +312,18 @@ public class IcicleHandler extends AbstractClientHandler {
         }
 
         // Fire scheduled drops (self-drops during the snow).
+        //
+        // The replacement is spawned AFTER the walk, not from inside it. Calling
+        // reAttach here used to end in spawnOne's attached.put, i.e. a structural
+        // modification of the map this iterator is walking - and a put after
+        // it.remove() still bumps the modCount, so the next element threw
+        // ConcurrentModificationException. The handler's guard caught it and logged
+        // an ERROR, which is how it was found, but the tick's remaining melt and
+        // staleness work was skipped every time it happened. One replacement per
+        // release is kept exactly as before; only the moment changes, and by then
+        // the fallen rim is already free - which is what the no-replacement-at-the-
+        // fallen-rim rule wants anyway.
+        int replacements = 0;
         for (final Iterator<Attached> it = this.attached.values().iterator(); it.hasNext(); ) {
             final Attached a = it.next();
             if (a.particle.isDead()) {
@@ -304,9 +332,11 @@ public class IcicleHandler extends AbstractClientHandler {
                 a.dropAt = -1;
                 this.release(a, tick);
                 it.remove();
-                this.reAttach(world, tick, snowing);
+                replacements++;
             }
         }
+        for (int i = 0; i < replacements; i++)
+            this.reAttach(world, tick, snowing);
 
         // The after-snow lottery: every ten seconds each melting icicle rolls
         // a ten percent chance to let go. Losers keep shrinking; an icicle
@@ -412,7 +442,9 @@ public class IcicleHandler extends AbstractClientHandler {
         int failed = 0;
         final int[] shapes = new int[SHAPE_COUNT];
         final ObjectArray<DripScanner.DripPoint> found = new ObjectArray<>(64);
-        for (final DripScanner.DripPoint point : DripScanner.scan(world, center, true)) {
+        // scanAll rather than scan(..., true): same superset, but it is the one the drip
+        // layer reads from this tick, so the box is walked once for both layers.
+        for (final DripScanner.DripPoint point : DripScanner.scanAll(world, center)) {
             candidates++;
             found.add(point);
             if (this.attached.size() >= want)

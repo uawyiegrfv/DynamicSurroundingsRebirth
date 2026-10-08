@@ -25,8 +25,10 @@ import org.orecruncher.dsurround.lib.random.IRandomizer;
 import org.orecruncher.dsurround.lib.random.Randomizer;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.mixins.core.MixinParticleManager;
+import org.orecruncher.dsurround.processing.scanner.DistanceLod;
 import org.orecruncher.dsurround.processing.scanner.DripScanner;
 import org.orecruncher.dsurround.processing.scanner.FoliageScan;
+import org.orecruncher.dsurround.processing.scanner.ScannerCadence;
 import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 
 /**
@@ -55,6 +57,8 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
 
     /** Scan cadence and phase offset vs the eave layer's 20t clock (review G). */
     private static final int SCAN_TICKS = 30;
+    /** Re-scan sooner than the period when the player walks this far (4 blocks, squared). */
+    private static final double RESCAN_MOVE_SQ = 16.0D;
     private static final int SCAN_PHASE = 10;
     /** Global drop budget: {@code BASE*value + SPAN*value^2} drops a second. */
     private static final double RATE_BASE = 5.0D;
@@ -193,9 +197,14 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
             return;
         }
 
+        // The walk test had no floor here either, so a fast traveller re-swept the box as often as
+        // they crossed four blocks - the same spike the other layers were rationed for. See
+        // ScannerCadence.MOVE_RESCAN_MIN_TICKS.
         final boolean moved = this.lastScanPos == null
-                || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= 16.0D;
-        if (tick - this.lastScanTick >= SCAN_TICKS || moved) {
+                || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= RESCAN_MOVE_SQ;
+        final boolean movedNow = moved
+                && tick - this.lastScanTick >= ScannerCadence.MOVE_RESCAN_MIN_TICKS;
+        if (tick - this.lastScanTick >= SCAN_TICKS || movedNow) {
             this.lastScanTick = tick;
             this.lastScanPos = pos.immutable();
             this.rescan(world, pos, tick, value, player);
@@ -235,6 +244,13 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
 
     /** The drip strength: ambient intensity with the eave layer's after-stop tail. */
     private float valueFor(final Level world) {
+        // Shader switch: zero is this layer's own "nothing to drip" answer, and the caller's
+        // value<=0 branch releases the pool. See FoliageScan.plantLayersAllowed.
+        if (!FoliageScan.plantLayersAllowed(this.config)) {
+            FoliageScan.reportShaderSuppression(this.logger);
+            this.inResidual = false;
+            return 0F;
+        }
         // The project already owns an after-rain curve for the eave drips
         // (PrecipitationResponse.DRIP); this layer reads its own channel off
         // the same mechanism rather than running arithmetic of its own. The
@@ -285,8 +301,12 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         for (final Spot spot : this.pool) {
             if (tick >= spot.expireTick)
                 continue;
-            if (spot.pos.distToCenterSqr(player.getX(), player.getY(), player.getZ()) > 400D)
+            final double dist = spot.pos.distToCenterSqr(player.getX(), player.getY(), player.getZ());
+            if (dist > 400D)
                 continue;
+            // The walk is where a surviving spot's tier is re-judged - with the margin, so the
+            // distance has to really change before the cap does.
+            spot.lodTier = DistanceLod.nextTier(spot.lodTier, dist);
             if (!world.getBlockState(spot.pos).getBlock().equals(spot.state.getBlock()))
                 continue;
             kept.add(spot);
@@ -327,6 +347,9 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
                     final Spot spot = new Spot(plant.pos(), plant.state(), plant.profile(),
                             plane, anchor, tick + SPOT_LIFETIME_MIN_TICKS
                                     + this.random.nextInt(SPOT_LIFETIME_SPAN_TICKS));
+                    // A fresh spot starts at the fresh judgement; only survivors get hysteresis.
+                    spot.lodTier = DistanceLod.nextTier(DistanceLod.TIER_NEAR,
+                            plant.pos().distSqr(center));
                     kept.add(spot);
                 }
             }
@@ -360,6 +383,18 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         return plane.anchors().length - 1;
     }
 
+    /**
+     * How many drops one plant of this spot may hold at once, at the spot's distance.
+     *
+     * <p>The cap is the one per-plant number this layer has, so it is where the distance rule
+     * belongs: a plant at the far edge of the scan does not need six drops to read as wet, and the
+     * drops it gives up are drops the near plants can have. Same calibration as the snow layer's
+     * coat (0.85 in the middle band, 0.70 past sixteen blocks), same reason.</p>
+     */
+    private static int capFor(final Spot spot) {
+        return Math.max(1, Math.round(MAX_DROPS_PER_PLANT * DistanceLod.scaleFor(spot.lodTier)));
+    }
+
     private int cooldownTicks(final float value) {
         return Math.round(COOLDOWN_CALM_TICKS
                 + (COOLDOWN_STORM_TICKS - COOLDOWN_CALM_TICKS) * value);
@@ -371,7 +406,7 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         for (final Spot spot : this.pool) {
             if (tick - spot.lastFire < cooldownTicks(value))
                 continue;
-            if (plantLiveCount(spot.pos) >= MAX_DROPS_PER_PLANT)
+            if (plantLiveCount(spot.pos) >= capFor(spot))
                 continue;
             if (!world.getBlockState(spot.pos).getBlock().equals(spot.state.getBlock()))
                 continue;
@@ -543,6 +578,15 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         final int anchor;
         final long expireTick;
         long lastFire = -1000L;
+        /**
+         * Distance tier this spot's drop cap was judged at, kept across rescans.
+         *
+         * <p>Spots survive a rescan when they are still valid, so the tier travels with them and
+         * only moves when the distance clears a threshold by a margin ({@link DistanceLod}).
+         * Without the memory a player walking up to a dripping bush would watch its cap step
+         * 4 -> 5 -> 6, which reads as the bush getting wetter as you approach.</p>
+         */
+        int lodTier = DistanceLod.TIER_NEAR;
 
         Spot(final BlockPos pos, final net.minecraft.world.level.block.state.BlockState state,
              final FoliageProfile profile, final FoliageProfile.Plane plane, final int anchor,

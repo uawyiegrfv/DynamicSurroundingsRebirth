@@ -519,6 +519,7 @@ public final class PrecipitationRenderer {
     private static boolean active() {
         boolean now = false;
         if (!broken) {
+            checkEffectsOwnership();
             var config = Client.Config;
             // A diagnostics lock bypasses the config switch on purpose: the whole point
             // of /dsprecip lock is to answer "does the chain work at all", and answering
@@ -527,11 +528,32 @@ public final class PrecipitationRenderer {
             final boolean locked = PrecipitationIntensity.forced() >= 0F;
             final boolean enabled = locked
                     || (config != null && config.weatherOptions.enableGradedPrecipitation);
-            now = enabled && PrecipitationIntensity.takeoverReady();
+            // ---- hand-off: Particle Rain owns the rain curtain ----
+            //
+            // PR cancels vanilla's rain pass at HEAD, which means our suppression hook is never
+            // consulted and our own curtain (drawn from AFTER_WEATHER) would land on top of PR's
+            // rain: two rains, one of them blind to the other's settings. Standing down leaves
+            // one rain, drawn by the mod that was installed for it.
+            //
+            // Two exceptions, both deliberate: a diagnostics lock (/dsprecip lock) always draws,
+            // because the lock exists to show OUR layer whatever else is installed; and the
+            // config option lets a pack compare the two on purpose.
+            // Detection is behavioural, not a mod list: RouteFuse watches whether vanilla has asked
+            // us at all while rain is falling, which catches Particle Rain and Simple Clouds (both
+            // cancel LevelRenderer.renderSnowAndRain at HEAD) and anything else that ever does the
+            // same. Presence is only used for the message.
+            final boolean someoneElseOwnsRain = !locked
+                    && RouteFuse.rainRouteForeign()
+                    && !(config != null && config.weatherOptions.gradedRainOverParticleRain);
+            // Suppression is owned for the whole event, not only while the intensity
+            // is above zero - gating it on intensity is what let vanilla draw the
+            // opening seconds of every storm before we took over. See
+            // PrecipitationIntensity.takeoverReady().
+            now = enabled && !someoneElseOwnsRain && PrecipitationIntensity.takeoverReady();
         }
         if (now != lastActive) {
             lastActive = now;
-            note("takeover=%s intensity=%.3f peak=%.3f hookCalls=%d tickHooks=%d renderCalls=%d config=%s locked=%s broken=%s",
+            note("takeover=%s intensity=%.3f peak=%.3f hookCalls=%d tickHooks=%d renderCalls=%d config=%s locked=%s rain-owner=%s broken=%s",
                     now,
                     PrecipitationIntensity.intensity(),
                     PrecipitationIntensity.peak(),
@@ -540,9 +562,50 @@ public final class PrecipitationRenderer {
                     renderCalls,
                     Client.Config == null ? "null" : String.valueOf(Client.Config.weatherOptions.enableGradedPrecipitation),
                     PrecipitationIntensity.forced() >= 0F,
+                    RouteFuse.rainRouteForeign() ? "another mod" : "dsr",
                     broken);
         }
         return now;
+    }
+
+    /**
+     * Set once the overworld effects slot has been inspected in this world.
+     *
+     * <p>Reset when the world is left, because the next server may load a different set of mods'
+     * registrations - a check that only ever runs once per game session would miss exactly the
+     * pack that added a cloud mod between sessions.</p>
+     */
+    private static volatile boolean effectsOwnershipChecked = false;
+
+    /**
+     * One-shot check that the {@code overworld} dimension effects object is still ours.
+     *
+     * <p>This is the only silent failure mode the counters cannot see. NeoForge's registry keeps the
+     * <em>last</em> registration, so a mod that registers {@code overworld} after us does not
+     * conflict, does not log, and does not crash - it simply takes vanilla's rain pass and the
+     * cloud pass with it, and every hook we own on that object stops being called. From the
+     * player's side "the rain mod stopped working"; from the log's side nothing happened.</p>
+     *
+     * <p>Deliberately limited to the overworld: the nether and the end have their own effects
+     * objects by design, and reporting those as a loss would be noise. Called from
+     * {@link #active()}, which runs every frame, so the answer is noticed in the frame the world
+     * finishes loading rather than at the next storm.</p>
+     */
+    private static void checkEffectsOwnership() {
+        if (effectsOwnershipChecked)
+            return;
+        final ClientLevel level = Minecraft.getInstance().level;
+        if (level == null || !level.dimension().equals(net.minecraft.world.level.Level.OVERWORLD))
+            return;
+        effectsOwnershipChecked = true;
+        if (level.effects() instanceof GradedPrecipitationEffects)
+            return;
+        RouteFuse.noteCapabilityLost(RouteFuse.Capability.RAIN,
+                "another mod registered the overworld effects object after us, so vanilla's rain"
+                        + " pass is no longer ours to suppress");
+        RouteFuse.noteCapabilityLost(RouteFuse.Capability.CLOUD,
+                "the same effects object carries the cloud pass and the sky event's cloud"
+                        + " suppression");
     }
 
     /** Diagnostics only. Logging must never be able to break rendering. */
@@ -561,6 +624,11 @@ public final class PrecipitationRenderer {
         public boolean renderSnowAndRain(ClientLevel level, int ticks, float partialTick,
                                          LightTexture lightTexture, double camX, double camY, double camZ) {
             hookCalls++;
+            RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
+            // The witness for "someone else is drawing the rain" - see noteRainRenderHook. tickRain
+            // below deliberately does NOT feed it: nothing cancels tickRain, so it would keep the
+            // detector asleep while a rain mod cancels this very call.
+            RouteFuse.noteRainRenderHook();
             return active();
         }
 
@@ -570,6 +638,7 @@ public final class PrecipitationRenderer {
             // counter reads "vanilla asked" rather than "we took it over". That is
             // the whole point - see the field comment on tickHooks.
             tickHooks++;
+            RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
             // Bytecode, not intuition: the caller does ifeq 23 / 22: return, so
             // false is "vanilla, carry on" and true is "vanilla, stop". We want
             // vanilla to carry on - tickRain is where the ground splash
@@ -665,6 +734,7 @@ public final class PrecipitationRenderer {
      */
     public static void onWorldLeft() {
         broken = false;
+        effectsOwnershipChecked = false;
         resetLevelHysteresis();
         phaseCache.clear();
         surfaceCache.clear();

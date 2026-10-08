@@ -6,9 +6,7 @@ import org.orecruncher.dsurround.processing.PrecipitationIntensity;
 import org.orecruncher.dsurround.processing.weather.SkyEventScheduler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Takes over the rain-driven <em>colour</em> of the fog.
@@ -91,35 +89,55 @@ public abstract class MixinFogRendererWeatherColor {
         return PrecipitationIntensity.fogColorStormLevel(level, partialTick);
     }
 
-    // ---- the overcast grey on the final fog colour ---------------------------
+    // ---- the overcast grey, moved to where the value is actually used --------
     //
-    // The fog colour's BASE comes from the biome fog (the CubicSampler lambda
-    // inside setupColor), not from the sky colour, so the grey the sky gets in
-    // MixinClientLevelWeatherColors never reaches it and the horizon stays blue
-    // under a grey sky - the maintainer's "远处还是蓝色的". setupColor runs once
-    // per frame and settles ONE colour for the sky fog and the terrain fog
-    // alike, so lifting its settled value here re-tints both in the same move,
-    // with the same target function and the same channel the sky uses - the
-    // sync is by construction, not by matched clocks. The small overcast feed
-    // into the rain pass above (see fogColorRainLevel) is vanilla's own
-    // arithmetic joining in; this tail pass is the part that matches the sky.
+    // This used to be a TAIL injection on setupColor: read the shader fog colour
+    // back, lift it towards grey, write it back. It never reached the screen.
+    // setupColor does not touch the shader fog colour at all - it only computes
+    // and stores the three static fields (fogRed/fogGreen/fogBlue) - and
+    // LevelRenderer calls levelFogColor() immediately afterwards, which pushes
+    // those fields into RenderSystem and overwrites anything a TAIL handler had
+    // written. The overcast grey was therefore dead code that looked alive, and
+    // the maintainer's report - a grey sky over a blue horizon - was exactly
+    // what the code said would happen.
+    //
+    // Redirecting the arguments of that one call is the only place the lift can
+    // take effect: it is the last write before the colour is used, it covers the
+    // sky fog and the terrain fog in the same move (they read one value), and it
+    // uses the same target function and the same channel the sky colour does, so
+    // the two are in step by construction rather than by matched clocks.
+    //
+    // It now runs three times per frame rather than once (LevelRenderer calls
+    // levelFogColor from renderLevel, renderSky and renderClouds); the three
+    // calls in a frame carry the same value, so the result is idempotent.
+    //
+    // require = 0, as everywhere in this mixin: if a mappings change moves the
+    // call, the overcast grey is absent rather than the client being dead.
 
-    @Inject(method = "setupColor", at = @At("TAIL"), require = 0)
-    private static void dsurround_overcastFog(CallbackInfo ci) {
+    @Redirect(
+            method = "levelFogColor",
+            at = @At(value = "INVOKE",
+                     target = "Lcom/mojang/blaze3d/systems/RenderSystem;setShaderFogColor(FFF)V"),
+            require = 0)
+    private static void dsurround_fogColorOvercast(float red, float green, float blue) {
+        float outRed = red;
+        float outGreen = green;
+        float outBlue = blue;
         final float overcast = SkyEventScheduler.whiteShiftStrength();
-        if (overcast <= 0F)
-            return;
-        // Doubled against the channel: at the channel's own pace the fog
-        // converged about twice as slowly as the sky (the blue horizon ring).
-        final float strength = Math.min(1F, overcast * 2F);
-        final float[] fog = com.mojang.blaze3d.systems.RenderSystem.getShaderFogColor();
-        if (fog == null || fog.length < 3)
-            return;
-        final float luma = fog[0] * 0.3F + fog[1] * 0.59F + fog[2] * 0.11F;
-        com.mojang.blaze3d.systems.RenderSystem.setShaderFogColor(
-                fog[0] + (SkyEventScheduler.whiteTarget(fog[0], luma) - fog[0]) * strength,
-                fog[1] + (SkyEventScheduler.whiteTarget(fog[1], luma) - fog[1]) * strength,
-                fog[2] + (SkyEventScheduler.whiteTarget(fog[2], luma) - fog[2]) * strength,
-                fog.length > 3 ? fog[3] : 1.0F);
+        if (overcast > 0F) {
+            // Doubled: at the channel's own pace the fog converged about twice
+            // as slowly as the sky (the maintainer's blue horizon ring - the
+            // sky went grey while the fog behind it was still blue). Halving
+            // the lag keeps the two in step. At overcast 0 the pass is off and
+            // the fog is byte-for-byte vanilla's.
+            final float strength = Math.min(1F, overcast * 2F);
+            final float luma = red * 0.3F + green * 0.59F + blue * 0.11F;
+            outRed = red + (SkyEventScheduler.whiteTarget(red, luma) - red) * strength;
+            outGreen = green + (SkyEventScheduler.whiteTarget(green, luma) - green) * strength;
+            outBlue = blue + (SkyEventScheduler.whiteTarget(blue, luma) - blue) * strength;
+        }
+        // The 3-argument form leaves the alpha channel alone, exactly as vanilla
+        // called it - the lift is a colour operation and must not touch fog alpha.
+        com.mojang.blaze3d.systems.RenderSystem.setShaderFogColor(outRed, outGreen, outBlue);
     }
 }

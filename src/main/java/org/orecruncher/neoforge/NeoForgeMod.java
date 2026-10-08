@@ -62,6 +62,10 @@ public final class NeoForgeMod {
             // the vanilla rain pass; the geometry is drawn from the AfterWeather stage.
             modBus.addListener(org.orecruncher.dsurround.processing.weather.PrecipitationRenderer::onRegisterDimensionEffects);
             org.orecruncher.dsurround.processing.weather.PrecipitationRenderer.bootstrap();
+            // Route watchdog: counts the consultations of every route we hook and reports the ones
+            // that stop being called. Purely observational - it changes no behaviour, and it is the
+            // only way a silently-missed injection becomes visible.
+            org.orecruncher.dsurround.processing.weather.RouteFuse.bootstrap();
 
             this.client = new Client();
             this.client.construct();

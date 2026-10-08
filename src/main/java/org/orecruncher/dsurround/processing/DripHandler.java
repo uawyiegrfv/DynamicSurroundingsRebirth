@@ -24,6 +24,7 @@ import org.orecruncher.dsurround.lib.random.IRandomizer;
 import org.orecruncher.dsurround.lib.random.Randomizer;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.processing.scanner.DripScanner;
+import org.orecruncher.dsurround.processing.scanner.ScannerCadence;
 import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
 import org.orecruncher.dsurround.sound.ISoundFactory;
@@ -95,6 +96,8 @@ public class DripHandler {
     private static final int SCAN_TICKS = 20;
     /** Re-scan sooner than that when the player walks this far (4 blocks). */
     private static final double RESCAN_MOVE_SQ = 16.0D;
+    // The floor on move-triggered rescans is shared with the other four scanning layers;
+    // see ScannerCadence.MOVE_RESCAN_MIN_TICKS for why it exists and why it is ten.
     /** A point further than this (3D) is neither picked nor kept - beyond it the LINEAR attenuation is already silent. */
     /**
      * Must not be smaller than the scan box, or points the scan found are
@@ -406,7 +409,11 @@ public class DripHandler {
         final BlockPos playerPos = player.blockPosition();
         final boolean moved = this.lastScanPos == null
                 || this.lastScanPos.distToCenterSqr(playerPos.getX(), playerPos.getY(), playerPos.getZ()) >= RESCAN_MOVE_SQ;
-        if (tick - this.lastScanTick >= SCAN_TICKS || moved)
+        // Moved only brings the next scan forward, and only past the floor. The first scan of a
+        // session still happens at once: lastScanPos is null and lastScanTick starts far in the past.
+        final boolean movedNow = moved
+                && tick - this.lastScanTick >= ScannerCadence.MOVE_RESCAN_MIN_TICKS;
+        if (tick - this.lastScanTick >= SCAN_TICKS || movedNow)
             this.rescan(world, playerPos, tick, value);
 
         // The Poisson-ish roll: one shared budget, jittered per tick so the
@@ -554,7 +561,10 @@ public class DripHandler {
             // Timed only while tracing: with the switch off this layer does not
             // call nanoTime at all, the way the rain-material layer does it.
             final long scanStart = this.dripTrace ? System.nanoTime() : 0L;
-            final var candidates = DripScanner.scan(world, playerPos);
+            // The rain reading, served from the shared superset traversal when the
+            // icicle layer already walked the same box this tick - see DripScanner's
+            // cache note.
+            final var candidates = DripScanner.scanRain(world, playerPos);
             if (this.dripTrace) {
                 this.lastScanNanos = System.nanoTime() - scanStart;
                 this.scanCount++;

@@ -31,7 +31,9 @@ import org.orecruncher.dsurround.lib.random.Randomizer;
 import org.orecruncher.dsurround.lib.seasons.SeasonManager;
 import org.orecruncher.dsurround.lib.system.ITickCount;
 import org.orecruncher.dsurround.mixins.core.MixinParticleManager;
+import org.orecruncher.dsurround.processing.scanner.DistanceLod;
 import org.orecruncher.dsurround.processing.scanner.FoliageScan;
+import org.orecruncher.dsurround.processing.scanner.ScannerCadence;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
 import org.orecruncher.dsurround.sound.ISoundFactory;
 import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
@@ -78,6 +80,10 @@ public class FoliageDewHandler extends AbstractClientHandler {
     private static final int CHUNK_COOLDOWN_TICKS = 100;
     /** ...or walks this far (blocks, squared). */
     private static final double RESCAN_MOVE_SQ = 36.0D;
+    // The move-trigger floor is shared; see ScannerCadence.MOVE_RESCAN_MIN_TICKS. The dawn
+    // window is short and a player crossing a field at speed should still find dew around them,
+    // which is why this is a rate limit rather than a gate - the chunk and top-up triggers are
+    // left exactly as they were.
     /** Slow top-up so standing still still fills the world in. */
     private static final int TOPUP_TICKS = 600;
     /** The bead lottery: every 200t (10s), per ruling. */
@@ -191,7 +197,13 @@ public class FoliageDewHandler extends AbstractClientHandler {
 
         final long tick = this.tickCount.getTickCount();
         final BlockPos pos = player.blockPosition();
-        final float curve = dewCurve(world.getDayTime());
+        // A shader pack that sways plants moves them out from under a bead (see
+        // FoliageScan.plantLayersAllowed). Curve 0 is this layer's own "window closed" answer, so
+        // the beads already placed evaporate through the existing end-of-window path.
+        final boolean plantLayersOff = !FoliageScan.plantLayersAllowed(this.config);
+        if (plantLayersOff)
+            FoliageScan.reportShaderSuppression(this.logger);
+        final float curve = plantLayersOff ? 0F : dewCurve(world.getDayTime());
         final boolean raining = world.isRaining();
         // Rain owns the leaves while it falls; dew only exists in clear air.
         final boolean dewy = curve > 0F && !raining;
@@ -222,8 +234,11 @@ public class FoliageDewHandler extends AbstractClientHandler {
         final boolean newChunk = chunkX != this.lastChunkX || chunkZ != this.lastChunkZ;
         final boolean moved = this.lastScanPos == null
                 || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= RESCAN_MOVE_SQ;
+        // Moved only brings the next scan forward, and only past the floor.
+        final boolean movedNow = moved
+                && tick - this.lastScanTick >= ScannerCadence.MOVE_RESCAN_MIN_TICKS;
         if (dewy && (newChunk && tick - this.lastScanTick >= CHUNK_COOLDOWN_TICKS
-                || moved
+                || movedNow
                 || tick - this.lastScanTick >= TOPUP_TICKS)) {
             this.lastChunkX = chunkX;
             this.lastChunkZ = chunkZ;
@@ -314,7 +329,14 @@ public class FoliageDewHandler extends AbstractClientHandler {
                 beads++;
             if (this.random.nextFloat() < 0.10F * curve * coeff)
                 beads++;
-            beads = Math.min(MAX_DROPS_PER_PLANT, beads);
+            // Distance rule, the snow layer's: a plant at the far edge of the scan carries fewer
+            // beads. This layer never re-sizes a plant it already knows (the loop above skips
+            // those), so there is nothing to remember and no coat to watch grow - the judgement is
+            // made once, when the plant enrols. With a cap of three the middle band rounds back to
+            // three; only the far band changes, which is the honest answer for these numbers.
+            final int beadCap = Math.max(1, Math.round(
+                    MAX_DROPS_PER_PLANT * DistanceLod.scaleAt(spot.pos().distSqr(center))));
+            beads = Math.min(beadCap, beads);
             final PlantDew plant = new PlantDew(spot.pos(), spot.state().getBlock());
             if (!this.attach(world, player, spot, plant, beads, tick)) {
                 for (final DewDrop d : plant.drops)

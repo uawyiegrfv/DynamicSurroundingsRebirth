@@ -1,0 +1,600 @@
+package org.orecruncher.dsurround.processing.weather;
+
+import net.minecraft.client.CloudStatus;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import org.orecruncher.dsurround.compat.ModIds;
+import org.orecruncher.dsurround.eventing.ClientState;
+import org.orecruncher.dsurround.lib.di.ContainerManager;
+import org.orecruncher.dsurround.lib.events.HandlerPriority;
+import org.orecruncher.dsurround.lib.logging.IModLog;
+
+/**
+ * Watches the routes this mod has taken over and says so, loudly, when one of them stops being
+ * consulted.
+ *
+ * <p>Every route below is a {@code require = 0} injection or an event handler. That is the right
+ * choice - a mapping change must not be fatal - but it has one consequence that has bitten this
+ * project repeatedly: <b>a miss is completely silent</b>. The mixin does not apply, the game runs,
+ * the feature is simply absent, and the only way anyone finds out is a bug report that reads like
+ * a rendering problem rather than a missing hook. The same holds for the overworld effects object:
+ * the registry keeps the last registration, so another mod registering {@code overworld} after us
+ * takes the rain and the clouds away without a word.</p>
+ *
+ * <p>The fuse closes that gap. Each route has a counter, fed from the one place that knows the
+ * route was consulted - the same place that already keeps {@code hookCalls} and friends. Once a
+ * window of {@link #WINDOW_TICKS} ticks closes, a route that should have been consulted and was
+ * not gets one WARN; when it comes back it gets one INFO. Bounded output on purpose: this runs
+ * every tick of every session, and a warning that repeats is a warning nobody reads.</p>
+ *
+ * <p><b>Why the expectations differ per route.</b> A hook that fires only when the player is
+ * outdoors in the rain cannot be checked the same way as one that fires once per frame. Two
+ * kinds are encoded in {@link Expect}:</p>
+ *
+ * <ul>
+ * <li>{@code ALWAYS} / {@code WHEN_CLOUDS} - the vanilla code path is unconditional (verified
+ *     against the 1.20.1 bytecode: {@code LevelRenderer.renderLevel} calls
+ *     {@code DimensionSpecialEffects.renderSnowAndRain} every frame with no rain test in front
+ *     of it), so zero hits in a window means the hook is gone.</li>
+ * <li>{@code SELF_CALIBRATED} - the path is legitimately idle most of the time (the thunder and
+ *     sky-darken route does nothing on a clear day). Those are only reported once they have been
+ *     seen working and then stopped, which is the failure that costs a debugging session.</li>
+ * </ul>
+ *
+ * <p>This class deliberately owns no game state and changes no behaviour: if it is wrong, the
+ * cost is a log line. That is what makes it safe to run before anything else in the weather
+ * work.</p>
+ */
+public final class RouteFuse {
+
+    /** Ticks per observation window. 200 = ten seconds: long enough that a slow path is not
+     *  mistaken for a dead one, short enough that a broken route is reported in the same
+     *  minute it breaks. */
+    public static final int WINDOW_TICKS = 200;
+
+    /** How a route is expected to behave, which decides what a zero window means. */
+    private enum Expect {
+        /** Consulted every frame the level renders. Zero in a window is a failure. */
+        ALWAYS,
+        /** As ALWAYS, but only while clouds are switched on. */
+        WHEN_CLOUDS,
+        /** Legitimately idle; only a route that worked and stopped is reported. */
+        SELF_CALIBRATED
+    }
+
+    /**
+     * The routes this mod hooks. The label is what appears in the log, so it names the visible
+     * thing (what the player loses) rather than the class that carries the hook.
+     */
+    public enum Route {
+        /** {@code ClientLevel.getSkyColor} - the sky's rain desaturation. */
+        SKY_COLOR("sky color", Expect.ALWAYS),
+        /** {@code ClientLevel.getCloudColor} - the cloud sheet's rain desaturation. */
+        CLOUD_COLOR("cloud color", Expect.WHEN_CLOUDS),
+        /** {@code FogRenderer.setupColor} - the fog's rain and thunder colour pass. */
+        FOG_COLOR("fog color", Expect.ALWAYS),
+        /** {@code ClientLevel.getSkyDarken} + the storm desaturation - the world's darkening. */
+        SKY_DARKEN("thunder & sky darken", Expect.SELF_CALIBRATED),
+        /** {@code LevelRenderer.renderSky}'s celestial alpha - the sun, moon and stars fading. */
+        SUN_ALPHA("sun & celestial alpha", Expect.ALWAYS),
+        /** {@code DimensionSpecialEffects.renderSnowAndRain} + {@code tickRain} - the rain curtain. */
+        RAIN_RENDER("rain render", Expect.ALWAYS),
+        /** {@code ViewportEvent.RenderFog} - the fog distance (1.20.1's event, not a mixin). */
+        FOG_RANGE("fog range", Expect.ALWAYS);
+
+        /** Name used in the log. Kept short and stable: it is grepped. */
+        public final String label;
+        private final Expect expect;
+
+        Route(String label, Expect expect) {
+            this.label = label;
+            this.expect = expect;
+        }
+    }
+
+    /** Capabilities (not routes): what the mod believes it currently owns. */
+    public enum Capability {
+        FOG("fog"),
+        CLOUD("cloud"),
+        RAIN("rain"),
+        SKY("sky");
+
+        public final String label;
+
+        Capability(String label) {
+            this.label = label;
+        }
+    }
+
+    private static final Route[] ROUTES = Route.values();
+    private static final int ROUTE_COUNT = ROUTES.length;
+    private static final Capability[] CAPABILITIES = Capability.values();
+
+    /** Total consultations since the world was entered. Written from render and tick threads. */
+    private static final long[] HITS = new long[ROUTE_COUNT];
+    /** {@link #HITS} at the end of the previous window - the baseline a window is measured from. */
+    private static final long[] WINDOW_BASE = new long[ROUTE_COUNT];
+    /** Any tick in this window where the route should have been consulted. */
+    private static final boolean[] EXPECTED = new boolean[ROUTE_COUNT];
+    /** Whether the route has ever been consulted in this world (the self-calibrated baseline). */
+    private static final boolean[] SEEN_ALIVE = new boolean[ROUTE_COUNT];
+    /** Whether a failure has already been reported, so the WARN is emitted once. */
+    private static final boolean[] REPORTED = new boolean[ROUTE_COUNT];
+    /** Whether the route is currently believed lost - reported by the diagnostics overlay. */
+    private static final boolean[] LOST = new boolean[ROUTE_COUNT];
+    /** Capability loss, set either by a route failure or by the effects re-check. */
+    private static final boolean[] CAPABILITY_LOST = new boolean[CAPABILITIES.length];
+
+    /**
+     * Ticks of visible rain during which the rain route was consulted zero times.
+     *
+     * <p>This is the behavioural detector for "another mod cancelled
+     * {@code LevelRenderer.renderSnowAndRain} before vanilla could ask us" - which is exactly what
+     * Particle Rain and Simple Clouds do at HEAD of that method. It needs no knowledge of either
+     * mod: if it is raining and vanilla never asks who should draw the rain, someone above us owns
+     * it, whoever that is. Presence is then only used to NAME the suspect in the log.</p>
+     */
+    private static int rainSilentTicks = 0;
+    /** Rain route hits as of the previous tick, for the comparison above. */
+    private static long lastRainHits = 0L;
+    /** True once the rain route has been proven to belong to someone else. */
+    private static volatile boolean rainRouteForeign = false;
+
+    /**
+     * How long the rain route may stay silent, in ticks of visible rain, before the hand-off.
+     * Two seconds: long enough that a single stalled frame cannot trigger it, short enough that
+     * the player does not spend a storm watching two rains on top of each other.
+     */
+    private static final int RAIN_FOREIGN_TICKS = 40;
+
+    /**
+     * The same detector for the cloud route, with a longer fuse.
+     *
+     * <p>Five seconds rather than two, because "is the vanilla cloud sheet being drawn" has honest
+     * yes/no answers that depend on where the camera is, and a cloud sheet that is off screen for a
+     * moment must not be reported as somebody else's. The failure this catches is permanent (a mod
+     * that replaces the cloud pass replaces it every frame), so a slow fuse costs nothing.</p>
+     *
+     * <p>Why the gate is only "clouds are switched on": the 1.20.1 bytecode shows
+     * {@code LevelRenderer.renderClouds} calling {@code DimensionSpecialEffects.renderClouds} at
+     * offset 24 - the first thing it does - and {@code renderLevel} calling it on both sides of the
+     * cloud-status test. So while clouds are enabled and a level is rendering, the colour is asked
+     * for every frame, and a silent window really does mean the pass belongs to someone else.</p>
+     */
+    private static final int CLOUD_FOREIGN_TICKS = 100;
+
+    /**
+     * Consultations of the rain RENDER hook specifically - the one that decides who draws the rain.
+     *
+     * <p>Separate from the route counter on purpose, and the separation cost a live session to
+     * learn: {@code Route.RAIN_RENDER} is fed from two places, because "is our effects object still
+     * installed" is answered by either hook firing. But the question "is someone else drawing the
+     * rain" is answered by the render hook <em>alone</em>. Feeding both into one counter meant
+     * {@code tickRain} - which nothing cancels - kept the detector's witness alive while Particle
+     * Rain was cancelling the render call, so the hand-off never happened and the two rains were
+     * drawn on top of each other. The route counter keeps its meaning; this one is the witness.</p>
+     */
+    private static long rainRenderHookHits = 0L;
+
+    /** Called from the rain render hook only - see {@link #rainRenderHookHits}. */
+    public static void noteRainRenderHook() {
+        rainRenderHookHits++;
+    }
+
+    /** As {@link #rainSilentTicks}, for the cloud colour route. */
+    private static int cloudSilentTicks = 0;
+    private static long lastCloudHits = 0L;
+    private static volatile boolean cloudRouteForeign = false;
+
+    private static volatile boolean inWorld = false;
+    private static int ticksInWorld = 0;
+    private static volatile boolean bootstrapped = false;
+
+    private RouteFuse() {
+    }
+
+    /** Registers the tick listener. Safe to call more than once. */
+    public static void bootstrap() {
+        if (bootstrapped)
+            return;
+        bootstrapped = true;
+        ClientState.TICK_END.register(RouteFuse::onTickEnd, HandlerPriority.LOW);
+        ClientState.ON_DISCONNECT.register(mc -> reset());
+    }
+
+    /**
+     * Records that a route was consulted. Called from the hook itself, before any ownership
+     * test, because the question is whether the injection is on the code path at all.
+     *
+     * <p>One array increment: this runs on every frame for every route, so it must not
+     * allocate, log, or take a lock. It does not.</p>
+     */
+    public static void feed(Route route) {
+        HITS[route.ordinal()]++;
+    }
+
+    /** Total consultations of a route in this world. Diagnostics only. */
+    public static long hits(Route route) {
+        return HITS[route.ordinal()];
+    }
+
+    /**
+     * Whether the rain render route has been proven to belong to another mod. Read by
+     * {@code PrecipitationRenderer.active()} to stand down before drawing a second rain.
+     */
+    public static boolean rainRouteForeign() {
+        return rainRouteForeign;
+    }
+
+    /**
+     * Whether the cloud route has been proven to belong to another mod - read by the compatibility
+     * summary so that {@code cloud=} names the real owner instead of guessing from a mod list.
+     */
+    public static boolean cloudRouteForeign() {
+        return cloudRouteForeign;
+    }
+
+    /** Whether the route is currently believed dead. Diagnostics only. */
+    public static boolean lost(Route route) {
+        return LOST[route.ordinal()];
+    }
+
+    /** Whether a capability is currently believed lost. Read by the compatibility summary. */
+    public static boolean capabilityLost(Capability capability) {
+        return CAPABILITY_LOST[capability.ordinal()];
+    }
+
+    /**
+     * Declares a capability lost. Used by the overworld effects re-check, which is the only way
+     * to notice that another mod took the {@code overworld} registration from us - the registry
+     * keeps the last registration and says nothing.
+     */
+    public static void noteCapabilityLost(Capability capability, String why) {
+        final int index = capability.ordinal();
+        if (CAPABILITY_LOST[index])
+            return;
+        CAPABILITY_LOST[index] = true;
+        warn("capability '" + capability.label + "' lost: " + why);
+    }
+
+    /** One line for the diagnostics overlay and the compatibility summary. */
+    public static String summary() {
+        StringBuilder sb = new StringBuilder("routes: ");
+        for (Route route : ROUTES) {
+            sb.append(route.label).append('=').append(LOST[route.ordinal()] ? "lost" : "ok").append(' ');
+        }
+        sb.append("| capabilities: ");
+        for (Capability capability : CAPABILITIES)
+            sb.append(capability.label).append('=')
+                    .append(CAPABILITY_LOST[capability.ordinal()] ? "lost" : "ok").append(' ');
+        return sb.toString().trim();
+    }
+
+    // ---- internals --------------------------------------------------------
+
+    private static void onTickEnd(Minecraft mc) {
+        try {
+            final ClientLevel level = mc.level;
+            if (level == null || mc.player == null) {
+                if (inWorld)
+                    reset();
+                return;
+            }
+            if (!inWorld) {
+                inWorld = true;
+                ticksInWorld = 0;
+                resetCounters();
+            }
+            ticksInWorld++;
+            detectForeignRainRoute(level);
+            detectForeignCloudRoute(mc);
+            markExpectations(mc);
+            if (ticksInWorld % WINDOW_TICKS == 0) {
+                checkWindow();
+                reportFirstWindow();
+            }
+        } catch (Throwable t) {
+            // A watchdog must never be the reason a frame dies. It also must not go quiet
+            // about its own failure - that is the whole point of this class.
+            warn("watchdog tick failed: " + t);
+        }
+    }
+
+    /**
+     * Which routes vanilla should have consulted during this tick.
+     *
+     * <p>The rain render route is unconditional - verified in the 1.20.1 bytecode, where
+     * {@code LevelRenderer.renderLevel} calls {@code effects().renderSnowAndRain} on both
+     * branches of the weather block and the rain-level test only happens <em>inside</em>
+     * vanilla's own drawing, after the effects object has already declined. So "a level is
+     * loaded" is the correct expectation, and a zero window means another mod replaced the
+     * effects object or the call never ran.</p>
+     */
+    private static void markExpectations(Minecraft mc) {
+        for (Route route : ROUTES) {
+            final boolean expected = switch (route.expect) {
+                // A rain route proven to belong to another mod is not a failure when it stays
+                // silent - it is the hand-off working. The detectForeignRainRoute() report is the
+                // one that matters; this only stops the window check from repeating it.
+                case ALWAYS -> route != Route.RAIN_RENDER || !rainRouteForeign;
+                case WHEN_CLOUDS -> mc.options.getCloudsType() != CloudStatus.OFF;
+                case SELF_CALIBRATED -> false;
+            };
+            if (expected)
+                EXPECTED[route.ordinal()] = true;
+        }
+        // SELF_CALIBRATED routes are deliberately not marked here. They are judged against their
+        // own history in checkWindow instead, so that a route which is legitimately idle on a
+        // clear day is not reported as broken.
+    }
+
+    /**
+     * Notices that the rain route is not ours, from behaviour rather than from a mod list.
+     *
+     * <p>The rain pass is asked for once per frame through the dimension effects object, so the
+     * hit count moves every tick there is a level to draw - unless something cancelled the call
+     * before it reached us. Vanilla's own rain level is the witness: while rain is visibly falling
+     * and our counter has not moved, the pass is being drawn by somebody else (or, in the worst
+     * case, not at all). Two seconds of that and the hand-off is made.</p>
+     */
+    private static void detectForeignRainRoute(final ClientLevel level) {
+        if (level.getRainLevel(1F) <= 0.05F) {
+            // Nothing is falling: silence here says nothing at all.
+            rainSilentTicks = 0;
+            lastRainHits = rainRenderHookHits;
+            return;
+        }
+        final long hits = rainRenderHookHits;
+        if (hits != lastRainHits) {
+            lastRainHits = hits;
+            rainSilentTicks = 0;
+            if (rainRouteForeign) {
+                rainRouteForeign = false;
+                info("the rain render route is ours again (vanilla is asking us once more)");
+            }
+            return;
+        }
+        if (rainRouteForeign)
+            return;
+        if (++rainSilentTicks < RAIN_FOREIGN_TICKS)
+            return;
+        rainRouteForeign = true;
+        warn("it is raining and the rain render route has not been consulted for "
+                + RAIN_FOREIGN_TICKS + " ticks: another mod cancels LevelRenderer.renderSnowAndRain"
+                + " before vanilla can ask us" + rainSuspects()
+                + ". Our graded rain curtain is standing down so that only one rain is drawn -"
+                + " set 'gradedRainOverParticleRain' to force ours back on.");
+    }
+
+    /**
+     * Names the mods known to cancel that call, so the WARN above does not read as a mystery.
+     * Only a hint: the detection itself never used this list.
+     */
+    private static String rainSuspects() {
+        final StringBuilder sb = new StringBuilder();
+        if (ModIds.present(ModIds.PARTICLE_RAIN))
+            sb.append(sb.length() == 0 ? " (" : ", ").append(ModIds.PARTICLE_RAIN);
+        if (ModIds.present(ModIds.SIMPLE_CLOUDS))
+            sb.append(sb.length() == 0 ? " (" : ", ").append(ModIds.SIMPLE_CLOUDS);
+        if (sb.length() == 0)
+            return "";
+        return sb.append(')').toString();
+    }
+
+    /**
+     * Whether a mod that cancels the vanilla rain pass at HEAD is installed - the two known ones,
+     * named here only so the window check can tell "explained" silence from "broken" silence.
+     */
+    private static boolean rainDrawingModPresent() {
+        // Simple Clouds is in this list as well as the cloud one: it cancels the rain pass too.
+        return ModIds.present(ModIds.PARTICLE_RAIN) || ModIds.present(ModIds.SIMPLE_CLOUDS);
+    }
+
+    /** Whether a mod known to draw the cloud sheet itself is installed. */
+    private static boolean cloudDrawingModPresent() {
+        return ModIds.isAny(ModIds.CLOUD_MODS) || ModIds.present(ModIds.DISTANT_HORIZONS);
+    }
+
+    /**
+     * Notices that the vanilla cloud sheet is not being drawn by vanilla - see
+     * {@link #detectForeignRainRoute} for the pattern. Better Clouds and Simple Clouds both draw
+     * their own sheet from a mixin on the same method, Distant Horizons disables vanilla clouds
+     * outright, and in all three cases {@code ClientLevel.getCloudColor} - the route this mod hooks
+     * for the clear-sky event's cloud fade - stops being asked.
+     */
+    private static void detectForeignCloudRoute(final Minecraft mc) {
+        if (mc.options.getCloudsType() == CloudStatus.OFF) {
+            // The player turned clouds off: silence here says nothing about ownership.
+            cloudSilentTicks = 0;
+            lastCloudHits = HITS[Route.CLOUD_COLOR.ordinal()];
+            return;
+        }
+        final long hits = HITS[Route.CLOUD_COLOR.ordinal()];
+        if (hits != lastCloudHits) {
+            lastCloudHits = hits;
+            cloudSilentTicks = 0;
+            if (cloudRouteForeign) {
+                cloudRouteForeign = false;
+                info("the cloud route is ours again (vanilla is drawing its own cloud sheet once more)");
+            }
+            return;
+        }
+        if (cloudRouteForeign)
+            return;
+        if (++cloudSilentTicks < CLOUD_FOREIGN_TICKS)
+            return;
+        cloudRouteForeign = true;
+        warn("clouds are switched on and the cloud colour route has not been consulted for "
+                + CLOUD_FOREIGN_TICKS + " ticks: another mod is drawing the cloud sheet"
+                + cloudSuspects() + ". The clear-sky event's cloud fade belongs to it, and this"
+                + " mod's cloud colour route is standing down.");
+    }
+
+    /** Names the mods known to draw their own clouds, so the WARN above is not a mystery. */
+    private static String cloudSuspects() {
+        final StringBuilder sb = new StringBuilder();
+        for (final String id : ModIds.CLOUD_MODS)
+            if (ModIds.present(id))
+                sb.append(sb.length() == 0 ? " (" : ", ").append(id);
+        if (ModIds.present(ModIds.DISTANT_HORIZONS))
+            sb.append(sb.length() == 0 ? " (" : ", ").append(ModIds.DISTANT_HORIZONS);
+        return sb.length() == 0 ? "" : sb.append(')').toString();
+    }
+
+    /** Whether the one-per-world "the watchdog is running" line has been written. */
+    private static boolean announced = false;
+
+    /**
+     * Says out loud that the watchdog ran, once per world, with the first window's census.
+     *
+     * <p>Added after a live session in which the watchdog was silent for four minutes and there was
+     * no way to tell whether that meant "every route is fine" or "the watchdog never ticked". The
+     * whole point of this class is that a silent failure must be visible; it owes itself the same
+     * courtesy. One line, once, listing what each route saw.</p>
+     */
+    private static void reportFirstWindow() {
+        if (announced)
+            return;
+        announced = true;
+        final StringBuilder sb = new StringBuilder("watchdog armed (" + WINDOW_TICKS + " ticks): ");
+        for (Route route : ROUTES)
+            sb.append(route.label).append('=').append(HITS[route.ordinal()]).append(' ');
+        sb.append("| rain render hook=").append(rainRenderHookHits);
+        info(sb.toString());
+    }
+
+    private static void checkWindow() {
+        for (Route route : ROUTES) {
+            final int index = route.ordinal();
+            final long hits = HITS[index];
+            final boolean fired = hits > WINDOW_BASE[index];
+            final boolean shouldHaveFired = route.expect == Expect.SELF_CALIBRATED
+                    ? SEEN_ALIVE[index]
+                    : EXPECTED[index];
+            if (fired) {
+                SEEN_ALIVE[index] = true;
+                if (REPORTED[index]) {
+                    REPORTED[index] = false;
+                    LOST[index] = false;
+                    info("route '" + route.label + "' is alive again (" + hits
+                            + " consultations since the world was entered)");
+                }
+            } else if (shouldHaveFired && !REPORTED[index]) {
+                REPORTED[index] = true;
+                LOST[index] = true;
+                loseCapabilityFor(route);
+                if (route == Route.CLOUD_COLOR && cloudDrawingModPresent()) {
+                    // Same reasoning as the rain case below: a mod that draws the cloud sheet itself
+                    // is a complete explanation for the route going quiet, and the behavioural
+                    // detector (detectForeignCloudRoute) is the line that names it.
+                    info("the cloud colour route stayed silent for a " + WINDOW_TICKS
+                            + " tick window; " + cloudSuspects().trim()
+                            + " draws the cloud sheet, so this is the hand-off working, not a missed hook.");
+                } else if (route == Route.RAIN_RENDER && rainDrawingModPresent()) {
+                    // The first live session produced this case and the message was wrong: a dry
+                    // window in which Particle Rain had cancelled the pass was reported as "this
+                    // version's code path does not carry our hook", i.e. as a broken injection. A
+                    // mod that cancels LevelRenderer.renderSnowAndRain at HEAD is a complete
+                    // explanation for silence, and the WARN that matters is the behavioural one
+                    // (detectForeignRainRoute), which names it. So this case is stated for what
+                    // it is: expected, not broken.
+                    info("the rain render route stayed silent for a " + WINDOW_TICKS
+                            + " tick window; " + ModIds.firstPresent(ModIds.PARTICLE_RAIN, ModIds.SIMPLE_CLOUDS)
+                            + " owns that pass (it cancels it before vanilla can ask us), so this is"
+                            + " the hand-off working, not a missed hook.");
+                } else {
+                    warn("route '" + route.label + "' was not consulted for " + WINDOW_TICKS
+                            + " ticks while it was expected to be - this version's code path does not "
+                            + "carry our hook, so that feature is silently off rather than broken."
+                            + pipelineHint());
+                }
+            }
+            WINDOW_BASE[index] = hits;
+            EXPECTED[index] = false;
+        }
+    }
+
+    /**
+     * Which capability a dead route costs the player. Only the routes whose loss is visible as
+     * a missing feature are mapped; the rest are reported as routes alone.
+     */
+    private static void loseCapabilityFor(Route route) {
+        switch (route) {
+            case RAIN_RENDER -> CAPABILITY_LOST[Capability.RAIN.ordinal()] = true;
+            case CLOUD_COLOR -> CAPABILITY_LOST[Capability.CLOUD.ordinal()] = true;
+            case FOG_COLOR, FOG_RANGE -> CAPABILITY_LOST[Capability.FOG.ordinal()] = true;
+            default -> {
+                // Sky colour and darkening: the sky route degrades to vanilla on its own.
+            }
+        }
+    }
+
+    /**
+     * What is installed here, appended to a route failure so the reader does not have to ask.
+     * The three answers that matter are: a replaced render pipeline (Sodium and friends), a
+     * shader pack (which owns the sky and the fog outright), and nothing at all - in which case
+     * the reader is looking at a mapping or code-path change.
+     */
+    private static String pipelineHint() {
+        StringBuilder sb = new StringBuilder();
+        if (ModIds.isAny(ModIds.SODIUM))
+            sb.append(" [sodium-family mod present: ")
+                    .append(ModIds.firstPresent(ModIds.SODIUM)).append(']');
+        if (ModIds.shadersInUse())
+            sb.append(" [shader pack in use: the sky and fog routes belong to it]");
+        if (sb.length() == 0)
+            sb.append(" [no render-pipeline mod detected - suspect a mapping or code-path change]");
+        return sb.toString();
+    }
+
+    private static void reset() {
+        inWorld = false;
+        ticksInWorld = 0;
+        rainSilentTicks = 0;
+        lastRainHits = 0L;
+        rainRouteForeign = false;
+        cloudSilentTicks = 0;
+        lastCloudHits = 0L;
+        cloudRouteForeign = false;
+        announced = false;
+        resetCounters();
+    }
+
+    private static void resetCounters() {
+        for (int i = 0; i < ROUTE_COUNT; i++) {
+            HITS[i] = 0L;
+            WINDOW_BASE[i] = 0L;
+            EXPECTED[i] = false;
+            SEEN_ALIVE[i] = false;
+            REPORTED[i] = false;
+            LOST[i] = false;
+        }
+        for (int i = 0; i < CAPABILITIES.length; i++)
+            CAPABILITY_LOST[i] = false;
+    }
+
+    /**
+     * Diagnostics only, and never fatal. The logger is resolved lazily because the fuse can be
+     * reached before the container is populated, and the whole call is wrapped because a
+     * watchdog that throws while reporting a problem is worse than the problem.
+     */
+    private static void log(String level, String message) {
+        try {
+            IModLog logger = ContainerManager.resolve(IModLog.class);
+            if ("WARN".equals(level))
+                logger.warn("[COMPAT] " + message);
+            else
+                logger.info("[COMPAT] " + message);
+        } catch (Throwable t) {
+            // Nothing left to do: there is no way to report a reporting failure.
+        }
+    }
+
+    private static void warn(String message) {
+        log("WARN", message);
+    }
+
+    private static void info(String message) {
+        log("INFO", message);
+    }
+}

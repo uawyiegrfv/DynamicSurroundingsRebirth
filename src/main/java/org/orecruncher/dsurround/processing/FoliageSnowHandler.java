@@ -358,11 +358,20 @@ public class FoliageSnowHandler extends AbstractClientHandler {
 
         if (tick - this.lastDiagTick >= DIAG_INTERVAL_TICKS) {
             this.lastDiagTick = tick;
-            // No FoliageScan.statsLine() on this version - the scan histogram
-            // was only added to the 1.20.1 scanner.
-            this.logger.info("[FoliageSnow] snowing=%s progress=%.2f base=%.2f plants=%d units=%d attached=%d force=%s",
-                    snowingHere, progress, this.base, this.plants.size(), this.unitCount(), attached,
-                    DEBUG_FORCE);
+            // Round 12: this line used to sit behind traceEnabled, so a layer that had quietly
+            // stopped producing printed nothing at all - which is exactly the state worth reading
+            // about. It also used to answer only "how much", never "why not", so every term of
+            // the gate goes in: the phase the column is shedding, whether the shader switch has
+            // the plant layers down, how much of the plant budget is spoken for, and how stale
+            // the last look around is. None of it changes behaviour.
+            // No FoliageScan.statsLine() here: the scan histogram was only added to the
+            // 1.20.1 scanner. Capping the plants prints next to the budget on purpose -
+            // "plants=224/224" is the whole answer to "why do only the flowers have snow".
+            this.logger.info("[FoliageSnow] gate snowing=%s raining=%s potential=%s plantLayersOff=%s force=%s"
+                            + " | progress=%.2f base=%.2f plants=%d/%d units=%d sinceScan=%d",
+                    snowingHere, world.isRaining(), PrecipitationIntensity.potentialPhase(pos),
+                    plantLayersOff, DEBUG_FORCE, progress, this.base, this.plants.size(), MAX_PLANTS,
+                    this.unitCount(), tick - this.lastScanTick);
         }
 
         // Rain over snow: the window collapses for everyone still standing.

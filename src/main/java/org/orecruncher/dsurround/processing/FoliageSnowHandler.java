@@ -164,6 +164,14 @@ public class FoliageSnowHandler extends AbstractClientHandler {
      * needs to be.
      */
     private static final float SINK_SPEED = 0.0035F;
+    /**
+     * The lottery slip: the same straight-down sink, slower still - 0.045 blocks a second
+     * against the melt's 0.07, so a slip reads as settling rather than leaving. It travels
+     * the same capped distance (0.06..0.36), which is between 1.3s and 8s of fall.
+     */
+    private static final float SLIP_SPEED = 0.0022F;
+    /** Longer than the melt's fade: a slip should dissolve on the way down, not stop and blink. */
+    private static final int SLIP_FADE_TICKS = 110;
     /** How far a melting unit sinks before it fades, in blocks. */
     private static final float SINK_DROP_MAX = 0.36F;
     /** ...and the least it will do, for a unit anchored near the floor. */
@@ -954,8 +962,15 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                     pts[i + 1] = (float) (unit.pos().getY() + offset.y + path.pts()[i + 1]);
                     pts[i + 2] = (float) (unit.pos().getZ() + offset.z + path.pts()[i + 2]);
                 }
-                final float endY = path.pts()[path.pts().length - 2];
-                unit.particle().beginSlide(pts, SLIDE_SPEED, endY > 0.25F);
+                // Round 12: "积雪滑落动画还是会斜着滑" - the melt exit was straightened
+                // in round 8, this one never was, so it still rode the leaf's baked path.
+                // Straight down, and slower still than the melt sink: a slip is a bit of
+                // snow losing its grip, not the coat taking its leave. The drop is capped
+                // the same way (never into the block below), so the fade always finishes
+                // above the floor rather than inside it.
+                final float room = unit.anchor().y() - SINK_FLOOR_CLEARANCE;
+                final float drop = Math.max(SINK_DROP_MIN, Math.min(SINK_DROP_MAX, room));
+                unit.particle().beginSink(drop, SLIP_SPEED, SLIP_FADE_TICKS);
             }
         }
     }

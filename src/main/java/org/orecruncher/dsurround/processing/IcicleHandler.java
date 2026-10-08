@@ -153,6 +153,12 @@ public class IcicleHandler extends AbstractClientHandler {
     private long lastEmptyLog = -1000L;
     private long lastDropRoll = -1000L;
     /** Consecutive tick failures - see the catch in {@link #onTick}. */
+    /** Round 12: one status line every five seconds. The flip line below only speaks when the
+     * gate moves, so a layer quietly producing nothing prints nothing at all - which is the
+     * state a bug report always arrives in. */
+    private static final int DIAG_INTERVAL_TICKS = 100;
+    private long lastDiagTick = -1000L;
+
     private int failures = 0;
     /** BUG-3: a dimension switch leaves `client.player` perfectly alive, so
      * nothing else noticed the old world's bookkeeping was still here. The
@@ -268,6 +274,18 @@ public class IcicleHandler extends AbstractClientHandler {
                     snowing, raining, PrecipitationIntensity.potentialPhase(pos),
                     PrecipitationIntensity.ambient(), this.eventBaseIntensity, this.attached.size(),
                     pos.getX(), pos.getY(), pos.getZ());
+        // Round 12: the same terms as the snow line, so "neither layer is producing" reads as
+        // one cause in the log instead of two mysteries. attached=/MAX_ICICLES is the number to
+        // watch: a roster pinned at the ceiling with a storm still going means the eaves stopped
+        // being re-read, not that the snow stopped.
+        if (tick - this.lastDiagTick >= DIAG_INTERVAL_TICKS) {
+            this.lastDiagTick = tick;
+            this.logger.info("[IcicleHandler] gate snowing=%s raining=%s potential=%s snowTemp=%s"
+                            + " attached=%d/%d sinceScan=%d near (%d,%d,%d)",
+                    snowing, raining, PrecipitationIntensity.potentialPhase(pos),
+                    SeasonManager.HANDLER.isSnowTemperature(pos), this.attached.size(), MAX_ICICLES,
+                    tick - this.lastScan, pos.getX(), pos.getY(), pos.getZ());
+        }
 
         if (snowing) {
             // Resume edge: a biome-border flap's drop schedule is undone - the

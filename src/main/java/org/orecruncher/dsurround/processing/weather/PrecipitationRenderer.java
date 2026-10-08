@@ -986,6 +986,26 @@ public final class PrecipitationRenderer {
                     light = lightCache.get(phaseKey);
                 } else {
                     int raw = LevelRenderer.getLightColor(level, cursor.set(gridX, k2, gridZ));
+                    // Round 12: a snowdrift a block deep buries this sample point inside
+                    // solid snow, and the light inside a solid block is the light of its
+                    // own interior - zero - so the whole curtain went black exactly when
+                    // the drift reached a full block. The snow units on the plants never
+                    // did: they are lit from their own anchor, which is never inside a
+                    // block. Only a totally black reading is questioned, and only upwards:
+                    // a normally lit column is left exactly as it was.
+                    if (raw == 0) {
+                        for (int step = 1; step <= 3; step++) {
+                            final int up = k2 + step;
+                            if (level.isOutsideBuildHeight(up))
+                                break;
+                            final int lit = LevelRenderer.getLightColor(level, cursor.set(gridX, up, gridZ));
+                            if (lit != 0) {
+                                raw = lit;
+                                break;
+                            }
+                        }
+                    }
+
                     // Rain, snow and dust all take the light where they actually
                     // are, so all three dim after dark.
                     //

@@ -358,10 +358,17 @@ public class FoliageSnowHandler extends AbstractClientHandler {
 
         if (tick - this.lastDiagTick >= DIAG_INTERVAL_TICKS) {
             this.lastDiagTick = tick;
-            if (FoliageScan.traceEnabled(this.config))
-            this.logger.info("[FoliageSnow] snowing=%s progress=%.2f base=%.2f plants=%d units=%d attached=%d force=%s | %s",
-                    snowingHere, progress, this.base, this.plants.size(), this.unitCount(), attached,
-                    DEBUG_FORCE, FoliageScan.statsLine());
+            // Round 12: this line used to sit behind traceEnabled, so a layer that had quietly
+            // stopped producing printed nothing at all - which is exactly the state worth reading
+            // about. It also used to answer only "how much", never "why not", so every term of
+            // the gate goes in: the phase the column is shedding, whether the shader switch has
+            // the plant layers down, how much of the plant budget is spoken for, and how stale
+            // the last look around is. None of it changes behaviour.
+            this.logger.info("[FoliageSnow] gate snowing=%s raining=%s potential=%s plantLayersOff=%s force=%s"
+                            + " | progress=%.2f base=%.2f plants=%d/%d units=%d sinceScan=%d | %s",
+                    snowingHere, world.isRaining(), PrecipitationIntensity.potentialPhase(pos),
+                    plantLayersOff, DEBUG_FORCE, progress, this.base, this.plants.size(), MAX_PLANTS,
+                    this.unitCount(), tick - this.lastScanTick, FoliageScan.statsLine());
         }
 
         // Rain over snow: the window collapses for everyone still standing.

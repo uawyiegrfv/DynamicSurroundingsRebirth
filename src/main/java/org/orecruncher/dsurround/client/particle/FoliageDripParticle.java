@@ -139,6 +139,8 @@ public class FoliageDripParticle extends TextureSheetParticle {
     private static final float SLIDE_SPEED_CEILING = 0.03F;
     /** ...and a floor, so a bead that meets a flat stretch still finishes. */
     private static final float SLIDE_MIN_FRACTION = 0.15F;
+    /** Where the slide hands over to the fade - see the SLIDE branch. */
+    private static final float SLIDE_FADE_HANDOFF = 0.70F;
     /** How hard friction drags a surging bead back to its grip-limited speed. */
     private static final float SLIDE_BRAKE = 0.0010F;
     /**
@@ -250,7 +252,12 @@ public class FoliageDripParticle extends TextureSheetParticle {
         // roll here, and a row of beads all cut to one size is exactly the
         // plastic look the custom texture already had.
         final float scale = (float) (sizeScale > 0.0D ? sizeScale : 1.0D);
-        final float variance = sizeScale > 0.0D ? 1.0F : (this.random.nextFloat() * 0.5F + 0.5F);
+        // Round 12: the variance used to be 0.5..1.0, which put a bead at 0.10..0.20 of a
+        // block - smaller than the smallest snow unit (0.18) and easy to miss on a leaf.
+        // 0.75..1.35 keeps the spread (a row of identical beads is the plastic look) and
+        // lifts the mean by 40%. Only callers that pass 0 get this roll; the snow layer
+        // passes an explicit scale and keeps variance 1.0.
+        final float variance = sizeScale > 0.0D ? 1.0F : (this.random.nextFloat() * 0.6F + 0.75F);
         this.baseSize = VANILLA_DRIP_QUAD_SIZE * scale * variance;
         this.quadSize = this.baseSize;
         this.setSize(0.02F, 0.02F);
@@ -386,6 +393,38 @@ public class FoliageDripParticle extends TextureSheetParticle {
      * lean and the ending without also reusing the baked path's trimming -
      * which is exactly what made the old exit turn.
      */
+    /**
+     * Round 12: a slide is only ever allowed to go DOWN. Returns the path prefixed with the
+     * bead's own position and reduced to the waypoints below it, or null when there is
+     * nothing left under the bead - in which case the caller falls back to letting go
+     * (or to staying put), which is what "no room to slide" has always meant.
+     */
+    private float[] clipBelow(final float[] pts) {
+        final int n = pts.length / 3;
+        if (n < 2)
+            return null;
+        final float[] out = new float[(n + 1) * 3];
+        out[0] = (float) this.x;
+        out[1] = (float) this.y;
+        out[2] = (float) this.z;
+        int m = 1;
+        final float here = (float) this.y;
+        for (int i = 0; i < n; i++) {
+            final float py = pts[i * 3 + 1];
+            if (py >= here)
+                continue;
+            out[m * 3] = pts[i * 3];
+            out[m * 3 + 1] = py;
+            out[m * 3 + 2] = pts[i * 3 + 2];
+            m++;
+        }
+        if (m < 2)
+            return null;
+        final float[] res = new float[m * 3];
+        System.arraycopy(out, 0, res, 0, m * 3);
+        return res;
+    }
+
     private boolean installPath(final float[] raw, final float maxSpeed, final boolean endWithFall,
                                 final float gripSpread) {
         // Chaikin's integer arithmetic collapses a one-pixel step into two
@@ -396,19 +435,28 @@ public class FoliageDripParticle extends TextureSheetParticle {
         // upside down relative to the last one, the 180 degree flip the
         // maintainer saw at every turn - and index-space placement gives it
         // the same share of the trip as a two-pixel segment. Drop them.
-        final float[] tmp = new float[raw.length];
+        // Round 12: a caller hands over the WHOLE baked path, which starts at the top of the
+        // blade, but the bead is already partway down it. Interpolating from waypoint zero
+        // teleported it back up to the leaf's crown before it started to slide - the "有时候
+        // 会往上爬" in the round-12 report. A slide can only go down: start from where the bead
+        // actually is and keep only what lies below it. (beginSink already passes
+        // [here, here-drop], so clipping leaves it exactly as it was.)
+        final float[] below = this.clipBelow(raw);
+        if (below == null)
+            return false;
+        final float[] tmp = new float[below.length];
         int n = 0;
-        for (int i = 0; i < raw.length; i += 3) {
+        for (int i = 0; i < below.length; i += 3) {
             if (n > 0) {
-                final float dx = raw[i] - tmp[(n - 1) * 3];
-                final float dy = raw[i + 1] - tmp[(n - 1) * 3 + 1];
-                final float dz = raw[i + 2] - tmp[(n - 1) * 3 + 2];
+                final float dx = below[i] - tmp[(n - 1) * 3];
+                final float dy = below[i + 1] - tmp[(n - 1) * 3 + 1];
+                final float dz = below[i + 2] - tmp[(n - 1) * 3 + 2];
                 if (dx * dx + dy * dy + dz * dz < 1.0e-8F)
                     continue;
             }
-            tmp[n * 3] = raw[i];
-            tmp[n * 3 + 1] = raw[i + 1];
-            tmp[n * 3 + 2] = raw[i + 2];
+            tmp[n * 3] = below[i];
+            tmp[n * 3 + 1] = below[i + 1];
+            tmp[n * 3 + 2] = below[i + 2];
             n++;
         }
         if (n < 2)
@@ -633,7 +681,13 @@ public class FoliageDripParticle extends TextureSheetParticle {
                 this.x = Mth.lerp(frac, this.pathPts[i * 3], this.pathPts[(i + 1) * 3]);
                 this.y = Mth.lerp(frac, this.pathPts[i * 3 + 1], this.pathPts[(i + 1) * 3 + 1]);
                 this.z = Mth.lerp(frac, this.pathPts[i * 3 + 2], this.pathPts[(i + 1) * 3 + 2]);
-                if (d >= this.slideLen) {
+                // Round 12: hand the last stretch to the fade instead of finishing and THEN
+                // fading - stopping dead before dissolving is what read as a stutter. FADE
+                // keeps sinking on its own (FADE_SINK_PER_TICK), so the bead dissolves WHILE
+                // it drops the last few pixels. The arithmetic lines up: a full 0.36 drop
+                // leaves 0.108 below the hand-off, and the fade's 110 ticks cover 0.11.
+                final float handOff = this.slideFade > 0 ? this.slideLen * SLIDE_FADE_HANDOFF : this.slideLen;
+                if (d >= handOff) {
                     if (this.slideFade > 0)
                         this.beginFade(this.slideFade);
                     else if (this.endWithFall)

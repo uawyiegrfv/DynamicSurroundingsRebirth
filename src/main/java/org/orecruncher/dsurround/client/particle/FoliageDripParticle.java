@@ -149,7 +149,7 @@ public class FoliageDripParticle extends TextureSheetParticle {
     /** ...and a floor, so a bead that meets a flat stretch still finishes. */
     private static final float SLIDE_MIN_FRACTION = 0.15F;
     /** Where the slide hands over to the fade - see the SLIDE branch. */
-    private static final float SLIDE_FADE_HANDOFF = 0.70F;
+    private static final float SLIDE_FADE_HANDOFF = 0.92F;
     /** How hard friction drags a surging bead back to its grip-limited speed. */
     private static final float SLIDE_BRAKE = 0.0010F;
     /**
@@ -419,13 +419,29 @@ public class FoliageDripParticle extends TextureSheetParticle {
         out[1] = (float) this.y;
         out[2] = (float) this.z;
         int m = 1;
-        final float here = (float) this.y;
+        // Start at the waypoint nearest the bead and keep EVERYTHING after it - only the
+        // waypoints above the bead are skipped, and only until the path starts dropping.
+        // Filtering by height alone (the first cut) threw away the mid-path stretches that
+        // run sideways or level, which is why a bead on tall grass vanished halfway down:
+        // its remaining path had been clipped to nothing.
+        int start = 0;
+        float best = Float.MAX_VALUE;
         for (int i = 0; i < n; i++) {
-            final float py = pts[i * 3 + 1];
-            if (py >= here)
-                continue;
+            final float dx = pts[i * 3] - (float) this.x;
+            final float dy = pts[i * 3 + 1] - (float) this.y;
+            final float dz = pts[i * 3 + 2] - (float) this.z;
+            final float d = dx * dx + dy * dy + dz * dz;
+            if (d < best) {
+                best = d;
+                start = i;
+            }
+        }
+        final float here = (float) this.y;
+        while (start < n - 1 && pts[start * 3 + 1] >= here)
+            start++;
+        for (int i = start; i < n; i++) {
             out[m * 3] = pts[i * 3];
-            out[m * 3 + 1] = py;
+            out[m * 3 + 1] = pts[i * 3 + 1];
             out[m * 3 + 2] = pts[i * 3 + 2];
             m++;
         }

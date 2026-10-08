@@ -95,6 +95,17 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     private static final long KEEP_DIST_SQ = 28L * 28L;
     /** Only enough to win the depth test against the leaf (dew: 0.04 read as floating). */
     private static final double NORMAL_OFFSET = 0.012D;
+
+    /**
+     * Round 12: every unit used to sit at exactly the same distance off the leaf, so two
+     * that overlapped were exactly coplanar and the depth test had nothing to choose
+     * between them - the coat flickered wherever it closed up. Lift each unit by a
+     * slightly different amount instead. The whole spread is 4 x 0.006 = 0.024 blocks,
+     * far under a pixel to look at but several times the depth buffer's step out to the
+     * ranges we scan, so overlapping pieces get a definite order instead of a tie.
+     */
+    private static final int DEPTH_STEPS = 5;
+    private static final double DEPTH_STAGGER = 0.006D;
     private static final int DIAG_INTERVAL_TICKS = 100;
 
     // ---- the snow layer's own numbers ---------------------------------------
@@ -510,9 +521,17 @@ public class FoliageSnowHandler extends AbstractClientHandler {
      * the base of the sprite. Seven sprites x 16 seeds say 0.375 spreads
      * the same 16 units over all three height bands instead.
      */
-    /** Round 11: was 0.375 - a bigger share of the big pieces, so the coat closes into sheets sooner. */
-    private static final float SHEET_SHARE = 0.44F;
-    private static final float CLUMP_SHARE = 0.125F;
+    /**
+     * Round 11 raised the slab share to 0.44 to close the coat sooner, and the middle size
+     * duly vanished from the picture. Round 12 puts it back to 0.375 and doubles the clump
+     * share: one sheet covers about twenty times what a clump does (53 plant pixels against
+     * 2.6), so the slab share is what made the middle read as scarce - not the clump count,
+     * which was already 42% of the units. Because a clump also grew (0.26 -> 0.32, see
+     * FoliageSnowParticle.SIZES) the cover does not fall, it rises: grass holds 68.3%,
+     * fern 82.5%, and the flowers gain 8 to 11 points where a slab never fit anyway.
+     */
+    private static final float SHEET_SHARE = 0.375F;
+    private static final float CLUMP_SHARE = 0.25F;
 
     /**
      * Height up the quad above which an anchor counts as a TIP. A cross
@@ -608,8 +627,13 @@ public class FoliageSnowHandler extends AbstractClientHandler {
         // Sort by distance and take the nearest first. ObjectArray has no
         // stream(), so collect it by hand.
         final List<FoliageScan.FoliageSpot> spots = new ArrayList<>(64);
+        // Round 12: sweep towards what the player is looking at. player is null only in a
+        // couple of tests; a zero facing means "plain box" and costs nothing.
+        final double yaw = player == null ? 0D : player.getYRot() * (Math.PI / 180D);
+        final float facingX = player == null ? 0F : (float) -Math.sin(yaw);
+        final float facingZ = player == null ? 0F : (float) Math.cos(yaw);
         for (final FoliageScan.FoliageSpot spot : FoliageScan.scan(world, center, FoliageScan.Mode.SNOW,
-                this.config.weatherOptions.foliageScanRange))
+                this.config.weatherOptions.foliageScanRange, facingX, facingZ))
             spots.add(spot);
         spots.sort(Comparator.comparingDouble(s -> s.pos().distSqr(center)));
         for (final FoliageScan.FoliageSpot spot : spots) {
@@ -916,7 +940,8 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                 pm.add(particle);
                 attached++;
                 unit.setPlane(nx, ny, nz, ux, uy, uz, vx, vy, vz);
-                unit.move(nx * NORMAL_OFFSET, ny * NORMAL_OFFSET, nz * NORMAL_OFFSET);
+                final double lift = NORMAL_OFFSET + (index % DEPTH_STEPS) * DEPTH_STAGGER;
+                unit.move(nx * lift, ny * lift, nz * lift);
                 // No land sound: dry snow is too light to announce itself (the
                 // same ruling the dew layer's plip was weighed against).
                 plant.units.add(new SnowUnit(unit, plane, anchor, spot.pos(), spot.state(),

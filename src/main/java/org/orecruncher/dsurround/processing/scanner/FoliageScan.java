@@ -60,6 +60,19 @@ public final class FoliageScan {
 
     /** Default horizontal reach (the config's foliageScanRange drives the real one). */
     public static final int RANGE_XZ = 10;
+
+    /**
+     * Round 12: a box spends a third of itself on ground behind the player, which is the
+     * part nobody can see. These stretch the sweep along where the player is looking and
+     * pull it in behind, as two half-ellipses joined at the player (front
+     * {@link #FAN_FORWARD}, back {@link #FAN_BACK}, sideways {@link #FAN_SIDE}, all in
+     * units of {@code range}). At the default 16 that reaches <b>26 blocks ahead and 19
+     * to either side</b> while walking 94% of the columns the box did - so the coat now
+     * starts twenty-odd blocks out for slightly LESS work than before.
+     */
+    private static final float FAN_FORWARD = 1.65F;
+    private static final float FAN_SIDE = 1.19F;
+    private static final float FAN_BACK = 0.50F;
     /** Vertical reach above the player. */
     public static final int UP_RANGE = 4;
     /**
@@ -145,15 +158,42 @@ public final class FoliageScan {
         return scan(world, center, mode, RANGE_XZ);
     }
 
-    public static ObjectArray<FoliageSpot> scan(final Level world, final BlockPos center, final Mode mode, final int range) {
+    public static ObjectArray<FoliageSpot> scan(final Level world, final BlockPos center, final Mode mode,
+                                                final int range) {
+        return scan(world, center, mode, range, 0F, 0F);
+    }
+
+    /**
+     * The same sweep, narrowed to what the player can actually see. {@code fx}/{@code fz}
+     * is the horizontal facing (a unit vector); pass 0/0 for the plain box, which is what
+     * the dew and rain layers still ask for. Ground that swings into view as the player
+     * turns is swept then, and anything already dressed is kept out to its layer's own
+     * keep distance regardless of shape.
+     */
+    public static ObjectArray<FoliageSpot> scan(final Level world, final BlockPos center, final Mode mode,
+                                                final int range, final float fx, final float fz) {
         if (TRACE)
             java.util.Arrays.fill(STATS, 0);
         final ObjectArray<FoliageSpot> result = new ObjectArray<>(64);
         final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         final int rx = Math.max(2, range);
+        final boolean fan = fx != 0F || fz != 0F;
+        // The sweep is wider than rx now, so the walk has to reach past it - a box-sized
+        // loop clipped the fan back to exactly the old 16 and quietly did nothing.
+        final int w = fan ? (int) Math.ceil(Math.max(FAN_SIDE, Math.max(FAN_FORWARD, FAN_BACK)) * rx) : rx;
 
-        for (int dx = -rx; dx <= rx; dx++) {
-            for (int dz = -rx; dz <= rx; dz++) {
+        for (int dx = -w; dx <= w; dx++) {
+            for (int dz = -w; dz <= w; dz++) {
+                if (fan) {
+                    final float forward = dx * fx + dz * fz;
+                    final float side = dx * -fz + dz * fx;
+                    final float a = (forward >= 0F ? FAN_FORWARD : FAN_BACK) * rx;
+                    final float b = FAN_SIDE * rx;
+                    final float u = forward / a;
+                    final float v = side / b;
+                    if (u * u + v * v > 1F)
+                        continue;
+                }
                 final int x = center.getX() + dx;
                 final int z = center.getZ() + dz;
                 for (int y = center.getY() + UP_RANGE; y >= center.getY() - DOWN_RANGE; y--) {

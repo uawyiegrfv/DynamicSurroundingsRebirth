@@ -91,7 +91,11 @@ public class FoliageSnowParticle extends FoliageDripParticle {
 
     private static final float[] SIZES = {
             0.18F, 0.18F,       // dot_a, dot_b   (~1.5 plant px; the vanilla drip hangs at 0.20)
-            0.26F, 0.26F,       // clump_a, clump_b (~3.1 px)
+            0.32F, 0.32F,       // clump_a, clump_b - round 12: 0.26 -> 0.32, which is the
+                                // width of the 5x5 window a room-2 anchor guarantees
+                                // (5/16 = 0.3125 blocks). The middle size was only ~3 plant
+                                // pixels across against a sheet's 53, so a coat read as
+                                // "specks and slabs" with nothing in between.
             0.56F, 0.56F        // sheet_a, sheet_b (~6.7 px, thin)
     };
 

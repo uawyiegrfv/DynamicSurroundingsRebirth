@@ -402,14 +402,20 @@ public class FoliageSnowHandler extends AbstractClientHandler {
         // is still snow to show. A plant found now is dressed at the CURRENT depth, because
         // targetCount reads the same progress the plants already on the roster were dressed at,
         // so it joins the melt at exactly the stage its neighbours are at.
-        if ((snowingHere || progress > 0F) && (newChunk && tick - this.lastScanTick >= CHUNK_COOLDOWN_TICKS
+        // Round 12, corrected: the depth is the CHANNEL value, not the local progress above -
+        // that one is pinned to 1.0 whenever it is not snowing (it means something else), so
+        // gating on it kept the scan running through the whole melt and re-dressed every
+        // plant it found at full depth. The snow never left.
+        if ((snowingHere || depthChannel.value() > 0F) && (newChunk && tick - this.lastScanTick >= CHUNK_COOLDOWN_TICKS
                 || movedNow
                 || tick - this.lastScanTick >= TOPUP_TICKS)) {
             this.lastChunkX = chunkX;
             this.lastChunkZ = chunkZ;
             this.lastScanTick = tick;
             this.lastScanPos = pos.immutable();
-            this.scanAndAttach(world, pos, tick, progress, player);
+            // Melting: hand the scan the real depth, so a plant found now wears what its
+            // neighbours wear instead of a fresh full coat.
+            this.scanAndAttach(world, pos, tick, snowingHere ? progress : depthChannel.value(), player);
         }
 
         if (tick - this.lastStaleCheck >= STALE_CHECK_TICKS) {

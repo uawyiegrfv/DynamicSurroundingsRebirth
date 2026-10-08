@@ -11,6 +11,7 @@ import org.orecruncher.dsurround.processing.weather.PrecipitationProfile;
 import org.orecruncher.dsurround.processing.weather.PrecipitationRenderer;
 import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 import org.orecruncher.dsurround.processing.weather.PrecipitationSeason;
+import org.orecruncher.dsurround.processing.weather.RouteFuse;
 import org.orecruncher.dsurround.processing.weather.SkyEventScheduler;
 
 import java.util.Random;
@@ -567,9 +568,10 @@ public final class PrecipitationIntensity {
     /** As {@link #skyHooks}, for the thunder (second desaturation) mixins. */
     private static volatile int stormHooks = 0;
 
-    /** Called by the sky colour mixin. */
+    /** Called by the sky colour route (the mixin on 1.20.1/1.21.1, SkyStateInjector here). */
     public static void noteSkyColorHook() {
         skyColorHooks++;
+        RouteFuse.feed(RouteFuse.Route.SKY_COLOR);
     }
 
     /**
@@ -583,14 +585,16 @@ public final class PrecipitationIntensity {
             log.info(format, args);
     }
 
-    /** Called by the cloud colour mixin. */
+    /** Called by the cloud colour route. */
     public static void noteCloudColorHook() {
         cloudColorHooks++;
+        RouteFuse.feed(RouteFuse.Route.CLOUD_COLOR);
     }
 
-    /** Called by the fog colour mixin. */
+    /** Called by the fog colour route (ViewportEvent.ComputeFogColor on this version). */
     public static void noteFogColorHook() {
         fogColorHooks++;
+        RouteFuse.feed(RouteFuse.Route.FOG_COLOR);
     }
 
     /**
@@ -751,6 +755,7 @@ public final class PrecipitationIntensity {
         // question is whether this version's sky route runs at all, not whether we
         // happened to own the frame.
         skyHooks++;
+        RouteFuse.feed(RouteFuse.Route.SUN_ALPHA);
         if (!ownsAmbient())
             return level.getRainLevel(partialTick);
         return Math.max(PrecipitationResponse.SUN.value(),
@@ -1164,6 +1169,7 @@ public final class PrecipitationIntensity {
 
     public static float stormRainLevel(Level level, float partialTick) {
         stormHooks++;
+        RouteFuse.feed(RouteFuse.Route.SKY_DARKEN);
         if (!ownsAmbient())
             return level.getThunderLevel(partialTick);
         // Ours alone. Taking the larger of this and vanilla thunder level gave
@@ -1908,7 +1914,11 @@ public final class PrecipitationIntensity {
         // this class stands down. Their per-tick cost is O(1) arithmetic; the
         // one biome query they need (the profile roll at spawn time) happens
         // once per gap and is fed the traits this tick already has.
-        SkyEventScheduler.tick(logger, raining, info == null ? null : info.getTraits());
+        // The dimension is decided here, where the level already is: both sky events are
+        // applied by paths that run in every dimension, so the scheduler has to be told
+        // which one the player is in (see the overworld gate in advance()).
+        SkyEventScheduler.tick(logger, raining, info == null ? null : info.getTraits(),
+                level.dimension().equals(Level.OVERWORLD));
 
         // Idle fast path. When nothing is falling, nothing has been rolled and
         // every channel has settled, skip the five-sample biome query, the

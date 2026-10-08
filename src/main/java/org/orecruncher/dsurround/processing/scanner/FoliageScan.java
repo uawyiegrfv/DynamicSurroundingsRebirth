@@ -15,9 +15,11 @@ import org.orecruncher.dsurround.lib.collections.ObjectArray;
  * Where the foliage-drip layers can attach: a plain volume walk around the
  * player (the drip scanner's framework, a different predicate - plants are
  * not overhangs, so this is a sibling of {@link DripScanner}, not a branch of
- * it). The box is deliberately small: radius 10 / up 4 / down 6 is 4851 block
- * reads a pass against the eave scanner's 29k, and never leaves the loaded
- * chunks the client is guaranteed to hold.
+ * it). The box is deliberately small and never leaves the loaded chunks the
+ * client is guaranteed to hold: at the configured range of 16 it is 33x33x7,
+ * about 7.6k block reads a pass, against the eave scanner's 29k. The 7 is
+ * {@link #UP_RANGE} plus {@link #DOWN_RANGE} plus one; the down side used to be
+ * six, and that part of the box was the part nothing ever looked at.
  *
  * <p>The predicate chain, in cost order:</p>
  * <ol>
@@ -60,11 +62,56 @@ public final class FoliageScan {
     public static final int RANGE_XZ = 10;
     /** Vertical reach above the player. */
     public static final int UP_RANGE = 4;
-    /** Vertical reach below the player. */
-    public static final int DOWN_RANGE = 6;
+    /**
+     * Vertical reach below the player.
+     *
+     * <p>Was six. The window is centred on the player, not on the terrain, so the reach below only
+     * matters while the player is <em>above</em> the plants - standing on a wall, or in the air -
+     * and everything it does cover has to be within the four blocks above as well. Two keeps the
+     * cases that are actually seen (a slope one block down, a jump, standing on a plant's own
+     * block) and drops four layers off every sweep: 33x33x11 becomes 33x33x7, a third of the block
+     * reads gone from the most expensive of the three ground layers. Plants that were in range
+     * and drop out are not torn down - the handlers' staleness pass keeps them until the plant
+     * itself goes - so the visible effect is a slower fill from above, not a flicker.</p>
+     */
+    public static final int DOWN_RANGE = 2;
 
     /** Trace switch - driven by the handlers from the logging config. */
     public static volatile boolean TRACE = false;
+
+    /** Logged once per session when the shader switch suppresses the plant layers. */
+    private static volatile boolean shaderSuppressionReported = false;
+
+    /**
+     * Whether the plant-attached layers may run right now.
+     *
+     * <p>A shader pack that makes plants sway moves the plant in its vertex shader - the geometry
+     * the player sees is displaced, while a particle anchored to that plant stays where the scan
+     * found it. There is no way for us to follow: the displacement lives in the pack's GLSL, the
+     * pack does not publish its parameters, and our particles are not drawn through the plant's
+     * program. So the only honest lever is to stop drawing them, and this is that lever - with the
+     * eave layers deliberately left alone, because blocks do not sway.</p>
+     *
+     * <p>Off by default: plenty of packs do not sway plants at all, and silently removing three
+     * features for every shader user would be a worse default than one config line. The startup
+     * summary names the switch whenever a pack is in use.</p>
+     */
+    public static boolean plantLayersAllowed(final org.orecruncher.dsurround.Configuration config) {
+        if (config == null || !config.weatherOptions.disableFoliageLayersWithShaders)
+            return true;
+        return !org.orecruncher.dsurround.compat.ModIds.shadersInUse();
+    }
+
+    /** One line, once, when the switch above actually takes the layers down. */
+    public static void reportShaderSuppression(final org.orecruncher.dsurround.lib.logging.IModLog logger) {
+        if (shaderSuppressionReported)
+            return;
+        shaderSuppressionReported = true;
+        logger.info("Plant-attached layers (leaf drips / dew / snow) are switched off because a shader"
+                + " pack is in use and some packs sway the plants out from under a particle. Eave drips"
+                + " and icicles are unaffected. Set weatherOptions.disableFoliageLayersWithShaders=false"
+                + " to keep all three layers anyway.");
+    }
 
     public static final int STAT_AIR = 0;
     public static final int STAT_NOT_CANDIDATE = 1;

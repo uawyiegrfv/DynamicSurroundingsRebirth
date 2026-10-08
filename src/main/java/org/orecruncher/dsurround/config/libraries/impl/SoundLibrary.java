@@ -35,6 +35,7 @@ import org.orecruncher.dsurround.lib.random.Randomizer;
 import org.orecruncher.dsurround.lib.resources.DiscoveredResource;
 import org.orecruncher.dsurround.lib.resources.ResourceUtilities;
 import org.orecruncher.dsurround.lib.platform.IMinecraftDirectories;
+import org.orecruncher.dsurround.sound.FootstepFallback;
 import org.orecruncher.dsurround.sound.ISoundFactory;
 import org.orecruncher.dsurround.sound.SoundFactory;
 import org.orecruncher.dsurround.sound.SoundFactoryBuilder;
@@ -72,6 +73,7 @@ public final class SoundLibrary implements ISoundLibrary {
     private final ITagLibrary tagLibrary;
     private final Configuration config;
     private final Path soundConfigPath;
+    private final FootstepFallback footstepFallback;
 
     private final Object2ObjectOpenHashMap<Identifier, SoundEvent> myRegistry = new Object2ObjectOpenHashMap<>();
     private final Object2ObjectOpenHashMap<Identifier, SoundMetadata> soundMetadata = new Object2ObjectOpenHashMap<>();
@@ -87,6 +89,9 @@ public final class SoundLibrary implements ISoundLibrary {
         this.logger = ModLog.createChild(logger, "SoundLibrary");
         this.config = config;
         this.tagLibrary = tagLibrary;
+        // Shares the live remapping map: reload() clears it in place, so the fallback always
+        // sees the data that is actually loaded.
+        this.footstepFallback = new FootstepFallback(this.logger, tagLibrary, this.soundRemappings);
         this.myRegistry.defaultReturnValue(SoundLibrary.MISSING);
         this.soundMetadata.defaultReturnValue(new SoundMetadata());
         this.soundConfigPath = directories.getModConfigDirectory().resolve(SOUND_CONFIG_FILE);
@@ -111,6 +116,7 @@ public final class SoundLibrary implements ISoundLibrary {
         this.soundMetadata.clear();
         this.soundFactories.clear();
         this.soundRemappings.clear();
+        this.footstepFallback.clear();
         this.loadSoundConfiguration();
 
         // Initializes the internal sound registry once all the other mods have
@@ -315,7 +321,17 @@ public final class SoundLibrary implements ISoundLibrary {
             if (match.isPresent())
                 return Optional.of(new ISoundLibrary.SoundRemap(match.get().factory(), match.get().accent()));
         }
-        return Optional.empty();
+
+        // B7-A. The lookup above is keyed by the vanilla step EVENT, and a sound-replacing mod
+        // (IMB11's Sounds, formerly sonance) rewrites that key out from under us: its dynamic
+        // block sounds give a block a SoundType built from its own events, so the event misses
+        // the table and the block loses its DS material without a word in the log.
+        //
+        // This is deliberately placed at the empty exit, after the event lookup has already
+        // failed: every combination that resolves today returns exactly the value it returned
+        // before. See FootstepFallback for what it indexes, in which order, and why - and for
+        // the behaviour test that keeps it away from blocks nobody has touched.
+        return this.footstepFallback.resolve(state);
     }
 
     @Override

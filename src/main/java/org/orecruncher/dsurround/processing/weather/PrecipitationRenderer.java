@@ -26,6 +26,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.client.CustomEnvironmentEffectsRendererManager;
 import net.neoforged.neoforge.client.CustomWeatherEffectRenderer;
 import net.neoforged.neoforge.client.event.RegisterCustomEnvironmentEffectRendererEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
@@ -486,6 +487,7 @@ public final class PrecipitationRenderer {
      */
     public static void onWorldLeft() {
         broken = false;
+        effectsOwnershipChecked = false;
         phaseCache.clear();
         surfaceCache.clear();
         lightCache.clear();
@@ -529,12 +531,19 @@ public final class PrecipitationRenderer {
      */
     private static CustomWeatherEffectRenderer registeredWeatherRenderer = null;
 
+    /**
+     * The key we register the weather renderer under. One home, because the
+     * ownership re-check below has to ask the manager for exactly this key.
+     */
+    private static final Identifier WEATHER_RENDERER_KEY =
+            Identifier.fromNamespaceAndPath("dsurround", "graded_precipitation");
+
     public static CustomWeatherEffectRenderer registeredWeatherRenderer() {
         return registeredWeatherRenderer;
     }
 
     public static void onRegisterWeatherEffectRenderer(RegisterCustomEnvironmentEffectRendererEvent event) {
-        Identifier key = Identifier.fromNamespaceAndPath("dsurround", "graded_precipitation");
+        Identifier key = WEATHER_RENDERER_KEY;
         event.registerWeatherEffectRenderer(key, new GradedPrecipitation());
         // Remembered so the 26.1 lookup mixin can hand the same instance back -
         // see MixinCustomEnvironmentEffectsRendererManager for why the lookup
@@ -585,6 +594,7 @@ public final class PrecipitationRenderer {
     private static boolean active() {
         boolean now = false;
         if (!broken) {
+            checkEffectsOwnership();
             var config = Client.Config;
             final boolean locked = PrecipitationIntensity.forced() >= 0F;
             final boolean enabled = locked
@@ -613,7 +623,25 @@ public final class PrecipitationRenderer {
                 unhookedTakeoverFrames = 0;
                 warnedUnhookedTakeover = false;
             }
+            // ---- hand-off: Particle Rain owns the rain curtain ----
+            //
+            // PR cancels vanilla's rain pass at HEAD, which means our suppression hook is never
+            // consulted and our own curtain (drawn from AFTER_WEATHER) would land on top of PR's
+            // rain: two rains, one of them blind to the other's settings. Standing down leaves
+            // one rain, drawn by the mod that was installed for it.
+            //
+            // Two exceptions, both deliberate: a diagnostics lock (/dsprecip lock) always draws,
+            // because the lock exists to show OUR layer whatever else is installed; and the
+            // config option lets a pack compare the two on purpose.
+            // Detection is behavioural, not a mod list: RouteFuse watches whether vanilla has asked
+            // us at all while rain is falling, which catches Particle Rain and Simple Clouds (both
+            // cancel the vanilla rain pass before it reaches us) and anything else that ever does
+            // the same. Presence is only used for the message.
+            final boolean someoneElseOwnsRain = !locked
+                    && RouteFuse.rainRouteForeign()
+                    && !(config != null && config.weatherOptions.gradedRainOverParticleRain);
             now = enabled
+                    && !someoneElseOwnsRain
                     && PrecipitationIntensity.takeoverReady()
                     // The dimension must actually point at us (CUSTOM_WEATHER_EFFECTS
                     // = dsurround:graded_precipitation). When it does not, vanilla never
@@ -624,7 +652,7 @@ public final class PrecipitationRenderer {
         }
         if (now != lastActive) {
             lastActive = now;
-            note("takeover=%s intensity=%.3f peak=%.3f hookCalls=%d tickHooks=%d renderCalls=%d config=%s locked=%s broken=%s",
+            note("takeover=%s intensity=%.3f peak=%.3f hookCalls=%d tickHooks=%d renderCalls=%d config=%s locked=%s rain-owner=%s broken=%s",
                     now,
                     PrecipitationIntensity.intensity(),
                     PrecipitationIntensity.peak(),
@@ -633,9 +661,64 @@ public final class PrecipitationRenderer {
                     renderCalls,
                     Client.Config == null ? "null" : String.valueOf(Client.Config.weatherOptions.enableGradedPrecipitation),
                     PrecipitationIntensity.forced() >= 0F,
+                    RouteFuse.rainRouteForeign() ? "another mod" : "dsr",
                     broken);
         }
         return now;
+    }
+
+    /**
+     * Set once the weather-renderer slot has been inspected in this world.
+     *
+     * <p>Reset when the world is left, because the next server may load a different set of mods'
+     * registrations - a check that only ever runs once per game session would miss exactly the
+     * pack that added a cloud mod between sessions.</p>
+     */
+    private static volatile boolean effectsOwnershipChecked = false;
+
+    /**
+     * One-shot check that the {@code dsurround:graded_precipitation} registration is still ours.
+     *
+     * <p>This is the 26.1 shape of the 1.20.1/1.21.1 overworld-effects re-check. There the silent
+     * loss was Forge's registry keeping the <em>last</em> {@code overworld} registration; here it is
+     * {@code RegisterCustomEnvironmentEffectRendererEvent}, which is a plain
+     * {@code Map.put} - a second registration under our key does not conflict, does not log and
+     * does not crash, it simply becomes the renderer vanilla asks, and every counter we own stops
+     * moving. From the player's side "the rain mod stopped working"; from the log's side nothing
+     * happened.</p>
+     *
+     * <p>Deliberately limited to the overworld, exactly as on the other versions: the nether and
+     * the end are not where the graded rain lives, and reporting them would be noise. Called from
+     * {@link #active()}, which runs every frame, so the answer is noticed in the frame the world
+     * finishes loading rather than at the next storm.</p>
+     *
+     * <p>Fail-closed: a lookup we cannot read, or a null answer, is not a verdict. Only a renderer
+     * that is <em>present and not ours</em> is reported.</p>
+     */
+    private static void checkEffectsOwnership() {
+        if (effectsOwnershipChecked)
+            return;
+        final ClientLevel level = Minecraft.getInstance().level;
+        if (level == null || !level.dimension().equals(Level.OVERWORLD))
+            return;
+        // The registration event has not run yet: no verdict to give.
+        if (registeredWeatherRenderer == null)
+            return;
+        effectsOwnershipChecked = true;
+        final CustomWeatherEffectRenderer resolved;
+        try {
+            resolved = CustomEnvironmentEffectsRendererManager.getCustomWeatherEffectRenderer(WEATHER_RENDERER_KEY);
+        } catch (Throwable t) {
+            // Unreadable is not "lost" - see the class comment on failing closed.
+            return;
+        }
+        if (resolved == null || resolved instanceof GradedPrecipitation)
+            return;
+        RouteFuse.noteCapabilityLost(RouteFuse.Capability.RAIN,
+                "another mod registered a custom weather renderer under dsurround:graded_precipitation"
+                        + " after us, so the rain pass is no longer ours to suppress");
+        RouteFuse.noteCapabilityLost(RouteFuse.Capability.CLOUD,
+                "the same pass carries the sky event's cloud suppression");
     }
 
     /** Diagnostics only. Logging must never be able to break rendering. */
@@ -669,6 +752,11 @@ public final class PrecipitationRenderer {
                 net.minecraft.client.renderer.MultiBufferSource bufferSource,
                 Vec3 cameraPos) {
             hookCalls++;
+            RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
+            // The witness for "someone else is drawing the rain" - see noteRainRenderHook. tickRain
+            // below deliberately does NOT feed it: nothing cancels tickRain, so it would keep the
+            // detector asleep while a rain mod cancels this very call.
+            RouteFuse.noteRainRenderHook();
             return active();
         }
 
@@ -678,6 +766,7 @@ public final class PrecipitationRenderer {
             // counter reads "vanilla asked" rather than "we took it over". That is
             // the whole point - see the field comment on tickHooks.
             tickHooks++;
+            RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
             // The caller is `if (renderer != null && renderer.tickRain(...))
             // return;` - true means vanilla stops, false means vanilla carries
             // on. We want it to carry on: tickRainParticles is the only place

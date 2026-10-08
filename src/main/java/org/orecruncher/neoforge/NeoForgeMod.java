@@ -54,6 +54,10 @@ public final class NeoForgeMod {
             // from the AfterWeather level stage.
             modBus.addListener(org.orecruncher.dsurround.processing.weather.PrecipitationRenderer::onRegisterWeatherEffectRenderer);
             org.orecruncher.dsurround.processing.weather.PrecipitationRenderer.bootstrap();
+            // Route watchdog: counts the consultations of every route we hook and reports the ones
+            // that stop being called. Purely observational - it changes no behaviour, and it is the
+            // only way a silently-missed injection becomes visible.
+            org.orecruncher.dsurround.processing.weather.RouteFuse.bootstrap();
 
             // 26.1: there is no getSkyColor / getCloudColor / renderSky to
             // redirect (those methods no longer exist), so the weather colours

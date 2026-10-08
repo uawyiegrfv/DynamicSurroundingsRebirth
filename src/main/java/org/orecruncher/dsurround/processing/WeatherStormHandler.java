@@ -493,10 +493,11 @@ public class WeatherStormHandler extends AbstractClientHandler {
         // "this route never ran".
         PrecipitationIntensity.noteFogColorHook();
 
-        // 26.1 has no FogRenderer, so unlike the other versions there is no
-        // second rain pass to redirect - and no way to tell from the code
-        // whether vanilla already folded rain into the colour it hands us
-        // here. Sample the incoming colour against the sky colour a few times
+        // 26.1's FogRenderer has no setupColor/levelFogColor to redirect, so
+        // unlike the other versions there is no second rain pass to take over -
+        // and no way to tell from the code whether vanilla already folded rain
+        // into the colour it hands us here. Sample the incoming colour against
+        // the sky colour a few times
         // a minute: if the fog still equals the sky while it is raining, rain
         // darkening is missing on this version and belongs right here.
         if (++this.fogProbeCounter >= 100) {
@@ -591,12 +592,30 @@ public class WeatherStormHandler extends AbstractClientHandler {
     }
 
     /**
-     * The overcast's final fog grey, applied last for the same reason the
-     * other two versions apply theirs in the fog renderer's tail: the horizon
-     * has to land on the grey the sky already shows, and anything applied
-     * after this would move it again. The doubled ramp is the same one
-     * 1.20.1/1.21.1 use - the fog greys about twice as fast as the sky so the
-     * horizon ring does not stay blue for the last minute of the fade.
+     * The overcast's final fog grey, applied last so the horizon lands on the
+     * grey the sky already shows - anything applied after this would move it
+     * again.
+     *
+     * <p>This is 26.1's counterpart of 1.20.1/1.21.1's
+     * {@code MixinFogRendererWeatherColor}. There the lift is a {@code @Redirect}
+     * on the {@code RenderSystem.setShaderFogColor} call inside
+     * {@code FogRenderer.levelFogColor}, because on those versions the renderer
+     * computes the colour into static fields first and only pushes it to the
+     * shader later - anything written before that push is overwritten, which is
+     * exactly what the deleted {@code setupColor} TAIL injection used to do.
+     * 26.1 has neither method: {@code FogRenderer.computeFogColor} hands its
+     * {@code dest} {@code Vector4f} to {@code ClientHooks.getFogColor}, which
+     * fires this event with that very object and then returns, and the renderer
+     * stores it as {@code FogData.color} - the object it later copies into the
+     * fog UBO and uses as the frame's clear colour. Mutating the event here is
+     * therefore mutating the value the screen is drawn with, which is why this
+     * port needs no mixin for it. (Verified against the 26.1.2 decompile: the
+     * only fog setter left in {@code RenderSystem} is
+     * {@code setShaderFog(GpuBufferSlice)}.)</p>
+     *
+     * <p>The doubled ramp is the same one 1.20.1/1.21.1 use - the fog greys
+     * about twice as fast as the sky so the horizon ring does not stay blue for
+     * the last minute of the fade.</p>
      */
     private static void applyOvercastFogGrey(ViewportEvent.ComputeFogColor event) {
         final float overcast = SkyEventScheduler.whiteShiftStrength();

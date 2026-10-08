@@ -10,6 +10,7 @@ import org.orecruncher.dsurround.eventing.CollectDiagnosticsEvent;
 import org.orecruncher.dsurround.lib.GameUtils;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.processing.fog.HolisticFogRangeCalculator;
+import org.orecruncher.dsurround.processing.weather.RouteFuse;
 
 /**
  * 26.1: FogRenderer was reworked (setupFog now returns FogData stored in the camera render
@@ -44,6 +45,11 @@ public class FogHandler extends AbstractClientHandler {
     }
 
     private void renderFog(ViewportEvent.RenderFog event) {
+        // Counted before the gate below: the question the watchdog asks is whether the fog
+        // range route is consulted at all on this version, not whether this particular pass is
+        // one we modify. Same placement as the sibling ports.
+        RouteFuse.feed(RouteFuse.Route.FOG_RANGE);
+
         // Only terrain (atmospheric) fog is modified; water/lava/powdered-snow keep vanilla.
         if (event.getType() != FogType.ATMOSPHERIC)
             return;

@@ -53,6 +53,21 @@ public class IcicleParticle extends TextureSheetParticle {
      * v2 re-scale: the grand tier is ONE block. World width is decoupled from
      * height and clamped to 0.06..0.15 (see the provider). */
     public static final float[] TIER_HEIGHTS = { 0.14F, 0.22F, 0.34F, 0.50F, 1.00F };
+
+    /**
+     * Round 12 body builds: slim / mid / stout. The width ceiling per build - the old
+     * single ceiling was 0.15 for every icicle.
+     *
+     * <p>The crossed quads lie on the block DIAGONAL, so the room a quad has is the
+     * diagonal, sqrt(2) - which is where that ceiling comes from in principle. Nobody
+     * needs a block-wide icicle: 0.30 is a fat one, and it is the widest whose crossing
+     * still fits inside the block once the spot is pulled in (see {@code icicleSpot}).</p>
+     */
+    public static final float[] WIDTH_MAX = { 0.15F, 0.23F, 0.30F };
+    /** Width multiplier per build, on top of the shape's own proportion. */
+    public static final float[] WIDTH_GAIN = { 1.0F, 1.5F, 2.0F };
+    /** Length rides with the build so a stout icicle stays a spike and not a lump. */
+    public static final float[] LENGTH_GAIN = { 1.0F, 1.08F, 1.18F };
     /** Fraction of full size at first appearance. */
     private static final float GROWTH_START = 0.25F;
     /** Ticks from melt start to fully gone, if no drop roll succeeds first.
@@ -351,13 +366,19 @@ public class IcicleParticle extends TextureSheetParticle {
                                                                      final double x, final double y, final double z,
                                                                      final double vx, final double vy, final double vz) {
             final int tier = Mth.clamp((int) Math.round(vx), 0, TIER_HEIGHTS.length - 1);
-            final float height = TIER_HEIGHTS[tier] * this.heightFactor;
+            // Round 12 build: 0 slim, 1 mid, 2 stout - carried in the vz slot, which
+            // used to be a constant zero. It rides the same stable hash as the shape, so
+            // an eave keeps its character: the same rim grows the same bodies every time.
+            final int build = Mth.clamp((int) Math.round(vz), 0, WIDTH_MAX.length - 1);
+            final float height = TIER_HEIGHTS[tier] * this.heightFactor * LENGTH_GAIN[build];
             final float size = height * 8F / this.rows;
-            // World width of the shape = quad width x (shapeW/16), clamped to
-            // the maintainer's 0.06..0.15 band (wide icicles clip into blocks
-            // or read as floating; narrow ones vanish). The quad is
-            // non-square: widthScale = shape width / quad height.
-            final float worldWidth = Mth.clamp(height * 0.6F * this.shapeW / 16F, 0.06F, 0.15F);
+            // World width of the shape = quad width x (shapeW/16). The old ceiling was
+            // 0.15 for everything, which is why every icicle read as a needle; a stout
+            // one may go to twice that PROVIDED its hanging spot is pulled in far enough
+            // to keep the crossed quads inside the block - see IcicleHandler.icicleSpot.
+            // The quad is non-square: widthScale = shape width / quad height.
+            final float worldWidth = Mth.clamp(height * 0.6F * this.shapeW / 16F * WIDTH_GAIN[build],
+                    0.06F, WIDTH_MAX[build]);
             final float widthScale = worldWidth * 16F / this.shapeW / (2F * size);
             return new IcicleParticle(level, x, y, z, size, widthScale, tier,
                     (int) Math.max(0, Math.min(199, Math.round(vy))),

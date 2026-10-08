@@ -475,12 +475,18 @@ public class IcicleHandler extends AbstractClientHandler {
                 continue;
             final long hash = stableHash(point.point());
             final int growthDelay = (int) ((hash >>> 8) % 200);
-            final double[] hang = icicleSpot(point, hash);
+            // Build from the same hash as the shape, so a rim keeps its bodies too.
+            final int build = (int) slice(hash, 32, WIDTH_BUILDS);
+            final double[] hang = icicleSpot(point, hash, maxOffsetFor(build));
             // The root sits just under the roof's measured underside - the
             // same formula the drips use, minus their hang-off gap: an icicle
             // grows FROM the surface, not 0.09 below it.
             final double rootY = point.roof().getY() + point.undersideY() - 0.02D;
-            final int shape = this.spawnOne(point, hang[0], rootY, hang[1], hash, tick, growthDelay);
+            // How much room is under the root. A long icicle in a low doorway used to
+            // grow straight through the floor; the tier is cut back to what fits.
+            final float room = roomUnder(world, hang[0], rootY, hang[1]);
+            final int shape = this.spawnOne(point, hang[0], rootY, hang[1], hash, tick, growthDelay,
+                    build, room);
             if (shape >= 0) {
                 spawned++;
                 shapes[shape]++;
@@ -518,7 +524,10 @@ public class IcicleHandler extends AbstractClientHandler {
      * the spread along it are fixed per position, which is what makes the same
      * eave read as the same row of icicles on every visit.
      */
-    private static double[] icicleSpot(final DripScanner.DripPoint point, final long hash) {
+    /** @param maxOffset how far from the block centre this icicle may hang and still
+     *         fit - see {@link IcicleParticle#WIDTH_MAX}. */
+    private static double[] icicleSpot(final DripScanner.DripPoint point, final long hash,
+                                       final double maxOffset) {
         double hx = point.point().getX() + 0.5D;
         double hz = point.point().getZ() + 0.5D;
         final int mask = point.faces();
@@ -571,7 +580,12 @@ public class IcicleHandler extends AbstractClientHandler {
                     index++;
                 }
             }
-            final double lean = 0.42D + slice(hash, 24, 5) * 0.01D;
+            // Round 12: the lean used to be a flat 0.42..0.47, which is fine for a needle
+            // and hangs a stout icicle's crossing out past the block edge. Pull it in to
+            // what this body actually has room for. The SPREAD along the edge below is not
+            // touched - it is +-0.336, inside every build's limit - so a small icicle
+            // still lands anywhere along the rim, which is the randomness worth keeping.
+            final double lean = Math.min(maxOffset, 0.42D + slice(hash, 24, 5) * 0.01D);
             hx += faceX * lean;
             hz += faceZ * lean;
             // Spread along the edge - the full block, like the drips.
@@ -622,15 +636,23 @@ public class IcicleHandler extends AbstractClientHandler {
      * @return the shape index that was spawned, or -1 on failure
      */
     private int spawnOne(final DripScanner.DripPoint point, final double hangX, final double rootY,
-                         final double hangZ, final long hash, final long tick, final int growthDelay) {
+                         final double hangZ, final long hash, final long tick, final int growthDelay,
+                         final int build, final float room) {
         final var pm = GameUtils.getParticleManager();
         if (pm == null)
             return -1;
         final int shape = (int) (hash % SHAPE_COUNT);
-        final int tier = rollTier(tick);
+        // Round 12: cut the tier back to what actually fits above the ground. room <= 0
+        // means "not measured" (a hand-summoned icicle) and leaves the roll alone.
+        int tier = rollTier(tick);
+        if (room > 0F) {
+            final float gain = IcicleParticle.LENGTH_GAIN[build] * SHAPE_HEIGHT[shape];
+            while (tier > 0 && IcicleParticle.TIER_HEIGHTS[tier] * gain > room)
+                tier--;
+        }
         final Particle particle = ((MixinParticleManager) pm)
                 .dsurround_createParticle(typeFor(shape), hangX, rootY, hangZ,
-                        tier, growthDelay, 0.0D);
+                        tier, growthDelay, build);
         if (particle == null)
             return -1;
         pm.add(particle);
@@ -660,6 +682,47 @@ public class IcicleHandler extends AbstractClientHandler {
     }
 
     /** Shape to particle type - a rim keeps its character across regrowths. */
+    /** How many body builds the hash may roll - must match IcicleParticle.WIDTH_MAX. */
+    private static final int WIDTH_BUILDS = 3;
+
+    /**
+     * Height factor per shape, mirroring the three {@code IcicleParticle.Provider}s
+     * (cone 0.7, knife 1.0, wedge 0.45). Duplicated on purpose: the handler needs the
+     * length to cut a tier back before the particle exists, and the providers are
+     * registered on the other side of the mod. **Change both together.**
+     */
+    private static final float[] SHAPE_HEIGHT = { 0.7F, 1.0F, 0.45F };
+
+    /**
+     * How far from the block centre an icicle of this build may hang. The crossed quads
+     * lie on the block diagonal, so a quad of width w projects w/2*cos45 onto each axis;
+     * what is left of the half block is the room the spot has to move in.
+     */
+    private static double maxOffsetFor(final int build) {
+        final float wMax = IcicleParticle.WIDTH_MAX[Mth.clamp(build, 0, IcicleParticle.WIDTH_MAX.length - 1)];
+        return 0.5D - 0.02D - (wMax / 2.0D) * 0.7071067811865476D;
+    }
+
+    /**
+     * Clear air below the root, in blocks. Counted from the root down, because that is
+     * the direction an icicle grows.
+     */
+    private static float roomUnder(final Level world, final double x, final double rootY, final double z) {
+        final int bx = Mth.floor(x);
+        final int bz = Mth.floor(z);
+        int by = Mth.floor(rootY);
+        float room = 0F;
+        for (int i = 0; i < 4; i++) {
+            final BlockPos p = new BlockPos(bx, by - i, bz);
+            if (world.isOutsideBuildHeight(p.getY()))
+                break;
+            if (!world.getBlockState(p).isAir())
+                break;
+            room += 1F;
+        }
+        return room;
+    }
+
     private static SimpleParticleType typeFor(final int shape) {
         return switch (shape) {
             case 0 -> ModParticles.ICICLE_CONE;
@@ -753,8 +816,10 @@ public class IcicleHandler extends AbstractClientHandler {
             return;
         final DripScanner.DripPoint pick = usable.get(this.random.nextInt(usable.size()));
         final long hash = stableHash(pick.point());
-        final double[] hang = icicleSpot(pick, hash);
-        this.spawnOne(pick, hang[0], pick.roof().getY() + pick.undersideY() - 0.02D, hang[1], hash, tick, 0);
+        final int build = (int) slice(hash, 32, WIDTH_BUILDS);
+        final double[] hang = icicleSpot(pick, hash, maxOffsetFor(build));
+        this.spawnOne(pick, hang[0], pick.roof().getY() + pick.undersideY() - 0.02D, hang[1], hash, tick, 0,
+                build, roomUnder(world, hang[0], pick.roof().getY() + pick.undersideY() - 0.02D, hang[1]));
     }
 
     /**

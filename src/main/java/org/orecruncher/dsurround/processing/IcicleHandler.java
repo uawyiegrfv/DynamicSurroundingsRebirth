@@ -476,7 +476,8 @@ public class IcicleHandler extends AbstractClientHandler {
             final long hash = stableHash(point.point());
             final int growthDelay = (int) ((hash >>> 8) % 200);
             // Build from the same hash as the shape, so a rim keeps its bodies too.
-            final int build = (int) slice(hash, 32, WIDTH_BUILDS);
+            final int shapeForBuild = (int) (hash % SHAPE_COUNT);
+            final int build = buildFor(shapeForBuild, hash);
             final double[] hang = icicleSpot(point, hash, maxOffsetFor(build));
             // The root sits just under the roof's measured underside - the
             // same formula the drips use, minus their hang-off gap: an icicle
@@ -723,6 +724,22 @@ public class IcicleHandler extends AbstractClientHandler {
         return room;
     }
 
+    /**
+     * Round 12: the body build, weighted per shape. Stout is the rare one and the cone
+     * carries most of it - a fat knife reads as a slab, a fat wedge as a blob, while a
+     * fat cone is simply a proper icicle. The maintainer asked for exactly this: fewer
+     * stouts, and cone first. The roll is still the position hash, so a rim keeps its
+     * bodies across regrowths.
+     */
+    private static int buildFor(final int shape, final long hash) {
+        final int roll = (int) slice(hash, 32, 100);
+        return switch (shape) {
+            case 0 -> roll < 25 ? 2 : (roll < 60 ? 1 : 0);   // cone: stout 25%, mid 35%
+            case 1 -> roll < 8 ? 2 : (roll < 48 ? 1 : 0);    // knife: stout 8%
+            default -> roll < 12 ? 2 : (roll < 52 ? 1 : 0);  // wedge: stout 12%
+        };
+    }
+
     private static SimpleParticleType typeFor(final int shape) {
         return switch (shape) {
             case 0 -> ModParticles.ICICLE_CONE;
@@ -816,7 +833,7 @@ public class IcicleHandler extends AbstractClientHandler {
             return;
         final DripScanner.DripPoint pick = usable.get(this.random.nextInt(usable.size()));
         final long hash = stableHash(pick.point());
-        final int build = (int) slice(hash, 32, WIDTH_BUILDS);
+        final int build = buildFor((int) (hash % SHAPE_COUNT), hash);
         final double[] hang = icicleSpot(pick, hash, maxOffsetFor(build));
         this.spawnOne(pick, hang[0], pick.roof().getY() + pick.undersideY() - 0.02D, hang[1], hash, tick, 0,
                 build, roomUnder(world, hang[0], pick.roof().getY() + pick.undersideY() - 0.02D, hang[1]));

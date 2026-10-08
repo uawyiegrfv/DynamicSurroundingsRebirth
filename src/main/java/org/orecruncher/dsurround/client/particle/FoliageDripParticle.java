@@ -9,6 +9,7 @@ import net.minecraft.client.particle.Particle;
 import net.minecraft.client.particle.ParticleProvider;
 import net.minecraft.client.particle.ParticleRenderType;
 import net.minecraft.client.particle.TextureSheetParticle;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
@@ -136,6 +137,14 @@ public class FoliageDripParticle extends TextureSheetParticle {
     private static final float SLIDE_ACCEL = 0.0012F;
     /** Hard ceiling for any sliding bead - a blade is never a free fall. */
     private static final float SLIDE_SPEED_CEILING = 0.03F;
+    /**
+     * Round 12: every bead gets its own pace. They all used to run at the same
+     * ceiling, so a queue of them sliding down the same blade kept its spacing
+     * forever - "互相之间距离都不咋变". Now one outruns the one ahead of it.
+     * This is a CONSTANT per bead, not a wobble: the wobble is the grip below,
+     * and an individual pace is what makes them differ from each other.
+     */
+    private static final float PACE_SPREAD = 0.35F;
     /** ...and a floor, so a bead that meets a flat stretch still finishes. */
     private static final float SLIDE_MIN_FRACTION = 0.15F;
     /** Where the slide hands over to the fade - see the SLIDE branch. */
@@ -193,6 +202,8 @@ public class FoliageDripParticle extends TextureSheetParticle {
     private float slideDist = 0F;
     private float slideVel = 0F;
     private float slideMax = 0F;
+    /** This bead's own pace - see PACE_SPREAD. Rolled once, at construction. */
+    private float pace = 1.0F;
     /** How far the bead is leaning off upright, radians - see {@link #updateLean}. */
     private float slideLean = 0F;
     /** Per-slide grip knots: where the blade holds the bead, where it runs. */
@@ -477,15 +488,42 @@ public class FoliageDripParticle extends TextureSheetParticle {
         this.slideCum = cum;
         this.slideLen = length;
         this.slideDist = 0F;
+        this.pace = 1.0F + (this.random.nextFloat() * 2F - 1F) * PACE_SPREAD;
         this.slideVel = 0F;                  // released from rest, not launched
         this.slideLean = 0F;                 // upright, exactly as it was resting
-        this.slideMax = Math.min(maxSpeed, SLIDE_SPEED_CEILING);
+        this.slideMax = Math.min(maxSpeed * this.pace, SLIDE_SPEED_CEILING);
         this.grip = new float[GRIP_KNOTS];
         for (int i = 0; i < GRIP_KNOTS; i++)
             this.grip[i] = 1.0F + (this.random.nextFloat() * 2F - 1F) * gripSpread;
         this.endWithFall = endWithFall;
         this.phase = Phase.SLIDE;
         return true;
+    }
+
+    /**
+     * Round 12: buried beads. A bead that slides past the blade's tip and into the ground
+     * takes the light of the block it is inside - and the inside of a solid block is black,
+     * so the bead goes black the moment it crosses the surface. That is the same trap the
+     * rain curtains fell into (see PrecipitationRenderer): only a totally black reading is
+     * questioned, and only upwards, so a bead in the open is left exactly as it was.
+     */
+    @Override
+    protected int getLightColor(final float partialTicks) {
+        final int raw = super.getLightColor(partialTicks);
+        if (raw != 0 || this.level == null)
+            return raw;
+        final int bx = Mth.floor(this.x);
+        final int bz = Mth.floor(this.z);
+        final int by = Mth.floor(this.y);
+        for (int step = 1; step <= 3; step++) {
+            final int up = by + step;
+            if (this.level.isOutsideBuildHeight(up))
+                break;
+            final int lit = LevelRenderer.getLightColor(this.level, new net.minecraft.core.BlockPos(bx, up, bz));
+            if (lit != 0)
+                return lit;
+        }
+        return raw;
     }
 
     /** The waypoint index the bead has reached at arc length {@code d}. */

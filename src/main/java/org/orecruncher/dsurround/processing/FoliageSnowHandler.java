@@ -396,7 +396,13 @@ public class FoliageSnowHandler extends AbstractClientHandler {
         // fresh snowfall still happens at once: that path resets lastScanTick to the far past.
         final boolean movedNow = moved
                 && tick - this.lastScanTick >= ScannerCadence.MOVE_RESCAN_MIN_TICKS;
-        if (snowingHere && (newChunk && tick - this.lastScanTick >= CHUNK_COOLDOWN_TICKS
+        // Round 12: the scan used to stop dead the moment the snow did, so a player who walked
+        // somewhere new during the melt found bare plants there while the ones back at the old
+        // camp were still shedding their coat. The melt is world-wide - keep looking while there
+        // is still snow to show. A plant found now is dressed at the CURRENT depth, because
+        // targetCount reads the same progress the plants already on the roster were dressed at,
+        // so it joins the melt at exactly the stage its neighbours are at.
+        if ((snowingHere || progress > 0F) && (newChunk && tick - this.lastScanTick >= CHUNK_COOLDOWN_TICKS
                 || movedNow
                 || tick - this.lastScanTick >= TOPUP_TICKS)) {
             this.lastChunkX = chunkX;

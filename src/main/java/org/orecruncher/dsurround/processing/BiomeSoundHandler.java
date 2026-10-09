@@ -887,8 +887,13 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         // easing towards a target that is already high is not a fade in.
         float fadeIn = intensity / RAIN_MATERIAL_MIN_INTENSITY;
         fadeIn = fadeIn < 0F ? 0F : (fadeIn > 1F ? 1F : fadeIn);
+        // Round 12: this layer had no indoor term at all. rainMaterialAllowedHere() only
+        // asks the config and the biome's precipitation, so rain on a window pane or on a
+        // wooden roof played at full voice inside a house - the "底噪在室内没降低". Same
+        // 0.15 the wind bed and the biome ambience use, so a room sounds like one place.
         final float vol = fadeIn
-                * (RAIN_MATERIAL_VOLUME_FLOOR + (1F - RAIN_MATERIAL_VOLUME_FLOOR) * t);
+                * (RAIN_MATERIAL_VOLUME_FLOOR + (1F - RAIN_MATERIAL_VOLUME_FLOOR) * t)
+                * (this.scanner.isInside() ? INDOOR_VOLUME_SCALE : 1F);
         // Perceived level goes with the square root of the number of voices,
         // so eight loops at this volume would arrive nearly 3 dB above the four
         // this layer was tuned with. Hold the total instead: scenes of four or
@@ -1597,7 +1602,20 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     }
 
     /**
+     * Round 12: what the canopy sources used to lose to distance falloff. They sit 8-16
+     * blocks out against Minecraft's 16 block attenuation distance, so on average they
+     * arrived at about a quarter of their nominal volume. Now that the falloff is gone
+     * (see playLeafSurround) this factor puts the loudness back where it was measured,
+     * while the distance no longer decides whether the canopy is audible at all.
+     */
+    private static final float LEAF_SURROUND_NOATTEN_TRIM = 0.30F;
+
+    /**
      * WIND：上风侧的发声点，{@code player - windDir x blocks}，再抬高 height 格。
+     *
+     * <p>Round 12：这个点是<em>播放那一刻</em>的玩家位置算出来的世界坐标，之后不会动。
+     * 以前带距离衰减，玩家走开几步阵风就没了 —— 风是跟着人的天气，不是地上一个喇叭。
+     * 现在走无衰减（见调用处），音量不再随距离掉，方位 pan 仍然由上风侧决定。</p>
      *
      * <p>Minecraft 的 SoundInstance 三版都没有声道 pan 参数，唯一能让玩家听出
      * 风从哪来的办法就是把声源放到风来的那一侧。WindField 约定 {@code (cos a,
@@ -1737,7 +1755,13 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             // 没有树冠可以回应，但也不该因此就没有方向：把声源放到上风侧，玩家
             // 听到的就是"风从那边吹过来"。SoundInstance 三版都没有 pan 参数，位置
             // 是唯一能写的东西 —— 走 createAtLocation 而不是无位置的 additional。
-            this.audioPlayer.play(factory.createAtLocation(
+            // Round 12: no attenuation, for the same reason as the canopy - the anchor is a
+            // fixed world position, so a gust fired while the player was standing still died
+            // as soon as he moved off. The position still drives the pan, which is the only
+            // way Minecraft can say "the wind is coming from over there", so the direction
+            // survives; only the distance term goes. Four blocks is under a third of the
+            // attenuation distance, so the loudness barely moves.
+            this.audioPlayer.play(factory.createAtLocationNoAttenuation(
                     upwindPosition(player, GUST_SOURCE_RANGE_BLOCKS, GUST_SOURCE_HEIGHT_M), vol));
         this.rainGustNextTick = now + (long) (seconds * 20F);
         // One line per gust, so tens of seconds apart: is the wooded test
@@ -1768,7 +1792,15 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             var pos = new Vec3(player.getX() + Math.cos(angle) * dist, y,
                     player.getZ() + Math.sin(angle) * dist);
             float vol = dsBiomeVolume() * volScale * (0.75F + RANDOM.nextFloat() * 0.25F);
-            var instance = factory.createAtLocation(pos, vol);
+            // Round 12: no attenuation. These sources sit 8-16 blocks out by design, and
+            // with distance falloff they were dropped to roughly a quarter of their volume
+            // before the player heard them - then faded to nothing the moment he walked,
+            // because the anchor is a fixed world position, not something that travels with
+            // him. Attenuation.NONE keeps the position (so the pan, and with it the upwind
+            // cue, still works) and drops only the distance term. The trim stands in for the
+            // falloff that used to be applied, so the canopy does not suddenly arrive three
+            // times as loud.
+            var instance = factory.createAtLocationNoAttenuation(pos, vol * LEAF_SURROUND_NOATTEN_TRIM);
             this.audioPlayer.play(instance);
         }
     }

@@ -152,6 +152,16 @@ public class FoliageDewHandler extends AbstractClientHandler {
     /** True while the previous tick had a live curve - the window edges. */
     private boolean wasDewy = false;
     private boolean evaporateStarted = false;
+
+    /**
+     * Round 12: evaporation used to be a one-shot. The moment the window closed,
+     * whatever happened to be enrolled was told to dry off - and anything that enrolled
+     * afterwards was never told at all, so a plant the player walked up to during the
+     * ramp got a full set of beads and kept them forever. The ramp now has a start and a
+     * span, so a plant found part-way through it can be handed the time that is left.
+     */
+    private long evaporateStartTick = -1L;
+    private int evaporateSpan = 0;
     private int failures = 0;
 
     public FoliageDewHandler(final Configuration config, final IModLog logger, final ITickCount tickCount,
@@ -220,12 +230,15 @@ public class FoliageDewHandler extends AbstractClientHandler {
             this.evaporateStarted = false;
             this.lastScanTick = -1000L;
         }
-        if (!dewy && this.wasDewy && !this.evaporateStarted && !this.plants.isEmpty()) {
+        if (!dewy && this.wasDewy && !this.evaporateStarted) {
             this.evaporateStarted = true;
-            final int evapTicks = raining ? EVAPORATE_RAIN_TICKS : EVAPORATE_TICKS;
+            this.evaporateStartTick = tick;
+            this.evaporateSpan = raining ? EVAPORATE_RAIN_TICKS : EVAPORATE_TICKS;
+            // Recorded even with nothing enrolled: the player may still walk up to plants
+            // during the ramp, and they need the same remaining time.
             for (final PlantDew plant : this.plants.values())
                 for (final DewDrop drop : plant.drops)
-                    drop.particle().beginEvaporate(evapTicks);
+                    drop.particle().beginEvaporate(this.evaporateSpan);
         }
         this.wasDewy = dewy;
 
@@ -239,7 +252,10 @@ public class FoliageDewHandler extends AbstractClientHandler {
         // Moved only brings the next scan forward, and only past the floor.
         final boolean movedNow = moved
                 && tick - this.lastScanTick >= ScannerCadence.MOVE_RESCAN_MIN_TICKS;
-        if (dewy && (newChunk && tick - this.lastScanTick >= CHUNK_COOLDOWN_TICKS
+        // Round 12: keep looking while the beads are still drying off, for the same
+        // reason the snow layer does - a morning's dew does not stop existing at the
+        // edge of wherever the player happened to be standing when the window closed.
+        if ((dewy || this.evaporateRemaining(tick) > 0) && (newChunk && tick - this.lastScanTick >= CHUNK_COOLDOWN_TICKS
                 || movedNow
                 || tick - this.lastScanTick >= TOPUP_TICKS)) {
             this.lastChunkX = chunkX;
@@ -303,6 +319,13 @@ public class FoliageDewHandler extends AbstractClientHandler {
 
     private void scanAndAttach(final Level world, final BlockPos center, final long tick,
                                final float curve, final Player player) {
+        // Round 12: how much of the drying-off is left. 0 means "not evaporating" and
+        // behaves exactly as before; anything above it means a plant found now has to
+        // join the ramp part-way through.
+        final int evapLeft = this.evaporateRemaining(tick);
+        final float dry = this.evaporateSpan > 0 ? evapLeft / (float) this.evaporateSpan : 1F;
+        if (this.evaporateStarted && evapLeft <= 0)
+            return;
         for (final FoliageScan.FoliageSpot spot : FoliageScan.scan(world, center, FoliageScan.Mode.DEW,
                 this.config.weatherOptions.foliageScanRange)) {
             final Long key = spot.pos().asLong();
@@ -320,7 +343,11 @@ public class FoliageDewHandler extends AbstractClientHandler {
             // three beads. The maintainer's "几乎每个植物上都挂满了3滴".
             // Dew is a scatter, not a coat: at the peak a fifth to a quarter
             // of the plants carry any at all.
-            final float keep = Math.min(1.0F, 0.03F + 0.20F * curve * coeff) * density;
+            // A plant found half-way through the drying should look half-way dry, not
+            // freshly beaded. Without this the ramp hands out brand new dew for its whole
+            // thirty seconds and the layer never actually winds down.
+            final float keep = Math.min(1.0F, 0.03F + 0.20F * curve * coeff) * density
+                    * (this.evaporateStarted ? dry : 1F);
             if (this.random.nextFloat() >= keep)
                 continue;
             // One bead is the normal answer; a second is a coin flip weighted
@@ -339,14 +366,31 @@ public class FoliageDewHandler extends AbstractClientHandler {
             final int beadCap = Math.max(1, Math.round(
                     MAX_DROPS_PER_PLANT * DistanceLod.scaleAt(spot.pos().distSqr(center))));
             beads = Math.min(beadCap, beads);
+            if (this.evaporateStarted)
+                beads = Math.max(1, Math.round(beads * dry));
             final PlantDew plant = new PlantDew(spot.pos(), spot.state().getBlock());
             if (!this.attach(world, player, spot, plant, beads, tick)) {
                 for (final DewDrop d : plant.drops)
                     d.particle().remove();
                 continue;
             }
+            // The whole point of the two fields above: tell the new beads how long they
+            // have got. Left out, they were the beads that never dried off at all.
+            if (evapLeft > 0)
+                for (final DewDrop d : plant.drops)
+                    d.particle().beginEvaporate(evapLeft);
             this.plants.put(key, plant);
         }
+    }
+
+    /**
+     * Round 12: ticks of drying-off left, 0 once the ramp is over (or has not started).
+     */
+    private int evaporateRemaining(final long tick) {
+        if (!this.evaporateStarted || this.evaporateSpan <= 0)
+            return 0;
+        final long left = this.evaporateStartTick + this.evaporateSpan - tick;
+        return left <= 0L ? 0 : (int) Math.min(left, (long) this.evaporateSpan);
     }
 
     /** Spawns up to {@code beads} drops on distinct anchors; false if none landed. */

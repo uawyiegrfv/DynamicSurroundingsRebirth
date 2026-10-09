@@ -171,6 +171,17 @@ public class IcicleParticle extends TextureSheetParticle {
         this.meltAge = 0;
     }
 
+    /**
+     * Round 12: for an icicle that joins the melt late - one hanging on an eave the
+     * player only walked up to after the snow had stopped. Hand it the melt elapsed so
+     * far and it takes its place at the stage its neighbours are at, a stub among stubs,
+     * instead of growing full length and then taking three minutes of its own to go.
+     */
+    public void startMeltingAt(final int meltTicks) {
+        this.melting = true;
+        this.meltAge = Math.max(0, Math.min(MELT_TICKS - 1, meltTicks));
+    }
+
     /** Snow again: stop melting (BUG-5). The length already lost stays lost -
      *  {@link #meltFactor} is retained, so the icicle carries on growing from
      *  its CURRENT size instead of jumping back to its old one. */

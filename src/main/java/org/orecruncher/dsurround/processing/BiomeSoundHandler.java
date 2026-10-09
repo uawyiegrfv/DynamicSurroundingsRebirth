@@ -887,13 +887,14 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         // easing towards a target that is already high is not a fade in.
         float fadeIn = intensity / RAIN_MATERIAL_MIN_INTENSITY;
         fadeIn = fadeIn < 0F ? 0F : (fadeIn > 1F ? 1F : fadeIn);
-        // Round 12: this layer had no indoor term at all. rainMaterialAllowedHere() only
-        // asks the config and the biome's precipitation, so rain on a window pane or on a
-        // wooden roof played at full voice inside a house - the "底噪在室内没降低". Same
-        // 0.15 the wind bed and the biome ambience use, so a room sounds like one place.
+        // Round 12 note: an indoor multiplier was tried here and removed - rain on a
+        // surface is NOT ambience, it is a thing happening at a place, and the layer
+        // already anchors every loop to a real block face. Muffling behind a wall is the
+        // occlusion system's job (see WIND-SOUNDS.md / the occlusion TODO), not a flat
+        // volume cut: a flat cut would also mute rain on a window the player is standing
+        // right next to, which is the one case where it should be loudest.
         final float vol = fadeIn
-                * (RAIN_MATERIAL_VOLUME_FLOOR + (1F - RAIN_MATERIAL_VOLUME_FLOOR) * t)
-                * (this.scanner.isInside() ? INDOOR_VOLUME_SCALE : 1F);
+                * (RAIN_MATERIAL_VOLUME_FLOOR + (1F - RAIN_MATERIAL_VOLUME_FLOOR) * t);
         // Perceived level goes with the square root of the number of voices,
         // so eight loops at this volume would arrive nearly 3 dB above the four
         // this layer was tuned with. Hold the total instead: scenes of four or

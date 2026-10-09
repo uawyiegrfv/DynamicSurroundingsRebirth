@@ -135,6 +135,18 @@ public class IcicleHandler extends AbstractClientHandler {
     private final Map<Long, Long> rimCooldown = new HashMap<>();
 
     private boolean wasSnowing = false;
+
+    /**
+     * Round 12: when the melt began, and how far it has got. The melt used to be a
+     * one-shot too - everything attached at the moment the snow stopped was told to
+     * start melting, and the handler then stopped looking entirely. Walk up to a house
+     * ten minutes later and its eaves were bare, while the ones behind you were stubs.
+     * The melt is world-wide, so keep sweeping until it is over and hand every icicle
+     * found the melt elapsed so far.
+     */
+    private long meltStartTick = -1L;
+    /** Melt elapsed handed to an icicle spawned this tick; 0 while it is snowing. */
+    private int meltAgeForNew = 0;
     /** World-wide precipitation event clock: when the sky last OPENED. */
     private boolean wasRaining = false;
     private long precipStartTick = 0L;
@@ -293,6 +305,8 @@ public class IcicleHandler extends AbstractClientHandler {
             // needs no resume care: world-wide rain cannot be flipped by a
             // border walk.)
             if (!this.wasSnowing) {
+                // Snow is back: the melt is over, and its clock is not evidence any more.
+                this.meltStartTick = -1L;
                 for (final Attached a : this.attached.values()) {
                     a.dropAt = -1;
                     // BUG-5: the melt was never cancelled. Snow that came back
@@ -307,6 +321,33 @@ public class IcicleHandler extends AbstractClientHandler {
             // for three seconds - the icicle layer "appears late" next to the drip layer,
             // which has always had the walk test. Rationed by the shared floor (the box is
             // the expensive one, 33x33x27) and never allowed to bypass it.
+            // (the sweep itself now lives below - it has to run during the melt as well)
+            // The occasional lone dropout while it keeps snowing.
+            if (!this.attached.isEmpty() && this.random.nextInt(SELF_DROP_MEAN_TICKS) == 0) {
+                final Attached pick = this.pickAny();
+                if (pick != null)
+                    this.scheduleDrop(pick, tick + this.random.nextInt(40));
+            }
+        } else if (this.wasSnowing) {
+            // Snow's over: everything enters the MELT - slow shrink toward the
+            // root - while the drop lottery below decides who falls first.
+            // Recorded whether or not anything is attached: the eaves the player has not
+            // reached yet are melting too, and they are the whole reason for the sweep
+            // below. Without a start tick an icicle found later would begin its own fresh
+            // three minute shrink and outlive every one around it.
+            if (this.meltStartTick < 0L)
+                this.meltStartTick = tick;
+            for (final Attached a : this.attached.values())
+                a.particle.startMelting();
+        }
+
+        // The sweep. It used to sit inside `if (snowing)` alone, so the melt never looked
+        // anywhere new - the maintainer's "到新的地方不会刷新". Keep going while there is
+        // ice left to show, and see spawnOne for the elapsed hand-off.
+        final boolean melting = this.meltStartTick >= 0L
+                && tick - this.meltStartTick < IcicleParticle.MELT_TICKS;
+        this.meltAgeForNew = melting ? (int) (tick - this.meltStartTick) : 0;
+        if (snowing || melting) {
             final boolean moved = this.lastScanPos == null
                     || this.lastScanPos.distToCenterSqr(pos.getX(), pos.getY(), pos.getZ()) >= RESCAN_MOVE_SQ;
             final boolean movedNow = moved
@@ -316,17 +357,6 @@ public class IcicleHandler extends AbstractClientHandler {
                 this.lastScanPos = pos.immutable();
                 this.scanAndAttach(world, pos, tick);
             }
-            // The occasional lone dropout while it keeps snowing.
-            if (!this.attached.isEmpty() && this.random.nextInt(SELF_DROP_MEAN_TICKS) == 0) {
-                final Attached pick = this.pickAny();
-                if (pick != null)
-                    this.scheduleDrop(pick, tick + this.random.nextInt(40));
-            }
-        } else if (this.wasSnowing && !this.attached.isEmpty()) {
-            // Snow's over: everything enters the MELT - slow shrink toward the
-            // root - while the drop lottery below decides who falls first.
-            for (final Attached a : this.attached.values())
-                a.particle.startMelting();
         }
 
         // Fire scheduled drops (self-drops during the snow).
@@ -451,8 +481,14 @@ public class IcicleHandler extends AbstractClientHandler {
      */
     private void scanAndAttach(final Level world, final BlockPos center, final long tick) {
         // Density rides the precipitation intensity, the drip budget's way.
-        final int want = Math.min(MAX_ICICLES,
-                DENSITY_BASE + Math.round(DENSITY_SPAN * PrecipitationIntensity.ambient()));
+        // Round 12: during the melt the roster has to wind DOWN, not hold at the storm's
+        // number - the further into the melt, the fewer eaves still carry anything, and
+        // by the end none do. Left unscaled, walking around during the melt would refill
+        // every rim it found and the layer would never finish.
+        final int fullWant = DENSITY_BASE + Math.round(DENSITY_SPAN * PrecipitationIntensity.ambient());
+        final float meltLeft = this.meltAgeForNew > 0
+                ? 1F - this.meltAgeForNew / (float) IcicleParticle.MELT_TICKS : 1F;
+        final int want = Math.min(MAX_ICICLES, Math.round(fullWant * meltLeft));
         if (this.attached.size() >= want)
             return;
         int candidates = 0;
@@ -663,6 +699,10 @@ public class IcicleHandler extends AbstractClientHandler {
         final Integer prior = this.grown.remove(point.point().asLong());
         if (prior != null)
             ((IcicleParticle) particle).resumeGrowthAt(prior);
+        // Round 12: this one is joining a melt that started before it existed. Without
+        // this it grew to full length and then took three minutes of its own to go.
+        if (this.meltAgeForNew > 0)
+            ((IcicleParticle) particle).startMeltingAt(this.meltAgeForNew);
         this.attached.put(point.point().asLong(), new Attached(point, (IcicleParticle) particle, hangX, hangZ, tier));
         return shape;
     }

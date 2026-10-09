@@ -245,6 +245,13 @@ public final class FoliageScan {
         if (state.hasProperty(BlockStateProperties.AGE_3)
                 && state.getValue(BlockStateProperties.AGE_3) <= 0)
             return false;   // beetroots sprout
+        // Round 12: sugar cane. It is a cross model exactly like grass, but
+        // SugarCaneBlock extends Block rather than BushBlock and it is in none of the
+        // three tags below, so it never once made the list - the maintainer asked why.
+        // (Cactus is the same shape of omission and stays out on purpose: snow sitting
+        // on a cactus is not a picture anyone asked for.)
+        if (state.is(net.minecraft.world.level.block.Blocks.SUGAR_CANE))
+            return true;
         if (state.getBlock() instanceof BushBlock)
             return true;
         return state.is(BlockTags.FLOWERS)

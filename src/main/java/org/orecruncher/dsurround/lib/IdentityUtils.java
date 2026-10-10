@@ -33,10 +33,10 @@ public class IdentityUtils {
 
         if (identifierString.charAt(0) == '@') {
             // Sound is in the Minecraft namespace
-            res = ResourceLocation.fromNamespaceAndPath("minecraft", identifierString.substring(1));
+            res = ResourceLocation.tryBuild("minecraft", identifierString.substring(1));
         } else if (!identifierString.contains(":")) {
             // It's just a path so assume the specified namespace
-            res = ResourceLocation.fromNamespaceAndPath(defaultDomain, identifierString);
+            res = ResourceLocation.tryBuild(defaultDomain, identifierString);
         } else {
             // It's a fully qualified location
             res = ResourceLocation.parse(identifierString);
@@ -64,7 +64,7 @@ public class IdentityUtils {
 
         if (identifierString.charAt(0) == '@') {
             // Sound is in the Minecraft namespace
-            res = ResourceLocation.fromNamespaceAndPath("minecraft", identifierString.substring(1));
+            res = ResourceLocation.tryBuild("minecraft", identifierString.substring(1));
         } else {
             // It's a fully qualified location
             res = ResourceLocation.parse(identifierString);

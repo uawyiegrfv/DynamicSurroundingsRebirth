@@ -4,12 +4,14 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
 import org.orecruncher.dsurround.processing.weather.PrecipitationRenderer;
+import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 import org.orecruncher.dsurround.processing.weather.SkyEventScheduler;
 
 /**
@@ -46,6 +48,26 @@ class PrecipitationCommand extends AbstractClientCommand {
     private static final String CHANNEL_PARAMETER = "channel";
     private static final String EVENT_PARAMETER = "event";
 
+    /**
+     * Tab completion for the channel name. The names come from
+     * {@link PrecipitationResponse#values()} rather than from a list written out here: every
+     * channel that exists accepts a lock, so a hand-kept list goes stale the first time a
+     * channel is added - the same reason a diagnostic asks the real thing instead of
+     * echoing its own idea of what it should find.
+     */
+    private static final SuggestionProvider<CommandSourceStack> CHANNEL_SUGGESTIONS = (ctx, builder) -> {
+        for (var response : PrecipitationResponse.values())
+            builder.suggest(response.name());
+        return builder.buildFuture();
+    };
+
+    /**
+     * {@code /dsprecip event <name>}: the two events the roll can land on, plus the word that
+     * ends whichever one is running.
+     */
+    private static final SuggestionProvider<CommandSourceStack> EVENT_SUGGESTIONS = (ctx, builder) ->
+            builder.suggest("overcast").suggest("clear").suggest("stop").buildFuture();
+
     public void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext registryAccess) {
         dispatcher.register(Commands.literal(COMMAND)
                 .executes(this::status)
@@ -53,15 +75,18 @@ class PrecipitationCommand extends AbstractClientCommand {
                         .then(Commands.argument(LEVEL_PARAMETER, FloatArgumentType.floatArg(0F, 1F))
                                 .executes(this::lockIntensity))
                         .then(Commands.argument(CHANNEL_PARAMETER, StringArgumentType.word())
+                                .suggests(CHANNEL_SUGGESTIONS)
                                 .then(Commands.argument(LEVEL_PARAMETER, FloatArgumentType.floatArg(0F, 1F))
                                         .executes(this::lockChannel))))
                 .then(Commands.literal("unlock")
                         .executes(this::unlockAll)
                         .then(Commands.argument(CHANNEL_PARAMETER, StringArgumentType.word())
+                                .suggests(CHANNEL_SUGGESTIONS)
                                 .executes(this::unlockChannel)))
                 .then(Commands.literal("event")
                         .executes(this::eventStatus)
                         .then(Commands.argument(EVENT_PARAMETER, StringArgumentType.word())
+                                .suggests(EVENT_SUGGESTIONS)
                                 .executes(this::eventControl))));
     }
 

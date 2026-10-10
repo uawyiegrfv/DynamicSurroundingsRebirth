@@ -134,6 +134,18 @@ public final class AudioTuning {
     // ------------------------------------------------------------------ mutation
 
     /**
+     * Every key {@link #set(String, String)} handles.
+     *
+     * <p>Reads as tab completion and as the "unknown key" message, so there is one list to keep
+     * rather than two that can disagree - a completion that is missing a key is a symptom you can
+     * see, unlike an error text nobody reads.
+     */
+    public static String[] keys() {
+        return new String[]{"occlusionSegments", "evaluateOnSoundThread", "realismWavelength",
+                "realismFrequencyHz", "probe", "bandWeights", "bandFrequencies"};
+    }
+
+    /**
      * Applies a named override. Returns a human-readable description of what changed, or throws
      * {@link IllegalArgumentException} naming the valid keys.
      */
@@ -187,9 +199,7 @@ public final class AudioTuning {
             }
             default:
                 throw new IllegalArgumentException("Unknown key '" + key + "'. Try: "
-                        + "occlusionSegments, evaluateOnSoundThread, "
-                        + "realismWavelength, realismFrequencyHz, "
-                        + "probe, bandWeights, bandFrequencies");
+                        + String.join(", ", keys()));
         }
     }
 

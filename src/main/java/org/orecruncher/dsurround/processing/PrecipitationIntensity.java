@@ -1785,7 +1785,7 @@ public final class PrecipitationIntensity {
     /** One-line state dump for the command and the diagnostics panel. */
     public static String diagnosticText() {
         float f = forced;
-        return "Precipitation: profile=%s season=%s mode=%.2f rolled=%.2f intensity=%.3f ambient=%.3f level=%s gust=%.3f%s"
+        return "Precipitation: profile=%s season=%s mode=%.2f rolled=%.2f intensity=%.3f ambient=%.3f level=%s gust=%.3f%s%s"
                 .formatted(
                         profile().name(),
                         currentSeason == null ? "none" : currentSeason.name(),
@@ -1796,6 +1796,10 @@ public final class PrecipitationIntensity {
                         f >= 0F ? PrecipitationRenderer.levelName(f) : PrecipitationRenderer.levelName(graded),
                         gustAmplitude,
                         eventRestored ? " [RESTORED]" : "",
+                        // Round 49: this is the tenth argument. The format string had
+                        // nine placeholders, so String.format dropped it without a
+                        // word - which is why [LOCKED] never once appeared in a log.
+                        // The trailing %s above is what lets it through.
                         f >= 0F ? " [LOCKED %.2f]".formatted(f) : "")
                 // The tail is what actually answers "is the takeover live": hook=N is
                 // vanilla asking us about the rain pass, tick=N is vanilla asking about

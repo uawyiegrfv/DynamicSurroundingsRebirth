@@ -89,6 +89,139 @@ public final class FoliageScan {
      */
     public static final int DOWN_RANGE = 2;
 
+    // ---- round 48: the vertical window, instrumented ------------------------
+    /**
+     * The vertical-window switch. <b>Off in every normal run</b>, and while it is
+     * off this class does exactly what it did before: the same seven layers, no
+     * extra counter, no extra clock read, and {@link #windowLine()} returns an
+     * empty string that appends nothing to a handler's line.
+     *
+     * <p>The maintainer's report is "from a hillside, looking up or looking down,
+     * the plants get almost no snow". That is a question about the vertical
+     * window and nothing else: {@link #UP_RANGE}/{@link #DOWN_RANGE} are a fixed
+     * band around the player's own feet, while the horizontal fan reaches
+     * twenty-odd blocks out - so on any slope the far end of the sweep leaves the
+     * band long before it leaves the radius, and the yaw fan cannot help because
+     * it is horizontal. Two things answer it, and neither is an argument:</p>
+     * <ol>
+     *   <li>counts and {@code System.nanoTime} timings per scan - columns,
+     *       voxels, candidates, hits, and the two stages worth timing (the sky
+     *       test and the profile lookup), so an A/B is a measurement;</li>
+     *   <li>a MISS PROBE: the {@link #PROBE_BANDS} layers just outside the
+     *       active window, walked with the same predicate chain and thrown away,
+     *       so "what is the window leaving on the table" is a number.</li>
+     * </ol>
+     *
+     * <p>Set from {@code -Ddsr.foliage.windowDiag=true} at class load, or by hand
+     * from a debug command - it is volatile and read once per scan.</p>
+     */
+    public static volatile boolean WINDOW_DIAG = readFlag("dsr.foliage.windowDiag");
+
+    /**
+     * The A/B vertical window, as {@code up/down} from
+     * {@code -Ddsr.foliage.window=6/6}. <b>-1 is "the shipped window"</b> and is
+     * what every normal run has; 0 is a legal reach (a flat window), which is why
+     * -1 and not 0 is the sentinel. Read once per scan, so a debug command can
+     * move it live, and moving it drops the rolling cost window with it.
+     */
+    public static volatile int ALT_UP_RANGE = -1;
+    public static volatile int ALT_DOWN_RANGE = -1;
+
+    /** The last scan's shape and cost. Written only while {@link #WINDOW_DIAG} is on. */
+    public static int lastColumns = 0;
+    public static int lastVoxels = 0;
+    public static int lastCandidates = 0;
+    public static long lastSkyNanos = 0L;
+    public static long lastProfileNanos = 0L;
+    /** The window the last scan walked; recorded unconditionally, it is configuration, not a measurement. */
+    public static int lastUp = UP_RANGE;
+    public static int lastDown = DOWN_RANGE;
+    public static int lastCenterX = 0;
+    public static int lastCenterY = 0;
+    public static int lastCenterZ = 0;
+    public static boolean lastFan = false;
+    public static float lastFx = 0F;
+    public static float lastFz = 0F;
+
+    /**
+     * How many layers outside the active window the miss probe walks, per side.
+     * Six, because the window a decision would most likely take is 6/6 and the
+     * probe should still have something to say after that switch has moved it.
+     */
+    public static final int PROBE_BANDS = 6;
+    /** Candidates one, two, ... layers past each edge, summed over every column of the sweep. */
+    public static final int[] PROBE_UP = new int[PROBE_BANDS];
+    public static final int[] PROBE_DOWN = new int[PROBE_BANDS];
+    /** ...and how many of those were fully usable spots (sky open and the profile has anchors). */
+    public static int probeUpOk = 0;
+    public static int probeDownOk = 0;
+
+    /**
+     * The scans since the window last changed. A mean taken over a session that
+     * has held two different windows is a number about nothing, which is why
+     * {@link #applyWindowProperty} drops these.
+     */
+    public static int winScans = 0;
+    public static long winSumNanos = 0L;
+    public static long winMaxNanos = 0L;
+
+    static {
+        applyWindowProperty(System.getProperty("dsr.foliage.window"));
+    }
+
+    /**
+     * {@code up/down} -> {@link #ALT_UP_RANGE}/{@link #ALT_DOWN_RANGE}. Anything
+     * unreadable is ignored: a test knob must never be able to change what the
+     * layer does by being misspelled.
+     */
+    public static void applyWindowProperty(final String spec) {
+        if (spec == null)
+            return;
+        final int slash = spec.indexOf('/');
+        if (slash <= 0)
+            return;
+        try {
+            final int up = Integer.parseInt(spec.substring(0, slash).trim());
+            final int down = Integer.parseInt(spec.substring(slash + 1).trim());
+            // A knob that could ask for a whole-column walk would answer a
+            // different question than the one being asked; 64 layers is already
+            // nine times the shipped window.
+            if (up < 0 || down < 0 || up + down > 64)
+                return;
+            ALT_UP_RANGE = up;
+            ALT_DOWN_RANGE = down;
+            resetWindowStats();
+        } catch (final NumberFormatException ignored) {
+            // Leave the shipped window alone - the safe way round.
+        }
+    }
+
+    private static boolean readFlag(final String name) {
+        try {
+            final String v = System.getProperty(name);
+            return v != null && (v.isEmpty() || Boolean.parseBoolean(v));
+        } catch (final Throwable t) {
+            return false;
+        }
+    }
+
+    /** The window the next scan walks: the shipped one unless the A/B switch moved it. */
+    public static int activeUp() {
+        return ALT_UP_RANGE >= 0 ? ALT_UP_RANGE : UP_RANGE;
+    }
+
+    /** See {@link #activeUp()}. */
+    public static int activeDown() {
+        return ALT_DOWN_RANGE >= 0 ? ALT_DOWN_RANGE : DOWN_RANGE;
+    }
+
+    /** Drops the rolling A/B cost window. */
+    public static void resetWindowStats() {
+        winScans = 0;
+        winSumNanos = 0L;
+        winMaxNanos = 0L;
+    }
+
     /** Trace switch - driven by the handlers from the logging config. */
     public static volatile boolean TRACE = false;
 
@@ -168,6 +301,112 @@ public final class FoliageScan {
     public static long lastNanos = 0;
     public static int lastRange = 0;
 
+    /**
+     * The vertical-window instrument as one token, or <b>""</b> while
+     * {@link #WINDOW_DIAG} is off. An empty string appends nothing to a handler's
+     * line, which is how a normal run's log stays exactly what it was.
+     *
+     * <p>{@code missUp[i]} counts the candidate plants {@code i+1} layers above
+     * the top of the window that would have been spots, and {@code missDown} the
+     * same below the bottom - so "how much is the window leaving on the table,
+     * and how far up does it go on having something to show" is read straight off
+     * the line.</p>
+     */
+    public static String windowLine() {
+        if (!WINDOW_DIAG)
+            return "";
+        final StringBuilder sb = new StringBuilder(256);
+        sb.append("window=+").append(lastUp).append("/-").append(lastDown)
+                .append(" cols=").append(lastColumns)
+                .append(" voxels=").append(lastVoxels)
+                .append(" cand=").append(lastCandidates)
+                .append(" hits=").append(lastFound)
+                .append(" last=").append(lastNanos / 1000L).append("us")
+                .append(" sky=").append(lastSkyNanos / 1000L).append("us")
+                .append(" prof=").append(lastProfileNanos / 1000L).append("us");
+        if (winScans > 0)
+            sb.append(" n=").append(winScans)
+                    .append(" avg=").append(winSumNanos / 1000L / winScans).append("us")
+                    .append(" max=").append(winMaxNanos / 1000L).append("us");
+        return sb.append(" missUp=").append(bands(PROBE_UP))
+                .append(" missDown=").append(bands(PROBE_DOWN))
+                .append(" missUpOk=").append(probeUpOk)
+                .append(" missDownOk=").append(probeDownOk).toString();
+    }
+
+    /** {@code [a,b,c]}, band 0 being the layer immediately outside the window. */
+    private static String bands(final int[] counts) {
+        final StringBuilder sb = new StringBuilder(PROBE_BANDS * 4 + 2);
+        sb.append('[');
+        for (int i = 0; i < PROBE_BANDS; i++) {
+            if (i > 0)
+                sb.append(',');
+            sb.append(counts[i]);
+        }
+        return sb.append(']').toString();
+    }
+
+    /**
+     * Whether a block was inside the window the LAST scan walked. This is the
+     * "retention pool" question in one call - how many of the units a handler is
+     * still holding are outside the sweep that maintains them - and it is
+     * rebuilt from the recorded centre and fan rather than stored per spot, so it
+     * costs nothing while nobody asks.
+     */
+    public static boolean inLastWindow(final int x, final int y, final int z) {
+        final int dy = y - lastCenterY;
+        if (dy > lastUp || dy < -lastDown)
+            return false;
+        final int dx = x - lastCenterX;
+        final int dz = z - lastCenterZ;
+        if (!lastFan)
+            return Math.abs(dx) <= lastRange && Math.abs(dz) <= lastRange;
+        final float forward = dx * lastFx + dz * lastFz;
+        final float side = dx * -lastFz + dz * lastFx;
+        final float a = (forward >= 0F ? FAN_FORWARD : FAN_BACK) * lastRange;
+        final float b = FAN_SIDE * lastRange;
+        final float u = forward / a;
+        final float v = side / b;
+        return u * u + v * v <= 1F;
+    }
+
+    /**
+     * The layers just outside the active window, on one column, walked with the
+     * same predicate chain and thrown away. Reached only while {@link #WINDOW_DIAG}
+     * is on, and it touches neither {@link #STATS}, {@link #LAST} nor the result
+     * list: a measurement must not change the thing it measures. It does cost
+     * real block reads - twelve extra columns' worth per column of the sweep -
+     * which is the price of the answer and the reason it lives behind a switch.
+     */
+    private static void probe(final Level world, final Mode mode, final int x, final int z,
+                              final int cy, final int up, final int down) {
+        for (int i = 0; i < PROBE_BANDS; i++) {
+            final int above = probeOne(world, mode, x, cy + up + 1 + i, z);
+            if (above > 0)
+                PROBE_UP[i]++;
+            if (above == 2)
+                probeUpOk++;
+            final int below = probeOne(world, mode, x, cy - down - 1 - i, z);
+            if (below > 0)
+                PROBE_DOWN[i]++;
+            if (below == 2)
+                probeDownOk++;
+        }
+    }
+
+    /** 0 = nothing there, 1 = a plant the sky or the profile turned away, 2 = it would have been a spot. */
+    private static int probeOne(final Level world, final Mode mode, final int x, final int y, final int z) {
+        if (world.isOutsideBuildHeight(y))
+            return 0;
+        final BlockPos pos = new BlockPos(x, y, z);
+        final BlockState state = world.getBlockState(pos);
+        if (state.isAir() || !isCandidate(state))
+            return 0;
+        if (!skyOpen(world, pos, mode))
+            return 1;
+        return FoliageProfileCache.get(world, pos, state).isEmpty() ? 1 : 2;
+    }
+
     /** One attachable plant: position, its state, and its ready profile. */
     public record FoliageSpot(BlockPos pos, BlockState state, FoliageProfile profile) {
     }
@@ -175,9 +414,16 @@ public final class FoliageScan {
     private FoliageScan() {
     }
 
+    /**
+     * Round 43: unconditional. The histogram used to need TRACE, so a live
+     * test printed air=0 notCandidate=0 ... ok=0 - which reads as "the scanner
+     * is broken" when it only means "it is muted". Counting a handful of ints
+     * per block is nothing next to the walk itself (the scan prints at ~300us),
+     * and DripScanner has always counted unconditionally: the line is meant to
+     * be readable without turning debug on.
+     */
     private static void note(final int stat) {
-        if (TRACE)
-            STATS[stat]++;
+        STATS[stat]++;
     }
 
     /**
@@ -212,6 +458,26 @@ public final class FoliageScan {
         // The sweep is wider than rx now, so the walk has to reach past it - a box-sized
         // loop clipped the fan back to exactly the old 16 and quietly did nothing.
         final int w = fan ? (int) Math.ceil(Math.max(FAN_SIDE, Math.max(FAN_FORWARD, FAN_BACK)) * rx) : rx;
+        // Round 48: the vertical window is the band it always was unless the A/B switch
+        // moved it, and the counters below only move while the diag switch is on. Hoisting
+        // the centre out of the two loops is what the y bound now reads.
+        final int up = activeUp();
+        final int down = activeDown();
+        final int cx = center.getX();
+        final int cy = center.getY();
+        final int cz = center.getZ();
+        final boolean diag = WINDOW_DIAG;
+        int columns = 0;
+        int voxels = 0;
+        int candidates = 0;
+        long skyNanos = 0L;
+        long profileNanos = 0L;
+        if (diag) {
+            java.util.Arrays.fill(PROBE_UP, 0);
+            java.util.Arrays.fill(PROBE_DOWN, 0);
+            probeUpOk = 0;
+            probeDownOk = 0;
+        }
 
         for (int dx = -w; dx <= w; dx++) {
             for (int dz = -w; dz <= w; dz++) {
@@ -225,9 +491,13 @@ public final class FoliageScan {
                     if (u * u + v * v > 1F)
                         continue;
                 }
-                final int x = center.getX() + dx;
-                final int z = center.getZ() + dz;
-                for (int y = center.getY() + UP_RANGE; y >= center.getY() - DOWN_RANGE; y--) {
+                final int x = cx + dx;
+                final int z = cz + dz;
+                if (diag)
+                    columns++;
+                for (int y = cy + up; y >= cy - down; y--) {
+                    if (diag)
+                        voxels++;
                     if (world.isOutsideBuildHeight(y))
                         continue;
                     cursor.set(x, y, z);
@@ -240,12 +510,24 @@ public final class FoliageScan {
                         note(STAT_NOT_CANDIDATE);
                         continue;
                     }
+                    if (diag)
+                        candidates++;
                     final BlockPos pos = new BlockPos(x, y, z);
-                    if (!skyOpen(world, pos, mode)) {
+                    // Round 48: the two stages that actually cost something, timed apart.
+                    // Both clocks are read only while the diag switch is on, so a normal
+                    // scan pays one boolean test per candidate and nothing else.
+                    final long skyStart = diag ? System.nanoTime() : 0L;
+                    final boolean sky = skyOpen(world, pos, mode);
+                    if (diag)
+                        skyNanos += System.nanoTime() - skyStart;
+                    if (!sky) {
                         note(STAT_SKY);
                         continue;
                     }
+                    final long profileStart = diag ? System.nanoTime() : 0L;
                     final FoliageProfile profile = FoliageProfileCache.get(world, pos, state);
+                    if (diag)
+                        profileNanos += System.nanoTime() - profileStart;
                     if (profile.isEmpty()) {
                         note(STAT_NO_PROFILE);
                         continue;
@@ -253,12 +535,33 @@ public final class FoliageScan {
                     note(STAT_OK);
                     result.add(new FoliageSpot(pos, state, profile));
                 }
+                if (diag)
+                    probe(world, mode, x, z, cy, up, down);
             }
         }
         System.arraycopy(STATS, 0, LAST, 0, STAT_COUNT);
         lastFound = result.size();
         lastNanos = System.nanoTime() - start;
         lastRange = rx;
+        lastUp = up;
+        lastDown = down;
+        lastCenterX = cx;
+        lastCenterY = cy;
+        lastCenterZ = cz;
+        lastFan = fan;
+        lastFx = fx;
+        lastFz = fz;
+        if (diag) {
+            lastColumns = columns;
+            lastVoxels = voxels;
+            lastCandidates = candidates;
+            lastSkyNanos = skyNanos;
+            lastProfileNanos = profileNanos;
+            winScans++;
+            winSumNanos += lastNanos;
+            if (lastNanos > winMaxNanos)
+                winMaxNanos = lastNanos;
+        }
         return result;
     }
 
@@ -278,22 +581,24 @@ public final class FoliageScan {
 
     /**
      * The one answer to "is this block a plant that can carry droplets".
-     * Bushes, flowers, crops past the sprout stages and saplings. Crops'
-     * first stages are near-empty textures (survey §15: wheat age0 is 2.7%
-     * opaque with all anchors in the bottom half) - turning them away here
-     * saves the profile build and the empty anchor set.
+     * Bushes, flowers, crops and saplings - every stage, including the first
+     * (round 43). A sprout is 2.7% opaque and its anchors all sit in the bottom
+     * half (survey §15), so it gets few units and only of the smallest tier;
+     * that is the profile's job, not this gate's.
      */
     private static boolean isCandidate(final BlockState state) {
         if (state.is(BlockTags.LEAVES))
             return false;
         if (!state.getFluidState().isEmpty())
             return false;
-        if (state.hasProperty(BlockStateProperties.AGE_7)
-                && state.getValue(BlockStateProperties.AGE_7) <= 1)
-            return false;   // wheat/carrots/potatoes sprouts
-        if (state.hasProperty(BlockStateProperties.AGE_3)
-                && state.getValue(BlockStateProperties.AGE_3) <= 0)
-            return false;   // beetroots sprout
+        // Round 43: the FIRST crop stage is a candidate again. It used to be
+        // turned away here - a wheat sprout is 2.7% opaque and every anchor sits
+        // in the bottom half, so a unit read as a white dot on the ground rather
+        // than snow on a plant. The maintainer overruled that ("第一阶段的作物
+        // 可以积雪，大小还行，可以承受最小的雪块"): a farm is mostly stage-one
+        // rows, and what keeps it honest is the profile, not this gate - a sprout
+        // offers few anchors and no room, so it takes the smallest tier and only
+        // a couple of them. Nothing else about the placement changes.
         // Round 12: sugar cane. It is a cross model exactly like grass, but
         // SugarCaneBlock extends Block rather than BushBlock and it is in none of the
         // three tags below, so it never once made the list - the maintainer asked why.

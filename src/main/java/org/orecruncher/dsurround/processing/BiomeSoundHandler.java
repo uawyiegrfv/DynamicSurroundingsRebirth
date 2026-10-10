@@ -50,6 +50,25 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     //   night = 1 / (60s  / 0.2s) = 1/300  ~ 0.0033
     private static final Identifier LEAF_WIND = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.leaf_wind");
     private static final Identifier WIND_GENERIC = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.wind.plains");
+
+    /**
+     * The bed asset for open country: pure wind, no leaves.
+     *
+     * <p>{@link #WIND_GENERIC} is cut from cinetony's "leaves rustle in the wind" - its own
+     * {@code ds_credits} says so - so on plains and moors it reads as leaves even though nothing
+     * put leaves there. This one is felix.blume's Atacama ridge recording: wind against rock and
+     * cactus, nothing that rustles. Resampled to 48 kHz and looped seamlessly by
+     * {@code tools/_make_wind_open_loop.py}.</p>
+     */
+    private static final Identifier WIND_OPEN = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.wind.open");
+    // The howl layers loop one clip, and a loop is only as long as its clip: the pool's
+    // clips are 8-11 s, which the ear hears as a rhythm rather than as weather. These are
+    // 45 s and 50 s - all three clips of the tier, each used twice, the second pass time
+    // stretched by a few percent (inaudible on broadband noise, but enough that the ear
+    // cannot match the two passes), shuffled and crossfaded. See
+    // tools/_make_wind_howl_loops.py.
+    private static final Identifier HOWL_MEDIUM = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.wind.howl.medium");
+    private static final Identifier HOWL_HEAVY = Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.wind.howl.heavy");
     private static final Identifier[] RAIN_TEXTURE_WIND = {
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.wind1"),
             Identifier.fromNamespaceAndPath(Constants.MOD_ID, "biome.rain.wind2"),
@@ -121,8 +140,19 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     // 现在 tiers 之间拉开：小雨最轻、中雨居中、暴雨最响且用新素材（换素材也要换
     // 音量，否则中雨和暴雨一样响，"换了新呼啸怎么没变"）。这一组是绝对值，风力
     // 调制见 GUST_WIND_LEVEL_*。
-    private static final float[] GUST_TIER_VOLUME = {0.30F, 0.44F, 0.55F};
+    private static final float[] GUST_TIER_VOLUME = {0.26F, 0.38F, 0.47F};
 
+    // ---- 2026-10-10 维护者实机反馈：呼啸声偏吵、起伏的"伏"太大、起得太频繁 ----
+    // 按每条抱怨各动一个语义对应的旋钮，不做整体压死（本文件上面记着一次过度压制的教训：
+    // 中雨丢三分之一、暴雨丢一半，听起来变成"底噪风声没了"）：
+    //   伏太大 -> GUST_WIND_LEVEL_FLOOR 0.70→0.50（阵风包络的安静端；顺带把峰也压到 0.95）
+    //           RAIN_WIND_SWELL_FLOOR 0.42→0.30（雨风床的起伏底部）
+    //           HOWL_FLOOR 0.30→0.22（呼啸自身的安静端）
+    //   太吵   -> HOWL_LEVEL_MEDIUM 0.45→0.36、HOWL_LEVEL_HEAVY 0.80→0.62（最响的一层）
+    //           GUST_TIER_VOLUME {0.30,0.44,0.55}→{0.26,0.38,0.47}（三档各降约 13%）
+    //   起太频 -> SWELL_PERIODS_S 13.7/23.3/37.1/59.9→19.1/31.7/45.3/67.9（拉长约 40%，仍互不通约）
+    // 未动：档位阈值（换音色的滞回）、RAIN_WIND_BED_GAIN（那次"底噪没了"就是压它压过头）、
+    //       CANOPY_LEVEL、RAIN_GUST_STORM_GAIN、叶片阵风节奏。
     // ---- WIND：让听得见的风与看得见的风同源 --------------------------------
     // 以前风声层的大小只吃降水强度，而雨幕的倾斜吃 WindField（强度 + 阵风幅度 +
     // 群系 + 新的季节系数），两边各有一套大小：密林里雨丝几乎不斜而风声照旧走满，
@@ -134,7 +164,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final float WIND_LEVEL_SPAN_BPS = 7.2F;
     /** 阵风音量受风力调制的深度：静风保留 FLOOR，风拉满补到 FLOOR + SPAN。
      *  FLOOR 抬高 = 所有阵风一起变响；SPAN 加大 = 风大风小的差别更明显。 */
-    private static final float GUST_WIND_LEVEL_FLOOR = 0.70F;
+    private static final float GUST_WIND_LEVEL_FLOOR = 0.50F;
     private static final float GUST_WIND_LEVEL_SPAN = 0.45F;
     /** 空旷地形阵风的发声点放在上风侧多远，格。太远会听成"从某个点吹来"，而且
      *  LINEAR 衰减会顺带吃掉音量（约 -2 dB / 4 格）；太近又退回没有方向。 */
@@ -184,10 +214,39 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * dragged the trough down with it, and the trough is already at the level
      * that stopped reading as "barely there".
      */
-    private static final float RAIN_WIND_SWELL_FLOOR = 0.42F;
+    private static final float RAIN_WIND_SWELL_FLOOR = 0.30F;
     private static final float RAIN_WIND_SWELL_PEAK = 0.8F;
-    private static final float RAIN_WIND_SWELL_PERIOD_A_S = 14F;
-    private static final float RAIN_WIND_SWELL_PERIOD_B_S = 23F;
+    /**
+     * Four swell periods that share no common multiple, so the sum does not
+     * repeat inside any stretch a player listens to, and phases drawn once per
+     * JVM run so no two sessions breathe alike.
+     */
+    private static final double[] SWELL_PERIODS_S = {19.1, 31.7, 45.3, 67.9};
+    private static final double[] SWELL_PHASES = swellPhases();
+
+    private static double[] swellPhases() {
+        final java.util.Random r = new java.util.Random();
+        final double[] p = new double[SWELL_PERIODS_S.length];
+        for (int i = 0; i < p.length; i++)
+            p[i] = r.nextDouble() * 2D * Math.PI;
+        return p;
+    }
+
+    /** How loud the sustained layers sit, before the gust envelope is applied. */
+    private static final float HOWL_LEVEL_MEDIUM = 0.36F;
+    private static final float HOWL_LEVEL_HEAVY = 0.62F;
+    /**
+     * The quiet end of the shaped gust envelope.
+     *
+     * <p>{@code WindField.envelopeAt} bottoms out at 0.15 because a visual may stand still for a
+     * moment. Put that straight on a gain and the wind <em>leaves</em> once every minute or two -
+     * the slow layer of the envelope is exactly that long, and "the wind died" is a defect, not a
+     * feature. The shape is what was asked for (loud for a stretch, quiet the rest of the time);
+     * only its floor is raised here, so it asks for soft instead of asking for absent.</p>
+     */
+    private static final float HOWL_FLOOR = 0.22F;
+    /** The canopy layer only ever answers the howl, it never leads it. */
+    private static final float CANOPY_LEVEL = 0.38F;
     /**
      * Extra level for a gust in a thunderstorm. A thunderstorm has to outshout
      * its own rain; at full intensity the gusts were being buried by it.
@@ -437,6 +496,10 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
 
     private BackgroundSoundLoop rainWindLoop;
     private Object rainWindAsset;
+
+    // The sustained layers above the bed - see handleWindLayers.
+    private final WindLayer howlLayer = new WindLayer();
+    private final WindLayer canopyLayer = new WindLayer();
     private long rainGustNextTick;
     private int rainGustTier = -1;
     private int rainGustLastIndex = -1;
@@ -594,6 +657,12 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             var acoustics = kvp.getKey().findBiomeSoundMatches();
             final float areaScale = 0.05F + 0.95F * (kvp.getIntValue() / area);
             for (var acoustic : acoustics) {
+                // The rain bed already has this asset running as its own loop.
+                // Letting both hold it opens the same ogg twice - two starting points, two
+                // gains - and that is where the "sometimes the bed is very loud" came from:
+                // measured at -21.5 dB on cold biomes, louder than a heavy gust.
+                if (isWindFactory(acoustic) && PrecipitationIntensity.rainingNow())
+                    continue;
                 // The Deep Dark is a naturally underground biome; its own ambience loops
                 // must not be attenuated as if they were outdoor sound leaking inside.
                 final float scale = (inside && !isDeepDarkAmbience(acoustic)) ? INDOOR_VOLUME_SCALE : 1.0F;
@@ -700,6 +769,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                     handleAddOnSounds(player, internalVillageBiomeInfo);
                 handleLeafWindGust(player);
                 handleRainWindBed(player);
+                handleWindLayers(player);
                 handleRainTexture(player);
                 // handleRainMaterial is called from process() every tick.
                 handleSculkClick(player);
@@ -1505,6 +1575,128 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         }
     }
 
+/**
+ * One sustained wind layer, and which asset it currently has running.
+ *
+ * <p>The asset is remembered because the target is recomputed every 4 ticks. Without it, a layer
+ * whose target crossed zero gets rebuilt on the way back up, and a rebuilt loop starts its ogg
+ * <em>from the file head</em>: the identical opening seconds, again, on whatever rhythm the
+ * threshold happens to be crossed on. That is "the wind keeps catching", and from the fix-, not
+ * from the asset.</p>
+ */
+private static final class WindLayer {
+    BackgroundSoundLoop loop;
+    Object asset;
+    int tier = -1;
+    int index = -1;
+}
+
+/** Eases a layer out and forgets it. The loop stops itself once it reaches zero. */
+private void fadeLayer(final WindLayer layer) {
+    if (layer.loop != null) {
+        layer.loop.setScaleTarget(0F);
+        layer.loop = null;
+        layer.asset = null;
+        layer.tier = -1;
+        layer.index = -1;
+    }
+}
+
+/**
+ * Eases a layer towards {@code target}, crossfading on an asset change instead of cutting.
+ *
+ * <p>The outgoing loop is set to zero but not stopped here - it owns its own fade from that
+ * point, so switching assets inside a storm does not slice one waveform in half.</p>
+ */
+private void sustainLayer(final WindLayer layer, final ISoundFactory factory, final float target) {
+    if (target <= 0.005F) {
+        this.fadeLayer(layer);
+        return;
+    }
+    final var asset = factory.getLocation();
+    if (layer.loop == null || !asset.equals(layer.asset)) {
+        if (layer.loop != null)
+            layer.loop.setScaleTarget(0F);
+        layer.loop = factory.createBackgroundSoundLoop();
+        layer.loop.setVolume(1F);
+        layer.asset = asset;
+        layer.loop.setScaleTarget(target);
+        this.audioPlayer.play(layer.loop);
+    } else {
+        layer.loop.setScaleTarget(target);
+    }
+}
+
+/**
+ * The gust envelope, compressed for a gain rather than for an angle.
+ *
+ * <p>This is the same {@code WindField} envelope that leans the rain into the wind, read on the
+ * same game clock. That is the whole point: until now the ear heard gusts on one schedule (a
+ * one-shot clip every 18-70 seconds) and the eye saw them on another (this envelope), so neither
+ * agreed with anything else going on. One source, two outlets.</p>
+ */
+private static float gustSwell(final Player player) {
+    final float env = WindField.envelopeAt(player.level().getGameTime(), 0F);
+    final float e = env < 0F ? 0F : (env > 1F ? 1F : env);
+    return HOWL_FLOOR + (1F - HOWL_FLOOR) * e;
+}
+
+/**
+ * The sustained layers above the bed: the howl, and the canopy answering it.
+ *
+ * <p>Both are loops whose volume is the gust envelope, so a storm is continuous and its size
+ * changes, instead of quiet-quiet-LOUD-quiet at a fixed interval. The howl starts at medium
+ * rain by the same tiering the one-shot path uses; below that the bed alone is the wind, because
+ * a running howl under drizzle reads as weather that is not there.</p>
+ *
+ * <p>Only wooded ground gets the canopy layer, and the decision is the same trait set
+ * {@code isWooded} already answers - wind is not leaves where nothing is rustling.</p>
+ */
+private void handleWindLayers(final Player player) {
+    if (!PrecipitationIntensity.grading() || !doBiomeSounds()
+            || !this.config.weatherOptions.enableWindSounds || this.scanner.isInside()) {
+        this.fadeLayer(this.howlLayer);
+        this.fadeLayer(this.canopyLayer);
+        return;
+    }
+    final float intensity = PrecipitationIntensity.ambient();
+    final int tier = gustTierFor(intensity, this.rainGustTier);
+    final var info = this.scanner.playerLogicBiomeInfo();
+    final boolean wooded = info != null && isWooded(info);
+    final float swell = gustSwell(player);
+    final float storm = player.level().isThundering() ? RAIN_GUST_STORM_GAIN : 1F;
+
+    if (tier >= 1) {
+        // One asset per tier, re-drawn when the tier changes and not otherwise: redrawing every
+        // tick would make the layer hop between three different recordings.
+        // One long loop per tier instead of one of three short clips. The clip
+        // used to be redrawn from the pool whenever the tier changed, and every
+        // clip in it was under eleven seconds - the layer did not breathe, it
+        // repeated.
+        final Identifier howl = tier >= 2 ? HOWL_HEAVY : HOWL_MEDIUM;
+        this.howlLayer.tier = tier;
+        final float base = tier >= 2 ? HOWL_LEVEL_HEAVY : HOWL_LEVEL_MEDIUM;
+        this.sustainLayer(this.howlLayer,
+                ContainerManager.resolve(ISoundLibrary.class)
+                        .getSoundFactoryOrDefault(howl),
+                base * swell * storm);
+    } else {
+        this.fadeLayer(this.howlLayer);
+    }
+
+    if (wooded && tier >= 1) {
+        final var lpool = RAIN_TEXTURE_LEAF;
+        if (this.canopyLayer.index < 0 || this.canopyLayer.index >= lpool.length)
+            this.canopyLayer.index = RANDOM.nextInt(lpool.length);
+        this.sustainLayer(this.canopyLayer,
+                ContainerManager.resolve(ISoundLibrary.class)
+                        .getSoundFactoryOrDefault(lpool[this.canopyLayer.index]),
+                CANOPY_LEVEL * swell);
+    } else {
+        this.fadeLayer(this.canopyLayer);
+    }
+}
+
     /**
      * The rain wind bed: a continuous, non-attenuated loop whose volume tracks
      * the graded intensity. A biome with its own wind acoustic uses that asset;
@@ -1536,13 +1728,15 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         // 已经折进了强度、本场阵风幅度、群系和季节，所以耳朵听到的风与眼睛看到的
         // 雨幕倾斜是同一样东西的两个出口。swell 继续在这个 level 上起呼吸作用。
         final float bedLevel = windLevel(intensity, PrecipitationIntensity.gustAmplitude());
-        float target;
-        if (wind != null) {
-            target = bedLevel;
-        } else {
-            wind = WIND_GENERIC;
-            target = intensity <= RAIN_WIND_MIN_INTENSITY ? 0F : bedLevel;
-        }
+        if (wind == null)
+            // Only ground without an asset of its own reaches this, so this line decides the
+            // bed nearly everywhere. Where there are trees the leaves belong in it.
+            wind = (info != null && isWooded(info)) ? WIND_GENERIC : WIND_OPEN;
+        // The gate applies to both paths now. It used to guard only this fallback branch, so the
+        // biomes that carry their own asset were already blowing while the storm was still
+        // climbing out of zero - the complaint was "it starts before the rain does".
+        // (They also double up against generateBiomeSounds; see the skip there.)
+        float target = intensity <= RAIN_WIND_MIN_INTENSITY ? 0F : bedLevel;
         if (this.scanner.isInside())
             target *= INDOOR_VOLUME_SCALE;
         target *= windSwell(this.tickCount.getTickCount());
@@ -1582,9 +1776,18 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * returns, so following it costs nothing and adds no seams.
      */
     private static float windSwell(final long tick) {
-        final double a = Math.sin(tick * 2D * Math.PI / (RAIN_WIND_SWELL_PERIOD_A_S * 20F));
-        final double b = Math.sin(tick * 2D * Math.PI / (RAIN_WIND_SWELL_PERIOD_B_S * 20F) + 1.3D);
-        float s = 0.5F + 0.5F * (float) (0.6D * a + 0.4D * b);
+        final double t = tick / 20D;
+        double sum = 0D;
+        for (int i = 0; i < SWELL_PERIODS_S.length; i++)
+            sum += Math.sin(2D * Math.PI * t / SWELL_PERIODS_S[i] + SWELL_PHASES[i]);
+        // Four sines rarely line up, so the mean is small; stretch it back out
+        // or the swell would sit in the middle of its own range and do nothing.
+        double u = sum / SWELL_PERIODS_S.length * 2D;
+        if (u > 1D)
+            u = 1D;
+        else if (u < -1D)
+            u = -1D;
+        final float s = 0.5F + 0.5F * (float) u;
         return RAIN_WIND_SWELL_FLOOR + (RAIN_WIND_SWELL_PEAK - RAIN_WIND_SWELL_FLOOR) * s;
     }
 
@@ -1715,6 +1918,11 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         }
         final int tier = gustTierFor(intensity, this.rainGustTier);
         this.rainGustTier = tier;
+        // Tier 2 is the sustained howl now: firing a one-shot clip of the same
+        // recordings on top of a layer already playing them is two copies of one
+        // asset, which is the doubling we just removed from the biome path.
+        if (tier >= 2)
+            return;
         float t = (intensity - min) / (1F - min);
         t = t < 0F ? 0F : (t > 1F ? 1F : t);
         float amp = PrecipitationIntensity.gustAmplitude();

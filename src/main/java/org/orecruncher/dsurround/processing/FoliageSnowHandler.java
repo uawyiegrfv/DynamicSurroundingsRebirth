@@ -428,6 +428,14 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                     snowingHere, world.isRaining(), PrecipitationIntensity.potentialPhase(pos),
                     plantLayersOff, DEBUG_FORCE, progress, this.base, this.plants.size(), MAX_PLANTS,
                     this.unitCount(), tick - this.lastScanTick);
+            // Round 48: the vertical-window instrument, and - the other half of the same
+            // question - where the units we are STILL holding actually are. Both lines are
+            // skipped entirely while the diag switch is off, so a normal run's log is
+            // exactly what it was.
+            if (FoliageScan.WINDOW_DIAG) {
+                this.logger.info("[FoliageSnow] window " + FoliageScan.windowLine());
+                this.logger.info("[FoliageSnow] pool " + this.poolLine(pos));
+            }
         }
 
         // Rain over snow: the window collapses for everyone still standing.
@@ -465,15 +473,47 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                 this.scannedChunks.add(chunkKey(pos));
             // Melting: hand the scan the real depth, so a plant found now wears what its
             // neighbours wear instead of a fresh full coat.
+            // Round 48: the scan AND the attach behind it, clocked as one - the attach is
+            // what scales with how many spots the window hands back, so windowing the sweep
+            // without this number would only measure half of what the window costs.
+            final boolean windowDiag = FoliageScan.WINDOW_DIAG;
+            final long scanStart = windowDiag ? System.nanoTime() : 0L;
             this.scanAndAttach(world, pos, tick, snowingHere ? progress : depthChannel.value(), player,
                     !snowingHere);
+            if (windowDiag) {
+                final long d = System.nanoTime() - scanStart;
+                this.scanNanos += d;
+                this.scanPasses++;
+                if (d > this.scanMaxNanos)
+                    this.scanMaxNanos = d;
+            }
         }
 
+        // Round 48: the pool's own two per-tick passes, clocked while the diag switch is on
+        // and untouched otherwise - one volatile read per pass is the entire cost of leaving
+        // the instrument in the shipped build.
+        final boolean windowDiag = FoliageScan.WINDOW_DIAG;
         if (tick - this.lastStaleCheck >= STALE_CHECK_TICKS) {
             this.lastStaleCheck = tick;
+            final long staleStart = windowDiag ? System.nanoTime() : 0L;
             this.checkStale(world, pos);
+            if (windowDiag) {
+                final long d = System.nanoTime() - staleStart;
+                this.staleNanos += d;
+                this.stalePasses++;
+                if (d > this.staleMaxNanos)
+                    this.staleMaxNanos = d;
+            }
         }
+        final long lotteryStart = windowDiag ? System.nanoTime() : 0L;
         this.rollLottery(world, tick);
+        if (windowDiag) {
+            final long d = System.nanoTime() - lotteryStart;
+            this.lotteryNanos += d;
+            this.lotteryPasses++;
+            if (d > this.lotteryMaxNanos)
+                this.lotteryMaxNanos = d;
+        }
     }
 
     /** Accumulation, 0..1 - the icicle's shape, on this layer's clock. */
@@ -1115,6 +1155,82 @@ public class FoliageSnowHandler extends AbstractClientHandler {
             if (plant.units.isEmpty())
                 it.remove();
         }
+    }
+
+    // ---- round 48: the retention pool, measured -----------------------------
+    /**
+     * Retaining a unit does not cost nothing, and the maintainer's question -
+     * "the kept range feels larger than the scanned range, could the exit just be
+     * delayed into a standing pool" - is a question about that cost. These three
+     * triples are the whole bill the HANDLER pays, in {@code System.nanoTime}:
+     * the staleness pass (every {@link #STALE_CHECK_TICKS} ticks), the let-go
+     * lottery (every tick) and the scan-and-attach it shares with the scan. The
+     * first two walk every plant and every unit, so their cost is linear in the
+     * pool and two runs at two pool sizes give the slope directly.
+     *
+     * <p>Clocked only while {@link FoliageScan#WINDOW_DIAG} is on; while it is off
+     * this is one volatile read per pass and no clock at all. What is NOT in here
+     * is the particle's own {@code tick()} and the render pass - those are the
+     * engine's loops, and the pool's share of them is the difference between two
+     * runs at two pool sizes, not something a handler can honestly clock.</p>
+     */
+    private long staleNanos = 0L;
+    private long staleMaxNanos = 0L;
+    private int stalePasses = 0;
+    private long lotteryNanos = 0L;
+    private long lotteryMaxNanos = 0L;
+    private int lotteryPasses = 0;
+    private long scanNanos = 0L;
+    private long scanMaxNanos = 0L;
+    private int scanPasses = 0;
+
+    /**
+     * Where the units we are holding sit relative to the window the scanner last
+     * walked, plus what those three passes cost - the numbers an argument about
+     * retention radii is decided on. Diagnostics only, and only ever called while
+     * the diag switch is on: it walks the whole roster, which is nothing on a
+     * {@link #DIAG_INTERVAL_TICKS} line and would be wrong per tick.
+     *
+     * <p>{@code offScanWindow} is the maintainer's observation made countable -
+     * units that are still being drawn (and still being ticked) that no sweep is
+     * maintaining. {@code overKeep28} is the same statement against the exit rule
+     * itself; it is expected to stay at 0 and a non-zero there means a unit is
+     * past the radius the staleness pass enforces.</p>
+     */
+    private String poolLine(final BlockPos playerPos) {
+        final int[] bands = new int[5];
+        int inWindow = 0;
+        int units = 0;
+        for (final PlantSnow plant : this.plants.values()) {
+            units += plant.units.size();
+            if (FoliageScan.inLastWindow(plant.pos.getX(), plant.pos.getY(), plant.pos.getZ()))
+                inWindow++;
+            final double d = Math.sqrt(plant.pos.distSqr(playerPos));
+            if (d < 8D)
+                bands[0]++;
+            else if (d < 16D)
+                bands[1]++;
+            else if (d < 24D)
+                bands[2]++;
+            else if (d < 28D)
+                bands[3]++;
+            else
+                bands[4]++;
+        }
+        final int plants = this.plants.size();
+        return String.format(
+                "plants=%d units=%d inScanWindow=%d offScanWindow=%d"
+                        + " | dist<8=%d 8-16=%d 16-24=%d 24-28=%d overKeep28=%d"
+                        + " | stale(%d) avg=%dus max=%dus | lottery(%d) avg=%dus max=%dus"
+                        + " | scanAttach(%d) avg=%dus max=%dus",
+                plants, units, inWindow, plants - inWindow,
+                bands[0], bands[1], bands[2], bands[3], bands[4],
+                this.stalePasses, this.staleNanos / 1000L / Math.max(1, this.stalePasses),
+                this.staleMaxNanos / 1000L,
+                this.lotteryPasses, this.lotteryNanos / 1000L / Math.max(1, this.lotteryPasses),
+                this.lotteryMaxNanos / 1000L,
+                this.scanPasses, this.scanNanos / 1000L / Math.max(1, this.scanPasses),
+                this.scanMaxNanos / 1000L);
     }
 
     public void clear() {

@@ -194,7 +194,12 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         this.live.removeIf(e -> e[1] <= tick);
 
         if (value <= 0F) {
-            if (!this.pool.isEmpty() || this.accumulator != 0F) {
+            if (!this.pool.isEmpty() || this.accumulator != 0F || !this.residualDrops.isEmpty()) {
+                // Particles first: letting them fade is the only way they leave
+                // the world. Clearing residualDrops here instead would drop the
+                // handle and strand them.
+                if (!this.residualDrops.isEmpty())
+                    this.releaseResiduals(RESIDUAL_FADE_TICKS);
                 this.pool.clear();
                 this.accumulator = 0F;
             }
@@ -545,13 +550,50 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
     }
 
     private void clear() {
+        // Particles FIRST, lists second - and that order is the whole fix.
+        // See releaseResiduals: this is a world change or a disconnect, so there
+        // is nothing to watch and no fade.
+        this.releaseResiduals(0);
         this.pool.clear();
         this.live.clear();
         this.accumulator = 0F;
         this.lastScanTick = -1000L + 10L;
         this.lastScanPos = null;
-        this.residualDrops.clear();
         this.inResidual = false;
+    }
+
+    /**
+     * How long a persistent bead takes to shrink away when the layer is emptied
+     * for good. Quick on purpose: this is the rain slider's own ending, and a
+     * bead whose water has already run out should not be seen hanging around
+     * waiting to be noticed.
+     */
+    private static final int RESIDUAL_FADE_TICKS = 20;
+
+    /**
+     * Lets go of every persistent bead, then forgets them.
+     *
+     * <p>Called from both places that empty this layer, and from nowhere else -
+     * the point is that no path may drop the list while the particles are still
+     * alive, because the list is the only handle to them: drop it and the beads
+     * stay in the world forever, one more coat every rain. Each removal is
+     * guarded on its own so one particle refusing to go does not strand the
+     * rest, and a failure here must never be silent.</p>
+     *
+     * @param fadeTicks 0 to remove them now, otherwise the shrink-out duration
+     */
+    private void releaseResiduals(final int fadeTicks) {
+        for (final Residual r : this.residualDrops) {
+            try {
+                if (fadeTicks <= 0)
+                    r.drop.remove();
+                else
+                    r.drop.beginEvaporate(fadeTicks);
+            } catch (Throwable t) {
+                this.logger.warn("[FoliageRain] could not release a residual bead: %s", t);
+            }
+        }
+        this.residualDrops.clear();
     }
 
     /** One persistent after-rain bead, and the tick it next rolls to let go. */

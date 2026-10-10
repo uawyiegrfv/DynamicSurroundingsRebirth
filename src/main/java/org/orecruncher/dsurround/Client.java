@@ -7,7 +7,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
-import org.orecruncher.dsurround.client.particle.ModParticles;
 import org.orecruncher.dsurround.commands.Commands;
 import org.orecruncher.dsurround.config.libraries.*;
 import org.orecruncher.dsurround.config.libraries.impl.*;
@@ -98,11 +97,6 @@ public final class Client {
 
     public void initializeClient() {
         this.logger.info("[%s] Client initializing", Constants.MOD_ID);
-        // Only the provider: the particle type itself goes in from the loader's
-        // RegisterEvent, which is the one window where a built-in registry can
-        // still be written to.
-        ModParticles.registerProvider();
-
         if (Client.Config.logging.registerCommands) {
             if (!Platform.isModLoaded(Constants.QUILTED_LOADER))
                 ClientCommandRegistrationEvent.EVENT.register(Commands::register);
@@ -173,6 +167,10 @@ public final class Client {
     public void onComplete(Minecraft client) {
 
         this.logger.info("[%s] Completing initialization", Constants.MOD_ID);
+
+        // The particle providers are bound from
+        // RegisterParticleProvidersEvent now - see ModParticles.registerProviders.
+
         var container = ContainerManager.getRootContainer();
 
         // Register and initialize our libraries. Handlers will be reloaded in priority order.

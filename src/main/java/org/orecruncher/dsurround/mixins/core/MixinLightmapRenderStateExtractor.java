@@ -21,16 +21,26 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * mutable), filled by {@code LightmapRenderStateExtractor.extract}. There is no
  * NeoForge event for it, so this has to be a mixin.</p>
  *
- * <h2>Why a ratio, and why these constants</h2>
+ * <h2>Why the affine form, and why these constants</h2>
  *
  * <p>Decompiled 26.1 weather pipeline: the sky-light factor starts from a
- * timeline value (1.0 by day, 0.24 at night) that is <em>multiplied</em> by the
- * weather share, {@code keep = (1 - 0.3125*plainRain) * (1 - 0.52734375*thunder)}
- * where {@code plainRain = rainLevel - thunderLevel} (vanilla splits its rain
- * level; thunder is counted as thunder, the rest as rain). The end flash is then
- * added on top. So {@code skyFactor = timeline * keep + flash}, and scaling by
- * {@code keep(ours) / keep(vanilla)} cancels the unknown timeline factor and
- * lands exactly on {@code timeline * keep(ours) + flash}.</p>
+ * timeline value (1.0 by day, 0.24 at night) which the weather layers do not
+ * scale - each one <em>interpolates towards its own target</em>, the rainy-day
+ * floor {@code RAIN_TARGET = 0.24}. Applied in vanilla's order (rain, then
+ * thunder) that leaves a multiplier and a constant,
+ * {@code keep = (1 - 0.3125*plainRain) * (1 - 0.52734375*thunder)} and
+ * {@code addend = RAIN_TARGET * (1 - keep)}, where
+ * {@code plainRain = rainLevel - thunderLevel} (vanilla splits its rain level;
+ * thunder is counted as thunder, the rest as rain). So
+ * {@code skyFactor = timeline * keep + addend}, and the exact inverse is
+ * {@code timeline = (skyFactor - addend(vanilla)) / keep(vanilla)}: swap in our
+ * own {@code keep} and {@code addend} and the frame lands on
+ * {@code timeline * keep(ours) + addend(ours)}.</p>
+ *
+ * <p>Scaling the factor by {@code keep(ours) / keep(vanilla)} instead - the
+ * first version of this mixin - scales the floor along with the timeline, which
+ * is not what vanilla does: night 0.24 -> 0.3164 (+32%), +135% with thunder,
+ * and above 1.0 by day, a value the attribute cannot hold.</p>
  *
  * <p>When we are not taking over, our levels <em>are</em> vanilla's, the ratio is
  * exactly 1, and the frame is left untouched - the route degrades to vanilla
@@ -78,7 +88,20 @@ public abstract class MixinLightmapRenderStateExtractor {
         if (keepVanilla <= 0.05F)
             return;
         final float keepOurs = weatherKeep(ourPlain, ourThunder);
-        final float scaled = state.skyFactor * (keepOurs / keepVanilla);
+        // AFFINE, not a ratio. 26.1's SKY_LIGHT_FACTOR interpolates the timeline
+        // towards the rainy-day floor (RAIN_TARGET) instead of scaling it, i.e.
+        //   skyFactor = timeline * keep + RAIN_TARGET * (1 - keep)
+        // so the additive term belongs to the weather and must be swapped along
+        // with the multiplier. Scaling the whole factor by keep(ours)/keep(vanilla)
+        // scaled the floor too: night 0.24 -> 0.3164 (+32%), +135% with thunder,
+        // and above 1.0 by day - which is not a value a light factor can hold.
+        //
+        // Undo vanilla's affine step, then apply ours:
+        //   timeline = (factor - addend(vanilla)) / keep(vanilla)
+        //   factor'  = timeline * keep(ours) + addend(ours)
+        final float addendVanilla = weatherAddend(vanillaPlain, vanillaThunder);
+        final float addendOurs = weatherAddend(ourPlain, ourThunder);
+        final float scaled = (state.skyFactor - addendVanilla) * (keepOurs / keepVanilla) + addendOurs;
         // No upper clamp: vanilla's own end flash legitimately pushes the factor
         // above 1, and clipping it would dim lightning even when we own nothing.
         state.skyFactor = Math.max(0F, scaled);
@@ -87,5 +110,22 @@ public abstract class MixinLightmapRenderStateExtractor {
     /** The share of the base factor vanilla's weather keeps: 1 with no weather. */
     private static float weatherKeep(float plainRain, float thunder) {
         return (1F - RAIN_ALPHA * plainRain) * (1F - THUNDER_ALPHA * thunder);
+    }
+
+    /**
+     * The additive half: how much of RAIN_TARGET the weather has pulled in.
+     *
+     * <p>{@code 1 - keep} expands to exactly this, which is the same number the
+     * decompiled weather attributes blend towards
+     * {@code SKY_LIGHT_FACTOR}'s rain target by:</p>
+     * <pre>
+     *   1 - keep = 1 - (1 - a*plain)*(1 - b*thunder)
+     *            = a*plain*(1 - b*thunder) + b*thunder
+     * </pre>
+     */
+    private static float weatherAddend(float plainRain, float thunder) {
+        final float oneMinusKeep = RAIN_ALPHA * plainRain * (1F - THUNDER_ALPHA * thunder)
+                + THUNDER_ALPHA * thunder;
+        return RAIN_TARGET * oneMinusKeep;
     }
 }

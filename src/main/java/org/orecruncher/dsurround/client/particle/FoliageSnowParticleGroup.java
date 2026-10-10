@@ -22,14 +22,14 @@ import org.orecruncher.dsurround.Constants;
  * through {@code submitCustomGeometry} because the vanilla single-quad state
  * allows only one scale per quad, i.e. square, camera-facing quads).
  *
- * <p>The pipeline was <b>OPAQUE</b> and is <b>TRANSLUCENT</b> as of round 7.
- * Opaque disables blending, so a vertex alpha is discarded there - which is
- * why the snow layer could only ever melt by SHRINKING, and the maintainer
- * asked for the opposite: "直接缩小不太好，还不如下滑一大段距离以后直接慢慢
- * 隐去消失". A fade needs the blending pipeline. The sprite bodies are still
- * fully opaque, so a resting unit looks exactly as it did. Cloning {@link
- * IcicleParticleGroup} would have been the other route; this one keeps the
- * droplet's corner extraction, which the snow unit inherits unchanged.</p>
+ * <p>Round 47: the layer is <b>TRANSLUCENT</b>, which is what this unit always
+ * needed. The opaque pipeline discards a vertex alpha, so the melt/fade pass
+ * could only ever shrink, and - the reason this was changed - an opaque quad
+ * drawn in the opaque phase is depth-written and then covered by the cutout
+ * plants it sits inside of, which is why a hundred submitted units read as
+ * "one snow block". {@link IcicleParticleGroup}, whose units are visible,
+ * submits the translucent pipeline too, and 1.20.1's snow sheet is translucent
+ * for the same reason.</p>
  */
 public class FoliageSnowParticleGroup extends ParticleGroup<FoliageSnowParticle> {
 
@@ -37,7 +37,6 @@ public class FoliageSnowParticleGroup extends ParticleGroup<FoliageSnowParticle>
     private static final ParticleRenderType TYPE =
             new ParticleRenderType(Constants.MOD_ID + "_foliage_snow");
 
-    /** The vanilla OPAQUE particle pipeline over the particle atlas. */
     private static final RenderType RENDER_TYPE = RenderType.create(
             Constants.MOD_ID + "_foliage_snow_unit",
             RenderSetup.builder(RenderPipelines.TRANSLUCENT_PARTICLE)
@@ -45,6 +44,51 @@ public class FoliageSnowParticleGroup extends ParticleGroup<FoliageSnowParticle>
                     .createRenderSetup());
 
     private final SnowRenderState state = new SnowRenderState();
+
+    /**
+     * Round 43 render counters, read by FoliageSnowHandler's periodic line.
+     * 26.1 is the one version where a unit can be built, spawned and still not
+     * reach the screen, and these three split the failure open:
+     * held = units the group owns (0 => never reached the engine),
+     * inView = units the frustum kept (0 => culled),
+     * quads = geometry handed to the collector (non-zero and still invisible
+     * => the pipeline, not the layer).
+     */
+    public static int lastHeld = 0;
+    public static int lastInView = 0;
+    public static int lastSubmitted = 0;
+
+    /**
+     * Round 43, and the reason these exist: the maintainer reports "始终只有一朵花
+     * 且只有一块雪" while the group is submitting a dozen quads a frame. Two very
+     * different failures look like that from outside -
+     * <ul>
+     * <li>every unit sitting in the SAME block (blocks=1) => placement: the
+     *     anchors collapsed, and a dozen stacked quads do read as one blob;</li>
+     * <li>units spread over several blocks (blocks>1) and still one visible
+     *     => rendering: the geometry is going out and not coming back.</li>
+     * </ul>
+     * {@code cells} is the same count at quarter-block resolution, so "one block
+     * but four distinct spots" is distinguishable from "one block, one spot".
+     */
+    public static int lastBlocks = 0;
+    public static int lastCells = 0;
+    public static float lastSpread = 0F;
+
+    /** The above as one log token. */
+    public static String renderLine() {
+        return "held=" + lastHeld + " inView=" + lastInView + " quads=" + lastSubmitted
+                + " blocks=" + lastBlocks + " cells=" + lastCells
+                + " spread=" + String.format("%.2f", lastSpread);
+    }
+
+    /** Packs a rounded position into a long so a HashSet can count distinct spots. */
+    private static long cell(final double x, final double y, final double z, final double scale) {
+        final long a = Math.round(x * scale) + (1L << 20);
+        final long b = Math.round(y * scale) + (1L << 20);
+        final long c = Math.round(z * scale) + (1L << 20);
+        return (a << 42) | (b << 21) | c;
+    }
 
     public FoliageSnowParticleGroup(final ParticleEngine engine) {
         super(engine);
@@ -59,10 +103,33 @@ public class FoliageSnowParticleGroup extends ParticleGroup<FoliageSnowParticle>
     public ParticleGroupRenderState extractRenderState(final Frustum frustum, final Camera camera,
                                                        final float partialTickTime) {
         this.state.clear();
+        int inView = 0;
+        final java.util.HashSet<Long> blocks = new java.util.HashSet<>();
+        final java.util.HashSet<Long> cells = new java.util.HashSet<>();
+        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
+        float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
         for (final FoliageSnowParticle particle : this.particles) {
-            if (particle.inView(frustum))
+            blocks.add(cell(particle.posX(), particle.posY(), particle.posZ(), 1.0D));
+            cells.add(cell(particle.posX(), particle.posY(), particle.posZ(), 4.0D));
+            if (particle.posX() < minX) minX = (float) particle.posX();
+            if (particle.posY() < minY) minY = (float) particle.posY();
+            if (particle.posZ() < minZ) minZ = (float) particle.posZ();
+            if (particle.posX() > maxX) maxX = (float) particle.posX();
+            if (particle.posY() > maxY) maxY = (float) particle.posY();
+            if (particle.posZ() > maxZ) maxZ = (float) particle.posZ();
+            if (particle.inView(frustum)) {
+                inView++;
                 particle.extractCorners(this.state, camera, partialTickTime);
+            }
         }
+        lastHeld = this.particles.size();
+        lastInView = inView;
+        lastBlocks = blocks.size();
+        lastCells = cells.size();
+        lastSpread = lastHeld == 0 ? 0F
+                : (float) Math.sqrt((maxX - minX) * (maxX - minX)
+                        + (maxY - minY) * (maxY - minY)
+                        + (maxZ - minZ) * (maxZ - minZ));
         return this.state;
     }
 
@@ -124,6 +191,7 @@ public class FoliageSnowParticleGroup extends ParticleGroup<FoliageSnowParticle>
 
         @Override
         public void submit(final SubmitNodeCollector collector, final CameraRenderState camera) {
+            lastSubmitted = this.count;
             if (this.count == 0)
                 return;
             collector.submitCustomGeometry(new PoseStack(), RENDER_TYPE, this::emit);
@@ -143,7 +211,14 @@ public class FoliageSnowParticleGroup extends ParticleGroup<FoliageSnowParticle>
                 final int[][] seqs = { ORDER, REVERSED };
                 for (final int[] seq : seqs) {
                     for (final int i : seq) {
-                        buffer.addVertex(pose, c[i * 3], c[i * 3 + 1], c[i * 3 + 2])
+                        // ROUND 47 ROOT CAUSE: the corners are stored PER QUAD (the sink copies each
+                        // particle's 12 floats to this.count * FLOATS), so they must be read at that
+                        // offset. Without it every quad in the group was emitted at quad 0's position:
+                        // a hundred units drew as ONE snow blob, and because quad 0 changes from frame
+                        // to frame the blob jumped around faster than an enderman. `f` was already
+                        // computed one line above and never used - the offset was simply dropped when
+                        // the sink moved from one shared array to per-quad storage.
+                        buffer.addVertex(pose, c[f + i * 3], c[f + i * 3 + 1], c[f + i * 3 + 2])
                                 .setUv(i == 0 || i == 3 ? u0 : u1, i == 0 || i == 1 ? v0 : v1)
                                 .setColor(argb)
                                 .setUv2(light & 0xFFFF, (light >> 16) & 0xFFFF);

@@ -488,6 +488,7 @@ public final class PrecipitationRenderer {
     public static void onWorldLeft() {
         broken = false;
         effectsOwnershipChecked = false;
+        resetLevelHysteresis();
         phaseCache.clear();
         surfaceCache.clear();
         lightCache.clear();

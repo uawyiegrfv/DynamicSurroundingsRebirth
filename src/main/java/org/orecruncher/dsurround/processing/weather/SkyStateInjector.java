@@ -107,8 +107,17 @@ public final class SkyStateInjector {
             // rest as rain (WeatherAttributes.addLayer). Mirroring the split is
             // what makes the not-owning path exact.
             final float vanillaPlain = Math.max(0F, vanillaRain - vanillaThunder);
-            final float ourPlain = Math.max(0F,
-                    PrecipitationIntensity.skyColorRainLevel(level, partialTick) - ourThunder);
+            // Same rule the fog route below uses (and the other two versions):
+            // subtract thunder ONLY on frames we do not own, where it reproduces
+            // vanilla's rain/thunder split and lets the equality test return
+            // bit-for-bit vanilla. While we own the frame our level is complete
+            // and already carries the storm - subtracting ourThunder there hands
+            // the storm only its own half, which is what left the sky and clouds
+            // too bright mid-storm (measured: sky +10.7%, cloud +15.4%).
+            final float ourPlain = PrecipitationIntensity.ownsAmbient()
+                    ? PrecipitationIntensity.skyColorRainLevel(level, partialTick)
+                    : Math.max(0F,
+                            PrecipitationIntensity.skyColorRainLevel(level, partialTick) - ourThunder);
             // The CLOUD route gets its own level, exactly like the other two
             // versions: their cloud colour read point is
             // max(CLOUD, OVERCAST x OVERCAST_CLOUD_GRAY), which is precisely
@@ -117,10 +126,13 @@ public final class SkyStateInjector {
             // the sky's plain value instead put the clouds on the SKY channel's
             // clock, so 26.1's rain clouds tinted at the wrong speed whenever
             // the CLOUD and SKY channels diverged (different attack/decay).
-            // Subtracting ourThunder mirrors the sky route: the retint applies
-            // thunder as its own pass, so the plain value must not carry it.
-            final float ourPlainCloud = Math.max(0F,
-                    PrecipitationIntensity.cloudColorRainLevel(level, partialTick) - ourThunder);
+            // The ownsAmbient() rule above applies here too: while we own the
+            // frame the level is complete, and subtracting ourThunder would
+            // hand the storm only its own half.
+            final float ourPlainCloud = PrecipitationIntensity.ownsAmbient()
+                    ? PrecipitationIntensity.cloudColorRainLevel(level, partialTick)
+                    : Math.max(0F,
+                            PrecipitationIntensity.cloudColorRainLevel(level, partialTick) - ourThunder);
 
             // Vanilla smooths the biome FOG across a boundary but never smooths the
             // sky or cloud base colours: those are sampled per block and step the
@@ -136,6 +148,18 @@ public final class SkyStateInjector {
             // vanilla's SkyRenderer writes it: 1 - rainLevel. When we are not
             // taking over this reproduces vanilla's own value.
             sky.rainBrightness = 1F - PrecipitationIntensity.sunAlphaRainLevel(level, partialTick);
+
+            // And the stars, which 26.1 keeps as its own weather attribute
+            // (STAR_BRIGHTNESS) driven by vanilla's getRainLevel - so without
+            // this a drizzle put the whole sky out. Same shape as the other two
+            // versions, where the star pass reads the same alpha as the sun:
+            // ours over vanilla's, with the division guarded (vanilla's keep can
+            // reach zero in a full storm) and the result clamped to a sane range.
+            final float starVanilla = (1F - vanillaPlain) * (1F - vanillaThunder);
+            if (starVanilla > 1.0e-4F) {
+                final float starOurs = 1F - PrecipitationIntensity.sunAlphaRainLevel(level, partialTick);
+                sky.starBrightness *= Math.max(0F, Math.min(1F, starOurs / starVanilla));
+            }
 
             // The dry-weather sky events must also run on the bit-for-bit-vanilla
             // path below - a cloudless dry day is exactly when that early return
@@ -163,9 +187,14 @@ public final class SkyStateInjector {
             if (++probeCounter >= 100) {
                 probeCounter = 0;
                 PrecipitationIntensity.diagLog(
-                        "[SKY-26] sky=%06X cloud=%06X rainBrightness=%.3f rain=%.3f storm=%.3f",
+                        "[SKY-26] sky=%06X cloud=%06X rainBrightness=%.3f rain=%.3f storm=%.3f tod=%d",
                         sky.skyColor, state.cloudColor, sky.rainBrightness,
-                        PrecipitationIntensity.skyColorRainLevel(level, partialTick), ourThunder);
+                        PrecipitationIntensity.skyColorRainLevel(level, partialTick), ourThunder,
+                        // Round 43: the samples are worthless without the clock. A sky
+                        // colour of FF000000 is correct at midnight and wrong at noon,
+                        // and "26.1 is darker" can only be read off two samples taken
+                        // at the same time of day.
+                        level.getOverworldClockTime() % 24000L);
             }
         } catch (final Throwable t) {
             // Extract runs on the frame path; a throw here would take the frame
@@ -297,16 +326,32 @@ public final class SkyStateInjector {
         final float p1 = rainFactor * vanillaPlain;
         final float q1 = rainFactor * rainBright * vanillaPlain;
         final float d1 = 1F - p1 * (1F - rainBright);
-        if (d1 < 0.1F || d2 < 0.1F)
+        // The two denominators are NOT the same number, and conflating them is
+        // what made 26.1's sky read darker than 1.20.1 at the same intensity.
+        //
+        //   c' = (1-p)*c + q*lum(c)          (the forward blend, one pass)
+        //
+        // Taking lum() of both sides gives  lum(c') = lum(c)*(1-p+q)  because
+        // lum() of the constant vector (L,L,L) is L itself - so the LUMINANCE
+        // inverse divides by d = 1-p+q. But channel-wise the grey term is a
+        // constant, so the CHANNEL inverse is (c' - q*lum(c)) / (1-p).
+        //
+        // Dividing the channels by d instead darkens everything by (1-p)/d:
+        // 0.36 at full rain and 0.21 at full thunder. Worse, it is not a fixed
+        // dim - it rides vanilla's own rain ramp, so the sky kept sinking
+        // (FF060606 -> FF000000 over two minutes) while our level sat at 1.0.
+        final float i2 = 1F - p2;
+        final float i1 = 1F - p1;
+        if (i1 < 0.1F || i2 < 0.1F)
             return argb; // defensively leave vanilla alone
         final float l1 = luminance(r, g, b) / d2;
-        r = (r - q2 * l1) / d2;
-        g = (g - q2 * l1) / d2;
-        b = (b - q2 * l1) / d2;
+        r = (r - q2 * l1) / i2;
+        g = (g - q2 * l1) / i2;
+        b = (b - q2 * l1) / i2;
         final float l0 = luminance(r, g, b) / d1;
-        r = (r - q1 * l0) / d1;
-        g = (g - q1 * l0) / d1;
-        b = (b - q1 * l0) / d1;
+        r = (r - q1 * l0) / i1;
+        g = (g - q1 * l0) / i1;
+        b = (b - q1 * l0) / i1;
 
         // ---- ease the untinted base (biome-boundary smoothing) ----
         final int base = transition((argb & ALPHA_MASK) | pack(r, g, b), advance, isSky);
@@ -344,24 +389,27 @@ public final class SkyStateInjector {
         final float g = (argb >> 8 & 0xFF) / 255F;
         final float b = (argb & 0xFF) / 255F;
 
-        if (isSky && skyR < 0F) {
-            skyR = r;
-            skyG = g;
-            skyB = b;
-        } else if (!isSky && cloudR < 0F) {
-            cloudR = r;
-            cloudG = g;
-            cloudB = b;
-        } else if (advance) {
-            if (isSky) {
+        // Only the SKY base colour is eased. The other two versions ease the sky
+        // and take the cloud base as it comes, and easing it here as well is a
+        // real difference in feel, not a porting detail: an eased cloud base
+        // lags behind the sky it is supposed to be darkening with, so during a
+        // storm the clouds arrive at their colour late and the two read as
+        // moving separately. That is the "it changes, but it does not look like
+        // the other versions" report. Keep the cloud exact, like 1.20.1.
+        if (isSky) {
+            if (skyR < 0F) {
+                skyR = r;
+                skyG = g;
+                skyB = b;
+            } else if (advance) {
                 skyR += (r - skyR) * BASE_TRANSITION;
                 skyG += (g - skyG) * BASE_TRANSITION;
                 skyB += (b - skyB) * BASE_TRANSITION;
-            } else {
-                cloudR += (r - cloudR) * BASE_TRANSITION;
-                cloudG += (g - cloudG) * BASE_TRANSITION;
-                cloudB += (b - cloudB) * BASE_TRANSITION;
             }
+        } else {
+            cloudR = r;
+            cloudG = g;
+            cloudB = b;
         }
 
         // The alpha is the caller's, not ours - see ALPHA_MASK.

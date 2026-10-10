@@ -511,6 +511,8 @@ public final class SoundFXUtils {
         // High-frequency restore value. Equal to directCutoff unless diffraction applies with
         // diffractionHfDamping > 1, which damps the restored highs without touching the level.
         float directHfCutoff = directCutoff;
+        if (isMaterialRain(this.source))
+            directHfCutoff = (float) Math.pow(directCutoff, MATERIAL_RAIN_HF_BOOST);
 
         // Handle any dampening effects from the player, like head in water
         directCutoff *= 1F - ctx.auralDampening;
@@ -1430,6 +1432,30 @@ public final class SoundFXUtils {
      * {@link AudioTuning#realismFrequencyHz()}, which defaults to 500 Hz, so the tilt is zero and the
      * frequency-blind behaviour is preserved.
      */
+    /**
+     * Rain landing on a surface, as opposed to the rain bed or a gust.
+     *
+     * <p>These are the only rain sources anchored to a real outdoor block face
+     * (MaterialSurfaceScanner spots), which is what makes them the only ones the
+     * occlusion path can actually measure - and therefore the only ones that
+     * should get {@link #MATERIAL_RAIN_HF_BOOST}. The rain bed has no position
+     * at all, and a gust is wind, which indoors is not a quieter version of
+     * itself, it is absent - those stay on the hard-indoor path.
+     */
+    private static boolean isMaterialRain(final SourceContext source) {
+        final var sound = source.getSound();
+        if (sound == null)
+            return false;
+        final var loc = sound.getLocation();
+        if (loc == null || !org.orecruncher.dsurround.Constants.MOD_ID.equals(loc.getNamespace()))
+            return false;
+        final String path = loc.getPath();
+        // biome.rain.<material>.<tier>. The leaf gusts are biome.rain.leaf1/2 -
+        // same prefix, no tier suffix, and deliberately not included.
+        return path.startsWith("biome.rain.")
+                && (path.endsWith(".light") || path.endsWith(".medium") || path.endsWith(".heavy"));
+    }
+
     private static float spectralTiltDb(final float lossDb500, final float frequencyHz) {
         if (lossDb500 <= 0F)
             return 0F;
@@ -1443,6 +1469,25 @@ public final class SoundFXUtils {
      * mass law's frequency term, which does not depend on how thick the barrier is.
      */
     private static final double MATERIAL_SPECTRUM_DB_PER_OCTAVE = 6.0D;
+
+    /**
+     * Extra high-frequency help given to rain landing on a surface, expressed as
+     * a power on the direct cutoff: {@code hfCutoff = pow(cutoff, this)}.
+     *
+     * <p>Rain on a roof does not arrive as quieter air-borne sound - it arrives
+     * through the structure, and what a barrier takes first is the top of the
+     * spectrum. The level must NOT follow: it already only gets
+     * {@code pow(cutoff, 0.1)} of the loss, so a drop keeps its loudness and
+     * merely goes dull, which is what is heard indoors.
+     *
+     * <p>Sized offline (tools/_sim_rain_hf_gain.py). One block of stone: the
+     * high-frequency cut goes 26% -> 46%. An opening beside the line, where the
+     * diffraction term is already inside the cutoff: 12% -> 23%. Two blocks:
+     * 46% -> 71%. Four: 74% -> 93%. The volume column does not move at any of
+     * them. 3.0 would take a four-block wall to 98%, which reads as a mute
+     * rather than as a wall.
+     */
+    private static final float MATERIAL_RAIN_HF_BOOST = 2.0F;
 
     /**
      * Loss at which the spectral tilt is half developed, in dB. See {@link #spectralTiltDb}: without

@@ -100,9 +100,18 @@ public interface ISeasonalInformation {
 
     /**
      * Gets the possible precipitation that can occur in the biome at the specified position.
+     *
+     * <p>26.1 renamed the vanilla helpers and the lookalike is the wrong one:
+     * {@code Level.precipitationAt} is the old {@code isRainingAt} - it requires
+     * {@code isRaining()} and an open sky as well, so it answers NONE whenever the world
+     * is not actually raining. That is exactly the case {@code potentialPhase()} exists
+     * to answer (the diagnostics lock draws rain and snow in clear weather), and the
+     * renderer's per-column phase gate reads it: with the rain test in place a lock drew
+     * nothing at all. Ask the biome itself, as the 1.20.1 and 1.21.1 builds do.</p>
      */
     default Biome.Precipitation getPrecipitationAt(BlockPos blockPos) {
-        return this.level().precipitationAt(blockPos);
+        return this.level().getBiome(blockPos).value()
+                .getPrecipitationAt(blockPos, this.level().getSeaLevel());
     }
 
     /**

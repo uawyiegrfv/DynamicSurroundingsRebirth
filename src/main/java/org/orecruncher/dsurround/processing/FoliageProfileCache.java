@@ -31,6 +31,10 @@ public final class FoliageProfileCache {
     /** Counters for the diagnostics line. */
     public static int builds = 0;
     public static int overBudget = 0;
+    /** Wall time of the last real build, in nanos. The budget's own verdict. */
+    public static long lastBuildNanos = 0L;
+    /** Slowest build seen since the last reload - is 5ms ever really the problem? */
+    public static long worstBuildNanos = 0L;
 
     static {
         // Review H: fire on every client resource reload (F3+T included).
@@ -49,10 +53,19 @@ public final class FoliageProfileCache {
 
         final long start = System.nanoTime();
         profile = FoliageProfile.build(model, state);
-        if (System.nanoTime() - start > BUILD_BUDGET_NANOS) {
+        final long elapsed = System.nanoTime() - start;
+        lastBuildNanos = elapsed;
+        if (elapsed > worstBuildNanos)
+            worstBuildNanos = elapsed;
+        // Round 45: the profile is ALREADY BUILT at this point, so dropping it
+        // buys nothing and costs everything - the EMPTY then goes into the cache,
+        // so one slow build (almost always the cold-start one, paying for class
+        // loading and sprite lookup) permanently disqualified that plant kind.
+        // "Slower than budget" is a performance fact, not a correctness verdict:
+        // keep the profile, keep the counter as the diagnostic. The build only
+        // ever runs once per model anyway (that is what this cache is for).
+        if (elapsed > BUILD_BUDGET_NANOS)
             overBudget++;
-            profile = FoliageProfile.EMPTY;
-        }
         builds++;
         CACHE.put(model, profile);
         while (CACHE.size() > CAP) {

@@ -852,6 +852,24 @@ public class FoliageDripParticle extends SingleQuadParticle {
     }
 
     /**
+     * Round 43: 26.1 made {@code Particle}'s position fields protected, and the
+     * snow group's diagnostic wants to know WHERE the units it is holding are
+     * (see {@link FoliageSnowParticleGroup#renderLine}). Same package, so this
+     * is the whole cost of getting at them.
+     */
+    double posX() {
+        return this.x;
+    }
+
+    double posY() {
+        return this.y;
+    }
+
+    double posZ() {
+        return this.z;
+    }
+
+    /**
      * Computes this frame's four corners (camera-relative) and hands them to
      * the group. Plane phases build the corners off the plane basis; the fall
      * phase builds a yaw-only billboard, copied from the 1.20.1 render.

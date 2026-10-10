@@ -66,6 +66,29 @@ public final class FoliageProfile {
     }
 
     // Trace counters - read by the handlers' diagnostics, reset per build.
+    /**
+     * Snapshot of the LAST build. The {@code stat*} counters are cleared at the top of
+     * every build and mean nothing once it returns, so "why did this plant produce no
+     * anchors" cannot be answered from them afterwards. Written when build returns.
+     */
+    public static int lastQuads = 0;
+    public static int lastDeduped = 0;
+    public static int lastDegenerate = 0;
+    public static int lastNonParallelogram = 0;
+    public static int lastNoMask = 0;
+    public static int lastPlanes = 0;
+    public static int lastAnchors = 0;
+    public static int lastPaths = 0;
+    public static String lastModel = "<none>";
+
+    /** One line naming which build step emptied the last profile that was built. */
+    public static String lastLine() {
+        return "quads=" + lastQuads + " dedup=" + lastDeduped + " degen=" + lastDegenerate
+                + " nonPara=" + lastNonParallelogram + " noMask=" + lastNoMask
+                + " planes=" + lastPlanes + " anchors=" + lastAnchors + " paths=" + lastPaths
+                + " model=" + lastModel;
+    }
+
     public static int statQuads = 0;
     public static int statDeduped = 0;
     public static int statDegenerate = 0;
@@ -178,14 +201,43 @@ public final class FoliageProfile {
      * model in the cache, so weighted variants resolve once and stay.
      */
     public static FoliageProfile build(final BlockStateModel model, final BlockState state) {
+        final FoliageProfile result = build0(model, state);
+        lastQuads = statQuads;
+        lastDeduped = statDeduped;
+        lastDegenerate = statDegenerate;
+        lastNonParallelogram = statNonParallelogram;
+        lastNoMask = statNoMask;
+        lastPlanes = result.planes.size();
+        int anchors = 0;
+        int paths = 0;
+        for (final Plane p : result.planes) {
+            anchors += p.anchors().length;
+            paths += p.paths().length;
+        }
+        lastAnchors = anchors;
+        lastPaths = paths;
+        lastModel = String.valueOf(model);
+        return result;
+    }
+
+    private static FoliageProfile build0(final BlockStateModel model, final BlockState state) {
         statQuads = 0;
         statDeduped = 0;
         statDegenerate = 0;
         statNonParallelogram = 0;
         statNoMask = 0;
 
-        // The level/pos-free overload - a cache-time build has neither. The
-        // renderer uses the level/pos form for model data; plants have none.
+        // The two-arg overload is all this call site has. 26.1's BlockAndTintGetter is
+        // render-side (RenderSectionRegion, MovingBlockRenderState implement it; Level
+        // does not), so a cache-time build has no level or position to hand over - the
+        // five-arg overload is unreachable from here.
+        //
+        // For a vanilla plant that costs nothing: the call resolves to SingleVariant,
+        // which adds its model without reading any argument. It costs everything for a
+        // model that does read them - DynamicBlockStateModel forwards the two-arg form
+        // as collectParts(EMPTY, ZERO, AIR.defaultBlockState(), ...), so such a model
+        // answers with the geometry of air at the origin. Whether that is what empties
+        // 26.1's profiles is measured by lastQuads below: 0 on a real plant means yes.
         @SuppressWarnings("deprecation")
         final List<BlockStateModelPart> parts = new ArrayList<>();
         final RandomSource random = RandomSource.create(0L);

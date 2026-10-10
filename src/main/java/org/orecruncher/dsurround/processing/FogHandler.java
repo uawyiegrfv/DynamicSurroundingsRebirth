@@ -60,6 +60,23 @@ public class FogHandler extends AbstractClientHandler {
             // Write the computed range back into the event's fog data (terrain fog = render distance range)
             data.renderDistanceStart = this.lastData.renderDistanceStart;
             data.renderDistanceEnd = this.lastData.renderDistanceEnd;
+            // And into the atmospheric pair - which is the reason 26.1 has fog at noon.
+            //
+            // 26.1 splits fog into two ranges and the shader keeps the DENSER of the two
+            // (assets/minecraft/shaders/include/fog.glsl, total_fog_value() = max(...)).
+            // The atmospheric pair defaults to 0..1024 in the overworld: dimension_type/
+            // overworld.json sets no fog_start/fog_end distance, so the attribute keeps
+            // its default. That is a permanent grey wash all the way out to ~170 blocks
+            // at midday under a clear sky - 1.20.1 has nothing of the kind. This handler
+            // used to write only the render-distance pair, so it could THICKEN that wash
+            // but never lift it, and no DSR setting could make it go away.
+            //
+            // Writing the same range into both pairs makes the max() a no-op and hands the
+            // atmospheric range to the same calculator - including while it rains, where
+            // vanilla would otherwise pile a second, vanilla-rain-driven layer on top of ours.
+            // Water, lava and powdered snow are untouched: the gate above is ATMOSPHERIC only.
+            data.environmentalStart = this.lastData.renderDistanceStart;
+            data.environmentalEnd = this.lastData.renderDistanceEnd;
         } else {
             // Preserve for diagnostic trace even though action was not taken. Copy the
             // two floats instead of holding the event's FogData - vanilla may reuse it.

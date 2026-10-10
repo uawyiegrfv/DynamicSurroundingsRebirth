@@ -503,12 +503,15 @@ public class WeatherStormHandler extends AbstractClientHandler {
         if (++this.fogProbeCounter >= 100) {
             this.fogProbeCounter = 0;
             var level = net.minecraft.client.Minecraft.getInstance().level;
-            this.logger.info("[FOG-26] in=%.3f,%.3f,%.3f rain=%.3f storm=%.3f dust=%.3f hw=%.3f",
+            this.logger.info("[FOG-26] in=%.3f,%.3f,%.3f rain=%.3f storm=%.3f dust=%.3f hw=%.3f tod=%d",
                     event.getRed(), event.getGreen(), event.getBlue(),
                     level == null ? -1F
                             : PrecipitationIntensity.fogColorRainLevel(level, 1F),
                     level == null ? -1F : PrecipitationIntensity.stormRainLevel(level, 1F),
-                    PrecipitationIntensity.dustIntensity(), this.horizonWeight);
+                    PrecipitationIntensity.dustIntensity(), this.horizonWeight,
+                    // Round 43: same reason the sky probe carries it - "there is fog
+                    // at noon" is only decidable next to the clock.
+                    level == null ? -1L : level.getOverworldClockTime() % 24000L);
         }
 
         final var level = net.minecraft.client.Minecraft.getInstance().level;

@@ -1,5 +1,9 @@
 package org.orecruncher.dsurround.client.particle;
 
+import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import net.minecraft.resources.Identifier;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Camera;
@@ -37,7 +41,34 @@ public class FoliageDripParticleGroup extends ParticleGroup<FoliageDripParticle>
     private static final ParticleRenderType TYPE =
             new ParticleRenderType(Constants.MOD_ID + "_foliage_drips");
 
-    /** The vanilla TRANSLUCENT particle pipeline over the particle atlas. */
+    /**
+     * The unit pipeline: vanilla PARTICLE_SNIPPET with TWO changes.
+     *
+     * <p>(a) <b>Blending.</b> A resting foliage_drip is opaque, but the melt/fade
+     * phase animates a VERTEX ALPHA, and the opaque pipeline discards it -
+     * that is why 1.20.1 insists on the translucent sheet.
+     *
+     * <p>(b) <b>Culling OFF</b>, and this is the one that made units
+     * invisible. {@code RenderPipeline.Builder} defaults cull to
+     * {@code true} and PARTICLE_SNIPPET never overrides it, so BOTH vanilla
+     * particle pipelines are single-sided. That is harmless for a vanilla
+     * particle - it is a billboard, so its front always faces the camera -
+     * but a foliage unit is PLANE-ALIGNED: which side faces the camera
+     * depends on where the player stands. fillCorners winds the quad so its
+     * geometric normal is {@code -n}, and the handler flips {@code n} towards
+     * the player at spawn, so the face that survives culling points AWAY.
+     * Every unit is culled at spawn and only reappears once the player walks
+     * around behind it - exactly "only one clump, and only from the side".
+     * 1.20.1 never showed it because PARTICLE_SHEET_TRANSLUCENT is two-sided.
+     */
+    private static final RenderPipeline PIPELINE =
+            RenderPipeline.builder(RenderPipelines.PARTICLE_SNIPPET)
+                    .withLocation(Identifier.fromNamespaceAndPath(Constants.MOD_ID,
+                            "pipeline/foliage_drip"))
+                    .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+                    .withCull(false)
+                    .build();
+
     private static final RenderType RENDER_TYPE = RenderType.create(
             Constants.MOD_ID + "_foliage_drip",
             RenderSetup.builder(RenderPipelines.TRANSLUCENT_PARTICLE)
@@ -136,7 +167,10 @@ public class FoliageDripParticleGroup extends ParticleGroup<FoliageDripParticle>
                 final int[][] seqs = { ORDER, REVERSED };
                 for (final int[] seq : seqs) {
                     for (final int i : seq) {
-                        buffer.addVertex(pose, c[i * 3], c[i * 3 + 1], c[i * 3 + 2])
+                        // Same root cause as the snow group (round 47): corners live per quad, so they
+                        // must be read at this quad's offset. Without it every dew/drip quad in the
+                        // group was emitted at quad 0's position - one bead, hopping between frames.
+                        buffer.addVertex(pose, c[f + i * 3], c[f + i * 3 + 1], c[f + i * 3 + 2])
                                 .setUv(i == 0 || i == 3 ? u0 : u1, i == 0 || i == 1 ? v0 : v1)
                                 .setColor(argb)
                                 .setUv2(light & 0xFFFF, (light >> 16) & 0xFFFF);

@@ -5,7 +5,7 @@ package org.orecruncher.dsurround.processing.scanner;
  *
  * <p>Five layers scan the world around the player - eaves and icicles through
  * {@link DripScanner} (33x33x27, 29403 block reads), the three foliage layers through
- * {@link FoliageScan} (33x33x7 at the configured range) - and each of them decided
+ * {@link FoliageScan} (33x33x14 at the configured range) - and each of them decided
  * independently when a scan was due. That is how the same number ends up written five times with
  * four different values, and how one layer ends up with a spike the others do not have: the
  * walk test is the trigger that scales with the player's speed, and three of the five had no

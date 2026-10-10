@@ -9,17 +9,21 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.levelgen.Heightmap;
 import org.orecruncher.dsurround.processing.FoliageProfile;
 import org.orecruncher.dsurround.processing.FoliageProfileCache;
+import org.orecruncher.dsurround.lib.Library;
 import org.orecruncher.dsurround.lib.collections.ObjectArray;
+import org.orecruncher.dsurround.lib.logging.IModLog;
 
 /**
  * Where the foliage-drip layers can attach: a plain volume walk around the
  * player (the drip scanner's framework, a different predicate - plants are
  * not overhangs, so this is a sibling of {@link DripScanner}, not a branch of
  * it). The box is deliberately small and never leaves the loaded chunks the
- * client is guaranteed to hold: at the configured range of 16 it is 33x33x7,
- * about 7.6k block reads a pass, against the eave scanner's 29k. The 7 is
- * {@link #UP_RANGE} plus {@link #DOWN_RANGE} plus one; the down side used to be
- * six, and that part of the box was the part nothing ever looked at.
+ * client is guaranteed to hold: at the configured range of 16 it is 33x33x14,
+ * about 15k block reads a pass, against the eave scanner's 29k. The 14 is
+ * {@link #UP_RANGE} plus {@link #DOWN_RANGE} plus one: round 49 widened it from
+ * seven (4 up / 2 down) to fourteen (7/6), and the extra reach goes to the upper
+ * edge, because on a slope it is the plants above the player that the old band
+ * left out - the horizontal fan cannot reach them, it is horizontal.
  *
  * <p>The predicate chain, in cost order:</p>
  * <ol>
@@ -73,28 +77,39 @@ public final class FoliageScan {
     private static final float FAN_FORWARD = 1.65F;
     private static final float FAN_SIDE = 1.19F;
     private static final float FAN_BACK = 0.50F;
-    /** Vertical reach above the player. */
-    public static final int UP_RANGE = 4;
+    /**
+     * Vertical reach above the player. Seven, deliberately one more than the reach
+     * below: the window is centred on the player's own feet rather than on the
+     * terrain, so on a slope the plants the old 4/2 band missed are the ones
+     * <em>above</em> the player, and round 49's extra reach goes to that edge.
+     */
+    public static final int UP_RANGE = 7;
     /**
      * Vertical reach below the player.
      *
-     * <p>Was six. The window is centred on the player, not on the terrain, so the reach below only
-     * matters while the player is <em>above</em> the plants - standing on a wall, or in the air -
-     * and everything it does cover has to be within the four blocks above as well. Two keeps the
-     * cases that are actually seen (a slope one block down, a jump, standing on a plant's own
-     * block) and drops four layers off every sweep: 33x33x11 becomes 33x33x7, a third of the block
-     * reads gone from the most expensive of the three ground layers. Plants that were in range
-     * and drop out are not torn down - the handlers' staleness pass keeps them until the plant
-     * itself goes - so the visible effect is a slower fill from above, not a flicker.</p>
+     * <p>Six. Round 12 had pulled this down to two - the reach below only matters while the player
+     * is <em>above</em> the plants, and everything it covered had to be within the four blocks
+     * above as well. Round 49 puts it back to six, on the maintainer's report that "from a
+     * hillside, looking up or looking down, the plants get almost no snow": the horizontal fan
+     * reaches twenty-odd blocks out while this band is centred on the player's own feet, so on a
+     * slope the far end of the sweep leaves the band long before it leaves the radius. 7/6 is the
+     * enlarged window that answers it. The price is arithmetic on a measurement: the sweep is
+     * 33x33x7 -> 33x33x14, twice the block reads of the window it replaces, and the A/B that was
+     * actually timed ran at 6/6 (13 layers) with a median of 1280us and a p90 of 1924us per scan -
+     * so the shipped 14 layers should sit about 8% above that, near 1.4ms. Plants that fall
+     * outside are not torn down - the handlers' staleness pass keeps them until the plant itself
+     * goes - so a narrower window fills more slowly, it does not flicker.</p>
      */
-    public static final int DOWN_RANGE = 2;
+    public static final int DOWN_RANGE = 6;
 
     // ---- round 48: the vertical window, instrumented ------------------------
     /**
      * The vertical-window switch. <b>Off in every normal run</b>, and while it is
-     * off this class does exactly what it did before: the same seven layers, no
-     * extra counter, no extra clock read, and {@link #windowLine()} returns an
-     * empty string that appends nothing to a handler's line.
+     * off this class walks exactly the window it always does: no probe pass, no
+     * stage clock read, and {@link #windowLine()} returns an empty string that
+     * appends nothing to a handler's line. (Round 49 made the three shape counters
+     * - columns, voxels, candidates - unconditional, because the slow-scan line
+     * needs them in a normal run; see {@link #SLOW_SCAN_NANOS}.)
      *
      * <p>The maintainer's report is "from a hillside, looking up or looking down,
      * the plants get almost no snow". That is a question about the vertical
@@ -119,10 +134,11 @@ public final class FoliageScan {
 
     /**
      * The A/B vertical window, as {@code up/down} from
-     * {@code -Ddsr.foliage.window=6/6}. <b>-1 is "the shipped window"</b> and is
-     * what every normal run has; 0 is a legal reach (a flat window), which is why
-     * -1 and not 0 is the sentinel. Read once per scan, so a debug command can
-     * move it live, and moving it drops the rolling cost window with it.
+     * {@code -Ddsr.foliage.window=6/6}. <b>-1 is "the shipped window"</b> - 7/6 as
+     * of round 49 - and is what every normal run has; 0 is a legal reach (a flat
+     * window), which is why -1 and not 0 is the sentinel. Read once per scan, so a
+     * debug command can move it live, and moving it drops the rolling cost window
+     * with it.
      */
     public static volatile int ALT_UP_RANGE = -1;
     public static volatile int ALT_DOWN_RANGE = -1;
@@ -145,8 +161,9 @@ public final class FoliageScan {
 
     /**
      * How many layers outside the active window the miss probe walks, per side.
-     * Six, because the window a decision would most likely take is 6/6 and the
-     * probe should still have something to say after that switch has moved it.
+     * Six, because that was the widest window the A/B switch was expected to take
+     * (6/6) and the probe has to keep having something to say once a decision has
+     * moved the edge out past it.
      */
     public static final int PROBE_BANDS = 6;
     /** Candidates one, two, ... layers past each edge, summed over every column of the sweep. */
@@ -346,6 +363,78 @@ public final class FoliageScan {
         return sb.append(']').toString();
     }
 
+    // ---- round 49: the slow-scan line, always on ----------------------------
+    /** Where the slow-scan line goes: the root logger, there is no handler here to borrow one from. */
+    private static final IModLog LOGGER = Library.LOGGER;
+
+    /**
+     * A single scan slower than this gets a line in the log, <b>whatever the switches
+     * say</b>.
+     *
+     * <p>Why it is not behind {@link #WINDOW_DIAG}: the maintainer asked for the window
+     * instrument, ran with it, and then asked for the same measurement again on a later
+     * build - and a diagnostic that is off unless someone remembers a JVM property is a
+     * diagnostic nobody has. There is something to catch: at the 6/6 window a scan's
+     * median is 1280us and its p90 1924us, but the historical maximum is <b>40439us</b>
+     * - forty milliseconds - and it lands in the first scans after a world load (n=3),
+     * where it reads as a hitch with no explanation. One line when it happens is worth
+     * more than a switch nobody predicted.</p>
+     *
+     * <p>A normal scan pays one long comparison and three int counters that
+     * {@link #STATS} was already paying for per block.</p>
+     */
+    private static final long SLOW_SCAN_NANOS = 10_000_000L;
+
+    /** At most one line a second... */
+    private static final long SLOW_LINE_GAP_NANOS = 1_000_000_000L;
+    /** ...and at most this many a minute; the rest are counted and summarised. */
+    private static final int SLOW_LINES_PER_MINUTE = 5;
+    private static final long SLOW_WINDOW_NANOS = 60_000_000_000L;
+
+    private static long slowWindowStart = System.nanoTime();
+    /** Now minus a gap, so the first slow scan prints whatever nanoTime's origin is. */
+    private static long slowLastLine = slowWindowStart - SLOW_LINE_GAP_NANOS;
+    private static int slowLines = 0;
+    private static int slowSuppressed = 0;
+    private static long slowWorstNanos = 0L;
+
+    /**
+     * The line itself, rate limited so one bad minute cannot become a bad log: at most
+     * one line a second and five a minute, and everything the limits drop is counted
+     * into a single summary line, written by the first slow scan after the minute rolls
+     * over. That count is what separates "a hitch at world load" from "this layer is too
+     * expensive", which is the question the line exists to answer.
+     *
+     * <p>{@code x}/{@code y}/{@code z} is the scan centre, which is the player's own
+     * block in all three handlers.</p>
+     */
+    private static void reportSlowScan(final long nanos, final int cols, final int voxels, final int cand,
+                                       final int hits, final int x, final int y, final int z,
+                                       final int up, final int down, final Mode mode) {
+        final long now = System.nanoTime();
+        if (now - slowWindowStart >= SLOW_WINDOW_NANOS) {
+            if (slowSuppressed > 0)
+                LOGGER.warn("[FoliageScan] slow scan summary: " + slowLines + " printed, "
+                        + slowSuppressed + " suppressed over the last minute (worst "
+                        + (slowWorstNanos / 1000L) + "us)");
+            slowWindowStart = now;
+            slowLines = 0;
+            slowSuppressed = 0;
+            slowWorstNanos = 0L;
+        }
+        if (nanos > slowWorstNanos)
+            slowWorstNanos = nanos;
+        if (slowLines >= SLOW_LINES_PER_MINUTE || now - slowLastLine < SLOW_LINE_GAP_NANOS) {
+            slowSuppressed++;
+            return;
+        }
+        slowLines++;
+        slowLastLine = now;
+        LOGGER.warn("[FoliageScan] slow scan " + (nanos / 1000L) + "us mode=" + mode
+                + " cols=" + cols + " voxels=" + voxels + " cand=" + cand + " hits=" + hits
+                + " player=" + x + "/" + y + "/" + z + " window=+" + up + "/-" + down);
+    }
+
     /**
      * Whether a block was inside the window the LAST scan walked. This is the
      * "retention pool" question in one call - how many of the units a handler is
@@ -459,8 +548,10 @@ public final class FoliageScan {
         // loop clipped the fan back to exactly the old 16 and quietly did nothing.
         final int w = fan ? (int) Math.ceil(Math.max(FAN_SIDE, Math.max(FAN_FORWARD, FAN_BACK)) * rx) : rx;
         // Round 48: the vertical window is the band it always was unless the A/B switch
-        // moved it, and the counters below only move while the diag switch is on. Hoisting
-        // the centre out of the two loops is what the y bound now reads.
+        // moved it. Round 49: the three shape counters are unconditional, because the
+        // slow-scan line reports them in a normal run; the stage timings, the probe pass
+        // and the rolling cost window still wait for the diag switch. Hoisting the centre
+        // out of the two loops is what the y bound now reads.
         final int up = activeUp();
         final int down = activeDown();
         final int cx = center.getX();
@@ -493,11 +584,9 @@ public final class FoliageScan {
                 }
                 final int x = cx + dx;
                 final int z = cz + dz;
-                if (diag)
-                    columns++;
+                columns++;
                 for (int y = cy + up; y >= cy - down; y--) {
-                    if (diag)
-                        voxels++;
+                    voxels++;
                     if (world.isOutsideBuildHeight(y))
                         continue;
                     cursor.set(x, y, z);
@@ -510,8 +599,7 @@ public final class FoliageScan {
                         note(STAT_NOT_CANDIDATE);
                         continue;
                     }
-                    if (diag)
-                        candidates++;
+                    candidates++;
                     final BlockPos pos = new BlockPos(x, y, z);
                     // Round 48: the two stages that actually cost something, timed apart.
                     // Both clocks are read only while the diag switch is on, so a normal
@@ -551,10 +639,12 @@ public final class FoliageScan {
         lastFan = fan;
         lastFx = fx;
         lastFz = fz;
+        // Round 49: the shape of the last scan is known in every run, so it is always
+        // recorded; the stage timings and the rolling cost window still need the switch.
+        lastColumns = columns;
+        lastVoxels = voxels;
+        lastCandidates = candidates;
         if (diag) {
-            lastColumns = columns;
-            lastVoxels = voxels;
-            lastCandidates = candidates;
             lastSkyNanos = skyNanos;
             lastProfileNanos = profileNanos;
             winScans++;
@@ -562,6 +652,8 @@ public final class FoliageScan {
             if (lastNanos > winMaxNanos)
                 winMaxNanos = lastNanos;
         }
+        if (lastNanos > SLOW_SCAN_NANOS)
+            reportSlowScan(lastNanos, columns, voxels, candidates, result.size(), cx, cy, cz, up, down, mode);
         return result;
     }
 

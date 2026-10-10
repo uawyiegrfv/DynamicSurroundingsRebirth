@@ -56,6 +56,8 @@ public final class CreateContraptionCompat {
 
     private static boolean resolved;
     private static boolean usable;
+    /** Why the reflection did not resolve, for the /dsdump steps report. Set once. */
+    private static String status = "not asked yet";
 
     private static Class<?> contraptionEntityClass;
     private static Method getContraption;
@@ -87,6 +89,15 @@ public final class CreateContraptionCompat {
         }
     }
 
+    /**
+     * Diagnostic only: what the reflection resolved to, or why it did not. Asked through the same
+     * {@link #resolve()} the runtime uses, so the report cannot describe a different outcome.
+     */
+    public static String status() {
+        resolve();
+        return status;
+    }
+
     /** Resolves Create's API once. Absence is normal; a failure is reported once. */
     private static boolean resolve() {
         if (resolved)
@@ -102,11 +113,14 @@ public final class CreateContraptionCompat {
             isHiddenInPortal = contraptionClass.getMethod("isHiddenInPortal", BlockPos.class);
             worldToLocalPos = colliderClass.getMethod("worldToLocalPos", Vec3.class, contraptionEntityClass);
             usable = true;
+            status = "resolved (contraption lookup live)";
         } catch (final ClassNotFoundException absent) {
             // The normal case: Create simply is not installed. Not worth a line in the log.
+            status = "Create absent (class not found)";
         } catch (final Throwable t) {
             LOGGER.warn("Create is installed but its contraption API could not be read (%s). "
                     + "Footsteps on moving contraptions will stay silent.", t);
+            status = "Create present but the API could not be read: " + t;
         }
         return usable;
     }

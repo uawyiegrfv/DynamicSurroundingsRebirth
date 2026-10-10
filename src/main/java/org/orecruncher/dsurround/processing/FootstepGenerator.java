@@ -194,12 +194,20 @@ public class FootstepGenerator extends AbstractClientHandler {
      */
     private static final java.lang.reflect.Field WALK_DISTANCE = findWalkDistance();
 
+    /**
+     * The name {@link #WALK_DISTANCE} resolved to, or the reason it did not. Diagnostic only
+     * ({@code /dsdump steps}); declared BEFORE the field above because static initialisers run in
+     * textual order and {@code findWalkDistance} writes it.
+     */
+    private static String walkDistanceName = "(not resolved: no walkDist/moveDist float on Entity)";
+
     private static java.lang.reflect.Field findWalkDistance() {
         for (final String name : new String[]{"walkDist", "moveDist"}) {
             try {
                 final var field = Entity.class.getDeclaredField(name);
                 if (field.getType() == float.class) {
                     field.setAccessible(true);
+                    walkDistanceName = "Entity." + name + " (float)";
                     return field;
                 }
             } catch (final Throwable ignored) {
@@ -217,6 +225,223 @@ public class FootstepGenerator extends AbstractClientHandler {
             return -1D;
         }
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // Physics-structure / stride diagnostic. Printed by /dsdump steps, never logged per tick.
+    //
+    // Standing on a Sable (Create: Aeronautics) or Create structure can go wrong in exactly three
+    // ways, and a report of "phantom footsteps on the deck" cannot be told apart without saying
+    // which one happened:
+    //   1. the structure probe missed        -> the world-position accumulator runs, and the
+    //                                           structure's own translation is counted as walking;
+    //   2. WALK_DISTANCE did not resolve     -> same fallback, silently;
+    //   3. something else feeds the stride    -> e.g. the step-down test, which compares world Y
+    //      against the world's previous ground level and therefore reads a DESCENDING deck as a
+    //      step down on every tick of the descent.
+    // So every number below is written from inside the live decision points themselves. A separate
+    // "diagnostic" pass that re-derives the answer is how the first structure trace came to print a
+    // stone footstep for a surface where nothing played at all - the report must share the code it
+    // is reporting on.
+    //
+    // Always recording, but bounded and quiet: fixed rings, written on state changes and on the few
+    // step events per second, never one line per tick.
+    // ---------------------------------------------------------------------------------------------
+    private static final class StructureDiag {
+
+        /** Which sub-probe of structureSurface answered. */
+        static final int NONE = 0;
+        static final int SABLE = 1;
+        static final int CREATE = 2;
+
+        static String probeName(final int probe) {
+            if (probe == SABLE)
+                return "sable/getOnPos";
+            if (probe == CREATE)
+                return "create/contraption";
+            return "(none)";
+        }
+
+        static final int STEP_RING = 16;
+        static final int INCR_RING = 12;
+        static final int EVENT_RING = 8;
+
+        /** Last steps: tick, interval since the previous step, branch that fired, value compared. */
+        final long[] stepTick = new long[STEP_RING];
+        final long[] stepInterval = new long[STEP_RING];
+        final String[] stepReason = new String[STEP_RING];
+        final double[] stepValue = new double[STEP_RING];
+        int stepNext;
+        int stepCount;
+
+        /** Last NON-ZERO increments fed to the stride accumulator (a still player writes none). */
+        final long[] incrTick = new long[INCR_RING];
+        final boolean[] incrMetered = new boolean[INCR_RING];
+        final double[] incrDelta = new double[INCR_RING];
+        final double[] incrTotal = new double[INCR_RING];
+        int incrNext;
+        int incrCount;
+
+        /** Last state changes: airborne/grounded, accumulator switch, probe change. */
+        final long[] eventTick = new long[EVENT_RING];
+        final String[] eventText = new String[EVENT_RING];
+        int eventNext;
+        int eventCount;
+
+        /** Step interval histogram: 1 tick, 2, 3-4, 5-8, 9-16, >16. A spike at "1" is the bug. */
+        final long[] intervalHist = new long[6];
+
+        long lastTick;
+        long structTicks;
+        long meteredTicks;
+        long worldTicks;
+        long accSwitches;
+        long verticalStructTicks;
+        boolean verticalRunning;
+        long airToggles;
+        long steps;
+        long stepsStride;
+        long stepsStepDown;
+        long stepsLanding;
+        long lastStepTick = -1L;
+        int lastProbe = -1;
+        String lastStructure = "(none)";
+        double lastPlotDistance = -1D;
+        Boolean metered;
+        Snapshot window;
+
+        void tick(final long tick) {
+            this.lastTick = tick;
+        }
+
+        void structure(final int probe, final String state, final double plotDistance) {
+            this.lastPlotDistance = plotDistance;
+            if (probe != this.lastProbe) {
+                if (this.lastProbe != -1) {
+                    this.event("probe " + probeName(this.lastProbe) + " -> " + probeName(probe));
+                }
+                this.lastProbe = probe;
+            }
+            if (probe != NONE) {
+                this.structTicks++;
+                this.lastStructure = state;
+            }
+        }
+
+        void accumulator(final boolean metered) {
+            if (this.metered == null || this.metered != metered) {
+                if (this.metered != null) {
+                    this.accSwitches++;
+                    this.event("accumulator -> " + (metered ? "metered (vanilla walk distance)" : "world position delta"));
+                }
+                this.metered = metered;
+            }
+            if (metered)
+                this.meteredTicks++;
+            else
+                this.worldTicks++;
+        }
+
+        void increment(final boolean metered, final double delta, final double total) {
+            if (Math.abs(delta) < 1.0E-6D)
+                return;
+            this.incrTick[this.incrNext] = this.lastTick;
+            this.incrMetered[this.incrNext] = metered;
+            this.incrDelta[this.incrNext] = delta;
+            this.incrTotal[this.incrNext] = total;
+            this.incrNext = (this.incrNext + 1) % INCR_RING;
+            if (this.incrCount < INCR_RING)
+                this.incrCount++;
+        }
+
+        void step(final String reason, final double value) {
+            final long interval = this.lastStepTick < 0 ? -1L : this.lastTick - this.lastStepTick;
+            this.lastStepTick = this.lastTick;
+            this.stepTick[this.stepNext] = this.lastTick;
+            this.stepInterval[this.stepNext] = interval;
+            this.stepReason[this.stepNext] = reason;
+            this.stepValue[this.stepNext] = value;
+            this.stepNext = (this.stepNext + 1) % STEP_RING;
+            if (this.stepCount < STEP_RING)
+                this.stepCount++;
+            this.steps++;
+            switch (reason) {
+                case "stride" -> this.stepsStride++;
+                case "stepDown" -> this.stepsStepDown++;
+                default -> this.stepsLanding++;
+            }
+            if (interval > 0) {
+                final int bucket = interval <= 2 ? (int) (interval - 1)
+                        : interval <= 4 ? 2 : interval <= 8 ? 3 : interval <= 16 ? 4 : 5;
+                this.intervalHist[bucket]++;
+            }
+        }
+
+        /**
+         * Called once per grounded tick with the raw input of the step-height test. While the surface
+         * is a structure, a >0.4 move is the STRUCTURE moving, and the step test is suppressed: the
+         * count is the direct measure of how much of the reported symptom this guard removed. The
+         * ring only sees the start of a run, so one descent cannot flush the whole history.
+         */
+        void verticalTick(final boolean onStructure, final double dy) {
+            if (onStructure && Math.abs(dy) > 0.4D) {
+                this.verticalStructTicks++;
+                if (!this.verticalRunning) {
+                    this.verticalRunning = true;
+                    this.event("vertical >0.4 on a structure (dy=%.3f): step-up/down test suppressed".formatted(dy));
+                }
+            } else {
+                this.verticalRunning = false;
+            }
+        }
+
+        void airborne(final boolean airborne, final double fallDistance) {
+            this.airToggles++;
+            this.event((airborne ? "airborne" : "touch down") + " (fallDistance %.3f)".formatted(fallDistance));
+        }
+
+        private void event(final String text) {
+            this.eventTick[this.eventNext] = this.lastTick;
+            this.eventText[this.eventNext] = text;
+            this.eventNext = (this.eventNext + 1) % EVENT_RING;
+            if (this.eventCount < EVENT_RING)
+                this.eventCount++;
+        }
+
+        Snapshot snapshot() {
+            return new Snapshot(this);
+        }
+
+        /** The counters at the previous dump, so the report also shows the window since it. */
+        static final class Snapshot {
+            final long tick;
+            final long structTicks;
+            final long meteredTicks;
+            final long worldTicks;
+            final long accSwitches;
+            final long verticalStructTicks;
+            final long airToggles;
+            final long steps;
+            final long stepsStride;
+            final long stepsStepDown;
+            final long stepsLanding;
+
+            Snapshot(final StructureDiag d) {
+                this.tick = d.lastTick;
+                this.structTicks = d.structTicks;
+                this.meteredTicks = d.meteredTicks;
+                this.worldTicks = d.worldTicks;
+                this.accSwitches = d.accSwitches;
+                this.verticalStructTicks = d.verticalStructTicks;
+                this.airToggles = d.airToggles;
+                this.steps = d.steps;
+                this.stepsStride = d.stepsStride;
+                this.stepsStepDown = d.stepsStepDown;
+                this.stepsLanding = d.stepsLanding;
+            }
+        }
+    }
+
+    private static final StructureDiag DIAG = new StructureDiag();
 
     // Delayed landing echo: the land layers play again ~1-2 ticks (50-100ms) later,
     // matching the real playback distribution of the 1.12.2 delayed land composition
@@ -262,6 +487,9 @@ public class FootstepGenerator extends AbstractClientHandler {
     @Override
     public void process(final Player player) {
         this.tickCount++;
+        // One timestamp for every diagnostic record written this tick. Set HERE rather than in the
+        // walking branch: the landing path below runs first and writes a step event of its own.
+        DIAG.tick(this.tickCount);
 
         // Master switch: when footsteps are disabled (or the footstep volume slider is
         // at zero) the vanilla step sound plays instead. Drop any pending echoes so they
@@ -328,6 +556,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // while a small drop (stepping down a block while moving) plays a normal step.
         if ((onGround || onLadder) == this.isFlying) {
             this.isFlying = !this.isFlying;
+            DIAG.airborne(this.isFlying, this.fallDistance);
             if (this.isFlying) {
                 if (player.getDeltaMovement().y > 0) {
                     this.didJump = true;
@@ -355,7 +584,7 @@ public class FootstepGenerator extends AbstractClientHandler {
                     // Not while in water: entering water IS a small fall as far as fallDistance is
                     // concerned, so without this test the act of hitting the surface played a
                     // footstep - the same field report as the stride branch above.
-                    this.playStep(player, this.wasRunning);
+                    this.playStep(player, this.wasRunning, "smallFall", this.fallDistance);
                 }
                 this.didJump = false;
                 // Reset so the descent doesn't double as a stride step.
@@ -392,15 +621,23 @@ public class FootstepGenerator extends AbstractClientHandler {
             // character, so nothing outside a structure can be affected. On the first metered tick
             // the baseline is rebased rather than compared, so stepping onto a structure cannot fire
             // a phantom step from the switch alone.
-            final double metered = structureSurface(player, player.level()) == null ? -1D : walkDistance(player);
+            final var structure = structureProbe(player, player.level());
+            final boolean onStructure = structure.state() != null;
+            final double metered = onStructure ? walkDistance(player) : -1D;
+            DIAG.structure(structure.probe(), onStructure ? String.valueOf(structure.state()) : "(none)",
+                    structure.plotDistance());
             if (metered >= 0D) {
                 // Already carries vanilla's 0.6 factor, so it is added unscaled.
-                if (this.walkDistMetered)
+                if (this.walkDistMetered) {
                     this.distanceWalked += metered - this.lastWalkDist;
+                    DIAG.increment(true, metered - this.lastWalkDist, this.distanceWalked);
+                }
                 this.lastWalkDist = metered;
                 this.walkDistMetered = true;
+                DIAG.accumulator(true);
             } else {
                 this.walkDistMetered = false;
+                DIAG.accumulator(false);
                 if (this.lastPos != null) {
                     final double dx = pos.x - this.lastPos.x;
                     final double dz = pos.z - this.lastPos.z;
@@ -410,6 +647,7 @@ public class FootstepGenerator extends AbstractClientHandler {
                     if (onLadder)
                         step += Math.abs(pos.y - this.lastPos.y);
                     this.distanceWalked += step * 0.6D;
+                    DIAG.increment(false, step * 0.6D, this.distanceWalked);
                 }
             }
             this.lastPos = pos;
@@ -431,12 +669,28 @@ public class FootstepGenerator extends AbstractClientHandler {
             // with fallDistance == 0: a one-tick air crossing, e.g. sprinting down a flat stair
             // run. Do not "fix" it into an audible path without re-checking the stair descent -
             // firing here as well would double the step on every step down.
-            boolean steppedDown = onGround && !inWater && !sneaking && this.yPosition - pos.y > 0.4;
+            //
+            // NOT while a structure probe answered (the reported problem). These two tests read the
+            // player's WORLD Y against the world's previous ground level, so a deck that is falling
+            // moves the player down by the deck's speed every tick: past 0.4 blocks/tick (8 blocks/s,
+            // about a second of free fall) steppedDown was satisfied on EVERY tick of the descent and
+            // played one footstep per tick - the "high frequency footsteps while standing on a
+            // descending structure" report. The metered accumulator above cannot see it: that is a
+            // vertical-world test, not a stride. A step is the player crossing a step; when the
+            // surface is what moved there is nothing to sound, and someone genuinely walking on the
+            // structure still gets the normal cadence from the stride branch below.
+            //
+            // The ascent mirror is gated for the same reason and it matters as much: it selects the
+            // SHORTER stair stride, so a rising deck would otherwise cut the walking stride to a
+            // third and triple the cadence.
+            final double dy = this.yPosition - pos.y;
+            DIAG.verticalTick(onStructure, dy);
+            boolean steppedDown = !onStructure && onGround && !inWater && !sneaking && dy > 0.4;
             // Mirror of the above for the ascent: 1.12.2 tested |yPosition - posY| > 0.4 and then
             // chose strideStair / the UP events by direction. Only the stride survived the port.
-            ascended = onGround && !inWater && pos.y - this.yPosition > 0.4D;
+            ascended = !onStructure && onGround && !inWater && -dy > 0.4D;
             if (steppedDown) {
-                this.playStep(player, running);
+                this.playStep(player, running, "stepDown", dy);
                 this.dmwBase = this.distanceWalked;
             } else {
                 // Going upstairs uses its own, shorter stride (1.12.2 switched to strideStair as
@@ -462,7 +716,8 @@ public class FootstepGenerator extends AbstractClientHandler {
                 else
                     stride = running ? strideRun() : strideWalk();
                 if (this.distanceWalked - this.dmwBase > stride) {
-                    this.playStep(player, running);
+                    this.playStep(player, running, onStructure ? "stride(structure)" : "stride",
+                            this.distanceWalked - this.dmwBase);
                     this.dmwBase = this.distanceWalked;
                 }
             }
@@ -474,7 +729,11 @@ public class FootstepGenerator extends AbstractClientHandler {
             this.yPosition = pos.y;
     }
 
-    private void playStep(final Player player, final boolean running) {
+    private void playStep(final Player player, final boolean running, final String reason,
+                          final double trigger) {
+        // Recorded here, at the single place a step is actually played, so the report counts what
+        // was heard rather than what a branch was about to do.
+        DIAG.step(reason, trigger);
         if (player.isSpectator() || player.isSilent())
             return;
 
@@ -792,10 +1051,11 @@ public class FootstepGenerator extends AbstractClientHandler {
         // through: (0a) needs the answer to be more than 1024 blocks away - a structure-local
         // position comes from a reserved region deliberately sited far outside the world - and
         // (0b) returns null unless Create's API was found.
-        var structureState = structureSurface(entity, level);
-        if (structureState != null) {
-            if (trace != null) trace.add("-> structure surface (0) = %s".formatted(structureState));
-            return structureState;
+        var structure = structureProbe(entity, level);
+        if (structure.state() != null) {
+            if (trace != null) trace.add("-> structure surface (0: %s) = %s".formatted(
+                    StructureDiag.probeName(structure.probe()), structure.state()));
+            return structure.state();
         }
 
         var footState = level.getBlockState(pos.above());
@@ -924,8 +1184,22 @@ public class FootstepGenerator extends AbstractClientHandler {
      * read. A vanilla game therefore always gets null here and falls through to the probes below,
      * which is what keeps this refactor invisible to it.
      */
-    @Nullable
-    private static BlockState structureSurface(final Entity entity, final Level level) {
+    /**
+     * The surface from a structure probe, together with WHICH probe answered and how far away the
+     * structure-local position was. The probe id is what {@code /dsdump steps} reports, and the
+     * runtime path reads the same record, so the report cannot describe a branch that did not run
+     * (see the note on {@link StructureDiag}).
+     *
+     * @param state        the surface block, or null when no probe answered
+     * @param probe        {@link StructureDiag#NONE}, {@link StructureDiag#SABLE} or
+     *                     {@link StructureDiag#CREATE}
+     * @param plotDistance the Manhattan distance of {@code getOnPos()} from the entity's own block
+     *                     position; the Sable probe's gate. A large value IS the evidence that a
+     *                     structure-local (plot) position came back.
+     */
+    private record StructureProbe(@Nullable BlockState state, int probe, double plotDistance) {}
+
+    private static StructureProbe structureProbe(final Entity entity, final Level level) {
         // (0a) Sable injects at the HEAD of the protected Entity.getOnPos(float) and answers with
         // the block in the structure's own coordinate space. The public no-arg overload forwards
         // to that method, so the inject fires from here. A structure-local position lives in a
@@ -933,10 +1207,11 @@ public class FootstepGenerator extends AbstractClientHandler {
         // test is what makes this probe unable to answer for anything else: a nearby position
         // means getOnPos answered normally, with a block the world probes are about to read anyway.
         final var onPos = entity.getOnPos();
-        if (onPos.distManhattan(entity.blockPosition()) > 1024) {
+        final double plotDistance = onPos.distManhattan(entity.blockPosition());
+        if (plotDistance > 1024) {
             final var onState = level.getBlockState(onPos);
             if (!isNotSolidSurface(onState))
-                return onState;
+                return new StructureProbe(onState, StructureDiag.SABLE, plotDistance);
         }
 
         // (0b) A Create contraption keeps its blocks in its own map rather than in any Level, so
@@ -944,9 +1219,14 @@ public class FootstepGenerator extends AbstractClientHandler {
         // reference behind reflection and returns null when Create is absent or its API moved.
         final var contraption = CreateContraptionCompat.surface(entity, level);
         if (contraption != null && !isNotSolidSurface(contraption))
-            return contraption;
+            return new StructureProbe(contraption, StructureDiag.CREATE, plotDistance);
 
-        return null;
+        return new StructureProbe(null, StructureDiag.NONE, plotDistance);
+    }
+
+    @Nullable
+    private static BlockState structureSurface(final Entity entity, final Level level) {
+        return structureProbe(entity, level).state();
     }
 
     /**
@@ -990,6 +1270,120 @@ public class FootstepGenerator extends AbstractClientHandler {
                             : "false"));
     }
 
+
+    /**
+     * The physics-structure half of {@code /dsdump steps}, printed FIRST because everything below it
+     * depends on which of these answers is true.
+     *
+     * <p>It reports, in this order: which of the compatible mods are even on the classpath; the live
+     * answer of the Sable probe including the distance of {@code getOnPos()} (a large distance IS the
+     * proof that Sable's {@code getOnPos(F)} injection answered with a structure-local position);
+     * whether the surface came from a probe at all; whether the walk-distance reflection resolved and
+     * to which field name; which accumulator is in use right now; and then the recorded history - how
+     * many grounded ticks were spent on each accumulator, how many steps were played and by which
+     * branch, the step intervals, and the last non-zero increments fed to the accumulator.
+     *
+     * <p>An interval of 1 tick in that list is the reported symptom made numeric: no walking cadence
+     * produces that, only a per-tick trigger. Nothing here is per-tick logging - the counters are
+     * always on but bounded, and this is the only thing that prints them.
+     */
+    static List<String> dumpStructureDiagnostic(final Player player) {
+        final List<String> out = new java.util.ArrayList<>(32);
+        out.add("=== DS physics-structure / stride diagnostic ===");
+        out.add("classpath       : sable=%s create=%s aeronautics=%s simulated=%s".formatted(
+                hasClass("dev.ryanhcode.sable.Sable"),
+                hasClass("com.simibubi.create.content.contraptions.Contraption"),
+                hasClass("dev.eriksonn.aeronautics.Aeronautics"),
+                hasClass("dev.simulated_team.simulated.Simulated")));
+
+        // Asked through the SAME method the runtime uses, so this line cannot disagree with it.
+        final var live = structureProbe(player, player.level());
+        out.add("getOnPos()      : %s   plot distance = %.0f (Sable gate > 1024)   blockPosition = %s".formatted(
+                player.getOnPos(), live.plotDistance(), player.blockPosition()));
+        out.add("probe HIT       : %s -> %s".formatted(StructureDiag.probeName(live.probe()),
+                live.state() == null ? "(no structure surface)" : live.state()));
+        out.add("create compat   : %s".formatted(CreateContraptionCompat.status()));
+        out.add("WALK_DISTANCE   : %s   %s".formatted(walkDistanceName,
+                WALK_DISTANCE == null ? "(fail-closed: the world-position accumulator is used on structures)"
+                        : "(resolved)"));
+
+        final var d = DIAG;
+        out.add("accumulator     : %s   [metered %d | world %d | switches %d]".formatted(
+                d.metered == null ? "(no grounded tick seen yet)"
+                        : d.metered ? "metered (vanilla walk distance)" : "world position delta",
+                d.meteredTicks, d.worldTicks, d.accSwitches));
+        out.add("last structure  : %s   (probe %s, plot distance %.0f)".formatted(
+                d.lastStructure, StructureDiag.probeName(d.lastProbe), d.lastPlotDistance));
+        out.add("step counters   : %d step(s) - stride %d, stepDown %d, landing %d   airborne toggles %d".formatted(
+                d.steps, d.stepsStride, d.stepsStepDown, d.stepsLanding, d.airToggles));
+        out.add("step intervals  : %s".formatted(intervalHistogram(d.intervalHist)));
+        out.add("vertical test   : %d tick(s) with |dy| > 0.4 while on a structure (step-up/down suppressed)".formatted(
+                d.verticalStructTicks));
+
+        final var w = d.window;
+        if (w != null) {
+            out.add("since last dump : ticks %d   steps %d (stride %d, stepDown %d, landing %d)   metered %d | world %d   vertical suppressed %d".formatted(
+                    d.lastTick - w.tick, d.steps - w.steps, d.stepsStride - w.stepsStride,
+                    d.stepsStepDown - w.stepsStepDown, d.stepsLanding - w.stepsLanding,
+                    d.meteredTicks - w.meteredTicks, d.worldTicks - w.worldTicks,
+                    d.verticalStructTicks - w.verticalStructTicks));
+        }
+
+        out.add("last steps      :");
+        if (d.stepCount == 0) {
+            out.add("   (none recorded)");
+        } else {
+            for (int i = 0; i < d.stepCount; i++) {
+                final int slot = (d.stepNext - 1 - i + StructureDiag.STEP_RING * 2) % StructureDiag.STEP_RING;
+                out.add("   t-%d  %s  interval %s  value %.3f".formatted(
+                        d.lastTick - d.stepTick[slot], d.stepReason[slot],
+                        d.stepInterval[slot] < 0 ? "first" : d.stepInterval[slot] + "t", d.stepValue[slot]));
+            }
+        }
+
+        out.add("last increments :");
+        if (d.incrCount == 0) {
+            out.add("   (none: nothing non-zero reached the accumulator)");
+        } else {
+            for (int i = 0; i < d.incrCount; i++) {
+                final int slot = (d.incrNext - 1 - i + StructureDiag.INCR_RING * 2) % StructureDiag.INCR_RING;
+                out.add("   t-%d  %s  delta %+.4f  distanceWalked %.4f".formatted(
+                        d.lastTick - d.incrTick[slot], d.incrMetered[slot] ? "METERED" : "world  ",
+                        d.incrDelta[slot], d.incrTotal[slot]));
+            }
+        }
+
+        out.add("last events     :");
+        if (d.eventCount == 0) {
+            out.add("   (none recorded)");
+        } else {
+            for (int i = 0; i < d.eventCount; i++) {
+                final int slot = (d.eventNext - 1 - i + StructureDiag.EVENT_RING * 2) % StructureDiag.EVENT_RING;
+                out.add("   t-%d  %s".formatted(d.lastTick - d.eventTick[slot], d.eventText[slot]));
+            }
+        }
+
+        // The window baseline moves only when the report is actually printed, so running the command
+        // once before a test and once after makes the second output describe exactly the test.
+        d.window = d.snapshot();
+        return out;
+    }
+
+    private static String intervalHistogram(final long[] hist) {
+        return "1t x%d   2t x%d   3-4t x%d   5-8t x%d   9-16t x%d   >16t x%d".formatted(
+                hist[0], hist[1], hist[2], hist[3], hist[4], hist[5]);
+    }
+
+    /** Classpath presence of a soft dependency, for the diagnostic only. Never initialises it. */
+    private static String hasClass(final String name) {
+        try {
+            Class.forName(name, false, FootstepGenerator.class.getClassLoader());
+            return "yes";
+        } catch (final Throwable t) {
+            return "no";
+        }
+    }
+
     /**
      * Builds the /dsdump steps report for the current player: the complete decision chain of
      * the surface resolution plus the material and landing sound it produces. Printed to chat
@@ -998,6 +1392,7 @@ public class FootstepGenerator extends AbstractClientHandler {
     public static List<String> dumpStepTrace(final Player player) {
         final List<String> trace = new java.util.ArrayList<>();
         final var pos = player.blockPosition().below();
+        trace.addAll(dumpStructureDiagnostic(player));
         trace.add("=== DS footstep surface resolution ===");
         trace.add("player %s   feet Y %.4f   onGround %s".formatted(player.blockPosition(), player.getY(), player.onGround()));
         trace.add("climbing(=%s) = %s".formatted(player.onClimbable(), player.onClimbable() && !player.onGround()));

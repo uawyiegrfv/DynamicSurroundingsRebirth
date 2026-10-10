@@ -189,8 +189,11 @@ public final class AudioUtilities {
     }
 
     public static void deinitialize(final Library ignore) {
-        if (doEnhancedSounds())
-            SoundFXProcessor.deinitialize();
+        // Always deinitialize: the sound system may be torn down for reasons other
+        // than the enhanced-sounds toggle (config reload, device change, the
+        // reverb/occlusion toggle), and gating this on the toggle leaves stale
+        // OpenAL handles plus a leaked worker behind.
+        SoundFXProcessor.deinitialize();
     }
 
     /**

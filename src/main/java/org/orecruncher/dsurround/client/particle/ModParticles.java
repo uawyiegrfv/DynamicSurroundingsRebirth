@@ -1,10 +1,10 @@
 package org.orecruncher.dsurround.client.particle;
 
-import dev.architectury.registry.client.particle.ParticleProviderRegistry;
 import net.minecraft.core.Registry;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import org.orecruncher.dsurround.Constants;
 
 /**
@@ -12,10 +12,9 @@ import org.orecruncher.dsurround.Constants;
  * wide, saturated blue blob; the maintainer asked for something paler and a
  * pixel narrower, and that means owning a texture instead of borrowing one.
  *
- * <p>The type registers straight into the built-in registry during client
- * init, and the provider goes through Architectury's {@code
- * ParticleProviderRegistry}, which defers sprite binding until the particle
- * atlas has been stitched - one call, no loader-specific event wiring.</p>
+ * <p>The type goes in from the loader's {@code RegisterEvent} and the providers
+ * from {@code RegisterParticleProvidersEvent} - see {@link #registerType} and
+ * {@link #registerProviders} for why neither is a plain registry write.</p>
  */
 public final class ModParticles {
 
@@ -81,28 +80,46 @@ public final class ModParticles {
     }
 
     /**
-     * Binds the provider. Separate from the type because this one goes through
-     * Architectury, which defers sprite binding until the particle atlas has
-     * been stitched - one call, no loader-specific event wiring.
+     * Bind the providers, from the loader's own {@code
+     * RegisterParticleProvidersEvent}.
+     *
+     * <p>This used to go through Architectury's {@code
+     * ParticleProviderRegistry}, whose {@code register(ParticleType, ...)}
+     * overloads are <b>empty methods</b> in architectury-neoforge - javap shows
+     * {@code 0: return} for both, and only the {@code RegistrySupplier} overload
+     * does anything, which we cannot use because we do not hold suppliers. So
+     * not one provider was ever bound and none of our particles was ever drawn,
+     * with nothing at all in the log to say why.</p>
+     *
+     * <p>Moving the old call from {@code initializeClient()} to {@code
+     * onComplete()} did not help either: calling an empty method at a different
+     * moment is still calling an empty method.</p>
+     *
+     * <p>Nor does this event wait for the atlas. It is fired from {@code
+     * ClientHooks.onRegisterParticleProviders}, immediately after the {@code
+     * ParticleEngine} is built in {@code Minecraft}'s constructor; the stitch
+     * happens later, on the first resource reload. That is exactly why the drip
+     * particle takes {@code registerSpriteSet} rather than a plain provider -
+     * the engine holds a mutable sprite set and rebinds it when the atlas
+     * arrives.</p>
      */
-    public static void registerProvider() {
-        ParticleProviderRegistry.register(WATER_DRIP, sprites -> new WaterDripParticle.Provider(sprites));
-        ParticleProviderRegistry.register(ICICLE_CONE,
-                sprites -> new IcicleParticle.Provider(12, 5, 0.7F,
-                        ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_cone")));
-        ParticleProviderRegistry.register(ICICLE_KNIFE,
-                sprites -> new IcicleParticle.Provider(14, 3, 1.0F,
-                        ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_knife")));
-        ParticleProviderRegistry.register(ICICLE_WEDGE,
-                sprites -> new IcicleParticle.Provider(10, 5, 0.45F,
-                        ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_wedge")));
-        ParticleProviderRegistry.register(ICICLE_LAND,
-                sprites -> new IcicleLandParticle.Provider(
-                        ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land")));
-        ParticleProviderRegistry.register(FOLIAGE_DROP, sprites -> new FoliageDripParticle.Provider());
-        ParticleProviderRegistry.register(FOLIAGE_SNOW, sprites -> new FoliageSnowParticle.Provider());
-        ParticleProviderRegistry.register(SNOW_BREAK,
-                sprites -> new SnowBreakParticle.Provider(
-                        ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "snow_dot_a")));
+    public static void registerProviders(final RegisterParticleProvidersEvent event) {
+        // Only the drip particle takes a SpriteSet - its sprite is bound at
+        // stitch time, so it needs the deferred route.
+        event.registerSpriteSet(WATER_DRIP, sprites -> new WaterDripParticle.Provider(sprites));
+        // The rest fetch their own sprite from the atlas by id, so they are
+        // plain providers.
+        event.registerSpecial(ICICLE_CONE, new IcicleParticle.Provider(12, 5, 0.7F,
+                ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_cone")));
+        event.registerSpecial(ICICLE_KNIFE, new IcicleParticle.Provider(14, 3, 1.0F,
+                ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_knife")));
+        event.registerSpecial(ICICLE_WEDGE, new IcicleParticle.Provider(10, 5, 0.45F,
+                ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_wedge")));
+        event.registerSpecial(ICICLE_LAND, new IcicleLandParticle.Provider(
+                ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "icicle_land")));
+        event.registerSpecial(FOLIAGE_DROP, new FoliageDripParticle.Provider());
+        event.registerSpecial(FOLIAGE_SNOW, new FoliageSnowParticle.Provider());
+        event.registerSpecial(SNOW_BREAK, new SnowBreakParticle.Provider(
+                ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "snow_dot_a")));
     }
 }

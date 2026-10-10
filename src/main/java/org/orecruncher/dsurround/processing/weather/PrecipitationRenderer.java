@@ -25,6 +25,7 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import org.orecruncher.dsurround.Client;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
+import org.orecruncher.dsurround.compat.ModIds;
 import org.joml.Matrix4f;
 
 import java.util.Random;
@@ -611,201 +612,251 @@ public final class PrecipitationRenderer {
     /** Diagnostics only. Logging must never be able to break rendering. */
     private static void note(String fmt, Object... args) {
         try {
-            org.orecruncher.dsurround.lib.di.ContainerManager
-                    .resolve(org.orecruncher.dsurround.lib.logging.IModLog.class)
-                    .info("Precipitation: " + fmt, args);
-        } catch (Throwable t) {
-            // ignore
-        }
-    }
-
-    private static final class GradedPrecipitationEffects extends DimensionSpecialEffects.OverworldEffects {
-        @Override
-        public boolean renderSnowAndRain(ClientLevel level, int ticks, float partialTick,
-                                         LightTexture lightTexture, double camX, double camY, double camZ) {
-            hookCalls++;
-            RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
-            // The witness for "someone else is drawing the rain" - see noteRainRenderHook. tickRain
-            // below deliberately does NOT feed it: nothing cancels tickRain, so it would keep the
-            // detector asleep while a rain mod cancels this very call.
-            RouteFuse.noteRainRenderHook();
-            return active();
-        }
-
-        @Override
-        public boolean tickRain(ClientLevel level, int ticks, Camera camera) {
-            // Counted before the answer, and the answer is unconditional, so the
-            // counter reads "vanilla asked" rather than "we took it over". That is
-            // the whole point - see the field comment on tickHooks.
-            tickHooks++;
-            RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
-            // Bytecode, not intuition: the caller does ifeq 23 / 22: return, so
-            // false is "vanilla, carry on" and true is "vanilla, stop". We want
-            // vanilla to carry on - tickRain is where the ground splash
-            // positions and both rain one-shots come from, and N7 grades them
-            // from the inside (see MixinLevelRendererWeather). Returning true
-            // here deleted both, which is what "why is the rain silent" turned
-            // out to be.
-            return false;
-        }
-
-        @Override
-        public boolean renderClouds(ClientLevel level, int ticks, float partialTick,
-                                    PoseStack poseStack, double camX, double camY, double camZ,
-                                    Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
-            // The clear-sky event's hard end. This is NeoForge's own extension
-            // hook on the cloud pass: returning true means "already handled", and
-            // handled-here means not drawn. Below the threshold the pass runs
-            // normally, its colour melted towards the sky by
-            // MixinClientLevelWeatherColors, so the sheet fades into the
-            // background before the decline ever fires and the switchover is
-            // invisible. Deliberately NOT routed through active() - that gate is
-            // the precipitation takeover, and the sky events must work on a
-            // cloudless dry day, which active() would answer false for.
-            if (SkyEventScheduler.suppressCloudRendering())
-                return true;
-            return super.renderClouds(level, ticks, partialTick, poseStack,
-                    camX, camY, camZ, modelViewMatrix, projectionMatrix);
-        }
-
-        @Override
-        public float getCloudHeight() {
-            // The clear-sky event's VISIBLE ending. Melting the cloud colour
-            // into the sky hides the sheet only against the sky itself - clouds
-            // in front of terrain stay visible until the render is declined,
-            // which read as "no fade, then they vanish". Lifting the sheet does
-            // not have that blind spot: the whole plane rises, thins with
-            // perspective and is gone past the far plane, continuously, in the
-            // direction clouds actually leave. Squared so the lift stays
-            // negligible early and commits late. The height is part of the mesh
-            // cell index, so vanilla re-bakes the mesh on its own while this
-            // moves - no forcing needed for the lift.
-            // No lift. The first cut pushed the sheet up by clear^2 * 4096,
-            // which read as the entire cloud layer launching into the sky on
-            // event start and falling back on event end - the sheet was still
-            // well inside the view while it travelled. The fade is done in the
-            // cloud pass instead (see MixinLevelRendererWeather), so the plane
-            // stays put and only its alpha moves.
-            return super.getCloudHeight();
-        }
-    }
-
-    private static void onRenderLevelStage(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_WEATHER)
-            return;
-        // Counted before the active() gate so the diagnostics can tell "the stage never
-        // fires" (stays 0) apart from "the stage fires but we decline to draw".
-        renderCalls++;
-        if (!active())
-            return;
-        try {
-            render(event.getCamera(), event.getPartialTick().getGameTimeDeltaPartialTick(false));
-        } catch (Throwable t) {
-            // Never let a render failure take the frame down; the next frame falls
-            // back to vanilla because active() drives the takeover too.
-            org.orecruncher.dsurround.lib.logging.IModLog logger =
-                    org.orecruncher.dsurround.lib.di.ContainerManager.resolve(
-                            org.orecruncher.dsurround.lib.logging.IModLog.class);
-            logger.error(t, "PrecipitationRenderer threw while rendering precipitation");
-            // The Tesselator is a process-wide singleton: a throw mid-loop leaves
-            // its BufferBuilder building, and the next begin() - the sandstorm
-            // veil - would throw "Already building" and take the frame down.
-            try {
-                Tesselator.getInstance().clear();
-            } catch (Throwable ignored) {
-                // not building; nothing to clean up
+                org.orecruncher.dsurround.lib.di.ContainerManager
+                        .resolve(org.orecruncher.dsurround.lib.logging.IModLog.class)
+                        .info("Precipitation: " + fmt, args);
+            } catch (Throwable t) {
+                // ignore
             }
-            disable();
         }
-    }
 
-    private static volatile boolean broken = false;
+        private static final class GradedPrecipitationEffects extends DimensionSpecialEffects.OverworldEffects {
+            @Override
+            public boolean renderSnowAndRain(ClientLevel level, int ticks, float partialTick,
+                                             LightTexture lightTexture, double camX, double camY, double camZ) {
+                hookCalls++;
+                RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
+                // The witness for "someone else is drawing the rain" - see noteRainRenderHook. tickRain
+                // below deliberately does NOT feed it: nothing cancels tickRain, so it would keep the
+                // detector asleep while a rain mod cancels this very call.
+                RouteFuse.noteRainRenderHook();
+                return active();
+            }
 
-    private static void disable() {
-        broken = true;
+            @Override
+            public boolean tickRain(ClientLevel level, int ticks, Camera camera) {
+                // Counted before the answer, and the answer is unconditional, so the
+                // counter reads "vanilla asked" rather than "we took it over". That is
+                // the whole point - see the field comment on tickHooks.
+                tickHooks++;
+                RouteFuse.feed(RouteFuse.Route.RAIN_RENDER);
+                // Bytecode, not intuition: the caller does ifeq 23 / 22: return, so
+                // false is "vanilla, carry on" and true is "vanilla, stop". We want
+                // vanilla to carry on - tickRain is where the ground splash
+                // positions and both rain one-shots come from, and N7 grades them
+                // from the inside (see MixinLevelRendererWeather). Returning true
+                // here deleted both, which is what "why is the rain silent" turned
+                // out to be.
+                return false;
+            }
+
+            @Override
+            public boolean renderClouds(ClientLevel level, int ticks, float partialTick,
+                                        PoseStack poseStack, double camX, double camY, double camZ,
+                                        Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
+                // The clear-sky event's hard end. This is NeoForge's own extension
+                // hook on the cloud pass: returning true means "already handled", and
+                // handled-here means not drawn. Below the threshold the pass runs
+                // normally, its colour melted towards the sky by
+                // MixinClientLevelWeatherColors, so the sheet fades into the
+                // background before the decline ever fires and the switchover is
+                // invisible. Deliberately NOT routed through active() - that gate is
+                // the precipitation takeover, and the sky events must work on a
+                // cloudless dry day, which active() would answer false for.
+                // Simple Clouds owns the cloud pass when it is installed: its mixin
+                // cancels LevelRenderer.renderClouds at HEAD, so this override is not
+                // reached at all - but if it ever were (another SC version, or SC's
+                // own cancel failing), answering true here would take the pass from a
+                // mod that is drawing it. Stand down explicitly rather than relying
+                // on the other mod's injection to protect us from our own.
+                if (ModIds.present(ModIds.SIMPLE_CLOUDS))
+                    return super.renderClouds(level, ticks, partialTick, poseStack,
+                            camX, camY, camZ, modelViewMatrix, projectionMatrix);
+                if (SkyEventScheduler.suppressCloudRendering())
+                    return true;
+                return super.renderClouds(level, ticks, partialTick, poseStack,
+                        camX, camY, camZ, modelViewMatrix, projectionMatrix);
+            }
+
+            @Override
+            public float getCloudHeight() {
+                // The clear-sky event's VISIBLE ending. Melting the cloud colour
+                // into the sky hides the sheet only against the sky itself - clouds
+                // in front of terrain stay visible until the render is declined,
+                // which read as "no fade, then they vanish". Lifting the sheet does
+                // not have that blind spot: the whole plane rises, thins with
+                // perspective and is gone past the far plane, continuously, in the
+                // direction clouds actually leave. Squared so the lift stays
+                // negligible early and commits late. The height is part of the mesh
+                // cell index, so vanilla re-bakes the mesh on its own while this
+                // moves - no forcing needed for the lift.
+                // No lift. The first cut pushed the sheet up by clear^2 * 4096,
+                // which read as the entire cloud layer launching into the sky on
+                // event start and falling back on event end - the sheet was still
+                // well inside the view while it travelled. The fade is done in the
+                // cloud pass instead (see MixinLevelRendererWeather), so the plane
+                // stays put and only its alpha moves.
+                return super.getCloudHeight();
+            }
+        }
+
+        private static void onRenderLevelStage(RenderLevelStageEvent event) {
+            if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_WEATHER)
+                return;
+            // Counted before the active() gate so the diagnostics can tell "the stage never
+            // fires" (stays 0) apart from "the stage fires but we decline to draw".
+            renderCalls++;
+            if (!active())
+                return;
+            try {
+                render(event.getCamera(), event.getPartialTick().getGameTimeDeltaPartialTick(false));
+            } catch (Throwable t) {
+                // Never let a render failure take the frame down; the next frame falls
+                // back to vanilla because active() drives the takeover too.
+                //
+                // Stand down FIRST and report LAST. disable() is the thing that stops
+                // us being asked again, so it must not sit behind anything that can
+                // throw - and resolving the logger, or writing to it, is exactly what
+                // a broken render state can make throw. In the old order one throw
+                // there skipped disable() entirely, and the layer stayed broken for
+                // the rest of the session rather than for one frame. (26.1 already
+                // has this order.)
+                disable();
+                // The Tesselator is a process-wide singleton: a throw mid-loop leaves
+                // its BufferBuilder building, and the next begin() - the sandstorm
+                // veil - would throw "Already building" and take the frame down.
+                try {
+                    Tesselator.getInstance().clear();
+                } catch (Throwable ignored) {
+                    // not building; nothing to clean up
+                }
+                try {
+                    org.orecruncher.dsurround.lib.logging.IModLog logger =
+                            org.orecruncher.dsurround.lib.di.ContainerManager.resolve(
+                                    org.orecruncher.dsurround.lib.logging.IModLog.class);
+                    logger.error(t, "PrecipitationRenderer threw while rendering precipitation");
+                } catch (Throwable logFailure) {
+                    // Reporting must never be the reason the layer stays broken.
+                }
+            }
+        }
+
+        private static volatile boolean broken = false;
+
+        private static void disable() {
+            broken = true;
+        }
+
+        /**
+         * Clears session state when a world is left. The caches are keyed by
+         * dimension and game time, which go stale across worlds that share the key
+         * (a new world's clock can read lower than the old one's, freezing the TTL
+         * forever), and a one-off render exception must not stay broken across
+         * sessions.
+         */
+        public static void onWorldLeft() {
+            broken = false;
+            effectsOwnershipChecked = false;
+            resetLevelHysteresis();
+            phaseCache.clear();
+            surfaceCache.clear();
+            lightCache.clear();
+            cacheDimension = null;
+        }
+
+        private static void render(Camera camera, float partialTick) {
+            if (broken)
+                return;
+            var mc = Minecraft.getInstance();
+            ClientLevel level = mc.level;
+            Player player = mc.player;
+            if (level == null || player == null)
+                return;
+
+            final float intensity = PrecipitationIntensity.intensity();
+            final float peak = PrecipitationIntensity.peak();
+            final float alphaRatio = peak > 0.0001F
+                    ? (float) Math.pow(Mth.clamp(intensity / peak, 0F, 1F), RAIN_ALPHA_GAMMA)
+                    : 0F;
+            if (alphaRatio <= 0F)
+                return;
+
+            final int rainLevel = levelIndex(intensity);
+            final int range = RANGE;
+            final int ticks = (int) level.getGameTime();
+            final Vec3 cam = camera.getPosition();
+            final int playerX = Mth.floor(player.getX());
+            final int playerY = Mth.floor(player.getY());
+            final int playerZ = Mth.floor(player.getZ());
+
+            refreshCaches(level, ticks);
+            // WIND：风向/风速只依赖游戏时钟，每帧调一次即可，不需要 tick 钩子。
+            // 强度里已经折进了离散阵风，gustAmplitude 是本场事件摇出的阵风幅度。
+            // 最后一个参数是群系风力系数：多风的地方风更大、密林里风更小。
+            // 它在 PrecipitationIntensity 里每 tick 更新一次，这里只是取用 ——
+            // 千万别改成在这里查 BiomeInfo，更不要放进 per-column 循环。
+            WindField.update(ticks, partialTick, intensity, PrecipitationIntensity.gustAmplitude(),
+                    PrecipitationIntensity.windScale());
+
+
+            // The state set here belongs to the particle pass and has to be given
+            // back whether the draw succeeds or not. It used to be set, used and
+            // restored in a straight line, which meant one throw anywhere in
+            // drawPhase left the frame with culling off, blending on and the light
+            // layer on - and the next thing to render (the hotbar, the sandstorm
+            // veil, the GUI) inherited all three. The failure is rare; its symptom,
+            // "the world went dark and the items disappeared", is not diagnosable
+            // from the report it produces.
+            try {
+                RenderSystem.enableBlend();
+                RenderSystem.defaultBlendFunc();
+                RenderSystem.enableDepthTest();
+                RenderSystem.depthMask(Minecraft.useShaderTransparency());
+                RenderSystem.disableCull();
+                RenderSystem.setShader(GameRenderer::getParticleShader);
+                mc.gameRenderer.lightTexture().turnOnLightLayer();
+
+                if (PrecipitationIntensity.forced() >= 0F) {
+                    // Diagnostics lock: draw the locked level as whatever this place
+                    // actually precipitates, not as rain everywhere. The lock used to
+                    // force RAIN because the per-column phase gate needs
+                    // level.isRaining() to be true - see potentialPhase(), which asks
+                    // the same question without that test.
+                    drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
+                            Biome.Precipitation.RAIN, RAIN_TEXTURES[rainLevel], 1F, false, true, intensity);
+                    drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
+                            Biome.Precipitation.SNOW, SNOW_TEXTURES[rainLevel], 1F, true, true, intensity);
+                } else {
+                    drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
+                            Biome.Precipitation.RAIN, RAIN_TEXTURES[rainLevel], alphaRatio, false, false, intensity);
+                    drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
+                            Biome.Precipitation.SNOW, SNOW_TEXTURES[rainLevel], alphaRatio, true, false, intensity);
+                }
+
+            } finally {
+                restoreRenderState(mc);
+            }
     }
 
     /**
-     * Clears session state when a world is left. The caches are keyed by
-     * dimension and game time, which go stale across worlds that share the key
-     * (a new world's clock can read lower than the old one's, freezing the TTL
-     * forever), and a one-off render exception must not stay broken across
-     * sessions.
+     * Gives the frame back the state the particle pass borrowed. Each piece is
+     * restored independently: a failure to turn the light layer off must not
+     * also leave culling off, since each one has its own visible symptom and
+     * they are read separately.
      */
-    public static void onWorldLeft() {
-        broken = false;
-        effectsOwnershipChecked = false;
-        resetLevelHysteresis();
-        phaseCache.clear();
-        surfaceCache.clear();
-        lightCache.clear();
-        cacheDimension = null;
-    }
-
-    private static void render(Camera camera, float partialTick) {
-        if (broken)
-            return;
-        var mc = Minecraft.getInstance();
-        ClientLevel level = mc.level;
-        Player player = mc.player;
-        if (level == null || player == null)
-            return;
-
-        final float intensity = PrecipitationIntensity.intensity();
-        final float peak = PrecipitationIntensity.peak();
-        final float alphaRatio = peak > 0.0001F
-                ? (float) Math.pow(Mth.clamp(intensity / peak, 0F, 1F), RAIN_ALPHA_GAMMA)
-                : 0F;
-        if (alphaRatio <= 0F)
-            return;
-
-        final int rainLevel = levelIndex(intensity);
-        final int range = RANGE;
-        final int ticks = (int) level.getGameTime();
-        final Vec3 cam = camera.getPosition();
-        final int playerX = Mth.floor(player.getX());
-        final int playerY = Mth.floor(player.getY());
-        final int playerZ = Mth.floor(player.getZ());
-
-        refreshCaches(level, ticks);
-        // WIND：风向/风速只依赖游戏时钟，每帧调一次即可，不需要 tick 钩子。
-        // 强度里已经折进了离散阵风，gustAmplitude 是本场事件摇出的阵风幅度。
-        // 最后一个参数是群系风力系数：多风的地方风更大、密林里风更小。
-        // 它在 PrecipitationIntensity 里每 tick 更新一次，这里只是取用 ——
-        // 千万别改成在这里查 BiomeInfo，更不要放进 per-column 循环。
-        WindField.update(ticks, partialTick, intensity, PrecipitationIntensity.gustAmplitude(),
-                PrecipitationIntensity.windScale());
-
-
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.enableDepthTest();
-        RenderSystem.depthMask(Minecraft.useShaderTransparency());
-        RenderSystem.disableCull();
-        RenderSystem.setShader(GameRenderer::getParticleShader);
-        mc.gameRenderer.lightTexture().turnOnLightLayer();
-
-        if (PrecipitationIntensity.forced() >= 0F) {
-            // Diagnostics lock: draw the locked level as whatever this place
-            // actually precipitates, not as rain everywhere. The lock used to
-            // force RAIN because the per-column phase gate needs
-            // level.isRaining() to be true - see potentialPhase(), which asks
-            // the same question without that test.
-            drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
-                    Biome.Precipitation.RAIN, RAIN_TEXTURES[rainLevel], 1F, false, true, intensity);
-            drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
-                    Biome.Precipitation.SNOW, SNOW_TEXTURES[rainLevel], 1F, true, true, intensity);
-        } else {
-            drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
-                    Biome.Precipitation.RAIN, RAIN_TEXTURES[rainLevel], alphaRatio, false, false, intensity);
-            drawPhase(level, camera, cam, partialTick, ticks, range, playerX, playerY, playerZ,
-                    Biome.Precipitation.SNOW, SNOW_TEXTURES[rainLevel], alphaRatio, true, false, intensity);
+    private static void restoreRenderState(Minecraft mc) {
+        try {
+            mc.gameRenderer.lightTexture().turnOffLightLayer();
+        } catch (Throwable t) {
+            note("light layer restore failed: %s", t);
         }
-
-        mc.gameRenderer.lightTexture().turnOffLightLayer();
-        RenderSystem.enableCull();
-        RenderSystem.depthMask(true);
-        RenderSystem.disableBlend();
+        try {
+            RenderSystem.enableCull();
+            RenderSystem.depthMask(true);
+            RenderSystem.disableBlend();
+        } catch (Throwable t) {
+            note("render state restore failed: %s", t);
+        }
     }
 
     private static void drawPhase(ClientLevel level, Camera camera, Vec3 cam, float partialTick,

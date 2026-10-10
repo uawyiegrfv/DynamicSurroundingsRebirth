@@ -58,6 +58,7 @@ public final class NeoForgeMod {
             // The drip particle's type. Built-in registries are only writable
             // from this event - see ModParticles.registerType.
             modBus.addListener(ModParticles::registerType);
+            modBus.addListener(ModParticles::registerProviders);
             // Graded rain/snow: installs the overworld effects object that suppresses
             // the vanilla rain pass; the geometry is drawn from the AfterWeather stage.
             modBus.addListener(org.orecruncher.dsurround.processing.weather.PrecipitationRenderer::onRegisterDimensionEffects);

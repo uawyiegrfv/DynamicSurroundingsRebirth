@@ -183,8 +183,23 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     private static final float SLIP_SPEED = 0.0022F;
     /** Longer than the melt's fade: a slip should dissolve on the way down, not stop and blink. */
     private static final int SLIP_FADE_TICKS = 110;
-    /** How far a melting unit sinks before it fades, in blocks. */
-    private static final float SINK_DROP_MAX = 0.36F;
+    /**
+     * How far a melting unit may sink before it fades, in blocks - a CEILING
+     * only. Round 44 raised it from 0.36 to the height of one block.
+     *
+     * <p>0.36 was the round-7 "slide a good distance first" number, and it had
+     * quietly become the thing that decides HOW LOW a unit gets to go. Measured
+     * over the same 17 sprites (1384 scatter anchors): a plant's scatter points
+     * sit at y=0.34..0.63, so the cap bit for 65% of them and the sink ended at
+     * y=0.215 on average - three and a half plant pixels above the base of the
+     * blade, and 0.29 (4.6px) on allium. A unit now goes as far down as its own
+     * room allows, which is SINK_FLOOR_CLEARANCE above the bottom of its block,
+     * i.e. the base of the plant: that is "让粒子滑到底". The pace is
+     * untouched (SINK_SPEED / SLIP_SPEED), so the exit takes longer in
+     * proportion - offline, the melt 5.1s -> 7.1s and the slip 8.2s -> 11.3s
+     * at the median anchor.</p>
+     */
+    private static final float SINK_DROP_MAX = 1.00F;
     /** ...and the least it will do, for a unit anchored near the floor. */
     private static final float SINK_DROP_MIN = 0.06F;
     /**
@@ -939,6 +954,12 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                 pm.add(particle);
                 attached++;
                 unit.setPlane(nx, ny, nz, ux, uy, uz, vx, vy, vz);
+                // Round 44: the unit carries its own anchor - see the check in
+                // FoliageDripParticle.tick. checkStale only walks the units still
+                // on this plant's list; a unit handed to an exit (the depth
+                // trim's beginSink, a roster eviction's beginFade) is off it and
+                // would keep animating a plant that is gone.
+                unit.setAnchor(spot.pos(), spot.state().getBlock());
                 final double lift = NORMAL_OFFSET + (index % DEPTH_STEPS) * DEPTH_STAGGER;
                 unit.move(nx * lift, ny * lift, nz * lift);
                 // No land sound: dry snow is too light to announce itself (the

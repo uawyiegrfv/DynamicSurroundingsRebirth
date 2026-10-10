@@ -503,6 +503,11 @@ public class FoliageRainDripHandler extends AbstractClientHandler {
         // Nudge onto the near side of the plane - and never above the anchor.
         drop.setPlane(nx, ny, nz, ux, uy, uz, vx, vy, vz);
         drop.setDew(false);      // rain-foliage: pale blue, not the dew white
+        // Round 44: the bead knows its own anchor - see the check in
+        // FoliageDripParticle.tick. The sliders and droppers this layer keeps
+        // in its live list are never re-checked against the plant (only the
+        // residuals are), so this is the check that covers them.
+        drop.setAnchor(spot.pos, spot.state.getBlock());
         drop.move(nx * NORMAL_OFFSET, ny * NORMAL_OFFSET, nz * NORMAL_OFFSET);
 
         final long expire;

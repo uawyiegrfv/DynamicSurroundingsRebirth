@@ -108,6 +108,25 @@ public final class FoliageProfile {
      * the soil.</p>
      */
     private static final float GROUND_CLEARANCE = 0.10F;
+    /**
+     * How far above the block's own bottom edge a DESCENT PATH may run, in
+     * blocks.
+     *
+     * <p>Round 44: 0.0 - it used to be {@link #GROUND_CLEARANCE}, 0.10. The
+     * clearance is about where a bead RESTS: a perch down at the base of the
+     * stem is a bead standing in the soil, and that is still refused
+     * ({@link #GROUND_CLEARANCE} is untouched for anchors and for the scatter
+     * points). A path is not a resting place - it is the blade going down, and
+     * cutting it at 0.10 cost the last waypoint of every baked descent.
+     * Measured over 17 real sprites (_slide_bottom_sim.py): the lowest point of
+     * the mask is y=0.094 and the guard left every path ending at 0.156, one
+     * plant pixel short of the bottom of the blade, on all 17. The reason for
+     * the guard was a bead down there reading the soil's light and rendering
+     * black; the particle lights itself from above now (see the light override
+     * in FoliageDripParticle), so the last waypoint stays and the slide reaches
+     * the bottom of the plant.</p>
+     */
+    private static final float PATH_FLOOR_CLEARANCE = 0.0F;
     private static final float ALPHA_THRESHOLD = 8.0F;
 
     /**
@@ -379,13 +398,17 @@ public final class FoliageProfile {
                 if (pixels == null)
                     continue;
                 pixels = smooth(pixels);
-                // Cut the descent off above the ground (GROUND_CLEARANCE): the
-                // bottom rows of the mask are the base of the stem, which sits
-                // in the block below, and a bead there reads the soil's light.
+                // Round 44: the path runs to the bottom of the plant - see
+                // PATH_FLOOR_CLEARANCE. It used to stop at GROUND_CLEARANCE
+                // (0.10) because the bottom rows of the mask are the base of
+                // the stem, which sits in the block below, and a bead there
+                // read the soil's light. The particle lights itself from above
+                // now, so the lowest waypoint stays and the bead rides the
+                // blade all the way down before the fade takes over.
                 int usable = 0;
                 for (int i = 0; i < pixels.size(); i++) {
                     mapper.map(pixels.get(i)[0], pixels.get(i)[1], mapped);
-                    if (mapped[1] < GROUND_CLEARANCE)
+                    if (mapped[1] < PATH_FLOOR_CLEARANCE)
                         break;
                     usable = i + 1;
                 }

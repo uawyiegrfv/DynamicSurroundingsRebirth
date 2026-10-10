@@ -130,8 +130,24 @@ public class FoliageDripParticle extends SingleQuadParticle {
     private static final float PACE_SPREAD = 0.35F;
     /** ...and a floor, so a bead that meets a flat stretch still finishes. */
     private static final float SLIDE_MIN_FRACTION = 0.15F;
-    /** Where the slide hands over to the fade - see the SLIDE branch. */
-    private static final float SLIDE_FADE_HANDOFF = 0.92F;
+    /**
+     * Where the slide hands over to the fade - see the SLIDE branch.
+     *
+     * <p>Round 44: 1.00, was 0.92. The 0.92 was never about when the fade
+     * should start; it was the arithmetic that let the fade's OWN sink
+     * (0.06..0.11 of a block, see {@link #beginFade}) land the quad exactly ON
+     * the path's last waypoint instead of past it. Past it was the block below,
+     * and a particle inside a solid block reads that block's light - zero - so
+     * it rendered BLACK for as long as it lasted. That is the same trap the
+     * path baker's ground clearance was shaped around, and it is cured at the
+     * source now: the light override above questions a totally black reading
+     * and takes the light from up to three blocks higher, so a bead down at
+     * the base of its blade is lit like the blade. With that reason gone the
+     * hand-off no longer has to run ahead of the geometry - the bead travels
+     * to the last waypoint, which is the bottom of the plant, and only then
+     * begins to go.</p>
+     */
+    private static final float SLIDE_FADE_HANDOFF = 1.00F;
     /** How hard friction drags a surging bead back to its grip-limited speed. */
     private static final float SLIDE_BRAKE = 0.0010F;
     /**
@@ -172,6 +188,29 @@ public class FoliageDripParticle extends SingleQuadParticle {
     private final int restTicks;
     /** Dew drops plip; rain drops are silent by ruling. */
     private boolean soundOnLand = false;
+    /**
+     * Round 44: the block this particle is attached to, and the block that was
+     * standing there when it attached. A particle that has lost its plant has
+     * to let go, and only the particle can promise that for all of them.
+     *
+     * <p>The handlers do check the units they still hold - snow and dew every
+     * 2 ticks, the rain layer's residuals once a second - but a unit handed to
+     * an exit is deliberately OFF those lists: a snow unit trimmed away by the
+     * depth quota, a plant evicted from a full roster, a rain slider whose spot
+     * has expired out of the pool. Those particles keep riding a blade that is
+     * no longer there, which is the maintainer's report verbatim: "破坏植物后
+     * 粒子留在原地继续动画，应该立即掉落".</p>
+     */
+    private net.minecraft.core.BlockPos anchorPos = null;
+    private net.minecraft.world.level.block.Block anchorBlock = null;
+    /**
+     * The anchor is read on a stagger - every 4th tick for any one particle,
+     * phase-shifted at construction so a scan batch does not all read the same
+     * chunk section on the same tick. Four ticks is 0.2s, under the time a
+     * sliding bead covers a fifth of a pixel.
+     */
+    private static final int ANCHOR_CHECK_MASK = 3;
+    private final int anchorPhase = this.random.nextInt(ANCHOR_CHECK_MASK + 1);
     /** The plant plane basis, WORLD axes - set by the handler. */
     private float nx, ny, nz, ux, uy, uz, vx, vy, vz;
     private boolean hasPlane = false;
@@ -279,6 +318,31 @@ public class FoliageDripParticle extends SingleQuadParticle {
         this.vy = vy;
         this.vz = vz;
         this.hasPlane = true;
+    }
+
+    /**
+     * Round 44: tells the particle which block it rides and what stood there
+     * when it attached. Every spawn site calls it - the anchor check in
+     * {@link #tick()} is the only thing that covers the units no handler is
+     * holding any more.
+     */
+    public void setAnchor(final net.minecraft.core.BlockPos pos,
+                          final net.minecraft.world.level.block.Block block) {
+        this.anchorPos = pos == null ? null : pos.immutable();
+        this.anchorBlock = block;
+    }
+
+    /** True when the plant this particle was attached to is no longer there. */
+    private boolean anchorGone() {
+        if (this.anchorPos == null || this.anchorBlock == null || this.level == null)
+            return false;
+        // An unloaded anchor is not evidence: getBlockState answers AIR for a
+        // chunk that is not there, and a bead would let go the moment its
+        // chunk left the view. Same guard the icicle layer reads the world
+        // through (WorldUtils).
+        if (!this.level.isLoaded(this.anchorPos))
+            return false;
+        return this.level.getBlockState(this.anchorPos).getBlock() != this.anchorBlock;
     }
 
     /** Dew drops plip when they land; rain drops never call this. */
@@ -553,8 +617,18 @@ public class FoliageDripParticle extends SingleQuadParticle {
         return Mth.lerp(t * t * (3F - 2F * t), this.grip[i], this.grip[i + 1]);
     }
 
+    /**
+     * Lets go: vanilla fall on the falling sprite, from this instant.
+     *
+     * <p>Round 44: this now takes from every phase but FALL - EVAPORATE is the
+     * one that mattered. Refusing an evaporating bead was right while the only
+     * caller was the dew window closing over a plant that is still standing;
+     * it is wrong the moment the anchor is gone, because the bead then spends
+     * the rest of its 600-tick shrink hanging in the air where the blade used
+     * to be. Water on a broken blade falls.</p>
+     */
     public void beginFall() {
-        if (this.phase == Phase.FALL || this.phase == Phase.EVAPORATE)
+        if (this.phase == Phase.FALL)
             return;
         this.phase = Phase.FALL;
         this.setSprite(this.fallSprite);
@@ -665,6 +739,15 @@ public class FoliageDripParticle extends SingleQuadParticle {
 
     @Override
     public void tick() {
+        // Round 44: the plant can be gone long before anything else notices.
+        // The handlers release the units they still track; this is the backstop
+        // for the ones they do not, and for a unit already handed to an exit
+        // (a fade that has started, a bead evaporating where it stands).
+        // Staggered: every 4th tick, per particle.
+        if (this.phase != Phase.FALL
+                && ((this.age + this.anchorPhase) & ANCHOR_CHECK_MASK) == 0
+                && this.anchorGone())
+            this.beginFall();
         this.xo = this.x;
         this.yo = this.y;
         this.zo = this.z;

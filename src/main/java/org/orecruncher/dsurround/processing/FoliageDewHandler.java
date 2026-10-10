@@ -448,6 +448,9 @@ public class FoliageDewHandler extends AbstractClientHandler {
             pm.add(particle);
             drop.setPlane(nx, ny, nz, ux, uy, uz, vx, vy, vz);
             drop.setDew(true);      // dew: white and half-transparent, not rain blue
+            // Round 44: the bead knows its own anchor - see the check in
+            // FoliageDripParticle.tick.
+            drop.setAnchor(spot.pos(), spot.state().getBlock());
             drop.setSoundOnLand();
             drop.move(nx * NORMAL_OFFSET, ny * NORMAL_OFFSET, nz * NORMAL_OFFSET);
             // Review D: the first lottery is phase-shifted per bead, so one

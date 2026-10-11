@@ -29,6 +29,7 @@ import org.orecruncher.dsurround.sound.ISoundFactory;
 import org.orecruncher.dsurround.sound.SoundVolumeEvaluator;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 import org.orecruncher.dsurround.processing.weather.WindField;
+import org.orecruncher.dsurround.processing.weather.WindProfile;
 
 public final class BiomeSoundHandler extends AbstractClientHandler {
 
@@ -251,6 +252,20 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final float HOWL_FLOOR = 0.22F;
     /** The canopy layer only ever answers the howl, it never leads it. */
     private static final float CANOPY_LEVEL = 0.38F;
+
+    // ---- 统一风系统：层的门控与权重（设计 §3.10.2） -------------------------
+    /** 叶声层的最小风等级，滞回 {@link #LEAF_GATE_HYSTERESIS}。低于它<b>整层不存在</b>
+     *  —— 不是"很小"。旧口径是 (0.40 + 0.60 x bandNorm)，静风时仍留 0.40，层永远
+     *  到不了 0，与"大部分时间安静"直接冲突。 */
+    private static final float LEAF_WIND_MIN = 0.25F;
+    private static final float LEAF_GATE_HYSTERESIS = 0.05F;
+    /** 呼啸层的最小风等级，滞回 {@link #HOWL_GATE_HYSTERESIS}。 */
+    private static final float HOWL_WIND_MIN = 0.35F;
+    private static final float HOWL_GATE_HYSTERESIS = 0.06F;
+    /** 床素材的谱质心超过这个值就判为"自带叶声"（附录 D.1 的实测：本包床档位
+     *  194~359 Hz vs cinetony 树叶录音 4105 Hz，两类相差 >= 2.7 倍，现有素材没有
+     *  中间样本）。判为真时<b>不再叠叶声层</b>，见 §3.10.2 要点 5。 */
+    private static final float ASSET_LEAF_CENTROID_HZ = 1500F;
     /**
      * Extra level for a gust in a thunderstorm. A thunderstorm has to outshout
      * its own rain; at full intensity the gusts were being buried by it.
@@ -504,6 +519,9 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     // The sustained layers above the bed - see handleWindLayers.
     private final WindLayer howlLayer = new WindLayer();
     private final WindLayer canopyLayer = new WindLayer();
+    /** 门控状态（带滞回），见 handleWindLayers。 */
+    private boolean howlGateOpen = false;
+    private boolean leafGateOpen = false;
     private long rainGustNextTick;
     private int rainGustTier = -1;
     private int rainGustLastIndex = -1;
@@ -1816,50 +1834,104 @@ private static float gustSwell(final Player player) {
  * <p>Only wooded ground gets the canopy layer, and the decision is the same trait set
  * {@code isWooded} already answers - wind is not leaves where nothing is rustling.</p>
  */
-private void handleWindLayers(final Player player) {
-    if (!PrecipitationIntensity.grading() || !doBiomeSounds()
-            || !this.config.weatherOptions.enableWindSounds || this.scanner.isInside()) {
-        this.fadeLayer(this.howlLayer);
-        this.fadeLayer(this.canopyLayer);
-        return;
-    }
-    final float intensity = PrecipitationIntensity.ambient();
-    final int tier = gustTierFor(intensity, this.rainGustTier);
-    final var info = this.scanner.playerLogicBiomeInfo();
-    final boolean wooded = info != null && isWooded(info);
-    final float swell = gustSwell(player);
-    final float storm = player.level().isThundering() ? RAIN_GUST_STORM_GAIN : 1F;
+    private void handleWindLayers(final Player player) {
+        if (!PrecipitationIntensity.grading() || !doBiomeSounds()
+                || !this.config.weatherOptions.enableWindSounds || this.scanner.isInside()) {
+            this.fadeLayer(this.howlLayer);
+            this.fadeLayer(this.canopyLayer);
+            return;
+        }
+        final float intensity = PrecipitationIntensity.ambient();
+        final int tier = gustTierFor(intensity, this.rainGustTier);
+        final var info = this.scanner.playerLogicBiomeInfo();
+        final WindProfile profile = info == null ? null : WindProfile.resolve(info.getTraits());
+        final boolean wooded = info != null && isWooded(info);
+        // 覆盖度：群系特征给的那一级（1/0）。设计 §9 决策 8 的 (b) 本地树冠扫描是后续项。
+        final float coverage = wooded ? 1F : 0F;
+        final float canopyResponse = profile == null ? 0F : profile.canopyResponse();
+        // 一个权重把二值规则和 canopyResponse 统一起来：有树叶 -> 叶声层，无树叶 -> 呼啸层。
+        final float wLeaf = canopyResponse * coverage;
+        final float wHowl = 1F - wLeaf;
+        final float level = windLevel();
+        final float swell = gustSwell(player);
+        final float storm = player.level().isThundering() ? RAIN_GUST_STORM_GAIN : 1F;
 
-    if (tier >= 1) {
-        // One asset per tier, re-drawn when the tier changes and not otherwise: redrawing every
-        // tick would make the layer hop between three different recordings.
-        // One long loop per tier instead of one of three short clips. The clip
-        // used to be redrawn from the pool whenever the tier changed, and every
-        // clip in it was under eleven seconds - the layer did not breathe, it
-        // repeated.
-        final Identifier howl = tier >= 2 ? HOWL_HEAVY : HOWL_MEDIUM;
-        this.howlLayer.tier = tier;
-        final float base = tier >= 2 ? HOWL_LEVEL_HEAVY : HOWL_LEVEL_MEDIUM;
-        this.sustainLayer(this.howlLayer,
-                ContainerManager.resolve(ISoundLibrary.class)
-                        .getSoundFactoryOrDefault(howl),
-                base * swell * storm * windVolumeScale());
-    } else {
-        this.fadeLayer(this.howlLayer);
+        // 呼啸层：门控挂在【风】上，静风时整层到 0（可以真的不存在）。
+        this.howlGateOpen = gate(this.howlGateOpen, level, HOWL_WIND_MIN, HOWL_GATE_HYSTERESIS);
+        if (this.howlGateOpen && wHowl > 0F) {
+            // One asset per tier, re-drawn when the tier changes and not otherwise: redrawing every
+            // tick would make the layer hop between three different recordings.
+            // One long loop per tier instead of one of three short clips. The clip
+            // used to be redrawn from the pool whenever the tier changed, and every
+            // clip in it was under eleven seconds - the layer did not breathe, it
+            // repeated.
+            final Identifier howl = tier >= 2 ? HOWL_HEAVY : HOWL_MEDIUM;
+            this.howlLayer.tier = tier;
+            final float base = tier >= 2 ? HOWL_LEVEL_HEAVY : HOWL_LEVEL_MEDIUM;
+            this.sustainLayer(this.howlLayer,
+                    ContainerManager.resolve(ISoundLibrary.class)
+                            .getSoundFactoryOrDefault(howl),
+                    base * swell * storm * wHowl * windVolumeScale());
+        } else {
+            this.fadeLayer(this.howlLayer);
+        }
+
+        // 叶声层：有覆盖度、床素材不自带叶声、风过门限，三条同时成立才存在。
+        // 门控同样挂在风上（旧口径挂在降水 tier 上，“小雨 / 雨后一阵大风带树叶响”
+        // 因此永远不可能发生）。
+        this.leafGateOpen = gate(this.leafGateOpen, level, LEAF_WIND_MIN, LEAF_GATE_HYSTERESIS);
+        if (coverage > 0F && !this.bedHasLeaves(profile) && this.leafGateOpen) {
+            final var lpool = RAIN_TEXTURE_LEAF;
+            if (this.canopyLayer.index < 0 || this.canopyLayer.index >= lpool.length)
+                this.canopyLayer.index = RANDOM.nextInt(lpool.length);
+            this.sustainLayer(this.canopyLayer,
+                    ContainerManager.resolve(ISoundLibrary.class)
+                            .getSoundFactoryOrDefault(lpool[this.canopyLayer.index]),
+                    CANOPY_LEVEL * swell * wLeaf * windVolumeScale());
+        } else {
+            this.fadeLayer(this.canopyLayer);
+        }
     }
 
-    if (wooded && tier >= 1) {
-        final var lpool = RAIN_TEXTURE_LEAF;
-        if (this.canopyLayer.index < 0 || this.canopyLayer.index >= lpool.length)
-            this.canopyLayer.index = RANDOM.nextInt(lpool.length);
-        this.sustainLayer(this.canopyLayer,
-                ContainerManager.resolve(ISoundLibrary.class)
-                        .getSoundFactoryOrDefault(lpool[this.canopyLayer.index]),
-                CANOPY_LEVEL * swell * windVolumeScale());
-    } else {
-        this.fadeLayer(this.canopyLayer);
+    /**
+     * 带滞回的门控：开了要掉到 {@code min - hysteresis} 以下才关。
+     */
+    private static boolean gate(final boolean open, final float level, final float min, final float hysteresis) {
+        return open ? level >= min - hysteresis : level >= min;
     }
-}
+
+    /**
+     * 当前（或即将使用的）床素材是不是自带叶声。
+     *
+     * <p>两个来源，配置优先：{@code WindProfile.assetHasLeaves} 是显式声明；没有声明时
+     * 用谱质心兜底（&gt; {@link #ASSET_LEAF_CENTROID_HZ}）。这一条在本包里很实在：有树群系的
+     * 默认床素材就是 cinetony 的树叶录音（{@code biome.wind.plains}，谱质心 4105 Hz），不跳过叶层就是
+     * <b>同一份树叶叠两遍</b>（T2b 对 T2c）。</p>
+     */
+    private boolean bedHasLeaves(final WindProfile profile) {
+        if (profile != null && profile.assetHasLeaves())
+            return true;
+        final var info = this.scanner.playerLogicBiomeInfo();
+        final Object bedAsset = this.rainWindAsset != null ? this.rainWindAsset
+                : (info != null && isWooded(info) ? WIND_GENERIC : WIND_OPEN);
+        return windAssetCentroid(bedAsset) > ASSET_LEAF_CENTROID_HZ;
+    }
+
+    /**
+     * 已知风素材的谱质心，Hz。实测值见设计附录 D.1（本包床档位 194~359 Hz、
+     * {@code wind_open} 444 Hz、cinetony 树叶录音 {@code wind_plains} 4105 Hz）。表外的素材按 0 处理 ——
+     * “不知道”不等于“有叶子”：误判成有叶会把叶层整层删掉，而漏判的代价只是最多 +1.6 dB 的重复。
+     */
+    private static float windAssetCentroid(final Object asset) {
+        final String name = assetName(asset);
+        if (name.endsWith("biome.wind.plains"))
+            return 4105F;
+        if (name.endsWith("biome.wind.open"))
+            return 444F;
+        if (name.endsWith("biome.wind"))
+            return 250F;
+        return 0F;
+    }
 
     /**
      * The rain wind bed: a continuous, non-attenuated loop whose volume tracks

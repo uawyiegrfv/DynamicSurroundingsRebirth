@@ -3,7 +3,7 @@
     "soundEvent": "minecraft:entity.lightning_bolt.thunder",
     "rules": [
       {
-        "factory": "dsurround:thunder"
+        "factory": "dsrebirth:thunder"
       }
     ]
   },
@@ -16,14 +16,14 @@
         ],
         "_comment": "【紫水晶块】晶体不该是 stone 闷响。主体改 marble（移植版的清脆族），钟声仍由 accent 提供。用 #minecraft:crystal_sound_blocks。",
         "accent": [
-          "dsurround:footstep_accent/amethyst"
+          "dsrebirth:footstep_accent/amethyst"
         ],
-        "factory": "dsurround:footsteps.marble"
+        "factory": "dsrebirth:footsteps.marble"
       },
       {
-        "factory": "dsurround:footsteps.stone",
+        "factory": "dsrebirth:footsteps.stone",
         "accent": [
-          "dsurround:footstep_accent/amethyst"
+          "dsrebirth:footstep_accent/amethyst"
         ]
       }
     ]
@@ -38,9 +38,9 @@
         ],
         "_comment": "【晶簇/晶芽】同上；用 #c:clusters 与 #c:buds，模组晶体只要进通用标签即可生效。",
         "accent": [
-          "dsurround:footstep_accent/amethyst"
+          "dsrebirth:footstep_accent/amethyst"
         ],
-        "factory": "dsurround:footsteps.marble"
+        "factory": "dsrebirth:footsteps.marble"
       },
       {
         "blocks": [
@@ -50,15 +50,15 @@
           "minecraft:small_amethyst_bud"
         ],
         "_comment": "【紫水晶晶体材质】晶簇本身是晶体，原本主体是 stone（闷响）只靠 accent 出叮当。主体改为 marble（清脆族），紫水晶钟声仍由 accent 提供。",
-        "factory": "dsurround:footsteps.marble",
+        "factory": "dsrebirth:footsteps.marble",
         "accent": [
-          "dsurround:footstep_accent/amethyst"
+          "dsrebirth:footstep_accent/amethyst"
         ]
       },
       {
-        "factory": "dsurround:footsteps.stone",
+        "factory": "dsrebirth:footsteps.stone",
         "accent": [
-          "dsurround:footstep_accent/amethyst"
+          "dsrebirth:footstep_accent/amethyst"
         ]
       }
     ]
@@ -71,10 +71,10 @@
           "minecraft:ancient_debris"
         ],
         "_comment": "【保护规则】#c:ores 里包含 ancient_debris，但它是下界合金矿石=金属块，1.12.2 里对应 hardmetal（金属箱材质）。而通用矿石规则写在 block.deepslate.step 里（为了让深板岩矿石保留深板岩材质），按顺序会先命中，所以这里显式声明。",
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsrebirth:footsteps.metalbox"
       },
       {
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsrebirth:footsteps.metalbox"
       }
     ]
   },
@@ -82,7 +82,7 @@
     "soundEvent": "minecraft:block.anvil.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsrebirth:footsteps.metalbox"
       }
     ]
   },
@@ -90,7 +90,7 @@
     "soundEvent": "minecraft:block.azalea.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -98,7 +98,7 @@
     "soundEvent": "minecraft:block.azalea_leaves.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.leaves_through"
+        "factory": "dsrebirth:footsteps.leaves_through"
       }
     ]
   },
@@ -106,7 +106,7 @@
     "soundEvent": "minecraft:block.bamboo.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.bamboo"
+        "factory": "dsrebirth:footsteps.bamboo"
       }
     ]
   },
@@ -118,17 +118,17 @@
           "#c:ladders"
         ],
         "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
-        "factory": "dsurround:footsteps/ladder"
+        "factory": "dsrebirth:footsteps/ladder"
       },
       {
         "blocks": [
           "#minecraft:all_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       },
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -136,7 +136,7 @@
     "soundEvent": "minecraft:block.basalt.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsrebirth:footsteps.stone"
       }
     ]
   },
@@ -144,7 +144,7 @@
     "soundEvent": "minecraft:block.big_dripleaf.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -156,10 +156,10 @@
           "minecraft:bone_block"
         ],
         "_comment": "【骨块】中空干骨，走 bone_dry 变体（同录音压调，更闷更空）。",
-        "factory": "dsurround:footsteps.bone_dry"
+        "factory": "dsrebirth:footsteps.bone_dry"
       },
       {
-        "factory": "dsurround:footsteps.bone"
+        "factory": "dsrebirth:footsteps.bone"
       }
     ]
   },
@@ -171,10 +171,10 @@
           "minecraft:calcite"
         ],
         "_comment": "【方解石】软的粉质亮矿物，改用升调的 footsteps.calcite_soft。",
-        "factory": "dsurround:footsteps.calcite_soft"
+        "factory": "dsrebirth:footsteps.calcite_soft"
       },
       {
-        "factory": "dsurround:footsteps.marble"
+        "factory": "dsrebirth:footsteps.marble"
       }
     ]
   },
@@ -186,9 +186,9 @@
           "#minecraft:candles"
         ],
         "_comment": "【蜡烛】干硬的蜡，走 wax_dry 变体（比 organic 本体更干爽更响一点），保留很轻的泥副音作底。",
-        "factory": "dsurround:footsteps.wax_dry",
+        "factory": "dsrebirth:footsteps.wax_dry",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ]
       },
       {
@@ -213,12 +213,12 @@
         ],
         "_comment": "【1.12.2 造法还原 - 蜡烛】蜡烛是蜡：干而硬的有机质。1.12.2 没有蜡烛，按它对同类方块（organic = dirt ⊕ mud）的造法处理；不再用之前的 stone 叩击，更不是更早的 glass 叮当。",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ],
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsrebirth:footsteps.organic"
       },
       {
-        "factory": "dsurround:footsteps.glass"
+        "factory": "dsrebirth:footsteps.glass"
       }
     ]
   },
@@ -226,7 +226,7 @@
     "soundEvent": "minecraft:block.cave_vines.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -234,7 +234,7 @@
     "soundEvent": "minecraft:block.chain.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbar"
+        "factory": "dsrebirth:footsteps.metalbar"
       }
     ]
   },
@@ -242,7 +242,7 @@
     "soundEvent": "minecraft:block.cherry_leaves.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.leaves_through"
+        "factory": "dsrebirth:footsteps.leaves_through"
       }
     ]
   },
@@ -250,7 +250,7 @@
     "soundEvent": "minecraft:block.cherry_sapling.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -262,17 +262,17 @@
           "#c:ladders"
         ],
         "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
-        "factory": "dsurround:footsteps/ladder"
+        "factory": "dsrebirth:footsteps/ladder"
       },
       {
         "blocks": [
           "#minecraft:all_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       },
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -280,7 +280,7 @@
     "soundEvent": "minecraft:block.chiseled_bookshelf.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -299,14 +299,14 @@
           "minecraft:copper_chest"
         ],
         "_comment": "【铜 - 薄壳件】门/活板门/格栅/灯泡/锁链/栏杆/提灯/铜箱走薄壳变调 copper_hollow。",
-        "factory": "dsurround:footsteps.copper_hollow"
+        "factory": "dsrebirth:footsteps.copper_hollow"
       },
       {
         "blocks": [
           "#c:storage_blocks/copper"
         ],
         "_comment": "【铜 - 实心块】实心铜块保持默认 copper。",
-        "factory": "dsurround:footsteps.copper"
+        "factory": "dsrebirth:footsteps.copper"
       },
       {
         "blocks": [
@@ -348,9 +348,9 @@
           "minecraft:weathered_cut_copper"
         ],
         "_comment": "【铜 - 氧化色】氧化/风化铜表面是钝的铜绿，不像新铜清亮；走 copper_dull 变体（同录音压低 + 降音量）。再加一层很轻的 sand 副音做「哑面细颗粒」的质感（1.12.2 里 sand 层就是用来表达颗粒感的，砂石、砾石都用了它）。这些方块没有专属标签，按 exposed_/weathered_/oxidized_ 前缀归类。",
-        "factory": "dsurround:footsteps.copper_dull",
+        "factory": "dsrebirth:footsteps.copper_dull",
         "accent": [
-          "dsurround:footstep_accent/sand"
+          "dsrebirth:footstep_accent/sand"
         ]
       },
       {
@@ -364,10 +364,10 @@
           "minecraft:copper_golem_statue"
         ],
         "_comment": "【铜 - 薄壳件】门/活板门/格栅/灯泡/锁链/栏杆/提灯/铜箱是薄壳或镂空件，比实心铜块更亮更薄，走 copper_hollow 变体（同录音升调 1.15~1.25）。",
-        "factory": "dsurround:footsteps.copper_hollow"
+        "factory": "dsrebirth:footsteps.copper_hollow"
       },
       {
-        "factory": "dsurround:footsteps.copper"
+        "factory": "dsrebirth:footsteps.copper"
       }
     ]
   },
@@ -379,7 +379,7 @@
           "minecraft:copper_bulb"
         ],
         "_comment": "【铜 - 薄壳件】门/活板门/格栅/灯泡/锁链/栏杆/提灯/铜箱是薄壳或镂空件，比实心铜块更亮更薄，走 copper_hollow 变体（同录音升调 1.15~1.25）。",
-        "factory": "dsurround:footsteps.copper_hollow"
+        "factory": "dsrebirth:footsteps.copper_hollow"
       },
       {
         "blocks": [
@@ -388,13 +388,13 @@
           "minecraft:oxidized_copper_bulb"
         ],
         "_comment": "【铜 - 氧化色】灯泡 的氧化/风化态表面是钝的铜绿，走 copper_dull 变体（同录音压低 0.80~0.90 + 降音量），并加很轻的 sand 副音做「哑面细颗粒」质感。",
-        "factory": "dsurround:footsteps.copper_dull",
+        "factory": "dsrebirth:footsteps.copper_dull",
         "accent": [
-          "dsurround:footstep_accent/sand"
+          "dsrebirth:footstep_accent/sand"
         ]
       },
       {
-        "factory": "dsurround:footsteps.copper"
+        "factory": "dsrebirth:footsteps.copper"
       }
     ]
   },
@@ -406,7 +406,7 @@
           "minecraft:copper_grate"
         ],
         "_comment": "【铜 - 薄壳件】门/活板门/格栅/灯泡/锁链/栏杆/提灯/铜箱是薄壳或镂空件，比实心铜块更亮更薄，走 copper_hollow 变体（同录音升调 1.15~1.25）。",
-        "factory": "dsurround:footsteps.copper_hollow"
+        "factory": "dsrebirth:footsteps.copper_hollow"
       },
       {
         "blocks": [
@@ -415,13 +415,13 @@
           "minecraft:oxidized_copper_grate"
         ],
         "_comment": "【铜 - 氧化色】格栅 的氧化/风化态表面是钝的铜绿，走 copper_dull 变体（同录音压低 0.80~0.90 + 降音量），并加很轻的 sand 副音做「哑面细颗粒」质感。",
-        "factory": "dsurround:footsteps.copper_dull",
+        "factory": "dsrebirth:footsteps.copper_dull",
         "accent": [
-          "dsurround:footstep_accent/sand"
+          "dsrebirth:footstep_accent/sand"
         ]
       },
       {
-        "factory": "dsurround:footsteps.copper"
+        "factory": "dsrebirth:footsteps.copper"
       }
     ]
   },
@@ -430,12 +430,12 @@
     "rules": [
       {
         "blocks": [
-          "#dsurround:effects/wax_blocks"
+          "#dsrebirth:effects/wax_blocks"
         ],
         "_comment": "【蜂巢块】同为蜡质，走 wax_dry。",
-        "factory": "dsurround:footsteps.wax_dry",
+        "factory": "dsrebirth:footsteps.wax_dry",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ]
       },
       {
@@ -444,9 +444,9 @@
         ],
         "_comment": "【1.12.2 造法还原 - 蜂巢块】蜡质=干而硬的有机质。1.12.2 的 organic 就是 dirt 主体 ⊕ mud 副音（两层等额），这里照搬它的构造。",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ],
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsrebirth:footsteps.organic"
       },
       {
         "blocks": [
@@ -455,22 +455,22 @@
         ],
         "_comment": "【1.12.2 造法还原 - 干泥】1.12.2 的 mud 只用于【湿海绵】一处，是湿滑层；压实泥与泥砖是已干燥的土，对应 1.12.2 的 organic_dry（grass_run 主体），再叠一层轻的 mud 副音保留「土」的底子。",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ],
-        "factory": "dsurround:footsteps.organic_dry"
+        "factory": "dsrebirth:footsteps.organic_dry"
       },
       {
         "blocks": [
           "#minecraft:coral_blocks"
         ],
         "_comment": "【活的珊瑚块】湿润的活体，保持 organic + 泥副音的「湿软」读感，与蜡质区分开。",
-        "factory": "dsurround:footsteps.organic",
+        "factory": "dsrebirth:footsteps.organic",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ]
       },
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsrebirth:footsteps.stone"
       }
     ]
   },
@@ -478,7 +478,7 @@
     "soundEvent": "minecraft:block.creaking_heart.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -490,10 +490,10 @@
           "minecraft:decorated_pot"
         ],
         "_comment": "【饰纹陶罐】陶罐是陶土制品，原本落到 glass（碎玻璃叮当）不合理。1.12.2 把陶土/黏土归到 brickstone（brickstone 的定义本身就是 concrete 录音），所以改走 brickstone/concrete。",
-        "factory": "dsurround:brickstone/concrete"
+        "factory": "dsrebirth:brickstone/concrete"
       },
       {
-        "factory": "dsurround:footsteps.glass"
+        "factory": "dsrebirth:footsteps.glass"
       }
     ]
   },
@@ -505,10 +505,10 @@
           "#c:ores"
         ],
         "_comment": "【矿石】1.12.2 的 ore acoustic 逐字节等于 stone，所以矿石主体就是 stone。放在 block.deepslate.step 的 catch-all 之前，让深板岩矿石先保留深板岩材质。用 #c:ores，模组矿石自动生效。",
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsrebirth:footsteps.stone"
       },
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsrebirth:footsteps.stone"
       }
     ]
   },
@@ -516,7 +516,7 @@
     "soundEvent": "minecraft:block.deepslate_bricks.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.concrete"
+        "factory": "dsrebirth:footsteps.concrete"
       }
     ]
   },
@@ -524,7 +524,7 @@
     "soundEvent": "minecraft:block.deepslate_tiles.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.concrete"
+        "factory": "dsrebirth:footsteps.concrete"
       }
     ]
   },
@@ -532,7 +532,7 @@
     "soundEvent": "minecraft:block.polished_deepslate.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsrebirth:footsteps.stone"
       }
     ]
   },
@@ -540,7 +540,7 @@
     "soundEvent": "minecraft:block.dried_ghast.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsrebirth:footsteps.organic"
       }
     ]
   },
@@ -552,10 +552,10 @@
           "minecraft:dripstone_block"
         ],
         "_comment": "【滴水石】可溶石灰岩，多孔偏软，改用再压低一档的 footsteps.dripstone。",
-        "factory": "dsurround:footsteps.dripstone"
+        "factory": "dsrebirth:footsteps.dripstone"
       },
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsrebirth:footsteps.stone"
       }
     ]
   },
@@ -567,10 +567,10 @@
           "minecraft:pointed_dripstone"
         ],
         "_comment": "【滴水石锥】同滴水石，用 footsteps.dripstone。",
-        "factory": "dsurround:footsteps.dripstone"
+        "factory": "dsrebirth:footsteps.dripstone"
       },
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsrebirth:footsteps.stone"
       }
     ]
   },
@@ -581,10 +581,10 @@
         "blocks": [
           "minecraft:rooted_dirt"
         ],
-        "factory": "dsurround:footsteps.dirt"
+        "factory": "dsrebirth:footsteps.dirt"
       },
       {
-        "factory": "dsurround:footsteps.dirt"
+        "factory": "dsrebirth:footsteps.dirt"
       }
     ]
   },
@@ -592,7 +592,7 @@
     "soundEvent": "minecraft:block.flowering_azalea.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -606,10 +606,10 @@
           "minecraft:verdant_froglight"
         ],
         "_comment": "【蛙明灯】走软化变体 froglight_soft（同录音压调 + 降音量，软而闷）。",
-        "factory": "dsurround:footsteps.froglight_soft"
+        "factory": "dsrebirth:footsteps.froglight_soft"
       },
       {
-        "factory": "dsurround:footsteps.froglight"
+        "factory": "dsrebirth:footsteps.froglight"
       }
     ]
   },
@@ -617,7 +617,7 @@
     "soundEvent": "minecraft:block.frogspawn.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.rug"
+        "factory": "dsrebirth:footsteps.rug"
       }
     ]
   },
@@ -625,7 +625,7 @@
     "soundEvent": "minecraft:block.fungus.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.rug"
+        "factory": "dsrebirth:footsteps.rug"
       }
     ]
   },
@@ -633,12 +633,12 @@
     "soundEvent": "minecraft:block.gilded_blackstone.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.concrete"
+        "factory": "dsrebirth:footsteps.concrete"
       }
     ]
   },
   {
-    "_comment": "玻璃材质说明（改这块之前务必读完）：1.12.2 mcp.json 的 glass acoustic 是 walk = wood_walk + glass_hit(pitch 0.95~1.05) 两层【同时】播放；land = wood_walk + glass_hard@0.5 + 延迟30ms 的 wood_walk / glass_hit。也就是说玻璃的主体是木头，叮当只是副音 —— 踩上去是「木板上洒了碎玻璃」的声音。所以文件末尾那条玻璃默认规则的 factory 必须是 dsurround:footsteps.wood，玻璃只能作为 accent 出现（现指向 dsurround:footstep_accent/glass，专为还原 1.12.2 的 pitch 0.95~1.05 而设）。若把 factory 改成 footsteps.glass，叮当会响两遍且木头主体完全消失，那不是修复而是回归（2026-09-11 的 abf3968 就是这么错的）。",
+    "_comment": "玻璃材质说明（改这块之前务必读完）：1.12.2 mcp.json 的 glass acoustic 是 walk = wood_walk + glass_hit(pitch 0.95~1.05) 两层【同时】播放；land = wood_walk + glass_hard@0.5 + 延迟30ms 的 wood_walk / glass_hit。也就是说玻璃的主体是木头，叮当只是副音 —— 踩上去是「木板上洒了碎玻璃」的声音。所以文件末尾那条玻璃默认规则的 factory 必须是 dsrebirth:footsteps.wood，玻璃只能作为 accent 出现（现指向 dsrebirth:footstep_accent/glass，专为还原 1.12.2 的 pitch 0.95~1.05 而设）。若把 factory 改成 footsteps.glass，叮当会响两遍且木头主体完全消失，那不是修复而是回归（2026-09-11 的 abf3968 就是这么错的）。",
     "soundEvent": "minecraft:block.glass.step",
     "rules": [
       {
@@ -646,10 +646,10 @@
           "#minecraft:ice",
           "#c:ice"
         ],
-        "factory": "dsurround:footsteps.stone",
+        "factory": "dsrebirth:footsteps.stone",
         "accent": [
-          "dsurround:footstep_accent/muffledice",
-          "dsurround:footstep_accent/weakice"
+          "dsrebirth:footstep_accent/muffledice",
+          "dsrebirth:footstep_accent/weakice"
         ]
       },
       {
@@ -657,15 +657,15 @@
           "minecraft:glowstone",
           "minecraft:shroomlight"
         ],
-        "factory": "dsurround:footsteps.concrete",
+        "factory": "dsrebirth:footsteps.concrete",
         "accent": [
-          "dsurround:footstep_accent/weakice"
+          "dsrebirth:footstep_accent/weakice"
         ]
       },
       {
-        "factory": "dsurround:footsteps.wood",
+        "factory": "dsrebirth:footsteps.wood",
         "accent": [
-          "dsurround:footstep_accent/glass"
+          "dsrebirth:footstep_accent/glass"
         ]
       }
     ]
@@ -675,29 +675,29 @@
     "rules": [
       {
         "blocks": [
-          "#dsurround:effects/leaves_step"
+          "#dsrebirth:effects/leaves_step"
         ],
-        "factory": "dsurround:footsteps.dirt",
+        "factory": "dsrebirth:footsteps.dirt",
         "accent": [
-          "dsurround:footsteps.leaves_through"
+          "dsrebirth:footsteps.leaves_through"
         ]
       },
       {
         "blocks": [
           "minecraft:hay_block"
         ],
-        "factory": "dsurround:footsteps.leaves_through"
+        "factory": "dsrebirth:footsteps.leaves_through"
       },
       {
         "blocks": [
           "minecraft:dirt_path"
         ],
-        "factory": "dsurround:footsteps/dirt_path"
+        "factory": "dsrebirth:footsteps/dirt_path"
       },
       {
-        "factory": "dsurround:footsteps.grass",
+        "factory": "dsrebirth:footsteps.grass",
         "accent": [
-          "dsurround:footstep_accent/brush"
+          "dsrebirth:footstep_accent/brush"
         ]
       }
     ]
@@ -706,7 +706,7 @@
     "soundEvent": "minecraft:block.gravel.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.gravel"
+        "factory": "dsrebirth:footsteps.gravel"
       }
     ]
   },
@@ -714,7 +714,7 @@
     "soundEvent": "minecraft:block.hanging_roots.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -726,10 +726,10 @@
           "#minecraft:all_hanging_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       },
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -741,10 +741,10 @@
           "minecraft:heavy_core"
         ],
         "_comment": "【重核材质】重核是一整块金属（锤头），原本落到 stone。改用金属箱材质。",
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsrebirth:footsteps.metalbox"
       },
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsrebirth:footsteps.stone"
       }
     ]
   },
@@ -752,7 +752,7 @@
     "soundEvent": "minecraft:block.honey_block.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.honey"
+        "factory": "dsrebirth:footsteps.honey"
       }
     ]
   },
@@ -760,7 +760,7 @@
     "soundEvent": "minecraft:block.iron.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsrebirth:footsteps.metalbox"
       }
     ]
   },
@@ -772,10 +772,10 @@
           "#c:ladders"
         ],
         "_comment": "【梯子同步原版】1.12.2 的 ladder 材质就是 @block.ladder.step（直接引用原版梯子音效）。移植版给 minecraft:ladder 单独挂了 footsteps.bluntwood（非原版），模组梯子（Quark 等 14 个）又各自继承所属木质家族的事件，两边都不对。用 #c:ladders 统一到 footsteps/ladder（= bluntwood 录音 pitch 1.3~1.4，正对应 1.12.2 的 ladder walk = bluntwood_walk p130~140）。",
-        "factory": "dsurround:footsteps/ladder"
+        "factory": "dsrebirth:footsteps/ladder"
       },
       {
-        "factory": "dsurround:footsteps/ladder"
+        "factory": "dsrebirth:footsteps/ladder"
       }
     ]
   },
@@ -783,7 +783,7 @@
     "soundEvent": "minecraft:block.lantern.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsrebirth:footsteps.metalbox"
       }
     ]
   },
@@ -791,7 +791,7 @@
     "soundEvent": "minecraft:block.leaf_litter.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.leaves_crunch"
+        "factory": "dsrebirth:footsteps.leaves_crunch"
       }
     ]
   },
@@ -799,7 +799,7 @@
     "soundEvent": "minecraft:block.lodestone.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsrebirth:footsteps.metalbox"
       }
     ]
   },
@@ -811,10 +811,10 @@
           "minecraft:mangrove_roots"
         ],
         "_comment": "【沿用原版特殊脚步声】1.12.2 素材库里没有红树根，沿用原版的 block.mangrove_roots.step 并归一音量；落地用加响压调的同源录音。",
-        "factory": "dsurround:footsteps.mangrove_roots"
+        "factory": "dsrebirth:footsteps.mangrove_roots"
       },
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -825,7 +825,7 @@
         "blocks": [
           "minecraft:iron_bars"
         ],
-        "factory": "dsurround:footsteps.metalbar"
+        "factory": "dsrebirth:footsteps.metalbar"
       },
       {
         "blocks": [
@@ -834,7 +834,7 @@
           "minecraft:lapis_block",
           "minecraft:redstone_block"
         ],
-        "factory": "dsurround:footsteps.lino"
+        "factory": "dsrebirth:footsteps.lino"
       },
       {
         "blocks": [
@@ -844,9 +844,9 @@
           "minecraft:rail"
         ],
         "_comment": "【铁轨 - 木枕层】主体仍是被刻意压到 vol 0.2 的 metalbar_run（1.12.2 原值），副音加一层轻木（rail_plank），构成「闷木打底 + 轻金属」的层次。",
-        "factory": "dsurround:footsteps.metalbar_run",
+        "factory": "dsrebirth:footsteps.metalbar_run",
         "accent": [
-          "dsurround:footstep_accent/rail_plank"
+          "dsrebirth:footstep_accent/rail_plank"
         ]
       },
       {
@@ -859,9 +859,9 @@
           "minecraft:chain"
         ],
         "_comment": "【锁链】锁链是【细杆 + 环扣】，比铁块轻得多，也不该和实心金属一样响。走薄金属变体 metalbar_thin（升调 + 降音量），再叠一层链甲录音做环扣细响副音。",
-        "factory": "dsurround:footsteps.metalbar_thin",
+        "factory": "dsrebirth:footsteps.metalbar_thin",
         "accent": [
-          "dsurround:footstep_accent/chain_rattle"
+          "dsrebirth:footstep_accent/chain_rattle"
         ]
       },
       {
@@ -870,10 +870,10 @@
           "minecraft:iron_bars"
         ],
         "_comment": "【炼药锅 / 铁栏杆】是「杆件」而非「环扣」，保持 metalbar（音量已下调到 0.75~0.85）。",
-        "factory": "dsurround:footsteps.metalbar"
+        "factory": "dsrebirth:footsteps.metalbar"
       },
       {
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsrebirth:footsteps.metalbox"
       }
     ]
   },
@@ -885,16 +885,16 @@
           "minecraft:moss_block"
         ],
         "_comment": "【苔藓块】活苔藓松软有弹性，走 moss_soft 变体（同录音升调）。",
-        "factory": "dsurround:footsteps.moss_soft"
+        "factory": "dsrebirth:footsteps.moss_soft"
       },
       {
         "blocks": [
           "minecraft:pale_moss_block"
         ],
         "_comment": "【苍白苔藓块】更干、更贴地，走 moss_dry 变体（同录音压调），并加轻泥副音表达干土味。",
-        "factory": "dsurround:footsteps.moss_dry",
+        "factory": "dsrebirth:footsteps.moss_dry",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ]
       },
       {
@@ -905,10 +905,10 @@
           "minecraft:hanging_roots"
         ],
         "_comment": "【苔藓毯/垂苔】毯状与垂挂类的铺地物按 rug（柔软闷响）处理，与整块苔藓区分。",
-        "factory": "dsurround:footsteps.rug"
+        "factory": "dsrebirth:footsteps.rug"
       },
       {
-        "factory": "dsurround:footsteps.moss"
+        "factory": "dsrebirth:footsteps.moss"
       }
     ]
   },
@@ -916,7 +916,7 @@
     "soundEvent": "minecraft:block.moss_carpet.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.rug"
+        "factory": "dsrebirth:footsteps.rug"
       }
     ]
   },
@@ -924,7 +924,7 @@
     "soundEvent": "minecraft:block.mud.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.mud"
+        "factory": "dsrebirth:footsteps.mud"
       }
     ]
   },
@@ -933,16 +933,16 @@
     "rules": [
       {
         "blocks": [
-          "#dsurround:effects/dried_mud_blocks"
+          "#dsrebirth:effects/dried_mud_blocks"
         ],
         "_comment": "【干泥 - 泥砖】同上。",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ],
-        "factory": "dsurround:footsteps.organic_dry"
+        "factory": "dsrebirth:footsteps.organic_dry"
       },
       {
-        "factory": "dsurround:footsteps.mud"
+        "factory": "dsrebirth:footsteps.mud"
       }
     ]
   },
@@ -950,7 +950,7 @@
     "soundEvent": "minecraft:block.muddy_mangrove_roots.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.mud"
+        "factory": "dsrebirth:footsteps.mud"
       }
     ]
   },
@@ -958,7 +958,7 @@
     "soundEvent": "minecraft:block.nether_bricks.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.concrete"
+        "factory": "dsrebirth:footsteps.concrete"
       }
     ]
   },
@@ -967,7 +967,7 @@
     "rules": [
       {
         "_comment": "【下界矿石 = 下界岩】下界石英矿/下界金矿在 1.16+ 有各自的 SoundType（NETHER_ORE / NETHER_GOLD_ORE，见 SoundType.java），也就有各自的踩踏录音，所以按原版「逐事件」映射会落到泛用 stone —— 但那样在成片下界岩里走过去，脚下压到矿石的一瞬间音色会突变。移植版把下界岩建模成 gravel（1.12.2: netherrack = gravel,sand），这里让下界矿石走同一个材质，接缝消失。**这是相对 1.16+ 原版的故意偏离**，依据是观感一致性优先于还原原版的事件划分；1.12.2 也没有「下界矿石独立音效」这个概念（它的 quartz_ore 归 ore = stone，而 nether gold ore 尚不存在）。",
-        "factory": "dsurround:footsteps.gravel"
+        "factory": "dsrebirth:footsteps.gravel"
       }
     ]
   },
@@ -976,7 +976,7 @@
     "rules": [
       {
         "_comment": "【下界矿石 = 下界岩】下界石英矿/下界金矿在 1.16+ 有各自的 SoundType（NETHER_ORE / NETHER_GOLD_ORE，见 SoundType.java），也就有各自的踩踏录音，所以按原版「逐事件」映射会落到泛用 stone —— 但那样在成片下界岩里走过去，脚下压到矿石的一瞬间音色会突变。移植版把下界岩建模成 gravel（1.12.2: netherrack = gravel,sand），这里让下界矿石走同一个材质，接缝消失。**这是相对 1.16+ 原版的故意偏离**，依据是观感一致性优先于还原原版的事件划分；1.12.2 也没有「下界矿石独立音效」这个概念（它的 quartz_ore 归 ore = stone，而 nether gold ore 尚不存在）。",
-        "factory": "dsurround:footsteps.gravel"
+        "factory": "dsrebirth:footsteps.gravel"
       }
     ]
   },
@@ -984,7 +984,7 @@
     "soundEvent": "minecraft:block.nether_sprouts.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -996,17 +996,17 @@
           "#c:ladders"
         ],
         "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
-        "factory": "dsurround:footsteps/ladder"
+        "factory": "dsrebirth:footsteps/ladder"
       },
       {
         "blocks": [
           "#minecraft:all_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       },
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -1014,7 +1014,7 @@
     "soundEvent": "minecraft:block.netherite_block.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbox"
+        "factory": "dsrebirth:footsteps.metalbox"
       }
     ]
   },
@@ -1022,9 +1022,9 @@
     "soundEvent": "minecraft:block.netherrack.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.gravel",
+        "factory": "dsrebirth:footsteps.gravel",
         "accent": [
-          "dsurround:footstep_accent/sand"
+          "dsrebirth:footstep_accent/sand"
         ]
       }
     ]
@@ -1033,7 +1033,7 @@
     "soundEvent": "minecraft:block.nylium.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.grass"
+        "factory": "dsrebirth:footsteps.grass"
       }
     ]
   },
@@ -1042,16 +1042,16 @@
     "rules": [
       {
         "blocks": [
-          "#dsurround:effects/dried_mud_blocks"
+          "#dsrebirth:effects/dried_mud_blocks"
         ],
-        "_comment": "【干泥】1.12.2 的 mud 只用于湿海绵一处（湿滑层），干泥/泥砖属于干燥有机质，对应 organic_dry。用 #dsurround:effects/dried_mud_blocks。",
+        "_comment": "【干泥】1.12.2 的 mud 只用于湿海绵一处（湿滑层），干泥/泥砖属于干燥有机质，对应 organic_dry。用 #dsrebirth:effects/dried_mud_blocks。",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ],
-        "factory": "dsurround:footsteps.organic_dry"
+        "factory": "dsrebirth:footsteps.organic_dry"
       },
       {
-        "factory": "dsurround:footsteps.mud"
+        "factory": "dsrebirth:footsteps.mud"
       }
     ]
   },
@@ -1059,7 +1059,7 @@
     "soundEvent": "minecraft:block.pink_petals.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.leaves_through"
+        "factory": "dsrebirth:footsteps.leaves_through"
       }
     ]
   },
@@ -1067,7 +1067,7 @@
     "soundEvent": "minecraft:block.powder_snow.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.snow"
+        "factory": "dsrebirth:footsteps.snow"
       }
     ]
   },
@@ -1075,7 +1075,7 @@
     "soundEvent": "minecraft:block.resin.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsrebirth:footsteps.organic"
       }
     ]
   },
@@ -1083,7 +1083,7 @@
     "soundEvent": "minecraft:block.resin_bricks.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.concrete"
+        "factory": "dsrebirth:footsteps.concrete"
       }
     ]
   },
@@ -1091,7 +1091,7 @@
     "soundEvent": "minecraft:block.rooted_dirt.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.dirt"
+        "factory": "dsrebirth:footsteps.dirt"
       }
     ]
   },
@@ -1099,7 +1099,7 @@
     "soundEvent": "minecraft:block.roots.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -1107,7 +1107,7 @@
     "soundEvent": "minecraft:block.sand.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.sand"
+        "factory": "dsrebirth:footsteps.sand"
       }
     ]
   },
@@ -1115,7 +1115,7 @@
     "soundEvent": "minecraft:block.scaffolding.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -1123,7 +1123,7 @@
     "soundEvent": "minecraft:block.sculk.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.sculk"
+        "factory": "dsrebirth:footsteps.sculk"
       }
     ]
   },
@@ -1131,7 +1131,7 @@
     "soundEvent": "minecraft:block.sculk_catalyst.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.sculk"
+        "factory": "dsrebirth:footsteps.sculk"
       }
     ]
   },
@@ -1139,7 +1139,7 @@
     "soundEvent": "minecraft:block.sculk_sensor.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.sculk"
+        "factory": "dsrebirth:footsteps.sculk"
       }
     ]
   },
@@ -1147,7 +1147,7 @@
     "soundEvent": "minecraft:block.sculk_shrieker.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.sculk"
+        "factory": "dsrebirth:footsteps.sculk"
       }
     ]
   },
@@ -1159,10 +1159,10 @@
           "minecraft:sculk_vein"
         ],
         "_comment": "【1.12.2 材质补齐】幽匿脉络没有碰撞箱，原版的碰撞取面看不到它，会误报成下方方块。把它写成显式规则，让取面逻辑能认出来（音效不变）。",
-        "factory": "dsurround:footsteps.sculk_vein"
+        "factory": "dsrebirth:footsteps.sculk_vein"
       },
       {
-        "factory": "dsurround:footsteps.sculk_vein"
+        "factory": "dsrebirth:footsteps.sculk_vein"
       }
     ]
   },
@@ -1170,7 +1170,7 @@
     "soundEvent": "minecraft:block.shelf.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -1178,7 +1178,7 @@
     "soundEvent": "minecraft:block.shroomlight.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.shroomlight"
+        "factory": "dsrebirth:footsteps.shroomlight"
       }
     ]
   },
@@ -1190,10 +1190,10 @@
           "minecraft:sea_pickle"
         ],
         "_comment": "【海泡菜】海泡菜是软体水生植物，原本因为共用 slime_block 的 SoundType 而继承了 footsteps.slime（vol 1.0）。改走 grass —— 它是最轻最软的一族（vol 0.5），符合「柔软植物」应有的听感。slime_block 本身仍是 footsteps.slime。",
-        "factory": "dsurround:footsteps.grass"
+        "factory": "dsrebirth:footsteps.grass"
       },
       {
-        "factory": "dsurround:footsteps.slime"
+        "factory": "dsrebirth:footsteps.slime"
       }
     ]
   },
@@ -1201,7 +1201,7 @@
     "soundEvent": "minecraft:block.small_dripleaf.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -1209,7 +1209,7 @@
     "soundEvent": "minecraft:block.snow.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.snow"
+        "factory": "dsrebirth:footsteps.snow"
       }
     ]
   },
@@ -1217,7 +1217,7 @@
     "soundEvent": "minecraft:block.soul_sand.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.quicksand"
+        "factory": "dsrebirth:footsteps.quicksand"
       }
     ]
   },
@@ -1225,7 +1225,7 @@
     "soundEvent": "minecraft:block.soul_soil.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.quicksand"
+        "factory": "dsrebirth:footsteps.quicksand"
       }
     ]
   },
@@ -1233,7 +1233,7 @@
     "soundEvent": "minecraft:block.spawner.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbar"
+        "factory": "dsrebirth:footsteps.metalbar"
       }
     ]
   },
@@ -1241,7 +1241,7 @@
     "soundEvent": "minecraft:block.sponge.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.rug"
+        "factory": "dsrebirth:footsteps.rug"
       }
     ]
   },
@@ -1249,7 +1249,7 @@
     "soundEvent": "minecraft:block.spore_blossom.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.rug"
+        "factory": "dsrebirth:footsteps.rug"
       }
     ]
   },
@@ -1261,17 +1261,17 @@
           "#c:ladders"
         ],
         "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
-        "factory": "dsurround:footsteps/ladder"
+        "factory": "dsrebirth:footsteps/ladder"
       },
       {
         "blocks": [
           "#minecraft:all_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       },
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -1283,7 +1283,7 @@
           "minecraft:copper_ore"
         ],
         "_comment": "【矿石】铜矿是石头里含铜，1.12.2 里矿石是独立材质 ore（= stone）。通用矿石规则只写在 block.deepslate.step 下（为了深板岩矿石保留深板岩），而铜矿的 step 事件是 stone.step，匹配不到那条 —— 于是落到兜底，再被按名字推断成「铜」（copper_ore 含 _copper）。除了在 MaterialInference 里加 ore 名字保护，这里显式声明一次，不依赖 #c:ores 是否解析得到。",
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsrebirth:footsteps.stone"
       },
       {
         "blocks": [
@@ -1296,9 +1296,9 @@
           "minecraft:quartz_stairs"
         ],
         "_comment": "【石英】石英族走粉质变体 quartz_powdery，并加一层很轻的 sand 副音做「细粉颗粒」质感（1.12.2 的 sand 层就是用来表达颗粒的）。",
-        "factory": "dsurround:footsteps.quartz_powdery",
+        "factory": "dsrebirth:footsteps.quartz_powdery",
         "accent": [
-          "dsurround:footstep_accent/sand"
+          "dsrebirth:footstep_accent/sand"
         ]
       },
       {
@@ -1306,13 +1306,13 @@
           "minecraft:magma_block"
         ],
         "_comment": "【岩浆块】软的会开裂的热岩，不该是 stone 闷响；改用 concrete 压低的变体 footsteps.magma_soft。",
-        "factory": "dsurround:footsteps.magma_soft"
+        "factory": "dsrebirth:footsteps.magma_soft"
       },
       {
         "blocks": [
           "#minecraft:cauldrons"
         ],
-        "factory": "dsurround:footsteps.metalbar"
+        "factory": "dsrebirth:footsteps.metalbar"
       },
       {
         "blocks": [
@@ -1323,9 +1323,9 @@
           "minecraft:dragon_egg",
           "minecraft:end_gateway"
         ],
-        "factory": "dsurround:obsidian/stone",
+        "factory": "dsrebirth:obsidian/stone",
         "accent": [
-          "dsurround:obsidian/lino"
+          "dsrebirth:obsidian/lino"
         ]
       },
       {
@@ -1336,7 +1336,7 @@
           "minecraft:smooth_quartz",
           "minecraft:chiseled_quartz_block"
         ],
-        "factory": "dsurround:footsteps.marble"
+        "factory": "dsrebirth:footsteps.marble"
       },
       {
         "blocks": [
@@ -1349,9 +1349,9 @@
           "minecraft:cut_red_sandstone",
           "minecraft:chiseled_red_sandstone"
         ],
-        "factory": "dsurround:footsteps.concrete",
+        "factory": "dsrebirth:footsteps.concrete",
         "accent": [
-          "dsurround:footstep_accent/sand"
+          "dsrebirth:footstep_accent/sand"
         ]
       },
       {
@@ -1359,30 +1359,30 @@
           "minecraft:bedrock"
         ],
         "_comment": "【1.12.2 材质补齐 bedrock】基岩 = stone 录音压低到 55~60，见 footsteps.bedrock 的注释；land 与 stone 同一套合成。",
-        "factory": "dsurround:footsteps.bedrock"
+        "factory": "dsrebirth:footsteps.bedrock"
       },
       {
         "blocks": [
           "minecraft:beacon"
         ],
         "_comment": "【信标】1.12.2 把 beacon 归到 glass 材质。移植版那条 beacon 规则错挂在 block.glass.step 下，而信标自己的 step sound 是 block.stone.step，规则永远命中不到，实际播的是默认 stone。这里挂到正确的入口。",
-        "factory": "dsurround:footsteps.glass"
+        "factory": "dsrebirth:footsteps.glass"
       },
       {
         "blocks": [
           "minecraft:piston_head[type=normal]"
         ],
         "_comment": "【活塞头 - 普通】1.12.2 的 piston_head[type=normal] = wood。必须写成【方块状态】匹配：现代版没有 sticky_piston_head 这个方块，type 是 piston_head 的状态，写不存在的方块 ID 会被静默吃掉（MatchOnNothing，只留一行 warn）。",
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       },
       {
         "blocks": [
           "minecraft:piston_head[type=sticky]"
         ],
         "_comment": "【活塞头 - 黏性】1.12.2 的 piston_head[type=sticky] = wood_sticky（木主体 ⊕ 泥副音，黏性活塞头的黏面就是黏液球）。同样必须用方块状态匹配。",
-        "factory": "dsurround:footsteps.wood_sticky",
+        "factory": "dsrebirth:footsteps.wood_sticky",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ]
       },
       {
@@ -1392,21 +1392,21 @@
           "minecraft:brick_stairs"
         ],
         "_comment": "【1.12.2 材质补齐 brickstone - 砖】1.12.2 的 brickstone 就含砖方块与砖台阶。",
-        "factory": "dsurround:brickstone/concrete"
+        "factory": "dsrebirth:brickstone/concrete"
       },
       {
         "blocks": [
           "#minecraft:stone_bricks"
         ],
         "_comment": "【1.12.2 材质补齐 brickstone - 石砖族】用原版标签 #minecraft:stone_bricks（石砖/苔石砖/裂石砖/雕纹石砖），模组同族方块进标签即生效。",
-        "factory": "dsurround:brickstone/concrete"
+        "factory": "dsrebirth:brickstone/concrete"
       },
       {
         "blocks": [
           "#minecraft:terracotta"
         ],
         "_comment": "【1.12.2 材质补齐 brickstone - 陶土】1.12.2 把陶土归在 brickstone 系；移植版把 17 种陶土都落在默认的 stone 上，听感是石头而不是陶土。用原版标签 #minecraft:terracotta。",
-        "factory": "dsurround:brickstone/concrete"
+        "factory": "dsrebirth:brickstone/concrete"
       },
       {
         "blocks": [
@@ -1429,17 +1429,17 @@
           "#c:glazed_terracottas"
         ],
         "_comment": "【1.12.2 材质补齐 brickstone - 带釉陶瓦】同理，用通用标签 #c:glazed_terracottas。",
-        "factory": "dsurround:brickstone/concrete"
+        "factory": "dsrebirth:brickstone/concrete"
       },
       {
         "blocks": [
-          "#dsurround:effects/brickstone_family"
+          "#dsrebirth:effects/brickstone_family"
         ],
-        "_comment": "【1.12.2 材质补齐 brickstone - 其余成员】1.12.2 的 brickstone 还含紫珀、海晶石砖、末地石砖、蠹虫石砖、花盆等；这些没有合适的原版/通用标签，故放入本模组的 #dsurround:effects/brickstone_family，模组可自行扩展。",
-        "factory": "dsurround:brickstone/concrete"
+        "_comment": "【1.12.2 材质补齐 brickstone - 其余成员】1.12.2 的 brickstone 还含紫珀、海晶石砖、末地石砖、蠹虫石砖、花盆等；这些没有合适的原版/通用标签，故放入本模组的 #dsrebirth:effects/brickstone_family，模组可自行扩展。",
+        "factory": "dsrebirth:brickstone/concrete"
       },
       {
-        "factory": "dsurround:footsteps.stone"
+        "factory": "dsrebirth:footsteps.stone"
       }
     ]
   },
@@ -1447,7 +1447,7 @@
     "soundEvent": "minecraft:block.suspicious_gravel.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.gravel"
+        "factory": "dsrebirth:footsteps.gravel"
       }
     ]
   },
@@ -1455,7 +1455,7 @@
     "soundEvent": "minecraft:block.suspicious_sand.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.sand"
+        "factory": "dsrebirth:footsteps.sand"
       }
     ]
   },
@@ -1463,7 +1463,7 @@
     "soundEvent": "minecraft:block.trial_spawner.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbar"
+        "factory": "dsrebirth:footsteps.metalbar"
       }
     ]
   },
@@ -1488,7 +1488,7 @@
           "minecraft:tuff_brick_wall"
         ],
         "_comment": "【凝灰岩家族】凝灰岩是多孔火山岩，比实心石头轻、闷，所以用压低+降音量的变体 footsteps.tuff_soft（见该工厂注释）。注意这个家族【分属三个 step sound 事件】，所以三个事件下都写了规则。",
-        "factory": "dsurround:footsteps.tuff_soft"
+        "factory": "dsrebirth:footsteps.tuff_soft"
       },
       {
         "blocks": [
@@ -1503,10 +1503,10 @@
           "minecraft:tuff_brick_wall"
         ],
         "_comment": "【凝灰岩 - 薄件】台阶/半砖/墙是薄件，敲起来比整块更亮，走 tuff_thin 变体（同录音升调到 0.90~1.00）。必须在【拥有默认规则的入口、且在默认规则之前】，否则会被整块的 tuff_soft 默认先命中。",
-        "factory": "dsurround:footsteps.tuff_thin"
+        "factory": "dsrebirth:footsteps.tuff_thin"
       },
       {
-        "factory": "dsurround:footsteps.tuff"
+        "factory": "dsrebirth:footsteps.tuff"
       }
     ]
   },
@@ -1531,10 +1531,10 @@
           "minecraft:tuff_brick_wall"
         ],
         "_comment": "【凝灰岩家族】凝灰岩是多孔火山岩，比实心石头轻、闷，所以用压低+降音量的变体 footsteps.tuff_soft（见该工厂注释）。注意这个家族【分属三个 step sound 事件】，所以三个事件下都写了规则。",
-        "factory": "dsurround:footsteps.tuff_soft"
+        "factory": "dsrebirth:footsteps.tuff_soft"
       },
       {
-        "factory": "dsurround:footsteps.tuff"
+        "factory": "dsrebirth:footsteps.tuff"
       }
     ]
   },
@@ -1559,10 +1559,10 @@
           "minecraft:tuff_brick_wall"
         ],
         "_comment": "【凝灰岩家族】凝灰岩是多孔火山岩，比实心石头轻、闷，所以用压低+降音量的变体 footsteps.tuff_soft（见该工厂注释）。注意这个家族【分属三个 step sound 事件】，所以三个事件下都写了规则。",
-        "factory": "dsurround:footsteps.tuff_soft"
+        "factory": "dsrebirth:footsteps.tuff_soft"
       },
       {
-        "factory": "dsurround:footsteps.tuff"
+        "factory": "dsrebirth:footsteps.tuff"
       }
     ]
   },
@@ -1570,7 +1570,7 @@
     "soundEvent": "minecraft:block.vault.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.metalbar"
+        "factory": "dsrebirth:footsteps.metalbar"
       }
     ]
   },
@@ -1582,10 +1582,10 @@
           "minecraft:glow_lichen"
         ],
         "_comment": "【1.12.2 材质补齐】发光地衣与藤蔓共用 block.vine.step，但它没有碰撞箱、也不会被穿行效果处理，所以单独列出来让取面能认出（音效不变）。",
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       },
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -1593,7 +1593,7 @@
     "soundEvent": "minecraft:block.wart_block.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.rug"
+        "factory": "dsrebirth:footsteps.rug"
       }
     ]
   },
@@ -1601,7 +1601,7 @@
     "soundEvent": "minecraft:block.weeping_vines.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.brush_through"
+        "factory": "dsrebirth:footsteps.brush_through"
       }
     ]
   },
@@ -1609,7 +1609,7 @@
     "soundEvent": "minecraft:block.wet_grass.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.grass"
+        "factory": "dsrebirth:footsteps.grass"
       }
     ]
   },
@@ -1617,7 +1617,7 @@
     "soundEvent": "minecraft:block.wet_sponge.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.mud"
+        "factory": "dsrebirth:footsteps.mud"
       }
     ]
   },
@@ -1631,7 +1631,7 @@
           "minecraft:mushroom_stem"
         ],
         "_comment": "【有机质 - 菌类】蘑菇块/菌柄走松软变体 organic_spongy（见该工厂注释）。",
-        "factory": "dsurround:footsteps.organic_spongy"
+        "factory": "dsrebirth:footsteps.organic_spongy"
       },
       {
         "blocks": [
@@ -1642,7 +1642,7 @@
           "minecraft:cocoa"
         ],
         "_comment": "【有机质 - 硬壳瓜类】南瓜/西瓜/可可走硬壳变体 organic_shell。",
-        "factory": "dsurround:footsteps.organic_shell"
+        "factory": "dsrebirth:footsteps.organic_shell"
       },
       {
         "blocks": [
@@ -1650,28 +1650,28 @@
           "minecraft:bee_nest"
         ],
         "_comment": "【有机质 - 蜂巢类】蜂箱/蜂巢走蜡质变体 organic_waxy（与蜡烛那份蜡质区分：这里是蜂窝结构，更空）。",
-        "factory": "dsurround:footsteps.organic_waxy"
+        "factory": "dsrebirth:footsteps.organic_waxy"
       },
       {
         "blocks": [
           "#c:ladders"
         ],
         "_comment": "【梯子同步原版】1.12.2 的 ladder 就是 @block.ladder.step（引用原版梯子音效）。模组梯子的 step sound 并不统一 —— 木梯走 wood.step、竹梯走 bamboo_wood.step、樱梯走 cherry_wood.step、菌梯走 nether_wood.step，只有铁梯和原版梯子走 ladder.step。所以 #c:ladders 必须在【每个】相关事件下声明，而且必须排在第一条，否则会被各木质家族自己的默认规则先命中。",
-        "factory": "dsurround:footsteps/ladder"
+        "factory": "dsrebirth:footsteps/ladder"
       },
       {
         "blocks": [
           "#minecraft:logs",
           "#c:logs"
         ],
-        "factory": "dsurround:footsteps.log"
+        "factory": "dsrebirth:footsteps.log"
       },
       {
         "blocks": [
           "minecraft:chest",
           "minecraft:trapped_chest"
         ],
-        "factory": "dsurround:footsteps.squeakywood"
+        "factory": "dsrebirth:footsteps.squeakywood"
       },
       {
         "blocks": [
@@ -1685,7 +1685,7 @@
           "minecraft:cocoa",
           "minecraft:cake"
         ],
-        "factory": "dsurround:footsteps.organic_dry"
+        "factory": "dsrebirth:footsteps.organic_dry"
       },
       {
         "blocks": [
@@ -1706,7 +1706,7 @@
           "minecraft:red_bed",
           "minecraft:black_bed"
         ],
-        "factory": "dsurround:footsteps.rug"
+        "factory": "dsrebirth:footsteps.rug"
       },
       {
         "blocks": [
@@ -1724,7 +1724,7 @@
           "minecraft:pale_oak_door"
         ],
         "_comment": "【木 - 门/活板门】门板是薄板 + 中空，比实心木板更空更亮。1.12.2 的 BlockDoor 已单列为 bluntwood，这里用同录音升调再细分。",
-        "factory": "dsurround:footsteps.wood_door"
+        "factory": "dsrebirth:footsteps.wood_door"
       },
       {
         "blocks": [
@@ -1743,7 +1743,7 @@
           "minecraft:nether_brick_fence"
         ],
         "_comment": "【木 - 栅栏/栏杆】细杆件，比整块木板小声。同录音升调 + 降到 0.60~0.70。",
-        "factory": "dsurround:footsteps.wood_fence"
+        "factory": "dsrebirth:footsteps.wood_fence"
       },
       {
         "blocks": [
@@ -1773,7 +1773,7 @@
           "minecraft:pale_oak_pressure_plate"
         ],
         "_comment": "【木 - 按钮/压力板】极小的机构件，应该是一声很轻很脆的嗒。升调到 1.35~1.50、音量 0.45~0.55。",
-        "factory": "dsurround:footsteps.wood_click"
+        "factory": "dsrebirth:footsteps.wood_click"
       },
       {
         "blocks": [
@@ -1804,17 +1804,17 @@
           "minecraft:scaffolding"
         ],
         "_comment": "【木 - 活板门/栅栏门/脚手架】薄板或细构件，比整块木板轻。同录音小幅升调。",
-        "factory": "dsurround:footsteps.wood_thin"
+        "factory": "dsrebirth:footsteps.wood_thin"
       },
       {
         "blocks": [
           "#minecraft:all_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       },
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -1822,26 +1822,26 @@
     "soundEvent": "minecraft:block.wool.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.rug"
+        "factory": "dsrebirth:footsteps.rug"
       }
     ]
   },
   {
-    "_comment": "NOT_EMITTER equivalent: buttons produce no footstep (the 1.12.2 blockmap marked stone_button/wooden_button NOT_EMITTER). dsurround:footsteps.none is the reserved silent factory.",
+    "_comment": "NOT_EMITTER equivalent: buttons produce no footstep (the 1.12.2 blockmap marked stone_button/wooden_button NOT_EMITTER). dsrebirth:footsteps.none is the reserved silent factory.",
     "soundEvent": "minecraft:block.wood.step",
     "rules": [
       {
         "blocks": [
           "#minecraft:buttons"
         ],
-        "factory": "dsurround:footsteps.none"
+        "factory": "dsrebirth:footsteps.none"
       },
       {
         "blocks": [
           "#minecraft:all_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       }
     ]
   },
@@ -1853,7 +1853,7 @@
         "blocks": [
           "#minecraft:buttons"
         ],
-        "factory": "dsurround:footsteps.none"
+        "factory": "dsrebirth:footsteps.none"
       }
     ]
   },
@@ -1862,7 +1862,7 @@
     "soundEvent": "minecraft:block.cobweb.step",
     "rules": [
       {
-        "factory": "dsurround:footsteps.none"
+        "factory": "dsrebirth:footsteps.none"
       }
     ]
   },
@@ -1875,10 +1875,10 @@
           "#minecraft:all_hanging_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       },
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -1890,10 +1890,10 @@
           "#minecraft:all_hanging_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       },
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -1905,10 +1905,10 @@
           "#minecraft:all_hanging_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       },
       {
-        "factory": "dsurround:footsteps.wood"
+        "factory": "dsrebirth:footsteps.wood"
       }
     ]
   },
@@ -1920,16 +1920,16 @@
         "blocks": [
           "biomesoplenty:flesh"
         ],
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsrebirth:footsteps.organic"
       },
       {
         "blocks": [
-          "#dsurround:effects/wax_blocks"
+          "#dsrebirth:effects/wax_blocks"
         ],
         "_comment": "【蜂巢块】同为蜡质，走 wax_dry。",
-        "factory": "dsurround:footsteps.wax_dry",
+        "factory": "dsrebirth:footsteps.wax_dry",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ]
       },
       {
@@ -1937,9 +1937,9 @@
           "#minecraft:coral_blocks"
         ],
         "_comment": "【活的珊瑚块】湿润的活体，保持 organic + 泥副音的「湿软」读感，与蜡质区分开。",
-        "factory": "dsurround:footsteps.organic",
+        "factory": "dsrebirth:footsteps.organic",
         "accent": [
-          "dsurround:footstep_accent/mud_quiet"
+          "dsrebirth:footstep_accent/mud_quiet"
         ]
       }
     ]
@@ -1952,7 +1952,7 @@
         "blocks": [
           "quark:blaze_lantern"
         ],
-        "factory": "dsurround:footsteps.metalbar"
+        "factory": "dsrebirth:footsteps.metalbar"
       }
     ]
   },
@@ -1968,7 +1968,7 @@
           "quark:dirt_bricks_vertical_slab",
           "quark:dirt_bricks_wall"
         ],
-        "factory": "dsurround:footsteps.dirt"
+        "factory": "dsrebirth:footsteps.dirt"
       }
     ]
   },
@@ -1980,7 +1980,7 @@
         "blocks": [
           "quark:nether_brick_fence_gate"
         ],
-        "factory": "dsurround:footsteps.none"
+        "factory": "dsrebirth:footsteps.none"
       }
     ]
   },
@@ -1996,7 +1996,7 @@
           "quark:midori_block_vertical_slab",
           "quark:midori_pillar"
         ],
-        "factory": "dsurround:footsteps.concrete"
+        "factory": "dsrebirth:footsteps.concrete"
       },
       {
         "blocks": [
@@ -2018,13 +2018,13 @@
           "quark:polished_myalite_stairs",
           "quark:polished_myalite_vertical_slab"
         ],
-        "factory": "dsurround:footsteps.marble"
+        "factory": "dsrebirth:footsteps.marble"
       },
       {
         "blocks": [
           "quark:soul_sandstone_wall"
         ],
-        "factory": "dsurround:footsteps.none"
+        "factory": "dsrebirth:footsteps.none"
       }
     ]
   },
@@ -2038,14 +2038,14 @@
           "quark:paper_wall_big",
           "quark:paper_wall_sakura"
         ],
-        "factory": "dsurround:footsteps.organic_dry"
+        "factory": "dsrebirth:footsteps.organic_dry"
       },
       {
         "blocks": [
           "#minecraft:all_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       }
     ]
   },
@@ -2057,7 +2057,7 @@
         "blocks": [
           "biomesoplenty:blood"
         ],
-        "factory": "dsurround:footsteps.none"
+        "factory": "dsrebirth:footsteps.none"
       }
     ]
   },
@@ -2072,21 +2072,21 @@
           "minecraft:brick_stairs"
         ],
         "_comment": "【1.12.2 材质补齐 brickstone - 砖】1.12.2 的 brickstone 就含砖方块与砖台阶。",
-        "factory": "dsurround:brickstone/concrete"
+        "factory": "dsrebirth:brickstone/concrete"
       },
       {
         "blocks": [
           "#minecraft:stone_bricks"
         ],
         "_comment": "【1.12.2 材质补齐 brickstone - 石砖族】用原版标签 #minecraft:stone_bricks（石砖/苔石砖/裂石砖/雕纹石砖），模组同族方块进标签即生效。",
-        "factory": "dsurround:brickstone/concrete"
+        "factory": "dsrebirth:brickstone/concrete"
       },
       {
         "blocks": [
           "#c:glazed_terracottas"
         ],
         "_comment": "【1.12.2 材质补齐 brickstone - 带釉陶瓦】同理，用通用标签 #c:glazed_terracottas。",
-        "factory": "dsurround:brickstone/concrete"
+        "factory": "dsrebirth:brickstone/concrete"
       },
       {
         "blocks": [
@@ -2096,7 +2096,7 @@
           "minecraft:piston",
           "minecraft:sticky_piston"
         ],
-        "factory": "dsurround:stonemachine/concrete"
+        "factory": "dsrebirth:stonemachine/concrete"
       },
       {
         "blocks": [
@@ -2110,18 +2110,18 @@
           "minecraft:comparator",
           "minecraft:enchanting_table"
         ],
-        "factory": "dsurround:stoneutility/concrete",
+        "factory": "dsrebirth:stoneutility/concrete",
         "accent": [
-          "dsurround:stoneutility/lino"
+          "dsrebirth:stoneutility/lino"
         ]
       },
       {
         "blocks": [
           "minecraft:beacon"
         ],
-        "factory": "dsurround:footsteps.wood",
+        "factory": "dsrebirth:footsteps.wood",
         "accent": [
-          "dsurround:footstep_accent/glass"
+          "dsrebirth:footstep_accent/glass"
         ]
       }
     ]
@@ -2136,9 +2136,9 @@
           "minecraft:redstone_lamp",
           "minecraft:sea_lantern"
         ],
-        "factory": "dsurround:stoneutility/concrete",
+        "factory": "dsrebirth:stoneutility/concrete",
         "accent": [
-          "dsurround:stoneutility/lino"
+          "dsrebirth:stoneutility/lino"
         ]
       }
     ]
@@ -2152,27 +2152,27 @@
           "minecraft:note_block",
           "minecraft:jukebox"
         ],
-        "factory": "dsurround:woodutility/bluntwood",
+        "factory": "dsrebirth:woodutility/bluntwood",
         "accent": [
-          "dsurround:woodutility/lino"
+          "dsrebirth:woodutility/lino"
         ]
       },
       {
         "blocks": [
           "minecraft:daylight_detector"
         ],
-        "factory": "dsurround:stoneutility/concrete",
+        "factory": "dsrebirth:stoneutility/concrete",
         "accent": [
-          "dsurround:stoneutility/lino"
+          "dsrebirth:stoneutility/lino"
         ]
       },
       {
         "blocks": [
           "minecraft:end_rod"
         ],
-        "factory": "dsurround:footsteps.wood",
+        "factory": "dsrebirth:footsteps.wood",
         "accent": [
-          "dsurround:footstep_accent/glass"
+          "dsrebirth:footstep_accent/glass"
         ]
       },
       {
@@ -2180,7 +2180,7 @@
           "#minecraft:all_signs"
         ],
         "_comment": "【木 - 告示牌】牌面是悬空的薄板，比整块木板轻、带一点空腔共鸣；同录音升调 + 降到 0.70~0.80（不完整方块应比整块木料小声）。用原版聚合标签 #minecraft:all_signs / #minecraft:all_hanging_signs，模组牌子自动生效。",
-        "factory": "dsurround:footsteps.wood_sign"
+        "factory": "dsrebirth:footsteps.wood_sign"
       }
     ]
   },
@@ -2193,9 +2193,9 @@
           "minecraft:iron_door",
           "minecraft:iron_trapdoor"
         ],
-        "factory": "dsurround:metalsubparts/metalbox",
+        "factory": "dsrebirth:metalsubparts/metalbox",
         "accent": [
-          "dsurround:metalsubparts/metalbar"
+          "dsrebirth:metalsubparts/metalbar"
         ]
       },
       {
@@ -2208,9 +2208,9 @@
           "minecraft:chain"
         ],
         "_comment": "【锁链】锁链是【细杆 + 环扣】，比铁块轻得多，也不该和实心金属一样响。走薄金属变体 metalbar_thin（升调 + 降音量），再叠一层链甲录音做环扣细响副音。",
-        "factory": "dsurround:footsteps.metalbar_thin",
+        "factory": "dsrebirth:footsteps.metalbar_thin",
         "accent": [
-          "dsurround:footstep_accent/chain_rattle"
+          "dsrebirth:footstep_accent/chain_rattle"
         ]
       },
       {
@@ -2219,7 +2219,7 @@
           "minecraft:iron_bars"
         ],
         "_comment": "【炼药锅 / 铁栏杆】是「杆件」而非「环扣」，保持 metalbar（音量已下调到 0.75~0.85）。",
-        "factory": "dsurround:footsteps.metalbar"
+        "factory": "dsrebirth:footsteps.metalbar"
       }
     ]
   }

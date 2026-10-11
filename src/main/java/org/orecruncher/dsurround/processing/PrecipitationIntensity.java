@@ -927,7 +927,7 @@ public final class PrecipitationIntensity {
      */
     private static final net.minecraft.sounds.SoundEvent RAIN_CALM_SOUND =
             net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
-                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("dsurround", "rain"));
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("dsrebirth", "rain"));
 
     public static net.minecraft.sounds.SoundEvent rainCalmSound() {
         return RAIN_CALM_SOUND;
@@ -2373,7 +2373,7 @@ public final class PrecipitationIntensity {
     private static java.nio.file.Path stateFile() {
         try {
             return net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath()
-                    .resolve("dsurround-precip-event.json");
+                    .resolve("dsrebirth-precip-event.json");
         } catch (Throwable t) {
             return null;
         }

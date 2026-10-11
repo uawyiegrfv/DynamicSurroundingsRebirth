@@ -21,8 +21,8 @@ import java.util.stream.Stream;
  *
  * <ul>
  *   <li>{@code assets/&lt;namespace&gt;/dsconfigs/critwords.json} inside a mod jar;</li>
- *   <li>{@code config/dsurround/configs/&lt;namespace&gt;/critwords.json} on disk;</li>
- *   <li>a {@code "critwords"} section of a per-namespace aggregate {@code dsurround.json}
+ *   <li>{@code config/dsrebirth/configs/&lt;namespace&gt;/critwords.json} on disk;</li>
+ *   <li>a {@code "critwords"} section of a per-namespace aggregate {@code dsrebirth.json}
  *       (see CONFIGURATION.md section 4.9).</li>
  * </ul>
  *

@@ -65,7 +65,7 @@ public final class DSurroundMixinPlugin implements IMixinConfigPlugin {
             // Deliberately quiet at WARN: AudioUtilities already logs the auto-disable, and a
             // second warning about the same fact would be noise. println because this runs
             // before the mod's logging service is reliably usable.
-            System.out.println("[dsurround] Sound Physics Remastered detected: not claiming the "
+            System.out.println("[dsrebirth] Sound Physics Remastered detected: not claiming the "
                     + "alcCreateContext instruction (it owns it); aux sends come from its context.");
             return false;
         }

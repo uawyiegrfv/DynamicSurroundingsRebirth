@@ -74,11 +74,11 @@ public final class AuroraRenderPipelines {
                             DefaultVertexFormat.POSITION_TEX_COLOR),
                     s -> aurora128Shader = s);
         } catch (final IOException ex) {
-            throw new RuntimeException("Unable to register dsurround aurora shaders", ex);
+            throw new RuntimeException("Unable to register dsrebirth aurora shaders", ex);
         }
 
-        TYPE_64 = create("dsurround:aurora_64", () -> aurora64Shader);
-        TYPE_128 = create("dsurround:aurora_128", () -> aurora128Shader);
+        TYPE_64 = create("dsrebirth:aurora_64", () -> aurora64Shader);
+        TYPE_128 = create("dsrebirth:aurora_128", () -> aurora128Shader);
     }
 
     private static RenderType create(final String name, final Supplier<ShaderInstance> shader) {

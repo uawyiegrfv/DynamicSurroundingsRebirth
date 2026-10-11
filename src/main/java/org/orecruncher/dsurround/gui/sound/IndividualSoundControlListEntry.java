@@ -43,11 +43,11 @@ public class IndividualSoundControlListEntry extends ContainerObjectSelectionLis
     private static final Style STYLE_CREDIT_LICENSE = Style.EMPTY.withItalic(true).withColor(ColorPalette.MC_DARKAQUA);
     private static final Style STYLE_HELP = Style.EMPTY.withItalic(true).withColor(ColorPalette.KEY_LIME);
 
-    private static final FormattedCharSequence VANILLA_CREDIT = Component.translatable("dsurround.text.soundconfig.vanilla").getVisualOrderText();
-    private static final Collection<Component> VOLUME_HELP = GuiHelpers.getTrimmedTextCollection("dsurround.text.soundconfig.volume.help", TOOLTIP_WIDTH, STYLE_HELP);
-    private static final Collection<Component> PLAY_HELP = GuiHelpers.getTrimmedTextCollection("dsurround.text.soundconfig.play.help", TOOLTIP_WIDTH, STYLE_HELP);
-    private static final Collection<Component> CULL_HELP = GuiHelpers.getTrimmedTextCollection("dsurround.text.soundconfig.cull.help", TOOLTIP_WIDTH, STYLE_HELP);
-    private static final Collection<Component> BLOCK_HELP = GuiHelpers.getTrimmedTextCollection("dsurround.text.soundconfig.block.help", TOOLTIP_WIDTH, STYLE_HELP);
+    private static final FormattedCharSequence VANILLA_CREDIT = Component.translatable("dsrebirth.text.soundconfig.vanilla").getVisualOrderText();
+    private static final Collection<Component> VOLUME_HELP = GuiHelpers.getTrimmedTextCollection("dsrebirth.text.soundconfig.volume.help", TOOLTIP_WIDTH, STYLE_HELP);
+    private static final Collection<Component> PLAY_HELP = GuiHelpers.getTrimmedTextCollection("dsrebirth.text.soundconfig.play.help", TOOLTIP_WIDTH, STYLE_HELP);
+    private static final Collection<Component> CULL_HELP = GuiHelpers.getTrimmedTextCollection("dsrebirth.text.soundconfig.cull.help", TOOLTIP_WIDTH, STYLE_HELP);
+    private static final Collection<Component> BLOCK_HELP = GuiHelpers.getTrimmedTextCollection("dsrebirth.text.soundconfig.block.help", TOOLTIP_WIDTH, STYLE_HELP);
     private static final int CONTROL_SPACING = 3;
 
     private final IndividualSoundConfigEntry config;

@@ -171,7 +171,7 @@ public class BlockLibrary implements IBlockLibrary {
         // and simply misses a DS material (e.g. a brass block that sounds like whatever its
         // author chose). Groups are reviewed by comparing this against the block's tags and
         // name - that is how per-mod refinement rules are written. `dsdump blocks` writes
-        // this to config/dsurround/dumps/blocks.txt.
+        // this to config/dsrebirth/dumps/blocks.txt.
         var defaultState = block.defaultBlockState();
         var stepSound = defaultState.getSoundType().getStepSound();
         builder.append("\nstep sound: ").append(stepSound.getLocation());

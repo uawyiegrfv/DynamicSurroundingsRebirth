@@ -164,7 +164,7 @@ public abstract class ConfigElement<T> {
         }
 
         public Component getDefaultValueTooltip() {
-            return Component.translatable("dsurround.config.tooltip.defaultValue", this.defaultValue.toString()).withStyle(STYLE_DEFAULT);
+            return Component.translatable("dsrebirth.config.tooltip.defaultValue", this.defaultValue.toString()).withStyle(STYLE_DEFAULT);
         }
     }
 
@@ -180,7 +180,7 @@ public abstract class ConfigElement<T> {
         @Override
         public Component getDefaultValueTooltip() {
             var text = this.defaultValue() ? YES : NO;
-            return Component.translatable("dsurround.config.tooltip.defaultValue", text).withStyle(STYLE_DEFAULT);
+            return Component.translatable("dsrebirth.config.tooltip.defaultValue", text).withStyle(STYLE_DEFAULT);
         }
     }
 
@@ -220,7 +220,7 @@ public abstract class ConfigElement<T> {
 
         @Override
         public Component getRangeTooltip() {
-            return Component.translatable("dsurround.config.tooltip.range", this.getMinValue(), this.getMaxValue()).withStyle(STYLE_RANGE);
+            return Component.translatable("dsrebirth.config.tooltip.range", this.getMinValue(), this.getMaxValue()).withStyle(STYLE_RANGE);
         }
 
         @Override
@@ -259,7 +259,7 @@ public abstract class ConfigElement<T> {
 
         @Override
         public Component getRangeTooltip() {
-            return Component.translatable("dsurround.config.tooltip.range", this.getMinValue(), this.getMaxValue()).withStyle(STYLE_RANGE);
+            return Component.translatable("dsrebirth.config.tooltip.range", this.getMinValue(), this.getMaxValue()).withStyle(STYLE_RANGE);
         }
 
         @Override

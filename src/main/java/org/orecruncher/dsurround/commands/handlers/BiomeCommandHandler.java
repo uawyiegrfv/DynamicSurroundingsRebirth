@@ -15,7 +15,7 @@ public class BiomeCommandHandler {
                 .map(rm -> {
                     var biome = rm.registry(Registries.BIOME).map(r -> r.get(biomeIdentifier));
                     if (biome.isEmpty()) {
-                        return Component.translatable("dsurround.command.dsbiome.failure.unknown_biome", biomeIdentifier.toString());
+                        return Component.translatable("dsrebirth.command.dsbiome.failure.unknown_biome", biomeIdentifier.toString());
                     }
                     var result = ContainerManager.resolve(IBiomeLibrary.class).eval(biome.get(), new Script(script));
                     return Component.literal(result.toString());

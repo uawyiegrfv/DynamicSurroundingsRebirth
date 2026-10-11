@@ -11,9 +11,9 @@ public class ReloadCommandHandler {
         try {
             var resourceUtilities = ResourceUtilities.createForCurrentState();
             AssetLibraryEvent.RELOAD.raise().onReload(resourceUtilities, IReloadEvent.Scope.ALL);
-            return Component.translatable("dsurround.command.dsreload.success");
+            return Component.translatable("dsrebirth.command.dsreload.success");
         } catch (Throwable t) {
-            return Component.translatable("dsurround.command.dsreload.failure", t.getMessage());
+            return Component.translatable("dsrebirth.command.dsreload.failure", t.getMessage());
         }
     }
 }

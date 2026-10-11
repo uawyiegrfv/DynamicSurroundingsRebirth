@@ -32,7 +32,7 @@ public class HeldTorchBurnHandler {
     // Chance per tick while a torch is held: 0.012 -> ~4s average interval. Note the chance
     // is per tick, so it accumulates to 24%/second; 0.03 (~1.7s) reads as a near-continuous
     // crackle because each clip is 1.8s. The held sound uses its own sound factory
-    // (dsurround:held_torch_burn) so its volume is independent of the block-placed torch.
+    // (dsrebirth:held_torch_burn) so its volume is independent of the block-placed torch.
     private static final float TRIGGER_CHANCE = 0.012F;
 
     private final ISoundLibrary soundLibrary;

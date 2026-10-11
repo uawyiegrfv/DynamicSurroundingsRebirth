@@ -286,7 +286,7 @@ public class ItemLibrary implements IItemLibrary {
             net.minecraft.world.item.ArmorItem.Type.BOOTS);
 
     private static SoundEvent getArmorSound(String name) {
-        // The armor accent events are registered under the dsurround namespace.
+        // The armor accent events are registered under the dsrebirth namespace.
         return ContainerManager.resolve(ISoundLibrary.class)
                 .getSound(ResourceLocation.fromNamespaceAndPath(org.orecruncher.dsurround.Constants.MOD_ID, name));
     }

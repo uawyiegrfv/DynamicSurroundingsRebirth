@@ -30,9 +30,9 @@ public abstract class MixinSoundOptionsScreen extends OptionsSubScreen {
     @Inject(method = "addOptions()V", at = @At("RETURN"))
     public void dsurround_addSoundConfigButton(CallbackInfo ci) {
         // This will add a button in the lower left corner of the sound options menu
-        var toolTip = Tooltip.create(Component.translatable("dsurround.text.config.soundconfiguration.tooltip"));
+        var toolTip = Tooltip.create(Component.translatable("dsrebirth.text.config.soundconfiguration.tooltip"));
         var style = Style.EMPTY.withColor(ColorPalette.GOLD);
-        var buttonText = Component.translatable("dsurround.text.config.soundconfiguration").withStyle(style);
+        var buttonText = Component.translatable("dsrebirth.text.config.soundconfiguration").withStyle(style);
         var textWidth = GameUtils.getTextRenderer().width(buttonText) + 10;
 
         var buttonToAdd = Button.builder(buttonText, this::dsurround_onPress)
@@ -45,9 +45,9 @@ public abstract class MixinSoundOptionsScreen extends OptionsSubScreen {
         // after the vanilla sliders, same position as the 26.1 build).
         var soundConfig = org.orecruncher.dsurround.lib.config.ConfigurationData.getConfig(Configuration.class).soundOptions;
         this.list.addSmall(java.util.List.of(
-                new DsVolumeSlider("dsurround.options.footstepVolume", soundConfig.footstepVolume, v -> soundConfig.footstepVolume = v),
-                new DsVolumeSlider("dsurround.options.playerEffectVolume", soundConfig.playerEffectVolume, v -> soundConfig.playerEffectVolume = v),
-                new DsVolumeSlider("dsurround.options.biomeVolume", soundConfig.biomeVolume, v -> soundConfig.biomeVolume = v)));
+                new DsVolumeSlider("dsrebirth.options.footstepVolume", soundConfig.footstepVolume, v -> soundConfig.footstepVolume = v),
+                new DsVolumeSlider("dsrebirth.options.playerEffectVolume", soundConfig.playerEffectVolume, v -> soundConfig.playerEffectVolume = v),
+                new DsVolumeSlider("dsrebirth.options.biomeVolume", soundConfig.biomeVolume, v -> soundConfig.biomeVolume = v)));
     }
 
     /** A 0..2 (0%..200%) volume slider backed by a double configuration field. */

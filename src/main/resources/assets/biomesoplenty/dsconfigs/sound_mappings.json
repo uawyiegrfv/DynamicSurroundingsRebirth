@@ -6,7 +6,7 @@
         "blocks": [
           "biomesoplenty:glowshroom_block"
         ],
-        "factory": "dsurround:footsteps.organic"
+        "factory": "dsrebirth:footsteps.organic"
       }
     ]
   }

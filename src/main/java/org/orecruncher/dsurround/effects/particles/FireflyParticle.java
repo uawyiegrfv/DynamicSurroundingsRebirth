@@ -12,7 +12,7 @@ import org.orecruncher.dsurround.lib.random.Randomizer;
 /**
  * Firefly glow using the 26.1 flicker implementation (glow fades in/out over the lifetime,
  * gentle random drifting). The firefly texture was back-ported from 26.1
- * (assets/dsurround/textures/particle/firefly.png), since 1.20.1 has no vanilla firefly.
+ * (assets/dsrebirth/textures/particle/firefly.png), since 1.20.1 has no vanilla firefly.
  */
 public class FireflyParticle extends TextureSheetParticle {
     private static final IRandomizer RANDOM = Randomizer.current();
@@ -23,7 +23,7 @@ public class FireflyParticle extends TextureSheetParticle {
 
     public FireflyParticle(ClientLevel world, double x, double y, double z) {
         super(world, x, y, z, 0.0, 0.0, 0.0);
-        this.setSprite(ParticleUtils.getSprite(ResourceLocation.fromNamespaceAndPath("dsurround", "firefly")));
+        this.setSprite(ParticleUtils.getSprite(ResourceLocation.fromNamespaceAndPath("dsrebirth", "firefly")));
         this.speedUpWhenYMotionIsBlocked = true;
         this.friction = 0.96F;
         this.quadSize *= 1.35F;

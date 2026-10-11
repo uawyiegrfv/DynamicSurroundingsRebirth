@@ -50,7 +50,7 @@ public class IndividualSoundControlScreen extends Screen {
     }
 
     public IndividualSoundControlScreen(final Screen parent, final boolean enablePlay, Consumer<IndividualSoundControlScreen> onClose) {
-        super(Component.translatable("dsurround.text.keybind.individualSoundConfig"));
+        super(Component.translatable("dsrebirth.text.keybind.individualSoundConfig"));
         this.parent = parent;
         this.enablePlay = enablePlay;
         this.onClose = onClose;

@@ -113,7 +113,7 @@ import java.util.Random;
  */
 public final class PrecipitationRenderer {
 
-    private static final String MOD_ID = "dsurround";
+    private static final String MOD_ID = "dsrebirth";
 
     /**
      * Half-width of a column's strip in blocks. 1.12.2 uses 0.5, which makes
@@ -537,7 +537,7 @@ public final class PrecipitationRenderer {
      * ownership re-check below has to ask the manager for exactly this key.
      */
     private static final Identifier WEATHER_RENDERER_KEY =
-            Identifier.fromNamespaceAndPath("dsurround", "graded_precipitation");
+            Identifier.fromNamespaceAndPath("dsrebirth", "graded_precipitation");
 
     public static CustomWeatherEffectRenderer registeredWeatherRenderer() {
         return registeredWeatherRenderer;
@@ -645,7 +645,7 @@ public final class PrecipitationRenderer {
                     && !someoneElseOwnsRain
                     && PrecipitationIntensity.takeoverReady()
                     // The dimension must actually point at us (CUSTOM_WEATHER_EFFECTS
-                    // = dsurround:graded_precipitation). When it does not, vanilla never
+                    // = dsrebirth:graded_precipitation). When it does not, vanilla never
                     // consults our renderer and we must not draw either, or the world
                     // shows two rains. hookCalls is incremented before this runs, so the
                     // first frame the hook fires is already a takeover frame.
@@ -678,7 +678,7 @@ public final class PrecipitationRenderer {
     private static volatile boolean effectsOwnershipChecked = false;
 
     /**
-     * One-shot check that the {@code dsurround:graded_precipitation} registration is still ours.
+     * One-shot check that the {@code dsrebirth:graded_precipitation} registration is still ours.
      *
      * <p>This is the 26.1 shape of the 1.20.1/1.21.1 overworld-effects re-check. There the silent
      * loss was Forge's registry keeping the <em>last</em> {@code overworld} registration; here it is
@@ -716,7 +716,7 @@ public final class PrecipitationRenderer {
         if (resolved == null || resolved instanceof GradedPrecipitation)
             return;
         RouteFuse.noteCapabilityLost(RouteFuse.Capability.RAIN,
-                "another mod registered a custom weather renderer under dsurround:graded_precipitation"
+                "another mod registered a custom weather renderer under dsrebirth:graded_precipitation"
                         + " after us, so the rain pass is no longer ours to suppress");
         RouteFuse.noteCapabilityLost(RouteFuse.Capability.CLOUD,
                 "the same pass carries the sky event's cloud suppression");

@@ -76,7 +76,7 @@ public class WeatherStormHandler extends AbstractClientHandler {
 
     private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);
 
-    private static final String MOD_ID = "dsurround";
+    private static final String MOD_ID = "dsrebirth";
 
     // Intensity-graded dust strips (1.12.2 Weather.Properties). World-space veil
     // textures - a 64x256 tiling sheet of dust specks, NOT a particle sprite.

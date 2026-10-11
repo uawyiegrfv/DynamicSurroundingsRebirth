@@ -14,7 +14,7 @@ version = mod_version
 group = mod_group_id
 
 base {
-    archivesName = "DynamicSurroundingsRebirth-${minecraft_version}"
+    archivesName = "dsrebirth-${minecraft_version}"
 }
 
 // Mojang ships Java 25 for Minecraft 26.1
@@ -139,7 +139,7 @@ processResources {
 // the jarJar configuration above): moddev's JarJarPlugin copies it into the JAR's
 // META-INF/jarjar/ and the loader unpacks it as a standalone modular JAR. Flattening
 // Nashorn's classes into the mod JAR would break its Java modules (the loader builds
-// org.openjdk.nashorn.* modules at runtime; a flat copy makes module dsurround and
+// org.openjdk.nashorn.* modules at runtime; a flat copy makes module dsrebirth and
 // org.openjdk.nashorn.structures both claim the same package -> ResolutionException).
 jar {
     manifest {

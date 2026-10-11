@@ -4,7 +4,9 @@
   "package": "org.orecruncher.dsurround.mixins",
   "plugin": "org.orecruncher.dsurround.mixins.DSurroundMixinPlugin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [],
+  "mixins": [
+    "core.MixinMinecraftServerDataPacks"
+  ],
   "client": [
     "audio.MixinChannelAccess",
     "audio.MixinChannelHandleAccessor",

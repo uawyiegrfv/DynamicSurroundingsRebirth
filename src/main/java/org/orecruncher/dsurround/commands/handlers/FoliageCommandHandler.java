@@ -87,8 +87,11 @@ public final class FoliageCommandHandler {
                 FoliageScan.LAST[FoliageScan.STAT_SKY],
                 FoliageScan.LAST[FoliageScan.STAT_NO_PROFILE]));
 
-        out(String.format("模型  缓存=%d 构建=%d 超预算=%d",
-                FoliageProfileCache.size(), FoliageProfileCache.builds, FoliageProfileCache.overBudget));
+        // 构建=0 ⇒ 这一层一次都没算过任何模型；超预算>0 是正常的（冷启动那一次
+        // 几乎必然超 5ms），round 45 之后它只是计数，不再让某种植物失去积雪资格。
+        out(String.format("模型  缓存=%d 构建=%d 超预算=%d 最近=%dus 最慢=%dus",
+                FoliageProfileCache.size(), FoliageProfileCache.builds, FoliageProfileCache.overBudget,
+                FoliageProfileCache.lastBuildNanos / 1000L, FoliageProfileCache.worstBuildNanos / 1000L));
         out(String.format("最近一次构建  quads=%d 去重后=%d 平面=%d 锚点=%d 路径=%d",
                 FoliageProfile.lastQuads, FoliageProfile.lastDeduped,
                 FoliageProfile.lastPlanes, FoliageProfile.lastAnchors, FoliageProfile.lastPaths));

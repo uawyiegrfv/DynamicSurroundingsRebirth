@@ -254,9 +254,11 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final float CANOPY_LEVEL = 0.38F;
 
     // ---- 统一风系统：层的门控与权重（设计 §3.10.2） -------------------------
-    /** 叶声层的最小风等级，滞回 {@link #LEAF_GATE_HYSTERESIS}。低于它<b>整层不存在</b>
-     *  —— 不是"很小"。旧口径是 (0.40 + 0.60 x bandNorm)，静风时仍留 0.40，层永远
-     *  到不了 0，与"大部分时间安静"直接冲突。 */
+    /** 叶声层风等级门限的<b>兜底值</b>，滞回 {@link #LEAF_GATE_HYSTERESIS}。低于门限
+     *  <b>整层不存在</b> —— 不是"很小"。旧口径是 (0.40 + 0.60 x bandNorm)，静风时仍留
+     *  0.40，层永远到不了 0，与"大部分时间安静"直接冲突。
+     *  真正的门限按预设走（{@code WindProfile.leafWindMin}，密林取更低的值），
+     *  这里只在没有预设时用。 */
     private static final float LEAF_WIND_MIN = 0.25F;
     private static final float LEAF_GATE_HYSTERESIS = 0.05F;
     /** 呼啸层的最小风等级，滞回 {@link #HOWL_GATE_HYSTERESIS}。 */
@@ -1847,9 +1849,13 @@ private static float gustSwell(final Player player) {
         final WindProfile profile = info == null ? null : WindProfile.resolve(info.getTraits());
         final boolean wooded = info != null && isWooded(info);
         // 覆盖度：群系特征给的那一级（1/0）。设计 §9 决策 8 的 (b) 本地树冠扫描是后续项。
+        // 注意后果：ALPINE_PEAK 的 canopyResponse = 0.35 在"非有树群系"里乘上 0 之后
+        // 恒为 0，也就是它现在没有叶层 —— 本地扫描落地后那 0.35 才会生效。
+        // 这不是 bug，是 coverage 还只有二值那一级的直接结果。
         final float coverage = wooded ? 1F : 0F;
         final float canopyResponse = profile == null ? 0F : profile.canopyResponse();
         // 一个权重把二值规则和 canopyResponse 统一起来：有树叶 -> 叶声层，无树叶 -> 呼啸层。
+        // （ALPINE_PEAK 的 0.35 要等本地树冠扫描，见上面 coverage 那一行。）
         final float wLeaf = canopyResponse * coverage;
         final float wHowl = 1F - wLeaf;
         final float level = windLevel();
@@ -1879,7 +1885,8 @@ private static float gustSwell(final Player player) {
         // 叶声层：有覆盖度、床素材不自带叶声、风过门限，三条同时成立才存在。
         // 门控同样挂在风上（旧口径挂在降水 tier 上，“小雨 / 雨后一阵大风带树叶响”
         // 因此永远不可能发生）。
-        this.leafGateOpen = gate(this.leafGateOpen, level, LEAF_WIND_MIN, LEAF_GATE_HYSTERESIS);
+        final float leafMin = profile == null ? LEAF_WIND_MIN : profile.leafWindMin();
+        this.leafGateOpen = gate(this.leafGateOpen, level, leafMin, LEAF_GATE_HYSTERESIS);
         if (coverage > 0F && !this.bedHasLeaves(profile) && this.leafGateOpen) {
             final var lpool = RAIN_TEXTURE_LEAF;
             if (this.canopyLayer.index < 0 || this.canopyLayer.index >= lpool.length)

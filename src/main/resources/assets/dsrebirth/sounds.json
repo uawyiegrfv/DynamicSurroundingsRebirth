@@ -299,10 +299,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): the 105.853 s source is converted to mono at 48 kHz, high passed at 40 Hz and darkened with a zero-phase high shelf (-16 dB above 360 Hz); two coprime loops (11.3 s / 17.1 s, tail-to-head equal-power crossfade 1.2 s) are cut from it, giving a composite period of 32.2 min, and tilted per wind tier (L: 3 kHz low pass plus shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Measured on the shipping chain (both rings summed, tier M, open country): in-window gust 2.19 dB against 5.00 dB for the previous wind.ogg master, and spectral centroid 220 Hz against 253 Hz for the previous bed. Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -316,10 +316,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): the 105.853 s source is converted to mono at 48 kHz, high passed at 40 Hz and darkened with a zero-phase high shelf (-16 dB above 360 Hz); two coprime loops (11.3 s / 17.1 s, tail-to-head equal-power crossfade 1.2 s) are cut from it, giving a composite period of 32.2 min, and tilted per wind tier (L: 3 kHz low pass plus shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Measured on the shipping chain (both rings summed, tier M, open country): in-window gust 2.19 dB against 5.00 dB for the previous wind.ogg master, and spectral centroid 220 Hz against 253 Hz for the previous bed. Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -333,10 +333,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): the 105.853 s source is converted to mono at 48 kHz, high passed at 40 Hz and darkened with a zero-phase high shelf (-16 dB above 360 Hz); two coprime loops (11.3 s / 17.1 s, tail-to-head equal-power crossfade 1.2 s) are cut from it, giving a composite period of 32.2 min, and tilted per wind tier (L: 3 kHz low pass plus shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Measured on the shipping chain (both rings summed, tier M, open country): in-window gust 2.19 dB against 5.00 dB for the previous wind.ogg master, and spectral centroid 220 Hz against 253 Hz for the previous bed. Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -350,10 +350,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): the 105.853 s source is converted to mono at 48 kHz, high passed at 40 Hz and darkened with a zero-phase high shelf (-16 dB above 360 Hz); two coprime loops (11.3 s / 17.1 s, tail-to-head equal-power crossfade 1.2 s) are cut from it, giving a composite period of 32.2 min, and tilted per wind tier (L: 3 kHz low pass plus shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Measured on the shipping chain (both rings summed, tier M, open country): in-window gust 2.19 dB against 5.00 dB for the previous wind.ogg master, and spectral centroid 220 Hz against 253 Hz for the previous bed. Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -367,10 +367,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): the 105.853 s source is converted to mono at 48 kHz, high passed at 40 Hz and darkened with a zero-phase high shelf (-16 dB above 360 Hz); two coprime loops (11.3 s / 17.1 s, tail-to-head equal-power crossfade 1.2 s) are cut from it, giving a composite period of 32.2 min, and tilted per wind tier (L: 3 kHz low pass plus shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Measured on the shipping chain (both rings summed, tier M, open country): in-window gust 2.19 dB against 5.00 dB for the previous wind.ogg master, and spectral centroid 220 Hz against 253 Hz for the previous bed. Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -384,10 +384,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): the 105.853 s source is converted to mono at 48 kHz, high passed at 40 Hz and darkened with a zero-phase high shelf (-16 dB above 360 Hz); two coprime loops (11.3 s / 17.1 s, tail-to-head equal-power crossfade 1.2 s) are cut from it, giving a composite period of 32.2 min, and tilted per wind tier (L: 3 kHz low pass plus shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Measured on the shipping chain (both rings summed, tier M, open country): in-window gust 2.19 dB against 5.00 dB for the previous wind.ogg master, and spectral centroid 220 Hz against 253 Hz for the previous bed. Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -401,10 +401,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): same source, same darkening, the same windows (11.3 s / 17.1 s, composite period 32.2 min) and the same tier tilts as biome.wind.bed.open; the only difference is the neutral-woodland EQ (high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz). Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -418,10 +418,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): same source, same darkening, the same windows (11.3 s / 17.1 s, composite period 32.2 min) and the same tier tilts as biome.wind.bed.open; the only difference is the neutral-woodland EQ (high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz). Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -435,10 +435,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): same source, same darkening, the same windows (11.3 s / 17.1 s, composite period 32.2 min) and the same tier tilts as biome.wind.bed.open; the only difference is the neutral-woodland EQ (high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz). Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -452,10 +452,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): same source, same darkening, the same windows (11.3 s / 17.1 s, composite period 32.2 min) and the same tier tilts as biome.wind.bed.open; the only difference is the neutral-woodland EQ (high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz). Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -469,10 +469,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): same source, same darkening, the same windows (11.3 s / 17.1 s, composite period 32.2 min) and the same tier tilts as biome.wind.bed.open; the only difference is the neutral-woodland EQ (high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz). Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [
@@ -486,10 +486,10 @@
     "subtitle": "dsrebirth.sound.caption.wind",
     "ds_credits": [
       {
-        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
-        "author": "felix.blume",
-        "website": "https://www.freesound.org/people/felix.blume",
-        "license": "Creative Commons 0"
+        "name": "Derived from Bosk1 217186 (Wind at door howling 4.wav): same source, same darkening, the same windows (11.3 s / 17.1 s, composite period 32.2 min) and the same tier tilts as biome.wind.bed.open; the only difference is the neutral-woodland EQ (high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz). Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "Bosk1",
+        "website": "https://www.freesound.org/people/Bosk1",
+        "license": "Attribution 4.0"
       }
     ],
     "sounds": [

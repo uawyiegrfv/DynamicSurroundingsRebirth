@@ -86,8 +86,10 @@ whether LPs can be monetized on the various streaming services.
 *dsurround:biome.wind / dsurround:biome.wind.hills / dsurround:biome.wind.mountains*
 
 <ul>
-     <li>S: <a href="https://www.freesound.org/people/felix.blume/sounds/156414/">Wind blowing into some cactus spine, on the top of the mountain, in the desert of Atacama (Chile).</a> by <a href="https://www.freesound.org/people/felix.blume/">felix.blume</a> | License: Creative Commons 0</li>
+     <li>S: <a href="https://www.freesound.org/people/felix.blume/sounds/156414/">Wind blowing into some cactus spine, on the top of the mountain, in the desert of Atacama (Chile).</a> by <a href="https://www.freesound.org/people/felix.blume/">felix.blume</a> | License: Creative Commons 0 &mdash; <b>inherited attribution; NOT independently verified by this repository (see Modifications)</b></li>
+     <li>Modifications: none &mdash; this is the stock upstream asset, byte for byte (md5 1B257CD550CE56521C8EF87A48055E92), identical in all three ports and in the Dynamic Surroundings 1.12.2 source tree, which carries the same felix.blume credit. <b>Verification status:</b> the audio currently served at freesound 156414 does not match this file &mdash; normalised cross-correlation is 0.054-0.074 (5 s probes slid over the whole recording), i.e. the level of the unrelated-asset negative controls (0.041-0.054), against 0.9962 for the known-good wind_open.ogg / wind.ogg positive control measured with the same function; the 1 Hz envelope contours do not align at any speed from 0.4x to 3.0x; the two 1/3-octave spectra differ by +15.7 dB at 6.3 kHz and +55.6 dB at 16 kHz. The attribution is therefore recorded as inherited and unverified. <b>This asset is no longer the source of the default wind bed</b> &mdash; the bed is now derived from Bosk1 217186 (see dsurround:biome.wind.bed.*).</li>
 </ul>
+
 
 *dsurround:biome.wind.arctic*
 
@@ -354,15 +356,15 @@ Rebirth.
 *dsurround:biome.wind.bed.open.l.a / .l.b / .m.a / .m.b / .s.a / .s.b*
 
 <ul>
-     <li>S: <a href="https://www.freesound.org/people/felix.blume/sounds/156414/">Wind blowing into some cactus spine, on the top of the mountain, in the desert of Atacama (Chile).</a> by <a href="https://www.freesound.org/people/felix.blume/">felix.blume</a> | License: Creative Commons 0</li>
-     <li>Modifications: wind.ogg (96 kHz to 48 kHz, 43.651 s) joined to wind_open.ogg (14.800 s) with a 4.0 s equal-power crossfade and a 40 Hz high pass gives a 54.451 s pure-wind master; two coprime loops are cut from it per wind tier (12.10 s / 17.90 s, tail-to-head equal-power crossfade 1.2 s) and tilted per tier (L: 3 kHz low pass plus shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz), then equalised for open country (low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz). Normalised to -42 / -40 / -38 LUFS-I. Built by _sound_preview/_scripts/_v4_bed_audited.py.</li>
+     <li>S: <a href="https://freesound.org/people/Bosk1/sounds/217186/">Wind at door howling 4.wav</a> by <a href="https://freesound.org/people/Bosk1/">Bosk1</a> | License: Attribution 4.0</li>
+     <li>Modifications: the 105.853 s source is converted to mono at 48 kHz, high passed at 40 Hz and darkened with a zero-phase high shelf (-16 dB above 360 Hz); two coprime loops (11.3 s / 17.1 s, tail-to-head equal-power crossfade 1.2 s) are cut from it, giving a composite period of 32.2 min, and tilted per wind tier (L: 3 kHz low pass plus shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Measured on the shipping chain (both rings summed, tier M, open country): in-window gust 2.19 dB against 5.00 dB for the previous wind.ogg master, and spectral centroid 220 Hz against 253 Hz for the previous bed. Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I. Built by _wind_sources/_r3_shipped.py.</li>
 </ul>
 
 *dsurround:biome.wind.bed.wood.l.a / .l.b / .m.a / .m.b / .s.a / .s.b*
 
 <ul>
-     <li>S: <a href="https://www.freesound.org/people/felix.blume/sounds/156414/">Wind blowing into some cactus spine, on the top of the mountain, in the desert of Atacama (Chile).</a> by <a href="https://www.freesound.org/people/felix.blume/">felix.blume</a> | License: Creative Commons 0</li>
-     <li>Modifications: same master, same windows and the same tier tilts as biome.wind.bed.open; the only difference is the neutral-woodland EQ (high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz). Normalised to -42 / -40 / -38 LUFS-I.</li>
+     <li>S: <a href="https://freesound.org/people/Bosk1/sounds/217186/">Wind at door howling 4.wav</a> by <a href="https://freesound.org/people/Bosk1/">Bosk1</a> | License: Attribution 4.0</li>
+     <li>Modifications: same source, same darkening, the same windows (11.3 s / 17.1 s, composite period 32.2 min) and the same tier tilts as biome.wind.bed.open; the only difference is the neutral-woodland EQ (high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz). Normalised to -42 / -40 / -38 LUFS-I.</li>
 </ul>
 
 *dsurround:biome.wind.leaf.l.a / .l.b / .m.a / .m.b / .s.a / .s.b*

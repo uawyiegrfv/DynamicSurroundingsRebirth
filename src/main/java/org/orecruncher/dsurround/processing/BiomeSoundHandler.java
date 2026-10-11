@@ -290,17 +290,36 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      */
     private static final ResourceLocation[][] HOWL_TIERS = windTierPair("biome.wind.howl");
 
-    /** 档位后缀，索引 = 档（0 = L / 1 = M / 2 = S）。 */
-    private static final String[] TIER_ID = { "l", "m", "s" };
-    /** 互质循环后缀，索引 = 环（0 = A / 1 = B）。 */
-    private static final String[] RING_ID = { "a", "b" };
+    /**
+     * 后缀表（档 / 环）的持有者。
+     *
+     * <p><b>为什么单独用一个内部类</b>：类初始化按<b>文本顺序</b>执行。上面那四个档位族
+     * 字段在 {@code <clinit>} 里就调用 {@code windTierPair}，而它要读后缀表。后缀表原来
+     * 是本类的静态字段、声明在调用点<b>之后</b>，读到时还是 {@code null}：2026-10-11
+     * 客户端启动崩溃 —— {@code java.lang.NullPointerException: Cannot read the array
+     * length because ...BiomeSoundHandler.TIER_ID is null}（{@code windTierPair(:,299)}
+     * ← {@code <clinit>(:,283)}），类初始化失败、DI 造不出 Handlers、
+     * {@code Client.onComplete} 把客户端直接带崩。</p>
+     *
+     * <p>放进独立持有者类以后，后缀表有<b>自己的</b> {@code <clinit>}：第一次被读时才
+     * 做两个字面量数组，不读本类任何东西。档位族的构造因此与本类静态字段的书写顺序无关 ——
+     * 顺序坑在这一层被消掉，而不是靠"记得往前挪一行"。</p>
+     */
+    private static final class Suffixes {
+        /** 档位后缀，索引 = 档（0 = L / 1 = M / 2 = S）。 */
+        static final String[] TIER_ID = { "l", "m", "s" };
+        /** 互质循环后缀，索引 = 环（0 = A / 1 = B）。 */
+        static final String[] RING_ID = { "a", "b" };
+    }
 
     private static ResourceLocation[][] windTierPair(final String prefix) {
-        final ResourceLocation[][] out = new ResourceLocation[TIER_ID.length][RING_ID.length];
-        for (int t = 0; t < TIER_ID.length; t++)
-            for (int r = 0; r < RING_ID.length; r++)
+        final String[] tierId = Suffixes.TIER_ID;
+        final String[] ringId = Suffixes.RING_ID;
+        final ResourceLocation[][] out = new ResourceLocation[tierId.length][ringId.length];
+        for (int t = 0; t < tierId.length; t++)
+            for (int r = 0; r < ringId.length; r++)
                 out[t][r] = ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID,
-                        prefix + "." + TIER_ID[t] + "." + RING_ID[r]);
+                        prefix + "." + tierId[t] + "." + ringId[r]);
         return out;
     }
 
@@ -856,7 +875,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                     "asset=" + assetName(this.rainWindAsset != null ? this.rainWindAsset
                             : this.bedTiers.assets[bedTier][0])
                             + " bedLevel=" + f3(bedLevel)
-                            + " tier=" + TIER_ID[bedTier]
+                            + " tier=" + Suffixes.TIER_ID[bedTier]
                             + " w=" + f3(bedW[0]) + "/" + f3(bedW[1]) + "/" + f3(bedW[2])
                             + " gHowlBed=" + f3(this.howlBedGain)
                             + " gHowlLayer=" + f3(this.howlLayerGain())
@@ -875,7 +894,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             final BackgroundSoundLoop howl = this.howlTiers.loops[bedTier][0];
             SoundDiag.layer(SoundDiag.LAYER_HOWL,
                     "asset=" + assetName(this.howlTiers.assets[bedTier][0])
-                            + " tier=" + TIER_ID[bedTier]
+                            + " tier=" + Suffixes.TIER_ID[bedTier]
                             + " gustSwell=" + f3(gustValue)
                             + " storm=" + f3(thundering ? RAIN_GUST_STORM_GAIN : 1F)
                             + " level=" + f3(HOWL_TIER_LEVEL[bedTier])
@@ -892,7 +911,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             final BackgroundSoundLoop canopy = this.leafTiers.loops[bedTier][0];
             SoundDiag.layer(SoundDiag.LAYER_CANOPY,
                     "asset=" + assetName(this.leafTiers.assets[bedTier][0])
-                            + " tier=" + TIER_ID[bedTier]
+                            + " tier=" + Suffixes.TIER_ID[bedTier]
                             + " level=" + f3(CANOPY_LEVEL)
                             + " gustSwell=" + f3(gustValue)
                             + " base=" + f3(loopBase(canopy))
@@ -1954,7 +1973,7 @@ private void renderTierBank(final TierBank bank, final ResourceLocation[][] fami
     tierWeights(w, this.tierWeightScratch);
     for (int t = 0; t < this.tierWeightScratch.length; t++) {
         final float level = (tierLevel == null ? 1F : tierLevel[t]) * gain * this.tierWeightScratch[t];
-        for (int r = 0; r < RING_ID.length; r++)
+        for (int r = 0; r < Suffixes.RING_ID.length; r++)
             renderTier(bank, t, r, family[t][r], level);
     }
 }

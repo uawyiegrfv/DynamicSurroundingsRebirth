@@ -12,10 +12,10 @@ authors="${mod_author}"
 description='''
 ${mod_description}
 '''
-logoFile="assets/dsurround/icon.png"
+logoFile="assets/dsrebirth/icon.png"
 
 [[mixins]]
-config="dsurround.mixins.json"
+config="dsrebirth.mixins.json"
 
 [[dependencies.${mod_id}]]
 modId="neoforge"

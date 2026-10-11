@@ -17,7 +17,7 @@ public final class Constants {
     /**
      * The ID of the current mod
      */
-    public static final String MOD_ID = "dsurround";
+    public static final String MOD_ID = "dsrebirth";
 
     /**
      * ID's of mods that Dynamic Surroundings has an interest for disabling certain features.

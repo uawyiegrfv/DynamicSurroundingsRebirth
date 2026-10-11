@@ -111,7 +111,7 @@ import java.util.Random;
  */
 public final class PrecipitationRenderer {
 
-    private static final String MOD_ID = "dsurround";
+    private static final String MOD_ID = "dsrebirth";
 
     /**
      * Half-width of a column's strip in blocks. 1.12.2 uses 0.5, which makes

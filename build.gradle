@@ -9,7 +9,7 @@ version = mod_version
 group = maven_group
 
 base {
-    archivesName = "DynamicSurroundingsRebirth-${minecraft_version}"
+    archivesName = "dsrebirth-${minecraft_version}"
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
@@ -92,8 +92,8 @@ dependencies {
 }
 
 mixin {
-    add sourceSets.main, 'dsurround.refmap.json'
-    config 'dsurround.mixins.json'
+    add sourceSets.main, 'dsrebirth.refmap.json'
+    config 'dsrebirth.mixins.json'
 }
 
 jar {
@@ -105,7 +105,7 @@ jar {
                 'Implementation-Title'   : project.name,
                 'Implementation-Version' : project.jar.archiveVersion,
                 'Implementation-Vendor'  : 'uawyiegrfv',
-                'MixinConfigs'           : 'dsurround.mixins.json'
+                'MixinConfigs'           : 'dsrebirth.mixins.json'
         ])
     }
 }

@@ -3,7 +3,7 @@
   "minVersion": "0.8",
   "package": "org.orecruncher.dsurround.mixins",
   "compatibilityLevel": "JAVA_17",
-  "refmap": "dsurround.refmap.json",
+  "refmap": "dsrebirth.refmap.json",
   "plugin": "org.orecruncher.dsurround.mixins.DSurroundMixinPlugin",
   "mixins": [
     "core.MixinBiome",

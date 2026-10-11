@@ -134,6 +134,14 @@ public enum WindProfile {
     private float peakCeiling;
     private float canopyResponse;
     private GustResponse gustResponse;
+    /**
+     * 这个预设的床素材是不是<b>自带叶声</b>（§3.10.1 要点 5）。
+     *
+     * <p>不是那 8 个自由度之一：它是一条"这条素材里已经有树叶了"的声明，用来决定还要
+     * 不要再叠叶声层。默认 false —— 两种错误的代价不对称：叠多了最多 +1.6 dB
+     * （T2b/T2c 实测），而误判成 true 会把叶层整层删掉。</p>
+     */
+    private boolean assetHasLeaves = false;
 
     WindProfile(final float[] meanLevel, final float levelJitter, final float gustDepth,
                 final float gustRatePerMin, final float floorLevel, final float peakCeiling,
@@ -212,6 +220,11 @@ public enum WindProfile {
         return this.gustResponse;
     }
 
+    /** 床素材是否自带叶声；见字段说明。 */
+    public boolean assetHasLeaves() {
+        return this.assetHasLeaves;
+    }
+
     /**
      * 这个预设"有树吗"——<b>推导量，不是第二个字段</b>：叶声响应 >= 0.5 才算有树。
      * 与 §3.10.3 的逐行对应表一致（WOODLAND / DENSE_CANOPY 是，COASTAL_EXPOSED 的
@@ -285,7 +298,7 @@ public enum WindProfile {
     private record Rule(String preset, Optional<List<Float>> meanLevel, Optional<Float> levelJitter,
                         Optional<Float> gustDepth, Optional<Float> gustRatePerMin, Optional<Float> floorLevel,
                         Optional<Float> peakCeiling, Optional<Float> canopyResponse,
-                        Optional<GustResponse> gustResponse) {
+                        Optional<GustResponse> gustResponse, Optional<Boolean> assetHasLeaves) {
         static final Codec<Rule> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.fieldOf("preset").forGetter(Rule::preset),
                 Codec.list(Codec.FLOAT).optionalFieldOf("meanLevel").forGetter(Rule::meanLevel),
@@ -295,7 +308,8 @@ public enum WindProfile {
                 Codec.FLOAT.optionalFieldOf("floorLevel").forGetter(Rule::floorLevel),
                 Codec.FLOAT.optionalFieldOf("peakCeiling").forGetter(Rule::peakCeiling),
                 Codec.FLOAT.optionalFieldOf("canopyResponse").forGetter(Rule::canopyResponse),
-                GUST_RESPONSE_CODEC.optionalFieldOf("gustResponse").forGetter(Rule::gustResponse)
+                GUST_RESPONSE_CODEC.optionalFieldOf("gustResponse").forGetter(Rule::gustResponse),
+                Codec.BOOL.optionalFieldOf("assetHasLeaves").forGetter(Rule::assetHasLeaves)
         ).apply(instance, Rule::new));
     }
 
@@ -376,6 +390,7 @@ public enum WindProfile {
         rule.peakCeiling().ifPresent(v -> profile.peakCeiling = v);
         rule.canopyResponse().ifPresent(v -> profile.canopyResponse = v);
         rule.gustResponse().ifPresent(v -> profile.gustResponse = v);
+        rule.assetHasLeaves().ifPresent(v -> profile.assetHasLeaves = v);
     }
 
     private void setMeanLevel(final List<Float> values, final String namespace) {

@@ -2997,8 +2997,8 @@
       }
     ]
   },
-  "biome.wind.howl.medium": {"ds_credits": [{"name": "All three medium wind clips joined into one seamless loop; each clip is used twice, the second pass time-stretched a few percent. Built by tools/_make_wind_howl_loops.py.", "license": "See the clip credits on biome.rain.wind1-3 / biome.storm.wind.heavy1-3"}], "sounds": [{"name": "dsrebirth:ambient/outside/wind_howl_medium", "stream": true}]},
-  "biome.wind.howl.heavy": {"ds_credits": [{"name": "All three heavy wind clips joined into one seamless loop; each clip is used twice, the second pass time-stretched a few percent. Built by tools/_make_wind_howl_loops.py.", "license": "See the clip credits on biome.rain.wind1-3 / biome.storm.wind.heavy1-3"}], "sounds": [{"name": "dsrebirth:ambient/outside/wind_howl_heavy", "stream": true}]},
+  "biome.wind.howl.medium": {"ds_credits": [{"name": "All three medium wind clips joined into one seamless loop; each clip is used twice, the second pass time-stretched a few percent. Built by tools/_make_wind_howl_loops.py.", "author": "cinetony", "license": "See the clip credits on biome.rain.wind1-3 / biome.storm.wind.heavy1-3"}], "sounds": [{"name": "dsrebirth:ambient/outside/wind_howl_medium", "stream": true}]},
+  "biome.wind.howl.heavy": {"ds_credits": [{"name": "All three heavy wind clips joined into one seamless loop; each clip is used twice, the second pass time-stretched a few percent. Built by tools/_make_wind_howl_loops.py.", "author": "Bosk1", "license": "See the clip credits on biome.rain.wind1-3 / biome.storm.wind.heavy1-3"}], "sounds": [{"name": "dsrebirth:ambient/outside/wind_howl_heavy", "stream": true}]},
   "biome.wind.plains": {
     "ds_credits": [
       {

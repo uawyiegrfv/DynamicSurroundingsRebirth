@@ -59,6 +59,10 @@ public class Configuration extends ConfigurationData {
     public final WeatherOptions weatherOptions = new WeatherOptions();
 
     @Property
+    @Comment("Configuration options for the unified wind system (biome wind personality, wind level)")
+    public final WindOptions windOptions = new WindOptions();
+
+    @Property
     @Comment("Configuration options for speech bubbles above player and entity heads (ported back from 1.12.2, off by default)")
     public final SpeechBubbles speechBubbles = new SpeechBubbles();
 
@@ -652,6 +656,24 @@ public class Configuration extends ConfigurationData {
         public boolean disableFoliageLayersWithShaders = false;
     }
 
+
+    /**
+     * 统一风系统（2026-10-11）。风的性格住在 {@code dsconfigs/wind.json} 的
+     * {@code WindProfile} 表里（数据包可覆盖），这里只放玩家真正会想动的那几个开关：
+     * 一个总开关，和一个"整体多大声"。参数级的旋钮不放在这里 —— 一张能被数据包
+     * 覆盖的表比一屏滑条好用。
+     */
+    public static class WindOptions {
+        @Property
+        @Comment("Enable/disable the unified wind system: the wind level is then driven by the biome's wind personality (WindProfile) instead of following the rain intensity directly. Off falls back to reading the graded rain intensity as the wind level")
+        public boolean enableUnifiedWind = true;
+
+        @Property
+        @IntegerRange(min = 0, max = 200)
+        @Slider
+        @Comment("Volume scaling for the wind bed and the wind layers, percent (100 = default, 0 = silent). Applies on top of everything else")
+        public int windVolumeScaling = 100;
+    }
 
     public static class FogOptions {
         @Property

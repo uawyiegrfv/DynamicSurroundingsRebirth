@@ -161,18 +161,11 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     // 群系 + 新的季节系数），两边各有一套大小：密林里雨丝几乎不斜而风声照旧走满，
     // 风袭/山地里雨丝斜得厉害、风声却一点没变响。现在风床和阵风都改问
     // WindField.speedAt()，再由下面这几个数把格/秒折回 0..1。
-    //   两个端点必须对得上 WindField 的速度常量：最小 0.15、最大 0.15+4.2+3.0=7.35
-    //   （speedAt 先把 gustAmplitude 夹到 1.0，所以 7.35 就是真正的上限）。
-    //   改 WindField 那几个速度常量时要跟着改这里，否则"同源"就名不副实。
-    //
-    //   MIN 原来是 0.8 —— 那是 WindField 更早的常数地板，它留下一个死区：
-    //   bps <= 0.8 时 windLevel 被夹到 0，低风段整段听不见。WindField 的地板在
-    //   台账 #48 那一轮就降到了 0.15，这里没跟着改，于是耳朵和眼睛量的是两把尺子；
-    //   密林 + 夏季（0.75 x 0.90 = 0.675）的 bps 上限 4.96 也被这个 MIN 再削一刀
-    //   （level 上限 0.578 -> 0.668）。两端重新对齐后死区消失，低风段与上限都回到
-    //   WindField 自己的量程上。
-    private static final float WIND_LEVEL_MIN_BPS = 0.15F;
-    private static final float WIND_LEVEL_SPAN_BPS = 7.2F;
+    //   折回锚点与风速量程是同一份常量，住在 WindField（WIND_LEVEL_MIN_BPS /
+    //   WIND_LEVEL_SPAN_BPS）。P1 之前这里自己维护着 0.8/7.2，与 WindField 的
+    //   0.15 地板对不上，bps <= 0.8 整整一段被夹成 0；P2 把"唯一的风等级"搬进
+    //   WindField 之后这里不再有第二份定义，也就没有第二次对不上的机会。
+    //   现在风声的大小直接问 WindField 的风等级（预设驱动），本文件不再自己折算。
     /** 阵风音量受风力调制的深度：静风保留 FLOOR，风拉满补到 FLOOR + SPAN。
      *  FLOOR 抬高 = 所有阵风一起变响；SPAN 加大 = 风大风小的差别更明显。 */
     private static final float GUST_WIND_LEVEL_FLOOR = 0.50F;
@@ -748,11 +741,11 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             final boolean inside = this.scanner.isInside();
             final float ambient = PrecipitationIntensity.ambient();
             final float gustAmp = PrecipitationIntensity.gustAmplitude();
-            final float bedLevel = windLevel(ambient, gustAmp);
+            final float bedLevel = windLevel();
             final float bedSwell = windSwell(tick);
             final float gustValue = gustSwell(player);
             final float env = WindField.envelopeAt(player.level().getGameTime(), 0F);
-            final float speedBps = WindField.speedAt(ambient, gustAmp, PrecipitationIntensity.windScale());
+            final float speedBps = WindField.speedOf(bedLevel);
             final boolean thundering = player.level().isThundering();
 
             // 床 BED：handleRainWindBed 的 target = bedLevel × (inside ? 0.15 : 1) × windSwell
@@ -1850,7 +1843,7 @@ private void handleWindLayers(final Player player) {
         this.sustainLayer(this.howlLayer,
                 ContainerManager.resolve(ISoundLibrary.class)
                         .getSoundFactoryOrDefault(howl),
-                base * swell * storm);
+                base * swell * storm * windVolumeScale());
     } else {
         this.fadeLayer(this.howlLayer);
     }
@@ -1862,7 +1855,7 @@ private void handleWindLayers(final Player player) {
         this.sustainLayer(this.canopyLayer,
                 ContainerManager.resolve(ISoundLibrary.class)
                         .getSoundFactoryOrDefault(lpool[this.canopyLayer.index]),
-                CANOPY_LEVEL * swell);
+                CANOPY_LEVEL * swell * windVolumeScale());
     } else {
         this.fadeLayer(this.canopyLayer);
     }
@@ -1898,7 +1891,7 @@ private void handleWindLayers(final Player player) {
         // WIND：床的大小改由 WindField 的风速决定，不再直接用降水强度 —— 风速里
         // 已经折进了强度、本场阵风幅度、群系和季节，所以耳朵听到的风与眼睛看到的
         // 雨幕倾斜是同一样东西的两个出口。swell 继续在这个 level 上起呼吸作用。
-        final float bedLevel = windLevel(intensity, PrecipitationIntensity.gustAmplitude());
+        final float bedLevel = windLevel();
         if (wind == null)
             // Only ground without an asset of its own reaches this, so this line decides the
             // bed nearly everywhere. Where there are trees the leaves belong in it.
@@ -1910,7 +1903,7 @@ private void handleWindLayers(final Player player) {
         float target = intensity <= RAIN_WIND_MIN_INTENSITY ? 0F : bedLevel;
         if (this.scanner.isInside())
             target *= INDOOR_VOLUME_SCALE;
-        target *= windSwell(this.tickCount.getTickCount());
+        target *= windSwell(this.tickCount.getTickCount()) * windVolumeScale();
         if (target <= 0.005F) {
             fadeRainWind();
             return;
@@ -1963,17 +1956,27 @@ private void handleWindLayers(final Player player) {
     }
 
     /**
-     * WIND：把 WindField 的风速折回 0..1 的"风有多大"。风床和阵风都用它，
-     * 于是耳朵听到的风与眼睛看到的雨幕倾斜是同一个量。
+     * WIND：当前风等级 0..1。风床、阵风、呼啸与叶声层全部读这一个数，于是
+     * 耳朵听到的风与眼睛看到的雨幕倾斜是同一个量。
      *
-     * <p>走 WindField 的纯函数，不读它的缓存：{@code update()} 只在降水渲染里
-     * 被调用，晴天缓存不更新，读 {@code speed()/dirX()} 拿到的是上一场风暴的
-     * 残留值。纯函数则任何时候来问都有答案，也不需要为它开新的 tick 钩子。</p>
+     * <p>P2 起不再由"降水强度 + 阵风幅度 + 群系倍率 + 季节倍率"折出来：那是标量
+     * 耦合，均值与方差被同一个倍率缩放，维护者的三个性格用例在数学上无解
+     * （18522 组网格搜索可行解 = 0）。现在它由群系的 {@code WindProfile} 给形状、
+     * 由 {@code WindField} 由预设 + 每场事件的形状算出来，走纯函数，不读缓存 ——
+     * {@code update()} 只在降水渲染里被调用，晴天缓存不更新，读 {@code speed()}
+     * 拿到的是上一场风暴的残留值。</p>
      */
-    private static float windLevel(final float intensity, final float gustAmplitude) {
-        final float bps = WindField.speedAt(intensity, gustAmplitude, PrecipitationIntensity.windScale());
-        final float level = (bps - WIND_LEVEL_MIN_BPS) / WIND_LEVEL_SPAN_BPS;
-        return level < 0F ? 0F : (level > 1F ? 1F : level);
+    private float windLevel() {
+        // 总开关关掉时退回"降水强度就是风等级"的旧口径：维护者手里要有一个
+        // 一句话能回到 P2 之前的旋钮，而不是只能回退整个 jar。
+        if (!this.config.windOptions.enableUnifiedWind)
+            return PrecipitationIntensity.ambient();
+        return PrecipitationIntensity.windLevel();
+    }
+
+    /** 统一风系统：玩家配置的整体音量缩放，乘在风床与各风层上（100% = 1.0）。 */
+    private float windVolumeScale() {
+        return this.config.windOptions.windVolumeScaling / 100F;
     }
 
     /**
@@ -2104,17 +2107,18 @@ private void handleWindLayers(final Player player) {
                 (RAIN_LEAF_INTERVAL_MAX_S + (RAIN_LEAF_INTERVAL_MIN_S - RAIN_LEAF_INTERVAL_MAX_S) * t)
                         / (0.6F + 0.8F * amp)
                         * (0.65F + RANDOM.nextFloat() * 0.7F);
-        // WIND：档位只负责挑素材和给基准，真正的大小交给 WindField 的风速 ——
-        // 与雨幕倾斜同源（强度 + 阵风幅度 + 群系 + 季节）。风力还会在 interval
-        // 上体现（见上），但那是疏密，这里是大小。
-        final float gustLevel = windLevel(intensity, amp);
+        // WIND：档位只负责挑素材和给基准，真正的大小交给统一风系统的风等级 ——
+        // 与雨幕倾斜、风床、呼啸、叶声层读的是同一个数。风力还会在 interval 上
+        // 体现（见上），但那是疏密，这里是大小。
+        final float gustLevel = windLevel();
         final float gustScale = GUST_WIND_LEVEL_FLOOR + GUST_WIND_LEVEL_SPAN * gustLevel;
         // Louder still when it thunders: a storm has to be heard over its own
         // rain, and that was exactly where the gusts were being buried.
         final float vol = GUST_TIER_VOLUME[tier]
                 * gustScale
                 * (0.85F + RANDOM.nextFloat() * 0.3F)
-                * (player.level().isThundering() ? RAIN_GUST_STORM_GAIN : 1F);
+                * (player.level().isThundering() ? RAIN_GUST_STORM_GAIN : 1F)
+                * windVolumeScale();
         // var, not the resource-location type: it is Identifier on 26.1 and
         // ResourceLocation on the other two.
         final var pool = tier >= 2 ? STORM_WIND_HEAVY

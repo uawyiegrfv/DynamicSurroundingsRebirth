@@ -18,9 +18,9 @@ import org.orecruncher.dsurround.eventing.ClientState;
  *
  * <p>Budget (文档 §6.1): hard cap of 256 models - a 16x16 mask plus anchors
  * and paths is a few KB each, so the ceiling is 1-2 MB worst case. Entries
- * beyond the cap evict oldest (access-order map). A model whose profile build
- * blows the 5 ms budget is cached as {@link FoliageProfile#EMPTY} rather than
- * retried every scan.</p>
+ * beyond the cap evict oldest (access-order map). The 5 ms budget is kept as a
+ * COUNTER only - see the round-45 note in {@link #get}: it must never decide
+ * whether a plant kind is allowed to carry snow.</p>
  *
  * <p>Cache invalidation (混元 review H): the mount point already existed -
  * {@code ClientState.RESOURCE_RELOAD} is raised by the mod's client reload
@@ -39,6 +39,10 @@ public final class FoliageProfileCache {
     /** Counters for the diagnostics line. */
     public static int builds = 0;
     public static int overBudget = 0;
+    /** Wall time of the last real build, in nanos. The budget's own verdict. */
+    public static long lastBuildNanos = 0L;
+    /** Slowest build seen since the last reload - is 5ms ever really the problem? */
+    public static long worstBuildNanos = 0L;
 
     static {
         // Review H: fire on every client resource reload (F3+T included).
@@ -61,12 +65,22 @@ public final class FoliageProfileCache {
 
         final long start = System.nanoTime();
         profile = FoliageProfile.build(model, state, state.getSeed(pos));
-        if (System.nanoTime() - start > BUILD_BUDGET_NANOS) {
-            // A runaway model (huge modded bush) gets the empty answer rather
-            // than a per-scan rebuild tax - the trace counters say why.
+        final long elapsed = System.nanoTime() - start;
+        lastBuildNanos = elapsed;
+        if (elapsed > worstBuildNanos)
+            worstBuildNanos = elapsed;
+        // Round 45: the profile is ALREADY BUILT at this point, so dropping it
+        // buys nothing and costs everything - the EMPTY then goes into the cache,
+        // so one slow build (almost always the cold-start one, paying for class
+        // loading and sprite lookup) permanently disqualified that plant kind.
+        // That is the whole of "普通草不长雪、其它植物正常": a meadow is grass, so
+        // grass is the model built first and the one that paid the cold cost - and
+        // it then stayed the one kind that never got snow again for the session.
+        // "Slower than budget" is a performance fact, not a correctness verdict:
+        // keep the profile, keep the counter as the diagnostic. The build only
+        // ever runs once per model anyway (that is what this cache is for).
+        if (elapsed > BUILD_BUDGET_NANOS)
             overBudget++;
-            profile = FoliageProfile.EMPTY;
-        }
         builds++;
         CACHE.put(model, profile);
         while (CACHE.size() > CAP) {
@@ -81,6 +95,8 @@ public final class FoliageProfileCache {
         CACHE.clear();
         builds = 0;
         overBudget = 0;
+        lastBuildNanos = 0L;
+        worstBuildNanos = 0L;
     }
 
     public static int size() {

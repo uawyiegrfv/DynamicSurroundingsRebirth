@@ -6,6 +6,7 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.network.chat.Component;
 import dev.architectury.event.events.client.ClientCommandRegistrationEvent;
+import org.orecruncher.dsurround.processing.FoliageProfileCache;
 import org.orecruncher.dsurround.processing.FoliageSnowHandler;
 import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 
@@ -56,13 +57,20 @@ class FoliageCommand extends AbstractClientCommand {
         if (snow == null)
             return Component.literal("[foliage] 雪层处理器未实例化（DI 接线没跑？）");
         final var depth = PrecipitationResponse.FOLIAGE_SNOW;
+        // 模型缓存这一行是"草到底有没有被算出来"的判据（round 45）：
+        // 构建=0 说明这一层没扫到过任何植物；构建>0 而超预算>0 是正常的
+        // （冷启动那一次几乎必然超 5ms），超预算本身不再让任何一种植物失去积雪资格。
         return Component.literal(String.format(
-                "[foliage-snow] 深度=%.2f%s 强制=%s 每株上限=%d 植物=%d 单元=%d",
+                "[foliage-snow] 深度=%.2f%s 强制=%s 每株上限=%d 植物=%d 单元=%d | 模型缓存=%d 构建=%d 超预算=%d 最近=%dus 最慢=%dus",
                 depth.value(),
                 depth.isLocked() ? "(已锁定)" : "(跟随降雪时钟)",
                 FoliageSnowHandler.DEBUG_FORCE,
                 FoliageSnowHandler.DEBUG_UNITS > 0 ? FoliageSnowHandler.DEBUG_UNITS : 16,
-                snow.plantCount(), snow.unitCount()));
+                snow.plantCount(), snow.unitCount(),
+                FoliageProfileCache.size(), FoliageProfileCache.builds,
+                FoliageProfileCache.overBudget,
+                FoliageProfileCache.lastBuildNanos / 1000L,
+                FoliageProfileCache.worstBuildNanos / 1000L));
     }
 
     /** Set the per-plant unit cap; turns the forced gate on and rescans now. */

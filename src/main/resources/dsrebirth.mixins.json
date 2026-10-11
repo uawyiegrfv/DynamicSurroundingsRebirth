@@ -6,6 +6,7 @@
   "refmap": "dsrebirth.refmap.json",
   "plugin": "org.orecruncher.dsurround.mixins.DSurroundMixinPlugin",
   "mixins": [
+    "core.MixinMinecraftServerDataPacks",
     "core.MixinBiome",
     "core.MixinBlockState",
     "core.MixinLivingEntity",

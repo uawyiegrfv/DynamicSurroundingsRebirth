@@ -208,6 +208,33 @@ public final class SoundFXProcessor {
         });
     }
 
+    /**
+     * DIAG ONLY (see SoundDiag): how many SourceContexts are registered right now, and how many of
+     * those are streaming sounds. That second number is DSR's own share of the shared library pool;
+     * the first is the same figure POOL_DIAG already prints once a minute.
+     */
+    static int[] diagContextCounts() {
+        final AtomicReferenceArray<SourceContext> snapshot = sources;
+        if (snapshot == null)
+            return null;
+        int total = 0;
+        int streaming = 0;
+        for (int i = 0; i < snapshot.length(); i++) {
+            final SourceContext ctx = snapshot.get(i);
+            if (ctx == null)
+                continue;
+            total++;
+            try {
+                final SoundInstance sound = ctx.getSound();
+                if (sound != null && sound.getSound() != null && sound.getSound().shouldStream())
+                    streaming++;
+            } catch (final Throwable ignore) {
+                // a context mid-teardown is not worth a second look
+            }
+        }
+        return new int[]{total, streaming};
+    }
+
     private static boolean shouldIgnoreSound(SoundInstance sound) {
         if (sound.isRelative()
                 || sound.getSource() == SoundSource.MASTER
@@ -233,11 +260,19 @@ public final class SoundFXProcessor {
      */
     public static void onSoundPlay(final SoundInstance sound, final ChannelAccess.ChannelHandle entry) {
 
-        if (!isAvailable())
+        // PHASE-0 DIAG (see SoundDiag): main-thread cost of allocating + enabling a SourceContext.
+        final long dsrDiagStamp = SoundDiag.enabled() ? System.nanoTime() : 0L;
+        if (!isAvailable()) {
+            if (dsrDiagStamp != 0L)
+                SoundDiag.mainThreadSoundPlay(System.nanoTime() - dsrDiagStamp);
             return;
+        }
 
-        if (shouldIgnoreSound(sound))
+        if (shouldIgnoreSound(sound)) {
+            if (dsrDiagStamp != 0L)
+                SoundDiag.mainThreadSoundPlay(System.nanoTime() - dsrDiagStamp);
             return;
+        }
 
         ISourceContext source = (ISourceContext)(((IChannelHandle) entry).dsurround_getSource());
         assert source != null;
@@ -249,6 +284,8 @@ public final class SoundFXProcessor {
             source.dsurround_setData(ctx);
             channelLastActive.put(id, System.currentTimeMillis());
         }
+        if (dsrDiagStamp != 0L)
+            SoundDiag.mainThreadSoundPlay(System.nanoTime() - dsrDiagStamp);
     }
 
     /**
@@ -265,7 +302,10 @@ public final class SoundFXProcessor {
                 // has the right occlusion/reverb. This is the only place the DSP still runs on the
                 // sound engine thread, and it is per sound start - a cave full of mobs or rapid
                 // block breaking starts many at once and serialises them here.
+                final long dsrDiagStamp = SoundDiag.enabled() ? System.nanoTime() : 0L;
                 ctx.exec();
+                if (dsrDiagStamp != 0L)
+                    SoundDiag.soundThreadPlayDsp(System.nanoTime() - dsrDiagStamp);
             } else {
                 // Defer to the worker. The sound engine's per-source tick uploads whatever has been
                 // computed, so the source runs with default settings for at most one worker cycle
@@ -284,9 +324,12 @@ public final class SoundFXProcessor {
      * @param source SoundSource being ticked
      */
     public static void tick(final Channel source) {
+        final long dsrDiagStamp = SoundDiag.enabled() ? System.nanoTime() : 0L;
         var src = (ISourceContext) source;
         var data = src.dsurround_getData();
         data.ifPresent(SourceContext::tick);
+        if (dsrDiagStamp != 0L)
+            SoundDiag.soundThreadSourceTick(System.nanoTime() - dsrDiagStamp);
     }
 
     /**
@@ -325,6 +368,7 @@ public final class SoundFXProcessor {
      * Invoked on a client tick. Establishes the current world context for further computation..
      */
     public static void clientTick(Minecraft client) {
+        final long dsrDiagStamp = SoundDiag.enabled() ? System.nanoTime() : 0L;
         if (isAvailable()) {
             worldContext = new WorldContext();
             final boolean underWater = worldContext.player != null && worldContext.player.isUnderWater();
@@ -346,6 +390,8 @@ public final class SoundFXProcessor {
             if (++diagCounter % 1200 == 0)
                 logPoolDiag();
         }
+        if (dsrDiagStamp != 0L)
+            SoundDiag.mainThreadClientTick(System.nanoTime() - dsrDiagStamp);
     }
 
     // Every 60s: pool occupancy (used/max per pool), registered-context count and the

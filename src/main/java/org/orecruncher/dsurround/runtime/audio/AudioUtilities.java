@@ -36,6 +36,25 @@ public final class AudioUtilities {
         soundEngineRef = engine;
     }
 
+    /**
+     * DIAG ONLY (see SoundDiag): the engine's own channel-pool occupancy string.
+     *
+     * <p>Format is {@code "Sounds: <staticUsed>/<staticMax> + <streamUsed>/<streamMax>"} in all
+     * three versions (javap / decompiled source verified, see the phase-0 report). 26.1 renamed
+     * the method to {@code getChannelDebugString()}.
+     */
+    public static String channelPoolDebugString() {
+        final SoundEngine engine = soundEngineRef;
+        if (engine == null)
+            return "unknown";
+        try {
+            return engine.getDebugString();
+        } catch (final Throwable t) {
+            return "unknown";
+        }
+    }
+
+
     private static final IModLog LOGGER = ContainerManager.resolve(IModLog.class);
 
     // If these mods are present, enhanced sound processing will be disabled.

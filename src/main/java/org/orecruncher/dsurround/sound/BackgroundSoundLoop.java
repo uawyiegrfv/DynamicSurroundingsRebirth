@@ -91,6 +91,24 @@ public class BackgroundSoundLoop extends AbstractTickableSoundInstance {
         this.target = target;
     }
 
+    /**
+     * DIAG ONLY (see SoundDiag): the configured base volume, before the fade scale is applied.
+     * {@link #getVolume()} returns {@code base * scale}, which is what the engine plays.
+     */
+    public float getBaseVolume() {
+        return super.getVolume();
+    }
+
+    /** DIAG ONLY (see SoundDiag): the fade scale this loop currently holds. */
+    public float getScale() {
+        return this.scale;
+    }
+
+    /** DIAG ONLY (see SoundDiag): the fade scale this loop is easing towards. */
+    public float getScaleTarget() {
+        return this.target;
+    }
+
     public boolean isFading() {
         return this.isFading;
     }

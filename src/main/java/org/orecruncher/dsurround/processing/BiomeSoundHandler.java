@@ -22,8 +22,11 @@ import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.lib.math.MathStuff;
 import org.orecruncher.dsurround.sound.IAudioPlayer;
+import org.orecruncher.dsurround.runtime.audio.AudioUtilities;
+import org.orecruncher.dsurround.runtime.audio.SoundDiag;
 import org.orecruncher.dsurround.sound.BackgroundSoundLoop;
 import org.orecruncher.dsurround.sound.ISoundFactory;
+import org.orecruncher.dsurround.sound.SoundVolumeEvaluator;
 import org.orecruncher.dsurround.config.libraries.ISoundLibrary;
 import org.orecruncher.dsurround.processing.weather.WindField;
 
@@ -676,6 +679,9 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
 
     @Override
     public void process(final Player player) {
+        // PHASE-0 DIAG (see SoundDiag): nanoTime the whole per-tick audio path and, once a
+        // second, snapshot the six layers. Both are dead branches while the gate is off.
+        final long dsrDiagStamp = SoundDiag.enabled() ? System.nanoTime() : 0L;
         this.emitters.forEach(BiomeSoundEmitter::tick);
         // This layer runs every tick, not on the biome scan beat. It used to
         // ride SCAN_INTERVAL, which gave its scanner a fifth of the slices and
@@ -711,6 +717,163 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         if ((this.tickCount.getTickCount() % SCAN_INTERVAL) == 0) {
             handleBiomeSounds(player);
         }
+        if (dsrDiagStamp != 0L) {
+            SoundDiag.mainThreadProcess(System.nanoTime() - dsrDiagStamp);
+            if (SoundDiag.flushPending()) {
+                soundDiagSample(player);
+                SoundDiag.flush();
+            }
+        }
+    }
+
+    /**
+     * 第 0 期取证（见 {@link SoundDiag}）：把六层的运行期音量与增益写进快照。
+     *
+     * <p><b>只读</b>：不改任何增益、周期、素材或判定。数值取自各层自己的 loop 对象
+     * （{@code getBaseVolume()/getScale()/getScaleTarget()}）与纯函数
+     * （{@code gustSwell/windSwell/windLevel/WindField.envelopeAt}），所以与耳朵听到的是同一组数。
+     * 每秒调用一次（由 {@code process()} 在窗口到期时触发）。
+     */
+    private void soundDiagSample(final Player player) {
+        try {
+            final long tick = this.tickCount.getTickCount();
+            final boolean inside = this.scanner.isInside();
+            final float ambient = PrecipitationIntensity.ambient();
+            final float gustAmp = PrecipitationIntensity.gustAmplitude();
+            final float bedLevel = windLevel(ambient, gustAmp);
+            final float bedSwell = windSwell(tick);
+            final float gustValue = gustSwell(player);
+            final float env = WindField.envelopeAt(player.level().getGameTime(), 0F);
+            final float speedBps = WindField.speedAt(ambient, gustAmp, PrecipitationIntensity.windScale());
+            final boolean thundering = player.level().isThundering();
+
+            // 床 BED：handleRainWindBed 的 target = bedLevel × (inside ? 0.15 : 1) × windSwell
+            final BackgroundSoundLoop bed = this.rainWindLoop;
+            SoundDiag.layer(SoundDiag.LAYER_BED,
+                    "asset=" + assetName(this.rainWindAsset)
+                            + " bedLevel=" + f3(bedLevel)
+                            + " windSwell=" + f3(bedSwell)
+                            + " indoor=" + (inside ? f3(INDOOR_VOLUME_SCALE) : "1.000")
+                            + " gate=" + (ambient <= RAIN_WIND_MIN_INTENSITY ? "closed" : "open")
+                            + " base=" + f3(loopBase(bed))
+                            + " scale=" + f3(loopScale(bed))
+                            + " target=" + f3(loopTarget(bed))
+                            + " vol=" + f3(loopVol(bed)));
+
+            // 呼啸 HOWL：target = (tier>=2 ? 0.62 : 0.36) × gustSwell × storm
+            final BackgroundSoundLoop howl = this.howlLayer.loop;
+            SoundDiag.layer(SoundDiag.LAYER_HOWL,
+                    "asset=" + assetName(this.howlLayer.asset)
+                            + " tier=" + this.howlLayer.tier
+                            + " gustSwell=" + f3(gustValue)
+                            + " storm=" + f3(thundering ? RAIN_GUST_STORM_GAIN : 1F)
+                            + " level=" + f3(this.howlLayer.tier >= 2 ? HOWL_LEVEL_HEAVY : HOWL_LEVEL_MEDIUM)
+                            + " base=" + f3(loopBase(howl))
+                            + " scale=" + f3(loopScale(howl))
+                            + " target=" + f3(loopTarget(howl))
+                            + " vol=" + f3(loopVol(howl)));
+
+            // 树冠 CANOPY：target = 0.38 × gustSwell（只有 wooded 群系挂这一层）
+            final BackgroundSoundLoop canopy = this.canopyLayer.loop;
+            SoundDiag.layer(SoundDiag.LAYER_CANOPY,
+                    "asset=" + assetName(this.canopyLayer.asset)
+                            + " idx=" + this.canopyLayer.index
+                            + " level=" + f3(CANOPY_LEVEL)
+                            + " gustSwell=" + f3(gustValue)
+                            + " base=" + f3(loopBase(canopy))
+                            + " scale=" + f3(loopScale(canopy))
+                            + " target=" + f3(loopTarget(canopy))
+                            + " vol=" + f3(loopVol(canopy)));
+
+            // 材质雨 MATERIAL：base = 1.0 × RAIN_MATERIAL_TRIM[mat]，target = vol × voiceComp
+            final StringBuilder mats = new StringBuilder();
+            final StringBuilder dists = new StringBuilder();
+            final StringBuilder bases = new StringBuilder();
+            final StringBuilder scales = new StringBuilder();
+            final StringBuilder targets = new StringBuilder();
+            final StringBuilder vols = new StringBuilder();
+            int voices = 0;
+            for (int i = 0; i < RAIN_MATERIAL_MAX_LOOPS; i++) {
+                final BackgroundSoundLoop loop = this.rainMaterialLoops[i];
+                if (loop == null)
+                    continue;
+                voices++;
+                mats.append(voices == 1 ? "" : ",").append(this.rainMaterialMaterials[i]);
+                bases.append(voices == 1 ? "" : ",").append(f3(loop.getBaseVolume()));
+                scales.append(voices == 1 ? "" : ",").append(f3(loop.getScale()));
+                targets.append(voices == 1 ? "" : ",").append(f3(loop.getScaleTarget()));
+                vols.append(voices == 1 ? "" : ",").append(f3(loopVol(loop)));
+                final var anchor = this.rainMaterialSpots[i];
+                if (anchor == null)
+                    dists.append(voices == 1 ? "" : ",").append("-");
+                else
+                    dists.append(voices == 1 ? "" : ",")
+                            .append(f1(Math.sqrt((double) distanceSq(player.blockPosition(), anchor))));
+            }
+            SoundDiag.layer(SoundDiag.LAYER_MATERIAL,
+                    "tier=" + this.rainMaterialTier
+                            + " voices=" + voices + "/" + RAIN_MATERIAL_MAX_LOOPS
+                            + " mats=[" + mats + "] dist=[" + dists + "] base=[" + bases
+                            + "] scale=[" + scales + "] target=[" + targets + "] vol=[" + vols + "]");
+
+            // 阵风包络 GUST：howl/canopy 用 gustSwell，床用 windSwell
+            SoundDiag.layer(SoundDiag.LAYER_GUST,
+                    "env=" + f3(env)
+                            + " gustSwell=" + f3(gustValue)
+                            + " howlFloor=" + f3(HOWL_FLOOR)
+                            + " gustAmp=" + f3(gustAmp)
+                            + " speedBps=" + f3(speedBps)
+                            + " windLevel=" + f3(bedLevel)
+                            + " windSwell=" + f3(bedSwell)
+                            + " rainAmbient=" + f3(ambient));
+
+            // 室内系数 INDOOR：INDOOR_VOLUME_SCALE 只在三个点乘上去（见 appliedAt）
+            SoundDiag.layer(SoundDiag.LAYER_INDOOR,
+                    "inside=" + inside
+                            + " indoorScale=" + f3(INDOOR_VOLUME_SCALE)
+                            + " appliedAt=[biomeAmbience,addOnMood,rainWindBed]"
+                            + " rainAmbient=" + f3(ambient)
+                            + " grading=" + PrecipitationIntensity.grading()
+                            + " rainingNow=" + PrecipitationIntensity.rainingNow()
+                            + " windSounds=" + this.config.weatherOptions.enableWindSounds
+                            + " biomeSounds=" + this.config.soundOptions.enableBiomeSounds
+                            + " auxSends=" + AudioUtilities.getMaxAuxSends());
+        } catch (final Throwable t) {
+            // 诊断绝不允许影响声音：采样炸了就报一次，然后继续跑。
+            SoundDiag.sampleFailed(String.valueOf(t));
+        }
+    }
+
+    /** DIAG ONLY: asset 字段在这个类里是 {@code Object}；{@code null} 打成 "-"，免得日志里出现 "null"。 */
+    private static String assetName(final Object asset) {
+        return asset == null ? "-" : asset.toString();
+    }
+
+    private static float loopBase(final BackgroundSoundLoop loop) {
+        return loop == null ? 0F : loop.getBaseVolume();
+    }
+
+    private static float loopScale(final BackgroundSoundLoop loop) {
+        return loop == null ? 0F : loop.getScale();
+    }
+
+    private static float loopTarget(final BackgroundSoundLoop loop) {
+        return loop == null ? 0F : loop.getScaleTarget();
+    }
+
+    /** MC 实际会交给 OpenAL 的音量：base × scale × 类别音量 × 逐声音配置。 */
+    private static float loopVol(final BackgroundSoundLoop loop) {
+        if (loop == null || loop.getSound() == null)
+            return 0F;
+        return SoundVolumeEvaluator.getAdjustedVolume(loop);
+    }
+
+    private static String f3(final float value) {
+        return String.format(java.util.Locale.ROOT, "%.3f", value);
+    }
+
+    private static String f1(final double value) {
+        return String.format(java.util.Locale.ROOT, "%.1f", value);
     }
 
     @Override

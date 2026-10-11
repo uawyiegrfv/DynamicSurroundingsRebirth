@@ -1,6 +1,7 @@
 package org.orecruncher.dsurround.mixins.audio;
 
 import net.minecraft.client.sounds.ChannelAccess;
+import org.orecruncher.dsurround.runtime.audio.SoundDiag;
 import org.orecruncher.dsurround.runtime.audio.SoundFXProcessor;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -31,6 +32,19 @@ public abstract class MixinChannelAccess {
             @SuppressWarnings("unchecked")
             Set<Object> raw = (Set<Object>) (Set<?>) this.channels;
             SoundFXProcessor.afterChannelSweep(raw);
+        } catch (final Throwable ignore) {
+        }
+    }
+
+    /**
+     * DIAG ONLY (see SoundDiag): samples the engine's channel-pool occupancy once per sound tick
+     * (this hook runs once per vanilla channel sweep, about 20 Hz) so the reported peak is not
+     * limited to the once-a-second print.
+     */
+    @Inject(method = "scheduleTick()V", at = @At("HEAD"))
+    private void dsurround_poolSample(CallbackInfo ci) {
+        try {
+            SoundDiag.poolSample();
         } catch (final Throwable ignore) {
         }
     }

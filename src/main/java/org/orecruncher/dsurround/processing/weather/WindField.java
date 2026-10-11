@@ -1,81 +1,68 @@
 package org.orecruncher.dsurround.processing.weather;
 
 import net.minecraft.util.Mth;
-import org.orecruncher.dsurround.config.BiomeTrait;
-import org.orecruncher.dsurround.config.biome.biometraits.BiomeTraits;
 import org.orecruncher.dsurround.processing.PrecipitationIntensity;
 
+import java.util.Random;
+
 /**
- * WIND：全模组唯一的水平风来源 —— 风向 + 风速。
+ * WIND：全模组唯一的水平风来源 —— 风向 + <b>风等级</b>。
  *
- * <p>雨幕的倾斜、雪的横飘、沙尘幕的漂移，以及以后要接进来的风声层，
+ * <p>雨幕的倾斜、雪的横飘、沙尘幕的漂移，以及风声的三层（床 / 呼啸 / 叶声），
  * 全部问这个类，而不是各自掷随机数：同一时刻只能有一阵风在吹。</p>
  *
- * <h2>为什么是"游戏时钟的纯函数"而不是一个带状态的场</h2>
- *
- * <p>本模组没有一个"晴天也会跑"的 tick 钩子。降水渲染挂在
- * {@code AFTER_WEATHER} 阶段里，没下雨时 {@code active()} 直接返回，
- * 压根走不到绘制；沙尘幕同理（tint 太低就 return）。一个靠 tick 推进的
- * 状态场会在晴天冻住，然后在暴风雨开始的第一帧突然跳到新方向 ——
- * 正好是最不能接受的那种突变。所以风向和风速都直接由游戏时钟算出来：
- * {@link #update} 在每次绘制前调一次把结果缓存下来，
- * {@link #angleAt} / {@link #speedAt} 是同一套数学的无缓存版本，
- * 给没有绘制通道的调用方（脚本变量集）用。</p>
- *
- * <h2>风向</h2>
+ * <h2>风等级是唯一的输出（统一风系统，2026-10-11）</h2>
  *
  * <pre>
- *   angle(t) = 2*PI * t / WIND_VEER_CYCLE_TICKS
- *            + WIND_VEER_WOBBLE_RAD * sin(2*PI * t / WIND_VEER_WOBBLE_PERIOD_TICKS)
+ *   shape(t)  = 本场事件的双正弦 + tanh 软削波 + 一条非周期随机游走     0..1
+ *   mean      = PRESET[群系].meanLevel[季节] x SEASON_FACTOR[季节] + 本场抖动
+ *   depth     = PRESET[群系].gustDepth x GustResponse(本场降水强度)
+ *   level(t)  = clamp(mean + depth x (2 x shape(t) - 1), 地板, 天花板)   0..1
+ *   speed     = 0.15 + 7.2 x level                                      格/秒
  * </pre>
  *
- * <p>一个慢速整圈扫掠叠一个更快的摆动，两者都是时间的连续函数，所以风向
- * 永远不会跳变：扫掠让同一场雨从头到尾一直在缓慢转向，摆动让它不至于像
- * 被一根绳子匀速拖着走。不同场次风向不同，是因为它们发生在不同的时刻。</p>
+ * <p>{@code speed = WIND_LEVEL_MIN_BPS + WIND_LEVEL_SPAN_BPS x level} 就是
+ * {@code BiomeSoundHandler} 的折回锚点本身 —— 两端是同一份常量，不是两份各自维护
+ * （那正是 2026-10-11 P1 修掉的那个 bug）。</p>
  *
- * <p>约定：0 弧度指向 +X，朝 +Z 旋转，风矢量 = {@code (cos a, sin a)}
- * 落在 {@code (x, z)} 上。这个约定本身是任意的，重要的是所有消费者一致。</p>
+ * <h2>为什么均值与波动必须解耦</h2>
  *
- * <h2>风速</h2>
+ * <p>改动前是 {@code speed = (MIN + RANGE x S + GUST x G x S) x 群系 x 季节}：
+ * 阵风项与强度 S 是<b>乘性绑定</b>的，而最后的标量倍率同时缩放均值与方差。
+ * 维护者三个性格用例里最要命的两条判据（恶地 {@code crest <= 6 dB}、树林
+ * {@code crest >= 8 dB}）量的都是两者之比，所以 18522 组网格搜索的可行解 = 0：
+ * <b>倍率能调"多大声"，调不了"多稳"。</b>现在阵风项是加性的、不含 base
+ * （{@code depth x shape}），均值由预设给，两者的比就成了一个可以独立设定的数。</p>
  *
- * <pre>
- *   bps = (WIND_SPEED_MIN_BPS
- *        + WIND_SPEED_RANGE_BPS * strength
- *        + WIND_GUST_SPEED_BPS * gustAmplitude * strength) * biomeScale * seasonScale
- * </pre>
+ * <h2>为什么形状是"游戏时钟的纯函数 + 每场事件一组参数"</h2>
  *
- * <p>{@code biomeScale} 是群系风力系数，{@code seasonScale} 是季节风力系数
- * （见 {@link #seasonScale()}）。strength 和 gustAmplitude 都不带群系信息、
- * 也不带季节信息（gustiness 是每场事件摇出来的 0.5~1.5），没有这两项的话全
- * 世界任何地方一年四季的风都一样大。</p>
+ * <p>本模组没有一个"晴天也会跑"的 tick 钩子 —— 一个靠 tick 推进的状态场会在晴天
+ * 冻住，然后在暴风雨开始的第一帧突然跳到新值。所以形状仍然是时钟的纯函数；变化的
+ * 只是<b>参数</b>：每场事件重摇一次（{@link #rollShape}），由
+ * {@code PrecipitationIntensity} 在事件开始时给出种子。同一 tick 永远同一答案。</p>
  *
- * <p>{@code strength} 是分级降水强度，离散阵风（squall）的大小已经折进
- * 去了 —— 一阵狂风在这里的表现就是风变急，而本类不需要知道 squall 存在。
- * {@code gustAmplitude} 是本场事件摇出的阵风幅度（剖面响应曲线 ×
- * gustiness），就是雨风声层拿来给树叶阵风打拍子的同一个量，所以听得见的
- * 风和看得见的风对"这场雨有多不安定"的判断是一致的。它再乘一次强度，
- * 免得一场还没起来的暴风雨就已经是十二级风。</p>
+ * <p>{@link #windShapeAt} 里还有一条<b>非周期</b>分量（确定性哈希的低频随机游走，
+ * 权重 {@link #WANDER_WEIGHT}）：正弦和的谱平坦度永远是 0，耳朵听到的是"每隔
+ * 90 秒同样的形状回来一次"（实测自相关峰 0.9995）。随机游走是唯一能把它推离 0 的
+ * 手段，而哈希保证它不需要状态。</p>
  */
 public final class WindField {
 
-    // ================= 可调参数：实测之后只动这一段 =================
+    // ================= 统一风系统的量程（唯一定义处） =================
 
     /**
-     * 没有降水时的风速，格/秒。
+     * 风等级 0 对应的风速，格/秒。
      *
-     * <p>原来是 0.8，注释写的是"完全静风会让人以为功能没开"。但常数地板正是
-     * "雨从来没有竖直过"的直接原因：强度 0 也吹 0.8 格/秒，配上下落速度 0.25
-     * 格/tick 和增益 0.5，光这一项就给出 4.6 度的倾角。现在真正的静歇由
-     * {@link #WIND_ENV_FLOOR} 兜底（包络最低点，而不是恒定值），所以这里可以
-     * 降到 0.15 —— 该有风的时候照样有风，只是不再是"永远有风"。</p>
+     * <p>WindField 的常数地板原来是 0.8，后来降到 0.15，而音频那边折回用的还是 0.8
+     * —— 两把尺子，低风段整段是死区（2026-10-11 P1 修的就是这一处）。现在这一段
+     * 同时是风速的地板和音频折回的锚点，改一个等于改两个。</p>
      */
-    private static final float WIND_SPEED_MIN_BPS = 0.15F;
+    public static final float WIND_LEVEL_MIN_BPS = 0.15F;
 
-    /** 强度拉满时额外增加的风速，格/秒。 */
-    private static final float WIND_SPEED_RANGE_BPS = 4.2F;
+    /** 风等级 1 比 0 高出的风速，格/秒。<b>level = 1.0 就是 0.15 + 7.2 = 7.35 格/秒。</b> */
+    public static final float WIND_LEVEL_SPAN_BPS = 7.2F;
 
-    /** 阵风幅度拉满、且强度拉满时额外增加的风速，格/秒。 */
-    private static final float WIND_GUST_SPEED_BPS = 3.0F;
+    // ================= 风向 =================
 
     /** 风向扫掠一整圈所需的 tick 数。越小转得越快。
      *  18000 tick = 15 分钟一圈 = 24 度/分钟。 */
@@ -87,119 +74,54 @@ public final class WindField {
     /** 快摆动的周期，tick。2400 tick = 2 分钟。 */
     private static final float WIND_VEER_WOBBLE_PERIOD_TICKS = 2400F;
 
-    // ---- 阵风包络（让"无风"的表现真的存在） ----
-
-    /**
-     * 风速包络的最低点。风不会真的静到 0 —— 那样会让人以为功能没开 ——
-     * 但静歇期要静到"雨看着是竖的"：0.08 配强度 0.5（基准 3.75 格/秒）
-     * 给出 0.30 格/秒，配增益 0.5 与下落 0.406 格/tick ⇒ 倾角约 1.1 度，
-     * 肉眼就是竖直。再往上抬到 0.15 就只剩 2 度，仍然看得出来在斜。
-     */
-    private static final float WIND_ENV_FLOOR = 0.08F;
-
-    /**
-     * 包络里慢周期占多少，剩下的是快周期。0.85 = 慢的为主、快的只掺一点。
-     *
-     * <p>纯慢正弦的静歇占比更高（27% 对 19%），但一条正弦是严格 90 秒一次
-     * 的节拍器 —— "太规律"是踩过的坑。掺 15% 快周期把节拍打散，代价是静歇
-     * 少一点，值。</p>
-     */
-    /**
-     * 包络的 gamma。&lt;1 会把整条曲线往上顶（抬高均值），但 u-&gt;0 时仍收敛到
-     * {@link #WIND_ENV_FLOOR}，所以深静歇照旧 —— 这是"均值要大、静歇还要在"
-     * 唯一能两全的旋钮。
-     *
-     * <p>离线扫过 3 个下限 x 6 个 gamma（30 分钟逐 tick），取 0.70：
-     * 强度 0.5 的平均倾角 7.1 度 -&gt; 8.1 度（改动前恒定 13.0），
-     * 而静歇（&lt;3 度）占比 19% -&gt; 8%（强度 0.25 仍有 20%）。
-     * 再往下压到 0.55 均值能到 8.8，但强度 0.5 的静歇只剩 4%，不值。</p>
-     */
-    private static final double WIND_ENV_GAMMA = 0.70D;
-
-    private static final double WIND_ENV_SLOW_WEIGHT = 0.85D;
-
-    /**
-     * 慢包络的周期，tick。1800 tick = 90 秒 —— 一次"起风 / 静下来"的呼吸。
-     * 调大 = 静歇更久更少；调小 = 来回得更勤。
-     */
-    private static final float WIND_ENV_PERIOD_SLOW_TICKS = 1800F;
-
-    /**
-     * 快包络的周期，tick。460 tick = 23 秒 —— 叠在慢包络上的阵头。
-     * 两层相乘，所以真正的满风要两层同时到峰（不常见），
-     * 正是"阵风是稀有的、静歇是常态"这个分布。
-     */
-    private static final float WIND_ENV_PERIOD_FAST_TICKS = 460F;
-
-    /** 快包络的相位，避开与慢包络同相（否则两层永远同时到峰，就没有静歇了）。 */
-    private static final double WIND_ENV_FAST_PHASE = 1.7D;
-
     /** 倾斜方向的符号。1F = 雨丝朝风去的那一侧倒。
      *  实机如果发现倒向相反，把这里改成 -1F —— 一处，三版同改。 */
     public static final float SLANT_SIGN = 1F;
 
-    // ================= 群系风力系数（让不同地方的风不一样大） =================
+    // ================= 阵风形状（每场事件重摇） =================
     //
-    // 风速的另外两个输入（strength、gustAmplitude）都不带群系信息，所以原来
-    // 全世界任何群系的风都一样大。这里用 BiomeTraits 的标签推一个倍率补上那一维。
-    // 刻意不新增配置文件字段：标签已经够用，省掉改 biomes.json 和三版配置同步。
-    //
-    // 调风力就改下面这两张表（一一对应），别的地方都不用动。
-    // WindField.java 三版逐字相同，改这里等于三版同时改。
+    // 形状照 _wind_audit/wind_design_verify.py 的 shape_series 实现：两条正弦
+    // （权重 0.7 / 0.3，第二条的周期是第一条的 2.2~3.5 倍）+ tanh 软削波。
+    // 三个性格用例的验收数字就是在这一条形状上算出来的，所以这里必须逐字对应。
 
-    /** 会被放大/缩小的群系标签，与 {@link #WIND_BIOME_SCALE_VALUES} 一一对应。
-     *  表里没有的标签一律按 1.0 处理，不用重复列进来。 */
-    private static final BiomeTrait[] WIND_BIOME_SCALE_TRAITS = {
-            BiomeTrait.WINDSWEPT,   // 风袭/风蚀 —— 名字里就写着风大
-            BiomeTrait.MOUNTAIN,    // 山地。BiomeTrait 没有 PEAK，山峰也归这条
-            BiomeTrait.HILLS,       // 丘陵
-            BiomeTrait.PLAINS,      // 平原：开阔，没有遮挡
-            BiomeTrait.SPARSE,      // 植被稀疏
-            BiomeTrait.FOREST,      // 森林：树挡风
-            BiomeTrait.DENSE,       // 密林/郁闭：基本吹不进来
-    };
+    /** tanh 软削波系数。k = 1.8 与离线复算一致：把正弦的圆顶削平、过零点留陡。 */
+    private static final double SHAPE_SOFT_CLIP = 1.8D;
 
-    /** 上面每个标签对应的风力倍率。 */
-    private static final float[] WIND_BIOME_SCALE_VALUES = {
-            1.35F,
-            1.25F,
-            1.15F,
-            1.10F,
-            1.10F,
-            0.85F,
-            0.75F,
-    };
+    /** 第一条正弦的权重，剩下给第二条。 */
+    private static final double SHAPE_WEIGHT_A = 0.70D;
 
-    // ================= 季节风力系数（让不同季节的风不一样大） =================
-    //
-    // 与上面的群系表并列的第二张倍率表，道理与群系那一维完全相同：strength
-    // 和 gustAmplitude 都不带季节信息，不补这一维的话一年四季风都一样大。
-    //
-    // 取值理由（真实气象里冬天的平均风速明显高于夏天，因为驱动天气系统的南北
-    // 温差冬季最大）：
-    //   冬季 —— 冷空气活动最频繁，取最强；
-    //   秋季 —— 锋面过渡季，阵性大风多，次强；
-    //   春季 —— 冷暖交替，取常年平均，作基准 1.0；
-    //   夏季 —— 以热力对流为主，平均风速最低；
-    //   热带湿季 —— 季风/辐合带带来的持续性大风，略高于 1.0；
-    //   热带干季 —— 只有平稳的哈德利信风，极少阵性大风，低于 1.0；
-    //   无季节信息（VANILLA 或没有季节模组）—— 1.0，不修正。
-    //
-    // 调这张表就改下面这几个常量，别的地方都不用动。WindField.java 三版逐字
-    // 相同，改这里等于三版同时改。
+    /** 第二条正弦相对第一条的周期比范围（每场事件在区间内摇一次）。 */
+    private static final double SHAPE_RATIO_MIN = 2.2D;
+    private static final double SHAPE_RATIO_MAX = 3.5D;
 
-    /** 冬季：冷空气活动频繁，风速常年偏高的季节。 */
-    private static final float WIND_SEASON_SCALE_WINTER = 1.20F;
-    /** 秋季：锋面过渡季，阵性大风多。 */
-    private static final float WIND_SEASON_SCALE_AUTUMN = 1.15F;
-    /** 春季：冷暖交替，基准。 */
-    private static final float WIND_SEASON_SCALE_SPRING = 1.00F;
-    /** 夏季：热力对流为主，平均风速最低。 */
-    private static final float WIND_SEASON_SCALE_SUMMER = 0.90F;
-    /** 热带湿季：季风带来持续性大风。 */
-    private static final float WIND_SEASON_SCALE_TROPICAL_WET = 1.10F;
-    /** 热带干季：平稳信风，少阵风。 */
-    private static final float WIND_SEASON_SCALE_TROPICAL_DRY = 0.95F;
+    /** 没有事件时（沙尘幕、诊断在事件外被问）用的默认周期与相位。 */
+    private static final double SHAPE_PERIOD_DEFAULT_S = 150D;
+    private static final double SHAPE_PHASE_DEFAULT = 1.7D;
+
+    /**
+     * 非周期分量的幅度，<b>落在 0.15 ~ 0.25 之间</b>（风场审查 S7）：0.20 = 形状上
+     * 加一条 ±0.10 的零均值扰动，也就是形状整个 0..1 量程的 20%。
+     *
+     * <p>是<b>零均值扰动</b>，不是"把周期项按 0.8 缩放再混进来"——这一条是实测定的：
+     * 混进来会把周期项的摆幅一起压掉两成，于是树林（mean 0.09 / depth 0.36）越过
+     * 0.35 的阵风峰从 3~4 个/10min 掉到 0.7 个，直接踩穿维护者用例 F2 的下限
+     * （1~6 个/10min）。扰动不改变周期项的摆幅，只把每一次峰的高度轻轻推一下。</p>
+     */
+    private static final double WANDER_WEIGHT = 0.20D;
+
+    /**
+     * 随机游走的五个八度周期，秒。互不通约，跨一个半数量级：6 s 的那一层负责把
+     * 短 lag 的自相关推开，367 s 的那一层负责"十分钟级的形状不回来"。
+     */
+    private static final double[] WANDER_PERIODS_S = { 23.0D, 71.0D, 211.0D, 601.0D };
+
+    /** 事件内状态。{@link #rollShape} 写，{@link #windShapeAt} 读；同一 tick 同一答案。 */
+    private static long shapeSeed = 0L;
+    private static double shapePeriodA = SHAPE_PERIOD_DEFAULT_S;
+    private static double shapePeriodB = SHAPE_PERIOD_DEFAULT_S * 2.5D;
+    private static double shapePhase = SHAPE_PHASE_DEFAULT;
+    private static double wanderSeed = 0.5D;
+    private static float meanJitter = 0F;
 
     // ================================================================
 
@@ -218,19 +140,142 @@ public final class WindField {
     }
 
     /**
+     * 每场事件开始时摇一次阵风的形状参数。
+     *
+     * <p>由 {@code PrecipitationIntensity} 在事件开始时调用，参数取自事件的种子。
+     * {@code gustRatePerMin} 来自预设 —— "多久刮一次"是性格的一部分，而它在此之前
+     * 是一条写死的 28~120 s 周期，而且完全不作用于风床。</p>
+     *
+     * @param seed           本场事件的种子（同一个事件必须给同一个值）
+     * @param gustRatePerMin 预设的阵风频率，每分钟几个峰；0 = 不刮（WASTELAND）
+     * @param levelJitter    预设的跨场次抖动 sigma
+     */
+    public static void rollShape(final long seed, final float gustRatePerMin, final float levelJitter) {
+        shapeSeed = seed;
+        final Random random = new Random(seed);
+        final double rate = Math.max(0.01D, gustRatePerMin);
+        // 每分钟 rate 个阵风峰 ⇒ 基频周期 60/rate 秒。
+        shapePeriodA = 60D / rate;
+        shapePeriodB = shapePeriodA * (SHAPE_RATIO_MIN + random.nextDouble() * (SHAPE_RATIO_MAX - SHAPE_RATIO_MIN));
+        shapePhase = random.nextDouble() * TWO_PI;
+        wanderSeed = random.nextDouble() * 1024D;
+        // 跨场次抖动：N(0, sigma) 截断 ±2 sigma，每场事件摇一次（不是每 tick）。
+        meanJitter = levelJitter <= 0F ? 0F
+                : (float) Mth.clamp(random.nextGaussian() * levelJitter, -2D * levelJitter, 2D * levelJitter);
+    }
+
+    /** 本场事件摇出来的均值抖动，加在预设的 mean 上。 */
+    public static float meanJitter() {
+        return meanJitter;
+    }
+
+    /** 本场事件的形状种子。诊断，以及"事件换了没有"的判断。 */
+    public static long shapeSeed() {
+        return shapeSeed;
+    }
+
+    /**
+     * 风等级，0..1。<b>统一风系统的唯一输出。</b>
+     *
+     * <p>纯函数：给定预设、降水强度和游戏时刻，答案永远一样。{@code strength} 只经
+     * 预设的 {@link GustResponse} 影响阵风<b>深度</b>，不再影响均值 —— 这就是
+     * "均值与波动解耦"的落点。</p>
+     *
+     * @param profile     群系预设，null 视为没有风
+     * @param strength    本场降水的分级强度，0..1
+     * @param gameTime    世界游戏时间
+     * @param partialTick 帧内插值
+     * @return 风等级，clamp 到预设的地板与天花板之间
+     */
+    public static float levelAt(final WindProfile profile, final float strength,
+                                final long gameTime, final float partialTick) {
+        if (profile == null)
+            return 0F;
+        final float mean = Mth.clamp(profile.meanFor(PrecipitationIntensity.season()) + meanJitter, 0F, 1F);
+        final float depth = profile.gustResponse().amplitudeAt(Mth.clamp(strength, 0F, 1F), profile.gustDepth());
+        final float shape = windShapeAt(gameTime, partialTick);
+        return Mth.clamp(mean + depth * (shape * 2F - 1F), profile.floorLevel(), profile.peakCeiling());
+    }
+
+    /**
+     * 阵风形状，0..1，游戏时钟的纯函数。
+     *
+     * <p>两条正弦（周期与相位每场事件重摇）+ tanh 软削波，再掺一条非周期的低频
+     * 随机游走。0 = 谷，1 = 峰；{@link #levelAt} 把它映射成 {@code mean ± depth}。</p>
+     *
+     * <p>与旧实现的两处差别都是实测出来的：慢层不再走 power law（那会把掺进去的快层
+     * 压成 0.9% 的净贡献），两层按权重<b>线性</b>叠加；事件周期不再写死 1800/460 tick
+     * （单条 90 s 周期让 30 min 自相关峰高达 0.9995）。</p>
+     */
+    public static float windShapeAt(final long gameTime, final float partialTick) {
+        final double seconds = ((double) gameTime + (double) partialTick) / (double) TICKS_PER_SECOND;
+        final double wave = SHAPE_WEIGHT_A * Math.sin(TWO_PI * seconds / shapePeriodA + shapePhase)
+                + (1D - SHAPE_WEIGHT_A) * Math.sin(TWO_PI * seconds / shapePeriodB + shapePhase * 1.7D);
+        final double clipped = Math.tanh(wave * SHAPE_SOFT_CLIP) / Math.tanh(SHAPE_SOFT_CLIP);
+        final double periodic = (clipped + 1D) * 0.5D;
+        return (float) Mth.clamp(periodic + WANDER_WEIGHT * (wander(seconds) - 0.5D), 0D, 1D);
+    }
+
+    /**
+     * 旧名字，保留给已有的调用方（诊断与树冠/呼啸的包络）。语义与
+     * {@link #windShapeAt} 完全相同：0..1 的阵风形状。
+     */
+    public static float envelopeAt(final long gameTime, final float partialTick) {
+        return windShapeAt(gameTime, partialTick);
+    }
+
+    /**
+     * 非周期分量，0..1：三个八度的确定性值噪声。
+     *
+     * <p>没有状态 —— 格点上的值由 {@code (格点, 八度, 本场种子)} 哈希出来，所以
+     * 同一个 tick 在任何线程、任何版本、任何会话里都是同一个数，也不需要 tick 钩子
+     * 去推进它。{@code PrecipitationRenderer.columnHash} 是同一个做法的先例。</p>
+     */
+    private static double wander(final double seconds) {
+        double sum = 0D;
+        for (int i = 0; i < WANDER_PERIODS_S.length; i++) {
+            final double x = seconds / WANDER_PERIODS_S[i] + wanderSeed * (i + 1);
+            final double lattice = Math.floor(x);
+            final double fraction = x - lattice;
+            final double smooth = fraction * fraction * (3D - 2D * fraction);
+            final double a = value(lattice, i);
+            final double b = value(lattice + 1D, i);
+            sum += a + (b - a) * smooth;
+        }
+        return sum / WANDER_PERIODS_S.length;
+    }
+
+    /** 格点上的伪随机值，0..1。纯哈希，见 {@link #wander}。 */
+    private static double value(final double lattice, final int octave) {
+        long h = Double.doubleToLongBits(lattice) * 0x9E3779B97F4A7C15L
+                + (long) octave * 0xC2B2AE3D27D4EB4FL
+                + (long) (wanderSeed * 1_000_000D);
+        h ^= (h >>> 33);
+        h *= 0xFF51AFD7ED558CCDL;
+        h ^= (h >>> 33);
+        return (double) (h >>> 11) * 0x1.0p-53;
+    }
+
+    /** 风等级 -> 风速，格/秒。渲染与音频共用的那一条映射。 */
+    public static float speedOf(final float windLevel) {
+        return WIND_LEVEL_MIN_BPS + Mth.clamp(windLevel, 0F, 1F) * WIND_LEVEL_SPAN_BPS;
+    }
+
+    /** 风速 -> 风等级。{@code BiomeSoundHandler} 的折回就是这一条。 */
+    public static float levelOf(final float bps) {
+        return Mth.clamp((bps - WIND_LEVEL_MIN_BPS) / WIND_LEVEL_SPAN_BPS, 0F, 1F);
+    }
+
+    /**
      * 每次绘制前调一次，把当前时刻的风缓存下来。
      *
-     * @param gameTime      世界游戏时间（level.getGameTime()）
-     * @param partialTick   帧内插值，让转向连续
-     * @param strength      当前强度，0..1（降水强度 / 沙尘幕的 veilNow）
-     * @param gustAmplitude 本场事件的阵风幅度，0..1；沙尘幕传 0
-     * @param biomeScale    群系风力系数，见 {@link #biomeScale}；不区分群系时传 1F
+     * @param gameTime    世界游戏时间（level.getGameTime()）
+     * @param partialTick 帧内插值，让转向连续
+     * @param windLevel   当前风等级，0..1（{@code PrecipitationIntensity.windLevel()}）
      */
-    public static void update(long gameTime, float partialTick, float strength, float gustAmplitude,
-                              float biomeScale) {
+    public static void update(final long gameTime, final float partialTick, final float windLevel) {
         final float a = angleAt(gameTime, partialTick);
-        // 渲染路径乘阵风包络：同一场雨会自己一忽儿竖直一忽儿斜。
-        final float bps = speedAt(gameTime, partialTick, strength, gustAmplitude, biomeScale);
+        final float bps = speedOf(windLevel);
         angle = a;
         dirX = Mth.cos(a);
         dirZ = Mth.sin(a);
@@ -241,126 +286,11 @@ public final class WindField {
     /**
      * 某个游戏时刻的风向，弧度。0 = +X，朝 +Z 旋转。纯函数。
      */
-    public static float angleAt(long gameTime, float partialTick) {
+    public static float angleAt(final long gameTime, final float partialTick) {
         final double t = (double) gameTime + (double) partialTick;
         return (float) (TWO_PI * (t / (double) WIND_VEER_CYCLE_TICKS)
                 + WIND_VEER_WOBBLE_RAD
                 * Math.sin(TWO_PI * (t / (double) WIND_VEER_WOBBLE_PERIOD_TICKS)));
-    }
-
-    /**
-     * 风速，格/秒。纯函数。
-     *
-     * <p>季节倍率在这里乘进去 —— 和群系倍率一样走同一条路，所以任何问本类的
-     * 调用方（渲染、沙尘、脚本变量集、风声层）拿到的都是同一阵风，不需要各自
-     * 补一次季节修正。</p>
-     */
-    /**
-     * 风速，格/秒。纯函数。<strong>不带阵风包络</strong> —— 给没有绘制通道的
-     * 调用方（风声层、脚本变量集）用。
-     *
-     * <p>为什么不给他们也乘包络：风声层把这风速折成风床音量，而"静歇期风床
-     * 掉没 ⇒ 听感像风声没了"是踩过的坑（见 {@code BiomeSoundHandler} 里
-     * {@code RAIN_WIND_MIN_INTENSITY} 的注释）。包络让瞬时风速在静歇期掉到
-     * 15%，照搬到音频上就是每隔一两分钟风声消失一次。风床代表的是这场风暴
-     * 的<em>潜力</em>而不是这一瞬间的阵风，所以这里读不带包络的基准值。</p>
-     */
-    public static float speedAt(float strength, float gustAmplitude, float biomeScale) {
-        final float s = Mth.clamp(strength, 0F, 1F);
-        final float g = Mth.clamp(gustAmplitude, 0F, 1F);
-        final float b = biomeScale > 0F ? biomeScale : 1F;
-        return (WIND_SPEED_MIN_BPS + WIND_SPEED_RANGE_BPS * s + WIND_GUST_SPEED_BPS * g * s) * b * seasonScale();
-    }
-
-    /**
-     * 渲染用的风速，格/秒 —— 上面那条再乘一个阵风包络。
-     *
-     * <p>只有 {@link #update} 调它，而 {@code update} 写的缓存只被
-     * {@link #tangentialAlong}（雨/雪/沙尘幕的倾斜与拖影）读到，所以包络
-     * 只影响看得见的东西。</p>
-     */
-    public static float speedAt(long gameTime, float partialTick, float strength,
-                                float gustAmplitude, float biomeScale) {
-        return speedAt(strength, gustAmplitude, biomeScale) * envelopeAt(gameTime, partialTick);
-    }
-
-    /**
-     * 阵风包络，0.15 .. 1.0，游戏时钟的纯函数 —— 与 {@link #angleAt} 同一条
-     * 纪律：本模组没有晴天也跑的 tick 钩子，一个靠 tick 推进的状态场会在晴天
-     * 冻住，然后在暴风雨第一帧突然跳到新值。纯函数没有这个问题。
-     *
-     * <p>两层正弦相乘：慢的那层决定"这一阵风起来没有"，快的那层在它上面叠
-     * 阵头。相乘而不是相加，因为相乘才有真正的静歇（两层都低的时候接近 0），
-     * 而相加永远掉不到底 —— 那和原来的常数地板没区别。</p>
-     */
-    public static float envelopeAt(long gameTime, float partialTick) {
-        final double t = (double) gameTime + (double) partialTick;
-        final double slow = 0.5 + 0.5 * Math.sin(TWO_PI * (t / (double) WIND_ENV_PERIOD_SLOW_TICKS));
-        final double fast = 0.5 + 0.5 * Math.sin(TWO_PI * (t / (double) WIND_ENV_PERIOD_FAST_TICKS)
-                + WIND_ENV_FAST_PHASE);
-        // 加权和，不是积。slow×fast 只在两层同时到峰时才接近 1，深静歇因此
-        // 极其罕见 —— 实测"倾角<3°"只占 3% 的时间，等于没有静歇。改成加权和
-        // 之后升到约 19%。
-        //
-        // 两条都是 0..1 的正弦，和也在 0..1，均值 0.5 ⇒ 平均风速约降到改动前的
-        // 六成（倾角均值 13° → 7.1°）。这是刻意的：他要的是"雨不全是斜的"，
-        // 平均降下来正是那个方向，而峰值仍然够到满值。
-        final double u = WIND_ENV_SLOW_WEIGHT * slow + (1.0 - WIND_ENV_SLOW_WEIGHT) * fast;
-        return (float) (WIND_ENV_FLOOR + (1.0 - WIND_ENV_FLOOR) * Math.pow(u, WIND_ENV_GAMMA));
-    }
-
-    /**
-     * 一个群系的风力倍率，1.0 = 不修正。
-     *
-     * <p>多个标签同时命中时返回<strong>偏离 1.0 最远</strong>的那一条，不累乘 ——
-     * 山地里 WINDSWEPT 和 MOUNTAIN 常见同时成立，累乘出 1.69 这种值会让风失真。
-     * 表外的标签直接返回 1.0。</p>
-     *
-     * <p>调用点每帧/每 tick 只查一次（见 {@code PrecipitationIntensity.update}）：
-     * 一次查询是 7 次 HashSet 查找，放进 per-column 循环里会乘上几百列。</p>
-     */
-    public static float biomeScale(final BiomeTraits traits) {
-        if (traits == null)
-            return 1F;
-        float result = 1F;
-        float bestDeviation = 0F;
-        for (int i = 0; i < WIND_BIOME_SCALE_TRAITS.length; i++) {
-            if (!traits.contains(WIND_BIOME_SCALE_TRAITS[i]))
-                continue;
-            final float deviation = Math.abs(WIND_BIOME_SCALE_VALUES[i] - 1F);
-            if (deviation > bestDeviation) {
-                bestDeviation = deviation;
-                result = WIND_BIOME_SCALE_VALUES[i];
-            }
-        }
-        return result;
-    }
-
-    /**
-     * 当前 {@code PrecipitationIntensity} 正在用的那一列的季节风力倍率。
-     * 1.0 = 不修正（没有季节模组，或 VANILLA 列）。
-     */
-    public static float seasonScale() {
-        return seasonScale(PrecipitationIntensity.season());
-    }
-
-    /**
-     * 某个季节的风力倍率，1.0 = 不修正。
-     *
-     * <p>{@code null}（季节系统还没给出答案）和 VANILLA 都返回 1.0。</p>
-     */
-    public static float seasonScale(final PrecipitationSeason season) {
-        if (season == null)
-            return 1F;
-        return switch (season) {
-            case WINTER -> WIND_SEASON_SCALE_WINTER;
-            case AUTUMN -> WIND_SEASON_SCALE_AUTUMN;
-            case SPRING -> WIND_SEASON_SCALE_SPRING;
-            case SUMMER -> WIND_SEASON_SCALE_SUMMER;
-            case TROPICAL_WET -> WIND_SEASON_SCALE_TROPICAL_WET;
-            case TROPICAL_DRY -> WIND_SEASON_SCALE_TROPICAL_DRY;
-            case VANILLA -> 1F;
-        };
     }
 
     /** 缓存的风向，弧度。 */
@@ -405,7 +335,7 @@ public final class WindField {
      * <p>剩余限制：幕是平面，径向分量表达不出来，风正对或正背相机吹时那一幕
      * 的倾角会消失。这是围栏模型的固有代价，不是 bug。</p>
      */
-    public static float tangentialAlong(float ax, float az) {
+    public static float tangentialAlong(final float ax, final float az) {
         return (dirX * ax + dirZ * az) * speedBPT;
     }
 }

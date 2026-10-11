@@ -1,0 +1,90 @@
+{
+  "//": "统一风系统：风的性格预设（WindProfile）与季节因子。这个文件是默认值的一份副本，编译进 class 的那一份与它逐值相同；数据包/模组可以在自己的 assets/<命名空间>/dsconfigs/wind.json 里只写要改的字段来覆盖它（每个字段都可选，只覆盖写了的那些）。季节列的顺序固定为 SPRING, SUMMER, AUTUMN, WINTER, TROPICAL_DRY, TROPICAL_WET。数值来自 _wind_audit/wind_design_verify.py 的搜参结果（六个季节列全部通过各自的性格判据），改动前请先跑 _wind_unified/wind_offline.py 复算三个性格用例。",
+  "seasonFactor": [1.00, 0.95, 1.05, 1.10, 0.92, 1.04],
+  "profiles": [
+    {
+      "//": "恶地/风袭/荒原/沙地：始终风大且稳定（mean 高、depth 极浅、rate 极低、地板 0.35）",
+      "preset": "EXPOSED_BARREN",
+      "meanLevel": [0.55, 0.55, 0.55, 0.55, 0.55, 0.55],
+      "levelJitter": 0.01,
+      "gustDepth": 0.04,
+      "gustRatePerMin": 0.2,
+      "floorLevel": 0.35,
+      "peakCeiling": 0.60,
+      "canopyResponse": 0.00,
+      "gustResponse": "FLAT"
+    },
+    {
+      "//": "草原/平原/沙丘/热带草原：平时基本微风（天花板 0.25 是判据的结构性保证）",
+      "preset": "OPEN_LOWLAND",
+      "meanLevel": [0.08, 0.08, 0.08, 0.08, 0.08, 0.08],
+      "levelJitter": 0.02,
+      "gustDepth": 0.08,
+      "gustRatePerMin": 0.2,
+      "floorLevel": 0.03,
+      "peakCeiling": 0.25,
+      "canopyResponse": 0.00,
+      "gustResponse": "FLAT"
+    },
+    {
+      "//": "阔叶林/混合林：微风为主 + 偶发大风 + 叶声（mean 与草原只差 0.01，性格全在 depth 0.36）",
+      "preset": "WOODLAND",
+      "meanLevel": [0.09, 0.09, 0.09, 0.09, 0.09, 0.09],
+      "levelJitter": 0.01,
+      "gustDepth": 0.36,
+      "gustRatePerMin": 0.4,
+      "floorLevel": 0.05,
+      "peakCeiling": 0.45,
+      "canopyResponse": 1.00,
+      "gustResponse": "FLAT"
+    },
+    {
+      "//": "密林/丛林/沼泽/蘑菇岛：风被挡住，阵风更频但更浅；叶声仍是满的",
+      "preset": "DENSE_CANOPY",
+      "meanLevel": [0.06, 0.06, 0.06, 0.06, 0.06, 0.06],
+      "levelJitter": 0.01,
+      "gustDepth": 0.18,
+      "gustRatePerMin": 0.5,
+      "floorLevel": 0.03,
+      "peakCeiling": 0.30,
+      "canopyResponse": 1.00,
+      "gustResponse": "FLAT"
+    },
+    {
+      "//": "海岸/海洋/河流/沙滩：长周期稳定风（rate 0.1/min = 十分钟一个阵风峰），秋冬略高",
+      "preset": "COASTAL_EXPOSED",
+      "meanLevel": [0.30, 0.30, 0.32, 0.34, 0.30, 0.32],
+      "levelJitter": 0.03,
+      "gustDepth": 0.10,
+      "gustRatePerMin": 0.1,
+      "floorLevel": 0.22,
+      "peakCeiling": 0.55,
+      "canopyResponse": 0.10,
+      "gustResponse": "FLAT"
+    },
+    {
+      "//": "高海拔/雪线/高原/冰原：强、冷、低频重；半树（canopy 0.35）",
+      "preset": "ALPINE_PEAK",
+      "meanLevel": [0.35, 0.35, 0.35, 0.35, 0.35, 0.35],
+      "levelJitter": 0.04,
+      "gustDepth": 0.22,
+      "gustRatePerMin": 0.6,
+      "floorLevel": 0.18,
+      "peakCeiling": 0.70,
+      "canopyResponse": 0.35,
+      "gustResponse": "FLAT"
+    },
+    {
+      "//": "下界/末地/虚空/地下：没有风这个维度，全 0 ⇒ 床与层都不存在",
+      "preset": "WASTELAND",
+      "meanLevel": [0.00, 0.00, 0.00, 0.00, 0.00, 0.00],
+      "levelJitter": 0.00,
+      "gustDepth": 0.00,
+      "gustRatePerMin": 0.0,
+      "floorLevel": 0.00,
+      "peakCeiling": 0.00,
+      "canopyResponse": 0.00,
+      "gustResponse": "FLAT"
+    }
+  ]
+}

@@ -31,6 +31,7 @@ import org.orecruncher.dsurround.lib.version.IVersionChecker;
 import org.orecruncher.dsurround.lib.version.VersionChecker;
 import org.orecruncher.dsurround.lib.version.VersionResult;
 import org.orecruncher.dsurround.processing.Handlers;
+import org.orecruncher.dsurround.processing.weather.WindProfile;
 import org.orecruncher.dsurround.runtime.ConditionEvaluator;
 import org.orecruncher.dsurround.runtime.IConditionEvaluator;
 import org.orecruncher.dsurround.sound.AudioPlayerDebug;
@@ -184,6 +185,12 @@ public final class Client {
         AssetLibraryEvent.RELOAD.register(container.resolve(IEntityEffectLibrary.class)::reload, HandlerPriority.HIGH);
         AssetLibraryEvent.RELOAD.register(container.resolve(IDimensionLibrary.class)::reload, HandlerPriority.HIGH);
         AssetLibraryEvent.RELOAD.register(container.resolve(VariatorLibrary.class)::reload, HandlerPriority.HIGH);
+        // 统一风系统：风的性格参数表（assets/<ns>/dsconfigs/wind.json，数据包可覆盖）。
+        // 标签同步（Scope.TAGS）期间没有资源重载，跳过。
+        AssetLibraryEvent.RELOAD.register((resourceUtilities, scope) -> {
+            if (scope != IReloadEvent.Scope.TAGS)
+                WindProfile.reload(resourceUtilities);
+        }, HandlerPriority.HIGH);
 
         ClientState.TAG_SYNC.register(event -> {
             this.logger.info("Tag sync event received - reloading libraries");

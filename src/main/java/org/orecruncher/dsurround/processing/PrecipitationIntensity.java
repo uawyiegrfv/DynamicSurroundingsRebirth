@@ -11,6 +11,8 @@ import org.orecruncher.dsurround.processing.weather.PrecipitationProfile;
 import org.orecruncher.dsurround.processing.weather.PrecipitationRenderer;
 import org.orecruncher.dsurround.processing.weather.PrecipitationResponse;
 import org.orecruncher.dsurround.processing.weather.PrecipitationSeason;
+import org.orecruncher.dsurround.processing.weather.WindField;
+import org.orecruncher.dsurround.processing.weather.WindProfile;
 import org.orecruncher.dsurround.processing.weather.RouteFuse;
 import org.orecruncher.dsurround.processing.weather.SkyEventScheduler;
 
@@ -333,9 +335,14 @@ public final class PrecipitationIntensity {
     private static volatile float gustiness = 1F;
     /** Roll two resolved into an amplitude: profile response curve x gustiness. */
     private static volatile float gustAmplitude = 0F;
-    /** WIND：玩家当前群系的风力系数，1.0 = 不修正。由 BiomeInfo 的标签推导，
-     *  每 tick 在 {@link #update} 里更新一次。 */
-    private static volatile float windScale = 1F;
+    /**
+     * WIND：玩家当前群系的性格预设（统一风系统）。由 BiomeInfo 的标签解析，
+     * 每 tick 在 {@link #update} 里更新一次 —— 渲染侧拿不到 biomeLibrary，
+     * 这里正好当转接口。null = 还没有世界信息，那时风等级是 0。
+     */
+    private static volatile WindProfile windProfile = null;
+    /** WIND：本场事件的形状种子。每场重摇一次，{@code WindField} 用它决定阵风形状。 */
+    private static volatile long windEventSeed = 0L;
     /**
      * The profile's mode at the position and season the event was rolled at. The
      * rolled base is relative to this, so it is what lets the same base be
@@ -1591,17 +1598,40 @@ public final class PrecipitationIntensity {
     }
 
     /**
-     * WIND：当前群系的风力系数，1.0 = 不修正。
+     * WIND：当前群系的性格预设（{@code WindProfile}），null = 还没有世界信息。
      *
-     * <p>为什么要单独开这个口子：风速只吃 strength 和 gustAmplitude，而这两个量
-     * 都不带群系信息（gustiness 是每场事件摇的 0.5~1.5），所以全世界任何群系的
-     * 风本来都一样大。渲染侧拿不到 biomeLibrary，于是把这边每 tick 缓存的结果
-     * 交给它。</p>
-     *
-     * @return 风力倍率，通常落在 [0.75, 1.35]
+     * <p>为什么要单独开这个口子：风场需要群系标签才能选预设，而渲染侧拿不到
+     * biomeLibrary，于是把这边每 tick 解析好的结果交给它。玩家在两个群系之间走动时
+     * 这个值下一 tick 就跟着变 —— 预设是"这一带的风"，性格换了风就换了。</p>
      */
-    public static float windScale() {
-        return windScale;
+    public static WindProfile windProfile() {
+        return windProfile;
+    }
+
+    /** WIND：本场事件的形状种子（诊断用；形状参数由 {@code WindField} 持有）。 */
+    public static long windEventSeed() {
+        return windEventSeed;
+    }
+
+    /**
+     * WIND：<b>统一风系统的唯一出口</b> —— 当前风等级 0..1。
+     *
+     * <p>纯函数：群系预设 + 本场事件摇出的形状 + 世界时钟。降水强度只通过预设的
+     * {@code GustResponse} 影响阵风<b>深度</b>，不影响均值（这就是"均值与波动解耦"）。
+     * 风床、阵风、呼啸、叶声层、雨幕倾斜、脚本变量全部读这一个数。</p>
+     *
+     * @return 风等级 0..1；没有世界信息时为 0
+     */
+    public static float windLevel() {
+        final Level level = clientLevel;
+        final long now = level == null ? 0L : level.getGameTime();
+        return WindField.levelAt(windProfile, ambient, now, 0F);
+    }
+
+    /** WIND：把本场事件的形状参数交给 {@code WindField}（频率与抖动来自预设）。 */
+    private static void rollWindShape() {
+        final WindProfile profile = windProfile == null ? WindProfile.OPEN_LOWLAND : windProfile;
+        WindField.rollShape(windEventSeed, profile.gustRatePerMin(), profile.levelJitter());
     }
 
     public static float ambient() {
@@ -1900,11 +1930,11 @@ public final class PrecipitationIntensity {
         clientLevel = level;
         diagLogger = logger;
 
-        // WIND：群系风力系数也在这里更新一次 —— 每 tick，不是每帧更不是每幕。
+        // WIND：群系预设也在这里更新一次 —— 每 tick，不是每帧更不是每幕。
         // 渲染侧没有 biomeLibrary，而这里已经拿到了 BiomeScanner 解析好的
-        // BiomeInfo，正好当它们的转接口。info 可能为 null（还没拿到世界的
-        // 时候），那时给 1.0，行为与没有这个功能时完全一致。
-        windScale = info == null ? 1F : info.windScale();
+        // BiomeInfo，正好当它们的转接口。info 可能为 null（还没拿到世界的时候），
+        // 那时没有风（等级 0）—— 不知道该吹什么的时候不吹，比吹一个默认值诚实。
+        windProfile = info == null ? null : WindProfile.resolve(info.getTraits());
 
         // The vanilla ramp has to be read FIRST and judged by its direction of
         // travel. Level.isRaining() is derived from it (rainLevel > 0.2) and so
@@ -2067,6 +2097,11 @@ public final class PrecipitationIntensity {
                 rollMode = profile.modeFor(season);
                 locationMode = rollMode;
                 gustPhase = RANDOM.nextDouble() * TWO_PI;
+                // WIND：统一风系统的阵风形状也属于这场事件 —— 每场重摇周期、相位
+                // 与那条非周期游走的种子。写死的 90 s 单条周期正是"听得出来在循环"
+                // 的根因（30 min 自相关峰 0.9995），而形状本身仍是时钟的纯函数。
+                windEventSeed = RANDOM.nextLong();
+                rollWindShape();
                 lastEnvelope = 0F;
                 smoothed = 0F;
                 persistEvent(level);
@@ -2424,6 +2459,7 @@ public final class PrecipitationIntensity {
             obj.addProperty("gustPeriodB", gustPeriodB);
             obj.addProperty("gustWeightB", gustWeightB);
             obj.addProperty("gustSharpness", gustSharpness);
+            obj.addProperty("windEventSeed", windEventSeed);
             obj.addProperty("attackSeconds", attackTicks / 20F);
             obj.addProperty("dustBase", dustBase);
             java.nio.file.Files.writeString(file, obj.toString(),
@@ -2536,6 +2572,10 @@ public final class PrecipitationIntensity {
             gustSharpness = obj.has("gustSharpness") ? obj.get("gustSharpness").getAsFloat() : 0F;
             attackTicks = Math.max(0F, obj.get("attackSeconds").getAsFloat()) * 20F;
             attackStartTick = start;
+            // WIND：形状种子跟着事件一起恢复，否则"重进世界"会让这一阵风的节奏
+            // 从头开始 —— 而它已经在外面吹了十分钟。
+            windEventSeed = obj.has("windEventSeed") ? obj.get("windEventSeed").getAsLong() : RANDOM.nextLong();
+            rollWindShape();
             gustAmplitude = profile.gustAmplitudeAt(rolled) * gustiness;
             rollMode = profile.modeFor(currentSeason);
             locationMode = rollMode;

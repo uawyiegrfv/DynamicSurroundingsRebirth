@@ -1111,7 +1111,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         final boolean overlay = TAG_LIBRARY.is(FOOT_OVERLAY, footState);
         if (trace != null) {
             final boolean standing = isStandingOn(entity, level, pos.above(), footState);
-            trace.add("feet cell in #dsurround:effects/foot_overlay = %s (waterlogged = %s)".formatted(
+            trace.add("feet cell in #dsrebirth:effects/foot_overlay = %s (waterlogged = %s)".formatted(
                     overlay, isWaterlogged(footState)));
             trace.add("isStandingOn(feetCell) = %s  -> the cell %s be used".formatted(
                     standing, standing ? "CAN" : "MUST NOT"));
@@ -1421,7 +1421,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // The runtime paths bail out on air/fluid before they ever look at the sound type
         // (playStep and resolveLandSound both test isNotSolidSurface first). This report has to
         // apply the same test or it lies: vanilla leaves AIR's SoundType at the default STONE,
-        // so the lines below used to resolve block.stone.step -> dsurround:footsteps.stone for a
+        // so the lines below used to resolve block.stone.step -> dsrebirth:footsteps.stone for a
         // surface where nothing plays at all. A physics structure (Valkyrien Skies, Sable) keeps
         // its blocks outside the world grid, so standing on one reads as air here - and the
         // report claimed a stone footstep on a wooden ship. Reported from a player standing on a
@@ -1460,7 +1460,7 @@ public class FootstepGenerator extends AbstractClientHandler {
         // must be lifted by the cell's own Y before being compared with the entity's world Y. The
         // earlier form compared 1.5 against ~64 and was therefore ALWAYS true - the guard below
         // was inert and /dsdump steps printed "isStandingOn = true" for every cell. Nothing
-        // audibly broke while it was inert because #dsurround:effects/foot_overlay holds only flat
+        // audibly broke while it was inert because #dsrebirth:effects/foot_overlay holds only flat
         // overlays (carpets, rails, plates, snow, lily pads, glow lichen, sculk veins); a raised
         // block added to that tag by a datapack would have re-created the door/hijacked-sound bug.
         var shape = state.getCollisionShape(level, cell);
@@ -1542,7 +1542,7 @@ public class FootstepGenerator extends AbstractClientHandler {
 
     private void playJump(final Player player) {
         // A2-9: Match the original 1.12.2 two-layer jump: the generic "grunt"
-        // (dsurround:player.jump) plus a material-specific take-off scuff for the
+        // (dsrebirth:player.jump) plus a material-specific take-off scuff for the
         // block below, mirroring the original's simulateJumpingLanding which
         // played the _JUMP acoustic and the material's jump acoustic. Both
         // layers resolve through the JSON factory registry so their configured

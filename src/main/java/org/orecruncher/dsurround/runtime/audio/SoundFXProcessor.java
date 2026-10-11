@@ -92,7 +92,7 @@ public final class SoundFXProcessor {
         LOGGER.info("Threads allocated to enhanced sound processor: %d", threads);
         final AtomicInteger counter = new AtomicInteger(1);
         return Executors.newFixedThreadPool(threads, r -> {
-            final var t = new Thread(r, "dsurround-soundfx-" + counter.getAndIncrement());
+            final var t = new Thread(r, "dsrebirth-soundfx-" + counter.getAndIncrement());
             t.setDaemon(true);
             return t;
         });

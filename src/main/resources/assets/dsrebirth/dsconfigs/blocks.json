@@ -50,7 +50,7 @@
     "soundChance": "0.0001",
     "acoustics": [
       {
-        "factory": "dsurround:ice"
+        "factory": "dsrebirth:ice"
       }
     ]
   },
@@ -64,7 +64,7 @@
     "soundChance": "0.01",
     "acoustics": [
       {
-        "factory": "dsurround:block.torch_burn"
+        "factory": "dsrebirth:block.torch_burn"
       }
     ]
   },
@@ -75,7 +75,7 @@
     "soundChance": "0.000125",
     "acoustics": [
       {
-        "factory": "dsurround:soulsand.laughter"
+        "factory": "dsrebirth:soulsand.laughter"
       }
     ]
   },
@@ -88,7 +88,7 @@
     "soundChance": "0.000125",
     "acoustics": [
       {
-        "factory": "dsurround:netherbrick.breathing",
+        "factory": "dsrebirth:netherbrick.breathing",
         "conditions": "dim.getId() == 'minecraft:the_nether'"
       }
     ]
@@ -105,7 +105,7 @@
     "soundChance": "0.015",
     "acoustics": [
       {
-        "factory": "dsurround:redstone/electricarc/high"
+        "factory": "dsrebirth:redstone/electricarc/high"
       }
     ]
   },
@@ -118,7 +118,7 @@
     "soundChance": "0.015",
     "acoustics": [
       {
-        "factory": "dsurround:redstone/electricarc/medium"
+        "factory": "dsrebirth:redstone/electricarc/medium"
       }
     ]
   },
@@ -131,13 +131,13 @@
     "soundChance": "0.015",
     "acoustics": [
       {
-        "factory": "dsurround:redstone/electricarc/low"
+        "factory": "dsrebirth:redstone/electricarc/low"
       }
     ]
   },
   {
     "blocks": [
-      "#dsurround:effects/fireflies"
+      "#dsrebirth:effects/fireflies"
     ],
     "effects": [
       {
@@ -165,12 +165,12 @@
     "soundChance": "0.04",
     "acoustics": [
       {
-        "factory": "dsurround:frog",
+        "factory": "dsrebirth:frog",
         "conditions": "!state.isInside() && !weather.canWaterFreeze()",
         "weight": 30
       },
       {
-        "factory": "dsurround:bullfrog",
+        "factory": "dsrebirth:bullfrog",
         "conditions": "!state.isInside() && !weather.canWaterFreeze()",
         "weight": 10
       }
@@ -183,17 +183,17 @@
     "soundChance": "0.005",
     "acoustics": [
       {
-        "factory": "dsurround:rattlesnake",
+        "factory": "dsrebirth:rattlesnake",
         "conditions": "weather.isNotRaining() && diurnal.isDay() && !biome.isOneOf(COLD,SNOWY)",
         "weight": 50
       },
       {
-        "factory": "dsurround:hiss",
+        "factory": "dsrebirth:hiss",
         "conditions": "weather.isNotRaining() && diurnal.isDay() && !biome.isOneOf(COLD,SNOWY)",
         "weight": 35
       },
       {
-        "factory": "dsurround:insectcrawl",
+        "factory": "dsrebirth:insectcrawl",
         "conditions": "weather.isNotRaining() && diurnal.isDay() && !biome.isOneOf(COLD,SNOWY)",
         "weight": 15
       }

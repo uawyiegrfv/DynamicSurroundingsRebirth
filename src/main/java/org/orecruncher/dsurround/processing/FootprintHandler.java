@@ -38,7 +38,7 @@ import org.orecruncher.dsurround.tags.BlockEffectTags;
 public class FootprintHandler {
 
     // Which blocks take a footprint is DATA, not a hardcoded list: the handler consults
-    // #dsurround:effects/footprintable so a mod can opt its own soft ground in, and a
+    // #dsrebirth:effects/footprintable so a mod can opt its own soft ground in, and a
     // modpack can retune the set through a resource pack.
 
     private final Configuration config;

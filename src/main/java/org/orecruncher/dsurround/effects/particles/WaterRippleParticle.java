@@ -18,7 +18,7 @@ import org.orecruncher.dsurround.lib.gui.ColorPalette;
  * Expanding ring drawn flat on the water surface. 26.1 rewrite: TextureSheetParticle is
  * gone, so the particle now extends SingleQuadParticle and submits its quad through
  * extract() instead of drawing with a VertexConsumer in render(). The strip texture is
- * stitched into the vanilla particle atlas (assets/dsurround/textures/particle/), and the
+ * stitched into the vanilla particle atlas (assets/dsrebirth/textures/particle/), and the
  * WaterRippleStyle frame UVs are remapped into the sprite's atlas bounds.
  */
 public class WaterRippleParticle extends SingleQuadParticle {

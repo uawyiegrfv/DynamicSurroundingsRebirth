@@ -8,9 +8,9 @@ import java.text.DecimalFormat;
 @SuppressWarnings("unused")
 public class MinecraftClock {
 
-    private static final String AM = "dsurround.format.AM";
-    private static final String PM = "dsurround.format.PM";
-    private static final String TIME_FORMAT = "dsurround.format.TimeOfDay";
+    private static final String AM = "dsrebirth.format.AM";
+    private static final String PM = "dsrebirth.format.PM";
+    private static final String TIME_FORMAT = "dsrebirth.format.TimeOfDay";
 
     private static final DecimalFormat minuteFormat = new DecimalFormat("00");
 

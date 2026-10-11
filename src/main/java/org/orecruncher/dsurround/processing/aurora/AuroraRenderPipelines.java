@@ -47,9 +47,9 @@ public final class AuroraRenderPipelines {
     public static final RenderPipeline AURORA_64 = build(4.5F);
     public static final RenderPipeline AURORA_128 = build(9.0F);
 
-    public static final RenderType TYPE_64 = RenderType.create("dsurround:aurora_64",
+    public static final RenderType TYPE_64 = RenderType.create("dsrebirth:aurora_64",
             RenderSetup.builder(AURORA_64).createRenderSetup());
-    public static final RenderType TYPE_128 = RenderType.create("dsurround:aurora_128",
+    public static final RenderType TYPE_128 = RenderType.create("dsrebirth:aurora_128",
             RenderSetup.builder(AURORA_128).createRenderSetup());
 
     private AuroraRenderPipelines() {

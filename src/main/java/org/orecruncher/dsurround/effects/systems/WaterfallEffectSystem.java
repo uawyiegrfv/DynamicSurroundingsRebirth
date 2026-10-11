@@ -55,7 +55,7 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
      *
      * <p>NOT final and rebuilt on a resource reload. It used to be a {@code static final} array filled
      * by a static initialiser, which meant a {@code /dsreload} or resource reload that retargeted
-     * {@code dsurround:waterfalls/*} in sound_factories.json never reached waterfall sounds - they kept
+     * {@code dsrebirth:waterfalls/*} in sound_factories.json never reached waterfall sounds - they kept
      * the factories captured at class load for the rest of the session.
      *
      * <p>The initialiser also used {@code orElseThrow()} on all six lookups, so a resource pack that
@@ -115,7 +115,7 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
         this.soundCheckThrottle = 0;
 
         // Resolve the loops now (replacing the old static initialiser), and re-resolve on a resource
-        // reload so a resource pack that retargets dsurround:waterfalls/* takes effect without a
+        // reload so a resource pack that retargets dsrebirth:waterfalls/* takes effect without a
         // restart. The old static block ran once, at class load, and nothing re-read it.
         loadAcoustics();
         org.orecruncher.dsurround.config.libraries.AssetLibraryEvent.RELOAD.register(

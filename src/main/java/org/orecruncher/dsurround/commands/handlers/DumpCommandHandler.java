@@ -108,10 +108,10 @@ public class DumpCommandHandler {
                 stream.forEach(out::println);
                 out.flush();
             }
-            return Component.translatable("dsurround.command.dsdump.success", operation, target.toString());
+            return Component.translatable("dsrebirth.command.dsdump.success", operation, target.toString());
         } catch (final Throwable t) {
             LOGGER.error(t, "Error writing dump file '%s'", target.toString());
-            return Component.translatable("dsurround.command.dsdump.failure", operation, t.getMessage());
+            return Component.translatable("dsrebirth.command.dsdump.failure", operation, t.getMessage());
         }
     }
 

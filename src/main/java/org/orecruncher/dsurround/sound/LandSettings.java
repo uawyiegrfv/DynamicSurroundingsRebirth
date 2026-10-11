@@ -39,9 +39,9 @@ public record LandSettings(
     public static final int DEFAULT_ECHO_DELAY_MAX_TICKS = 2;
 
     /**
-     * IdentityUtils.CODEC is deliberate: it applies the same "no namespace means dsurround" rule the
+     * IdentityUtils.CODEC is deliberate: it applies the same "no namespace means dsrebirth" rule the
      * {@code factory} field uses in biomes.json and blocks.json, so a pack can write
-     * {@code "footsteps.stone_run"} and mean {@code dsurround:footsteps.stone_run}.
+     * {@code "footsteps.stone_run"} and mean {@code dsrebirth:footsteps.stone_run}.
      */
     public static final Codec<LandSettings> CODEC = RecordCodecBuilder.create((instance) ->
             instance.group(

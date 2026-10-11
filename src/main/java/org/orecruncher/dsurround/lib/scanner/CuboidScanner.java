@@ -20,7 +20,7 @@ public abstract class CuboidScanner extends Scanner {
 
     // State of last tick
     protected BlockPos lastPos = BlockPos.ZERO;
-    protected Identifier lastReference = Identifier.parse("dsurround:aintnothin");
+    protected Identifier lastReference = Identifier.parse("dsrebirth:aintnothin");
 
     protected CuboidScanner(final ScanContext locus, final String name, final int range) {
         super(locus, name, range);

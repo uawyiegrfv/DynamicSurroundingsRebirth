@@ -304,7 +304,7 @@ public class ItemLibrary implements IItemLibrary {
     }
 
     private static SoundEvent getArmorSound(String name) {
-        // The armor accent events are registered under the dsurround namespace.
+        // The armor accent events are registered under the dsrebirth namespace.
         return ContainerManager.resolve(ISoundLibrary.class)
                 .getSound(Identifier.fromNamespaceAndPath(org.orecruncher.dsurround.Constants.MOD_ID, name));
     }

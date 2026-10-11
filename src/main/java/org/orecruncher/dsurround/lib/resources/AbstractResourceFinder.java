@@ -30,7 +30,7 @@ public abstract class AbstractResourceFinder implements IResourceFinder {
      * <p>Rules:
      * <ul>
      *   <li>a namespace-qualified request must equal the whole resource id
-     *       ({@code dsurround:tags/block/effects/x.json});</li>
+     *       ({@code dsrebirth:tags/block/effects/x.json});</li>
      *   <li>otherwise the resource path must equal the request, or sit under a directory:
      *       {@code blocks.json} matches {@code blocks.json} and {@code sub/blocks.json}, but never
      *       {@code dried_mud_blocks.json}.</li>

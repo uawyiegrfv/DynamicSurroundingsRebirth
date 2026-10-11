@@ -21,8 +21,8 @@ public class SoundToast {
             var title = metadata.getTitle();
             if (!Component.empty().equals(title)) {
                 var author = metadata.getCredits().get(0).author();
-                var titleLine = Component.translatable("dsurround.text.toast.music.title", title);
-                var authorLine = Component.translatable("dsurround.text.toast.music.author", author);
+                var titleLine = Component.translatable("dsrebirth.text.toast.music.title", title);
+                var authorLine = Component.translatable("dsrebirth.text.toast.music.author", author);
                 var toast = WarmToast.multiline(GameUtils.getMC(), SOUND_TOAST_PROFILE, titleLine, authorLine);
                 GameUtils.getMC().getToastManager().addToast(toast);
             }

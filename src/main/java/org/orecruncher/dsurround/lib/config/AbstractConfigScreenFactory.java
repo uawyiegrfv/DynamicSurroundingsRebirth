@@ -11,9 +11,9 @@ import java.util.function.Function;
 public abstract class AbstractConfigScreenFactory implements Function<Screen, Screen> {
 
     private static final Style STYLE_RESTART = Style.EMPTY.withColor(ColorPalette.RED);
-    private static final Component CLIENT_RESTART_REQUIRED = Component.translatable("dsurround.config.tooltip.clientRestartRequired").withStyle(STYLE_RESTART);
-    private static final Component WORLD_RESTART_REQUIRED = Component.translatable("dsurround.config.tooltip.worldRestartRequired").withStyle(STYLE_RESTART);
-    private static final Component ASSET_RELOAD_REQUIRED = Component.translatable("dsurround.config.tooltip.assetReloadRequired").withStyle(STYLE_RESTART);
+    private static final Component CLIENT_RESTART_REQUIRED = Component.translatable("dsrebirth.config.tooltip.clientRestartRequired").withStyle(STYLE_RESTART);
+    private static final Component WORLD_RESTART_REQUIRED = Component.translatable("dsrebirth.config.tooltip.worldRestartRequired").withStyle(STYLE_RESTART);
+    private static final Component ASSET_RELOAD_REQUIRED = Component.translatable("dsrebirth.config.tooltip.assetReloadRequired").withStyle(STYLE_RESTART);
     // Use a string with a single space as an empty line. Some config UI frameworks elide
     // Component.empty() entries and the tooltip logic uses empty lines as part of its
     // formatting.

@@ -25,29 +25,29 @@ public class KeyBindings {
     public static final KeyMapping quickSoundVolume;
 
     // 26.1: the KeyMapping category is now a KeyMapping.Category record, not a translation key
-    // string. Its label resolves from "key.category.dsurround.keybind".
+    // string. Its label resolves from "key.category.dsrebirth.keybind".
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(Constants.MOD_ID, "keybind"));
 
     static {
         var modMenuKey = Platform.isModLoaded(Constants.MODMENU) ? InputConstants.UNKNOWN.getValue() : InputConstants.KEY_EQUALS;
         modConfigurationMenu = registerKeyBinding(
-                "dsurround.text.keybind.modConfigurationMenu",
+                "dsrebirth.text.keybind.modConfigurationMenu",
                 modMenuKey,
                 CATEGORY);
 
         individualSoundConfigBinding = registerKeyBinding(
-                "dsurround.text.keybind.individualSoundConfig",
+                "dsrebirth.text.keybind.individualSoundConfig",
                 InputConstants.UNKNOWN.getValue(),
                 CATEGORY);
 
         diagnosticHud = registerKeyBinding(
-                "dsurround.text.keybind.diagnosticHud",
+                "dsrebirth.text.keybind.diagnosticHud",
                 InputConstants.UNKNOWN.getValue(),
                 CATEGORY);
 
         // Hold together with Ctrl to open the quick sound volume overlay.
         quickSoundVolume = registerKeyBinding(
-                "dsurround.text.keybind.quickSoundVolume",
+                "dsrebirth.text.keybind.quickSoundVolume",
                 InputConstants.KEY_GRAVE,
                 CATEGORY);
     }

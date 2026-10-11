@@ -11,7 +11,7 @@ import net.minecraft.util.Mth;
  *
  * <p>Submits one continuous vertical ribbon quad strip per band through the
  * buffered {@code MultiBufferSource} using a custom {@link RenderType} whose
- * pipeline runs {@code dsurround:core/aurora}. All visual work (curtain,
+ * pipeline runs {@code dsrebirth:core/aurora}. All visual work (curtain,
  * vertical rays, spectrum ramp, shimmer) happens in the fragment shader; the
  * geometry is just the sheet the shader paints on, so each segment spans the
  * full unit height (0..1) and the shader's own envelope shapes the edges.

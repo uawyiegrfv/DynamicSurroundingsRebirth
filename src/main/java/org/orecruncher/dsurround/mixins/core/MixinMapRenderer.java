@@ -57,7 +57,7 @@ public abstract class MixinMapRenderer {
             return;
 
         var font = Minecraft.getInstance().font;
-        var text = Component.translatable("dsurround.hud.map_distance", distance);
+        var text = Component.translatable("dsrebirth.hud.map_distance", distance);
         float textWidth = font.width(text);
         float scale = Mth.clamp(25.0F / textWidth, 0.0F, 6.0F / 9.0F);
 

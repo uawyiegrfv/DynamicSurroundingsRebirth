@@ -19,7 +19,7 @@ import java.util.Collection;
  * (`data/biomesoplenty.json`) holding every section, and this class restores that convenience:
  *
  * <pre>
- * config/dsurround/configs/&lt;namespace&gt;/dsurround.json
+ * config/dsrebirth/configs/&lt;namespace&gt;/dsrebirth.json
  * {
  *   "blocks": [ { "blocks": ["somemod:baz"], "effects": [ { "effect": "fire_jet", "spawnChance": "0.005" } ] } ],
  *   "biomes": [ { "biomeSelector": "biome.id == 'somemod:magic'", "acoustics": [ { "factory": "biome.wind" } ] } ]
@@ -34,7 +34,7 @@ import java.util.Collection;
 public final class AggregateDataFile {
 
     /** The name of the per-namespace aggregate file. */
-    public static final String FILE_NAME = "dsurround.json";
+    public static final String FILE_NAME = "dsrebirth.json";
 
     private AggregateDataFile() {
     }

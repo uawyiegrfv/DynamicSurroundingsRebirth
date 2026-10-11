@@ -364,9 +364,9 @@ public class QuickSoundVolumeOverlay implements SoundEventListener {
         // panel height grow with the number of lines (it grows upward from the
         // subtitle anchor line, so long texts never spill past the panel edge).
         final int maxTextWidth = PANEL_WIDTH - 2 * PADDING;
-        final var titleLines = GuiHelpers.getTrimmedTextCollection("dsurround.text.quickvolume.title", maxTextWidth, Style.EMPTY);
-        final var hintLines = GuiHelpers.getTrimmedTextCollection("dsurround.text.quickvolume.hint", maxTextWidth, Style.EMPTY);
-        final var emptyLines = GuiHelpers.getTrimmedTextCollection("dsurround.text.quickvolume.empty", maxTextWidth, Style.EMPTY);
+        final var titleLines = GuiHelpers.getTrimmedTextCollection("dsrebirth.text.quickvolume.title", maxTextWidth, Style.EMPTY);
+        final var hintLines = GuiHelpers.getTrimmedTextCollection("dsrebirth.text.quickvolume.hint", maxTextWidth, Style.EMPTY);
+        final var emptyLines = GuiHelpers.getTrimmedTextCollection("dsrebirth.text.quickvolume.empty", maxTextWidth, Style.EMPTY);
         // Header (title + hint) + entry rows, growing upward from the subtitle line.
         final int panelHeight = titleLines.size() * ROW_HEIGHT + hintLines.size() * ROW_HEIGHT
                 + (rows + emptyRows) * ROW_HEIGHT + 2 * PADDING;

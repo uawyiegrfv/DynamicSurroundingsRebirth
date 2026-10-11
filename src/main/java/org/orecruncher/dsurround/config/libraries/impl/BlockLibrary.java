@@ -170,7 +170,7 @@ public class BlockLibrary implements IBlockLibrary {
         // step sound resolves to the fallback plays its own vanilla step sound at DS cadence
         // and simply misses a DS material (e.g. a brass block that sounds like whatever its
         // author chose). Refinement rules are written by reviewing this against the block's
-        // tags and name. `dsdump blocks` writes this to config/dsurround/dumps/blocks.txt.
+        // tags and name. `dsdump blocks` writes this to config/dsrebirth/dumps/blocks.txt.
         var defaultState = block.defaultBlockState();
         var stepSound = defaultState.getSoundType().getStepSound();
         builder.append("\nstep sound: ").append(stepSound.getLocation());

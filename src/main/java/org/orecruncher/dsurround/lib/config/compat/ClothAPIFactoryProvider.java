@@ -22,7 +22,7 @@ public class ClothAPIFactoryProvider implements IConfigScreenFactoryProvider {
             var configData = ConfigurationData.getConfig(configClass);
 
             ConfigOptions options = new ConfigOptions()
-                    .setTranslationRoot("dsurround.config")
+                    .setTranslationRoot("dsrebirth.config")
                     .setTitleStyle(Style.EMPTY.withColor(ColorPalette.PUMPKIN_ORANGE.getValue()))
                     .setPropertyGroupStyle(Style.EMPTY.withColor(ColorPalette.GOLDENROD.getValue()))
                     .setPropertyStyle(Style.EMPTY.withColor(ColorPalette.WHEAT.getValue()))

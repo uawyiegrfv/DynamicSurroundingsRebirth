@@ -117,19 +117,19 @@ public final class DSurround {
 
     private void onRegisterGuiOverlays(RegisterGuiOverlaysEvent event) {
         // GUI phase: overlay layers (OverlayManager renders clock/compass/diagnostics).
-        event.registerAboveAll("dsurround", (gui, graphics, partialTick, screenWidth, screenHeight) ->
+        event.registerAboveAll("dsrebirth", (gui, graphics, partialTick, screenWidth, screenHeight) ->
                 org.orecruncher.dsurround.lib.di.ContainerManager.resolve(org.orecruncher.dsurround.gui.overlay.OverlayManager.class).render(graphics, partialTick));
         // Quick sound volume overlay sits below the vanilla layers (subtitle-style panel).
-        event.registerBelowAll("dsurround_quick_volume", (gui, graphics, partialTick, screenWidth, screenHeight) ->
+        event.registerBelowAll("dsrebirth_quick_volume", (gui, graphics, partialTick, screenWidth, screenHeight) ->
                 org.orecruncher.dsurround.lib.di.ContainerManager.resolve(org.orecruncher.dsurround.gui.overlay.QuickSoundVolumeOverlay.class).render(graphics, partialTick));
         // Crit words (comic damage/heal power words) project 3D world positions to the screen.
-        event.registerBelowAll("dsurround_crit_words", (gui, graphics, partialTick, screenWidth, screenHeight) ->
+        event.registerBelowAll("dsrebirth_crit_words", (gui, graphics, partialTick, screenWidth, screenHeight) ->
                 org.orecruncher.dsurround.lib.di.ContainerManager.resolve(org.orecruncher.dsurround.processing.CritWordHandler.class).renderGui(graphics, partialTick));
         // Speech bubbles project to the screen the same way (player chat + entity chat).
-        event.registerBelowAll("dsurround_speech_bubbles", (gui, graphics, partialTick, screenWidth, screenHeight) ->
+        event.registerBelowAll("dsrebirth_speech_bubbles", (gui, graphics, partialTick, screenWidth, screenHeight) ->
                 org.orecruncher.dsurround.lib.di.ContainerManager.resolve(org.orecruncher.dsurround.processing.SpeechBubbleHandler.class).renderGui(graphics, partialTick));
         // Low durability highlight: red pulsing selection frame.
-        event.registerAboveAll("dsurround_low_durability", (gui, graphics, partialTick, screenWidth, screenHeight) ->
+        event.registerAboveAll("dsrebirth_low_durability", (gui, graphics, partialTick, screenWidth, screenHeight) ->
                 org.orecruncher.dsurround.gui.overlay.LowDurabilityHighlightOverlay.render(graphics, screenWidth, screenHeight));
     }
 

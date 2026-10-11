@@ -72,7 +72,7 @@ public final class DataValidator {
      * symptom of a mismatch.
      * <p>
      * This exists because of a real, repeated confusion: these are {@code @Hidden} options that no
-     * GUI exposes, they are read from {@code config/dsurround/dsurround.json} on every load, and an
+     * GUI exposes, they are read from {@code config/dsrebirth/dsrebirth.json} on every load, and an
      * existing config file WINS over the code default. So a change to a default silently does
      * nothing on an installation whose file already carries the old number - which looks exactly
      * like "the tweak had no effect". Reporting the divergence turns that into a one-line answer.
@@ -205,7 +205,7 @@ public final class DataValidator {
         int materialWithoutSound = 0;
         for (final var event : registered) {
             final ResourceLocation location = event.getLocation();
-            if (!"dsurround".equals(location.getNamespace()))
+            if (!"dsrebirth".equals(location.getNamespace()))
                 continue;
             if (!location.getPath().startsWith("footsteps"))
                 continue;

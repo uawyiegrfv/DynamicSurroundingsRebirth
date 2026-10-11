@@ -121,8 +121,8 @@ def main():
     print("preview:", out_prev)
 
     for repo in REPOS:
-        tdir = os.path.join(repo, "src", "main", "resources", "assets", "dsurround", "textures", "particle")
-        jdir = os.path.join(repo, "src", "main", "resources", "assets", "dsurround", "particles")
+        tdir = os.path.join(repo, "src", "main", "resources", "assets", "dsrebirth", "textures", "particle")
+        jdir = os.path.join(repo, "src", "main", "resources", "assets", "dsrebirth", "particles")
         os.makedirs(tdir, exist_ok=True)
         os.makedirs(jdir, exist_ok=True)
         for name, img in shapes.items():
@@ -132,7 +132,7 @@ def main():
             with open(os.path.join(tdir, name + ".png"), "wb") as f:
                 f.write(buf.tobytes())
             with open(os.path.join(jdir, name + ".json"), "w", encoding="utf-8") as f:
-                f.write('{\n  "textures": [\n    "dsurround:%s"\n  ]\n}' % name)
+                f.write('{\n  "textures": [\n    "dsrebirth:%s"\n  ]\n}' % name)
         print("written:", repo)
 
 if __name__ == "__main__":

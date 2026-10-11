@@ -291,7 +291,7 @@ public class ItemLibrary implements IItemLibrary {
             net.minecraft.world.item.ArmorItem.Type.BOOTS);
 
     private static SoundEvent getArmorSound(String name) {
-        // The armor accent events are registered under the dsurround namespace (sounds.json),
+        // The armor accent events are registered under the dsrebirth namespace (sounds.json),
         // NOT in BuiltInRegistries - getSound() would return the MISSING placeholder. Create
         // dynamically; SoundManager resolves via sounds.json at play time (1.20.1).
         return SoundEvent.createVariableRangeEvent(

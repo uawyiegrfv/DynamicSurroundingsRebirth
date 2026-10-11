@@ -40,9 +40,9 @@ public abstract class MixinSoundOptionsScreen {
         var self = (net.minecraft.client.gui.screens.Screen) (Object) this;
 
         // Button in the lower-left corner of the sound options screen.
-        var toolTip = Tooltip.create(Component.translatable("dsurround.text.config.soundconfiguration.tooltip"));
+        var toolTip = Tooltip.create(Component.translatable("dsrebirth.text.config.soundconfiguration.tooltip"));
         var style = Style.EMPTY.withColor(TextColor.fromRgb(ColorPalette.GOLD.getValue()));
-        var buttonText = Component.translatable("dsurround.text.config.soundconfiguration").withStyle(style);
+        var buttonText = Component.translatable("dsrebirth.text.config.soundconfiguration").withStyle(style);
         var textWidth = GameUtils.getTextRenderer().width(buttonText) + 10;
 
         // 26.1: play buttons are enabled outside a world (main menu) too.
@@ -58,19 +58,19 @@ public abstract class MixinSoundOptionsScreen {
         // Footsteps / Biomes volume sliders appended to the vanilla options list
         // (1.20.1 pattern: OptionInstance + UnitDouble 0..1, stored value = 0..2).
         var soundConfig = ConfigurationData.getConfig(Configuration.class).soundOptions;
-        var footSlider = new OptionInstance<>("dsurround.options.footstepVolume",
+        var footSlider = new OptionInstance<>("dsrebirth.options.footstepVolume",
                 OptionInstance.noTooltip(),
                 (caption, value) -> caption.copy().append(": " + Math.round(value * 200.0D) + "%"),
                 OptionInstance.UnitDouble.INSTANCE,
                 soundConfig.footstepVolume / 2.0D,
                 v -> soundConfig.footstepVolume = v * 2.0D);
-        var playerEffectSlider = new OptionInstance<>("dsurround.options.playerEffectVolume",
+        var playerEffectSlider = new OptionInstance<>("dsrebirth.options.playerEffectVolume",
                 OptionInstance.noTooltip(),
                 (caption, value) -> caption.copy().append(": " + Math.round(value * 200.0D) + "%"),
                 OptionInstance.UnitDouble.INSTANCE,
                 soundConfig.playerEffectVolume / 2.0D,
                 v -> soundConfig.playerEffectVolume = v * 2.0D);
-        var biomeSlider = new OptionInstance<>("dsurround.options.biomeVolume",
+        var biomeSlider = new OptionInstance<>("dsrebirth.options.biomeVolume",
                 OptionInstance.noTooltip(),
                 (caption, value) -> caption.copy().append(": " + Math.round(value * 200.0D) + "%"),
                 OptionInstance.UnitDouble.INSTANCE,

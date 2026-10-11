@@ -14,7 +14,7 @@ public class VanillaSeasons extends AbstractSeasonProvider {
 
     @Override
     public Optional<Component> getCurrentSeason() {
-        return Optional.of(Component.translatable("dsurround.text.seasons.spring"));
+        return Optional.of(Component.translatable("dsrebirth.text.seasons.spring"));
     }
 
     @Override

@@ -51,7 +51,7 @@ public class BlockInfo {
         public static final float LOW = 0.35F;
         public static final float MEDIUM = 0.5F;
         public static final float HIGH = 0.65F;
-        // VERY_HIGH is reachable only through the dsurround:reflectance/very_high tag, and that
+        // VERY_HIGH is reachable only through the dsrebirth:reflectance/very_high tag, and that
         // tag ships empty, so no block gets 0.8 out of the box. That is intentional, not an
         // oversight - do not "fix" it in either direction. Filling it would mean guessing which
         // blocks the author wanted at this step; deleting it would remove a step of a deliberate

@@ -129,8 +129,8 @@ def main():
     print("preview:", out_prev)
 
     for repo in REPOS:
-        tdir = os.path.join(repo, "src", "main", "resources", "assets", "dsurround", "textures", "particle")
-        jdir = os.path.join(repo, "src", "main", "resources", "assets", "dsurround", "particles")
+        tdir = os.path.join(repo, "src", "main", "resources", "assets", "dsrebirth", "textures", "particle")
+        jdir = os.path.join(repo, "src", "main", "resources", "assets", "dsrebirth", "particles")
         os.makedirs(tdir, exist_ok=True)
         os.makedirs(jdir, exist_ok=True)
         # RGBA -> PNG（cv2 用 BGRA）
@@ -140,7 +140,7 @@ def main():
         with open(os.path.join(tdir, "dew_drop.png"), "wb") as f:
             f.write(buf.tobytes())
         with open(os.path.join(jdir, "dew_drop.json"), "w", encoding="utf-8") as f:
-            f.write('{\n  "textures": [\n    "dsurround:dew_drop"\n  ]\n}')
+            f.write('{\n  "textures": [\n    "dsrebirth:dew_drop"\n  ]\n}')
         print("written:", repo)
 
 if __name__ == "__main__":

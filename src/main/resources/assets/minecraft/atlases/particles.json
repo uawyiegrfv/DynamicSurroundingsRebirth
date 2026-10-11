@@ -7,53 +7,53 @@
     },
     {
       "type": "minecraft:single",
-      "resource": "dsurround:particles/pixel_ripples",
-      "sprite": "dsurround:particle/pixel_ripples"
+      "resource": "dsrebirth:particles/pixel_ripples",
+      "sprite": "dsrebirth:particle/pixel_ripples"
     },
     {
       "type": "minecraft:single",
-      "resource": "dsurround:particles/footprint",
-      "sprite": "dsurround:particle/footprint"
+      "resource": "dsrebirth:particles/footprint",
+      "sprite": "dsrebirth:particle/footprint"
     },
     {
       "type": "minecraft:single",
-      "resource": "dsurround:environment/dust_calm",
-      "sprite": "dsurround:environment/dust_calm"
+      "resource": "dsrebirth:environment/dust_calm",
+      "sprite": "dsrebirth:environment/dust_calm"
     },
     {
       "type": "minecraft:single",
-      "resource": "dsurround:environment/dust_gentle",
-      "sprite": "dsurround:environment/dust_gentle"
+      "resource": "dsrebirth:environment/dust_gentle",
+      "sprite": "dsrebirth:environment/dust_gentle"
     },
     {
       "type": "minecraft:single",
-      "resource": "dsurround:environment/dust_light",
-      "sprite": "dsurround:environment/dust_light"
+      "resource": "dsrebirth:environment/dust_light",
+      "sprite": "dsrebirth:environment/dust_light"
     },
     {
       "type": "minecraft:single",
-      "resource": "dsurround:environment/dust_moderate",
-      "sprite": "dsurround:environment/dust_moderate"
+      "resource": "dsrebirth:environment/dust_moderate",
+      "sprite": "dsrebirth:environment/dust_moderate"
     },
     {
       "type": "minecraft:single",
-      "resource": "dsurround:environment/dust_heavy",
-      "sprite": "dsurround:environment/dust_heavy"
+      "resource": "dsrebirth:environment/dust_heavy",
+      "sprite": "dsrebirth:environment/dust_heavy"
     },
     {
       "type": "minecraft:single",
-      "resource": "dsurround:environment/dust_strong",
-      "sprite": "dsurround:environment/dust_strong"
+      "resource": "dsrebirth:environment/dust_strong",
+      "sprite": "dsrebirth:environment/dust_strong"
     },
     {
       "type": "minecraft:single",
-      "resource": "dsurround:environment/dust_intense",
-      "sprite": "dsurround:environment/dust_intense"
+      "resource": "dsrebirth:environment/dust_intense",
+      "sprite": "dsrebirth:environment/dust_intense"
     },
     {
       "type": "minecraft:single",
-      "resource": "dsurround:environment/dust_torrential",
-      "sprite": "dsurround:environment/dust_torrential"
+      "resource": "dsrebirth:environment/dust_torrential",
+      "sprite": "dsrebirth:environment/dust_torrential"
     }
   ]
 }

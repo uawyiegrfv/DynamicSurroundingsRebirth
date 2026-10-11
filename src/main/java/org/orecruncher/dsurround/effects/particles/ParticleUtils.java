@@ -30,7 +30,7 @@ public final class ParticleUtils {
 
     /**
      * Fetch a single sprite from the particle texture atlas. The ripple/footprint strips
-     * are registered into the atlas via assets/dsurround/atlases/particles.json.
+     * are registered into the atlas via assets/dsrebirth/atlases/particles.json.
      */
     public static TextureAtlasSprite getSprite(ResourceLocation id) {
         var atlas = (TextureAtlas) GameUtils.getTextureManager().getTexture(TextureAtlas.LOCATION_PARTICLES);

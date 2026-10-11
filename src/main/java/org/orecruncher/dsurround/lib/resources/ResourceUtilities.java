@@ -42,10 +42,10 @@ public final class ResourceUtilities {
      * folder (ex. minecraft:dsconfigs/*.json).
      * </p>
      * <p>
-     * For disk, it is assumed to be in the "dsurround/configs" folder in the configuration directory. Each folder
+     * For disk, it is assumed to be in the "dsrebirth/configs" folder in the configuration directory. Each folder
      * within will be named based on a mod's namespace. For example, if a folder is called "minecraft", those assets
      * within will be loaded if "minecraft" mod is loaded (which is always the case).
-     * (Example: .minecraft/assetPath/dsurround/configs/minecraft/*.json)
+     * (Example: .minecraft/assetPath/dsrebirth/configs/minecraft/*.json)
      * </p>
      * @param assetPath Path to the asset that is of interest
      * @return A collection of resource accessors that match the assetPath criteria
@@ -59,7 +59,7 @@ public final class ResourceUtilities {
 
     /**
      * Same as {@link #findModResources(Codec, String)} but additionally accepts the per-namespace
-     * aggregate file {@code <namespace>/dsurround.json}, whose single {@code section} is decoded with
+     * aggregate file {@code <namespace>/dsrebirth.json}, whose single {@code section} is decoded with
      * the same codec. Restores the original 1.12.2 convenience of writing one file per mod.
      *
      * <p>Both sources contribute: rule-level precedence is handled where it belongs, because

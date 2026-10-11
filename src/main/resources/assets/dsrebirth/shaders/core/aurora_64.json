@@ -1,6 +1,6 @@
 {
-    "vertex": "dsurround:aurora_64",
-    "fragment": "dsurround:aurora_64",
+    "vertex": "dsrebirth:aurora_64",
+    "fragment": "dsrebirth:aurora_64",
     "attributes": [
         "Position",
         "UV0",

@@ -69,7 +69,7 @@ public class MixinMusicManager implements IMusicManager {
     @Override
     public Component dsurround_whatsPlaying() {
         if (this.currentMusic == null)
-            return Component.translatable("dsurround.text.musicmanager.nothing");
+            return Component.translatable("dsrebirth.text.musicmanager.nothing");
 
         // Lookup meta information
         var metaData = MixinHelpers.SOUND_LIBRARY.getSoundMetadata(this.currentMusic.getLocation());
@@ -81,10 +81,10 @@ public class MixinMusicManager implements IMusicManager {
         // an empty list) - fall back instead of throwing out of bounds.
         var credits = metaData.getCredits();
         if (credits.isEmpty())
-            return Component.translatable("dsurround.text.musicmanager.playing", title,
+            return Component.translatable("dsrebirth.text.musicmanager.playing", title,
                     Component.literal("?"), Component.literal(this.currentMusic.getLocation().toString()));
         var author = credits.get(0).author().copy().withStyle(style -> style.withColor(ColorPalette.WHEAT));
-        return Component.translatable("dsurround.text.musicmanager.playing", title, author, Component.literal(this.currentMusic.getLocation().toString()));
+        return Component.translatable("dsrebirth.text.musicmanager.playing", title, author, Component.literal(this.currentMusic.getLocation().toString()));
     }
 
     @Inject(method = "tick()V", at = @At("HEAD"), cancellable = true)

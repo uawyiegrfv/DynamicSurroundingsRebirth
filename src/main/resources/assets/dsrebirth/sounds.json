@@ -295,6 +295,450 @@
       }
     ]
   },
+  "biome.wind.bed.open.l.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_open/bed_open_l_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.open.l.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_open/bed_open_l_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.open.m.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_open/bed_open_m_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.open.m.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_open/bed_open_m_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.open.s.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_open/bed_open_s_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.open.s.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Open-country EQ: low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_open/bed_open_s_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.wood.l.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_wood/bed_wood_l_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.wood.l.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_wood/bed_wood_l_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.wood.m.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_wood/bed_wood_m_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.wood.m.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_wood/bed_wood_m_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.wood.s.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_wood/bed_wood_s_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.bed.wood.s.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from wind.ogg + wind_open.ogg: a 54.451 s pure-wind master (4.0 s equal-power crossfade, 40 Hz high pass) cut into two coprime loops (12.10 s / 17.90 s) and tilted per wind tier (L: 3 kHz low pass + shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz). Neutral-woodland EQ: high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "felix.blume",
+        "website": "https://www.freesound.org/people/felix.blume",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/bed_wood/bed_wood_s_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.leaf.l.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from the cinetony field recording: 4724 fine grains (110 ms, 2.5-11 kHz) and 4723 body grains (190 ms, 0.8-4.5 kHz) detected on the 2-10 kHz band and re-scheduled on a circular timeline into two coprime loops (17.30 s / 22.70 s); tier tilt is a 4 kHz shelf at -7 / -1.5 / +3 dB. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_leaf/leaf_l_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.leaf.l.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from the cinetony field recording: 4724 fine grains (110 ms, 2.5-11 kHz) and 4723 body grains (190 ms, 0.8-4.5 kHz) detected on the 2-10 kHz band and re-scheduled on a circular timeline into two coprime loops (17.30 s / 22.70 s); tier tilt is a 4 kHz shelf at -7 / -1.5 / +3 dB. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_leaf/leaf_l_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.leaf.m.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from the cinetony field recording: 4724 fine grains (110 ms, 2.5-11 kHz) and 4723 body grains (190 ms, 0.8-4.5 kHz) detected on the 2-10 kHz band and re-scheduled on a circular timeline into two coprime loops (17.30 s / 22.70 s); tier tilt is a 4 kHz shelf at -7 / -1.5 / +3 dB. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_leaf/leaf_m_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.leaf.m.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from the cinetony field recording: 4724 fine grains (110 ms, 2.5-11 kHz) and 4723 body grains (190 ms, 0.8-4.5 kHz) detected on the 2-10 kHz band and re-scheduled on a circular timeline into two coprime loops (17.30 s / 22.70 s); tier tilt is a 4 kHz shelf at -7 / -1.5 / +3 dB. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_leaf/leaf_m_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.leaf.s.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from the cinetony field recording: 4724 fine grains (110 ms, 2.5-11 kHz) and 4723 body grains (190 ms, 0.8-4.5 kHz) detected on the 2-10 kHz band and re-scheduled on a circular timeline into two coprime loops (17.30 s / 22.70 s); tier tilt is a 4 kHz shelf at -7 / -1.5 / +3 dB. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_leaf/leaf_s_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.leaf.s.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from the cinetony field recording: 4724 fine grains (110 ms, 2.5-11 kHz) and 4723 body grains (190 ms, 0.8-4.5 kHz) detected on the 2-10 kHz band and re-scheduled on a circular timeline into two coprime loops (17.30 s / 22.70 s); tier tilt is a 4 kHz shelf at -7 / -1.5 / +3 dB. Normalised to -42 / -40 / -38 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_leaf/leaf_s_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.howl.l.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from biome.wind.howl.medium (the three medium wind clips joined): a 91.998 s master (medium + 4.0 s crossfade + heavy) cut into two coprime loops (17.30 s / 22.70 s) and tilted per wind tier (2-2.5 kHz shelf at -5 / -1 / +2.5 dB). Normalised to -38 / -36 / -34 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      },
+      {
+        "name": "Derived from biome.wind.howl.heavy (the three heavy wind clips joined).",
+        "author": "Bosk1",
+        "website": "https://freesound.org/people/Bosk1/sounds/217186/",
+        "license": "Attribution 4.0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_howl/howl_l_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.howl.l.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from biome.wind.howl.medium (the three medium wind clips joined): a 91.998 s master (medium + 4.0 s crossfade + heavy) cut into two coprime loops (17.30 s / 22.70 s) and tilted per wind tier (2-2.5 kHz shelf at -5 / -1 / +2.5 dB). Normalised to -38 / -36 / -34 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      },
+      {
+        "name": "Derived from biome.wind.howl.heavy (the three heavy wind clips joined).",
+        "author": "Bosk1",
+        "website": "https://freesound.org/people/Bosk1/sounds/217186/",
+        "license": "Attribution 4.0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_howl/howl_l_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.howl.m.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from biome.wind.howl.medium (the three medium wind clips joined): a 91.998 s master (medium + 4.0 s crossfade + heavy) cut into two coprime loops (17.30 s / 22.70 s) and tilted per wind tier (2-2.5 kHz shelf at -5 / -1 / +2.5 dB). Normalised to -38 / -36 / -34 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      },
+      {
+        "name": "Derived from biome.wind.howl.heavy (the three heavy wind clips joined).",
+        "author": "Bosk1",
+        "website": "https://freesound.org/people/Bosk1/sounds/217186/",
+        "license": "Attribution 4.0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_howl/howl_m_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.howl.m.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from biome.wind.howl.medium (the three medium wind clips joined): a 91.998 s master (medium + 4.0 s crossfade + heavy) cut into two coprime loops (17.30 s / 22.70 s) and tilted per wind tier (2-2.5 kHz shelf at -5 / -1 / +2.5 dB). Normalised to -38 / -36 / -34 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      },
+      {
+        "name": "Derived from biome.wind.howl.heavy (the three heavy wind clips joined).",
+        "author": "Bosk1",
+        "website": "https://freesound.org/people/Bosk1/sounds/217186/",
+        "license": "Attribution 4.0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_howl/howl_m_b",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.howl.s.a": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from biome.wind.howl.medium (the three medium wind clips joined): a 91.998 s master (medium + 4.0 s crossfade + heavy) cut into two coprime loops (17.30 s / 22.70 s) and tilted per wind tier (2-2.5 kHz shelf at -5 / -1 / +2.5 dB). Normalised to -38 / -36 / -34 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      },
+      {
+        "name": "Derived from biome.wind.howl.heavy (the three heavy wind clips joined).",
+        "author": "Bosk1",
+        "website": "https://freesound.org/people/Bosk1/sounds/217186/",
+        "license": "Attribution 4.0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_howl/howl_s_a",
+        "stream": false
+      }
+    ]
+  },
+  "biome.wind.howl.s.b": {
+    "subtitle": "dsrebirth.sound.caption.wind",
+    "ds_credits": [
+      {
+        "name": "Derived from biome.wind.howl.medium (the three medium wind clips joined): a 91.998 s master (medium + 4.0 s crossfade + heavy) cut into two coprime loops (17.30 s / 22.70 s) and tilted per wind tier (2-2.5 kHz shelf at -5 / -1 / +2.5 dB). Normalised to -38 / -36 / -34 LUFS-I.",
+        "author": "cinetony",
+        "website": "https://freesound.org/people/cinetony",
+        "license": "Creative Commons 0"
+      },
+      {
+        "name": "Derived from biome.wind.howl.heavy (the three heavy wind clips joined).",
+        "author": "Bosk1",
+        "website": "https://freesound.org/people/Bosk1/sounds/217186/",
+        "license": "Attribution 4.0"
+      }
+    ],
+    "sounds": [
+      {
+        "name": "dsrebirth:weather/wind/layer_howl/howl_s_b",
+        "stream": false
+      }
+    ]
+  },
   "biome.savanna.day": {
     "ds_credits": [
       {

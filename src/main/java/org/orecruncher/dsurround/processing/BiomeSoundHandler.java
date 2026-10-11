@@ -264,6 +264,71 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     /** 呼啸层的最小风等级，滞回 {@link #HOWL_GATE_HYSTERESIS}。 */
     private static final float HOWL_WIND_MIN = 0.35F;
     private static final float HOWL_GATE_HYSTERESIS = 0.06F;
+
+    // ---- WIND P3①：床档位族与强风换持续呼啸（设计 §3.10.4 / §3.10.5 / 附录 D） ----
+    /**
+     * 默认床的档位族：<b>三档 L/M/S × 两条互质循环 A/B</b>，全部 static ——
+     * 静态池 247 放得下（24 条只占 9.7 %），而流式池只有 8 条、维护者实测峰值已 7/8，
+     * 所以床、叶层、呼啸这三族<b>一条都不能是 stream</b>。
+     *
+     * <p>粗档的响度由素材自带（−42 / −40 / −38 LUFS-I，附录 D.1），运行期不再按档给
+     * 不同的增益，只给等增益的交叉权重 —— 三档因此是同一条曲线上的三段，而不是三条
+     * 各自标定的曲线（§3.10.6）。</p>
+     *
+     * <p>两张床分开：有树群系用 {@code wood}（中性偏林地），无树用 {@code open}（开阔）。
+     * <b>树 / 无树的差别由"上面叠叶层还是叠呼啸层"表达，不由床表达</b> —— 两张床都是
+     * 纯风，一点叶声都没有，所以 {@link #bedHasLeaves} 对它们是 false，叶层照叠
+     * （§3.10.1 规则表 A 优先级 2 / 3）。</p>
+     */
+    private static final ResourceLocation[][] BED_TIERS_OPEN = windTierPair("biome.wind.bed.open");
+    private static final ResourceLocation[][] BED_TIERS_WOOD = windTierPair("biome.wind.bed.wood");
+    /** 叶声层档位族（{@code L-leaf}，附录 D.2）。 */
+    private static final ResourceLocation[][] LEAF_TIERS = windTierPair("biome.wind.leaf");
+    /**
+     * 呼啸档位族（{@code H-howl}）：<b>呼啸层与强风时的持续呼啸床共用这一族</b>，
+     * 所以交接只是把同一条信号从一个槽搬到另一个槽（§3.10.2）。
+     */
+    private static final ResourceLocation[][] HOWL_TIERS = windTierPair("biome.wind.howl");
+
+    /** 档位后缀，索引 = 档（0 = L / 1 = M / 2 = S）。 */
+    private static final String[] TIER_ID = { "l", "m", "s" };
+    /** 互质循环后缀，索引 = 环（0 = A / 1 = B）。 */
+    private static final String[] RING_ID = { "a", "b" };
+
+    private static ResourceLocation[][] windTierPair(final String prefix) {
+        final ResourceLocation[][] out = new ResourceLocation[TIER_ID.length][RING_ID.length];
+        for (int t = 0; t < TIER_ID.length; t++)
+            for (int r = 0; r < RING_ID.length; r++)
+                out[t][r] = ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID,
+                        prefix + "." + TIER_ID[t] + "." + RING_ID[r]);
+        return out;
+    }
+
+    /** L 完全区的上界（§3.10.5）。 */
+    private static final float TIER_LM_LO = 0.30F;
+    /** L→M 交叉区的上界，交叉区宽 0.20。 */
+    private static final float TIER_LM_HI = 0.50F;
+    /** M 完全区的上界。 */
+    private static final float TIER_MS_LO = 0.65F;
+    /** M→S 交叉区的上界，<b>同时是"床换持续呼啸"的门限</b>。 */
+    private static final float TIER_MS_HI = 0.85F;
+    /**
+     * 默认床档位族的运行期增益。素材已按 LUFS-I 归一到 −42 / −40 / −38，粗档在素材里，
+     * 所以这里不再是旧口径的 {@code RAIN_WIND_BED_GAIN = 2.5}（§4.1 的 {@code BED_GAIN}）。
+     */
+    private static final float BED_TIER_GAIN = 1.0F;
+    /**
+     * 呼啸族按风档取电平。三档素材自带 −38 / −36 / −34 LUFS-I 的档差（附录 D.2），
+     * 运行期沿用 P2 的两级电平：L / M 用中档值，S 用强档值。两个常量名一个都没改 ——
+     * {@code _wind_unified/verify_wind_parity.py} 读的就是它们。
+     */
+    private static final float[] HOWL_TIER_LEVEL = { HOWL_LEVEL_MEDIUM, HOWL_LEVEL_MEDIUM, HOWL_LEVEL_HEAVY };
+
+    /** 床换持续呼啸的风等级门限，滞回 {@link #HOWL_BED_HYSTERESIS}（§3.10.2）。 */
+    private static final float HOWL_BED_MIN_W = 0.85F;
+    private static final float HOWL_BED_HYSTERESIS = 0.06F;
+    /** 呼啸拥有权交接的时长，秒。与 §3.10.5 的交叉时长、T3 试听件同值。 */
+    private static final float HOWL_HANDOFF_S = 3.0F;
     /** 床素材的谱质心超过这个值就判为"自带叶声"（附录 D.1 的实测：本包床档位
      *  194~359 Hz vs cinetony 树叶录音 4105 Hz，两类相差 >= 2.7 倍，现有素材没有
      *  中间样本）。判为真时<b>不再叠叶声层</b>，见 §3.10.2 要点 5。 */
@@ -518,9 +583,21 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private BackgroundSoundLoop rainWindLoop;
     private Object rainWindAsset;
 
+    /**
+     * WIND P3①：三族档位槽，{@code [档][环]} 各一条 static 循环 ——
+     * 默认床、叶声层、呼啸（层兼强风时的持续呼啸床）。
+     */
+    private final TierBank bedTiers = new TierBank(3, 2);
+    private final TierBank leafTiers = new TierBank(3, 2);
+    private final TierBank howlTiers = new TierBank(3, 2);
+    /** 档位权重的复用数组：每 tick 至多几次调用，不在热路径上分配。 */
+    private final float[] tierWeightScratch = new float[3];
+    /** 呼啸拥有权（§3.10.2 要点 3）：g_howl_bed + g_howl_layer ≡ 1.0。 */
+    private float howlBedGain;
+    private boolean howlBedOwned;
+
     // The sustained layers above the bed - see handleWindLayers.
-    private final WindLayer howlLayer = new WindLayer();
-    private final WindLayer canopyLayer = new WindLayer();
+    // P3① 起它们不是"一条循环一个槽"，而是三族档位槽（bedTiers / leafTiers / howlTiers）。
     /** 门控状态（带滞回），见 handleWindLayers。 */
     private boolean howlGateOpen = false;
     private boolean leafGateOpen = false;
@@ -769,10 +846,22 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
             final boolean thundering = player.level().isThundering();
 
             // 床 BED：handleRainWindBed 的 target = bedLevel × (inside ? 0.15 : 1) × windSwell
-            final BackgroundSoundLoop bed = this.rainWindLoop;
+            // × 等功率退让（P3①）。默认床报的是权重最大的那一档的素材与循环。
+            final float[] bedW = new float[3];
+            tierWeights(bedLevel, bedW);
+            final int bedTier = argMax(bedW);
+            final BackgroundSoundLoop bed = this.rainWindLoop != null ? this.rainWindLoop
+                    : this.bedTiers.loops[bedTier][0];
             SoundDiag.layer(SoundDiag.LAYER_BED,
-                    "asset=" + assetName(this.rainWindAsset)
+                    "asset=" + assetName(this.rainWindAsset != null ? this.rainWindAsset
+                            : this.bedTiers.assets[bedTier][0])
                             + " bedLevel=" + f3(bedLevel)
+                            + " tier=" + TIER_ID[bedTier]
+                            + " w=" + f3(bedW[0]) + "/" + f3(bedW[1]) + "/" + f3(bedW[2])
+                            + " gHowlBed=" + f3(this.howlBedGain)
+                            + " gHowlLayer=" + f3(this.howlLayerGain())
+                            + " owners=" + f3(this.howlBedGain + this.howlLayerGain())
+                            + " bedDuck=" + f3(bedOwnMaterialGain())
                             + " windSwell=" + f3(bedSwell)
                             + " indoor=" + (inside ? f3(INDOOR_VOLUME_SCALE) : "1.000")
                             + " gate=" + (ambient <= RAIN_WIND_MIN_INTENSITY ? "closed" : "open")
@@ -781,24 +870,29 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                             + " target=" + f3(loopTarget(bed))
                             + " vol=" + f3(loopVol(bed)));
 
-            // 呼啸 HOWL：target = (tier>=2 ? 0.62 : 0.36) × gustSwell × storm
-            final BackgroundSoundLoop howl = this.howlLayer.loop;
+            // 呼啸 HOWL：一个拥有者（P3①）。base = HOWL_TIER_LEVEL[t] × gustSwell × storm
+            // × W_howl × windVolumeScale × (g_howl_bed + g_howl_layer)；和恒等于 1。
+            final BackgroundSoundLoop howl = this.howlTiers.loops[bedTier][0];
             SoundDiag.layer(SoundDiag.LAYER_HOWL,
-                    "asset=" + assetName(this.howlLayer.asset)
-                            + " tier=" + this.howlLayer.tier
+                    "asset=" + assetName(this.howlTiers.assets[bedTier][0])
+                            + " tier=" + TIER_ID[bedTier]
                             + " gustSwell=" + f3(gustValue)
                             + " storm=" + f3(thundering ? RAIN_GUST_STORM_GAIN : 1F)
-                            + " level=" + f3(this.howlLayer.tier >= 2 ? HOWL_LEVEL_HEAVY : HOWL_LEVEL_MEDIUM)
+                            + " level=" + f3(HOWL_TIER_LEVEL[bedTier])
+                            + " gHowlBed=" + f3(this.howlBedGain)
+                            + " gHowlLayer=" + f3(this.howlLayerGain())
+                            + " owners=" + f3(this.howlBedGain + this.howlLayerGain())
                             + " base=" + f3(loopBase(howl))
                             + " scale=" + f3(loopScale(howl))
                             + " target=" + f3(loopTarget(howl))
                             + " vol=" + f3(loopVol(howl)));
 
-            // 树冠 CANOPY：target = 0.38 × gustSwell（只有 wooded 群系挂这一层）
-            final BackgroundSoundLoop canopy = this.canopyLayer.loop;
+            // 树冠 CANOPY：base = CANOPY_LEVEL × gustSwell × W_leaf × windVolumeScale，
+            // 素材是 L-leaf 档位族（P3①，每条两环）。只有 wooded 群系挂这一层。
+            final BackgroundSoundLoop canopy = this.leafTiers.loops[bedTier][0];
             SoundDiag.layer(SoundDiag.LAYER_CANOPY,
-                    "asset=" + assetName(this.canopyLayer.asset)
-                            + " idx=" + this.canopyLayer.index
+                    "asset=" + assetName(this.leafTiers.assets[bedTier][0])
+                            + " tier=" + TIER_ID[bedTier]
                             + " level=" + f3(CANOPY_LEVEL)
                             + " gustSwell=" + f3(gustValue)
                             + " base=" + f3(loopBase(canopy))
@@ -902,6 +996,7 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         clearSounds();
         this.rainWindLoop = null;
         this.rainWindAsset = null;
+        clearTierBanks();
         this.rainGustNextTick = 0L;
         // 档位带迟滞 = 有状态，换世界必须清掉，否则上一局在暴雨里退出，
         // 新世界一开局就还挂在暴雨档（要降档得比阈值再低 0.06）。
@@ -914,9 +1009,24 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
         clearSounds();
         this.rainWindLoop = null;
         this.rainWindAsset = null;
+        clearTierBanks();
         this.rainGustNextTick = 0L;
         this.rainGustTier = -1;
         this.rainGustLastIndex = -1;
+    }
+
+    /**
+     * WIND P3①：换世界时把所有档位槽与拥有权状态清掉 —— 交接进度、门控迟滞都是有状态的，
+     * 上一局在暴雨里退出，新世界一开局不该还挂在满风档上。
+     */
+    private void clearTierBanks() {
+        clearTierBank(this.bedTiers);
+        clearTierBank(this.leafTiers);
+        clearTierBank(this.howlTiers);
+        this.howlBedGain = 0F;
+        this.howlBedOwned = false;
+        this.howlGateOpen = false;
+        this.leafGateOpen = false;
     }
 
     private void handleBiomeSounds(final Player player) {
@@ -1760,55 +1870,186 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     }
 
 /**
- * One sustained wind layer, and which asset it currently has running.
+ * WIND P3①：一个档位族的槽位表 —— {@code [档][环]} 各一条 <b>static</b> 循环。
  *
- * <p>The asset is remembered because the target is recomputed every 4 ticks. Without it, a layer
- * whose target crossed zero gets rebuilt on the way back up, and a rebuilt loop starts its ogg
- * <em>from the file head</em>: the identical opening seconds, again, on whatever rhythm the
- * threshold happens to be crossed on. That is "the wind keeps catching", and from the fix-, not
- * from the asset.</p>
+ * <p>槽是懒建的：只有权重 &gt; 0 的档才有循环，所以跨档时从 2 条涨到 4 条、交叉区一过
+ * 又落回 2 条。素材本身记住了"这条槽现在是谁"，换素材时旧循环只被叫停、由它自己走完
+ * 淡出，所以换族（开阔 ↔ 林地）不会把一条波形从中切断。</p>
+ *
+ * <p>权重写进 {@code setVolume}（基础音量）而不是 {@code setScaleTarget}：
+ * {@code BackgroundSoundLoop.scale} 每 tick 只走 0.033，拿它做交叉会让 g₁+g₂ 在 3 s 的
+ * 窗里偏离 1 好几分贝；基础音量当 tick 生效。</p>
  */
-private static final class WindLayer {
-    BackgroundSoundLoop loop;
-    Object asset;
-    int tier = -1;
-    int index = -1;
-}
+private static final class TierBank {
+    final BackgroundSoundLoop[][] loops;
+    final Object[][] assets;
 
-/** Eases a layer out and forgets it. The loop stops itself once it reaches zero. */
-private void fadeLayer(final WindLayer layer) {
-    if (layer.loop != null) {
-        layer.loop.setScaleTarget(0F);
-        layer.loop = null;
-        layer.asset = null;
-        layer.tier = -1;
-        layer.index = -1;
+    TierBank(final int tiers, final int rings) {
+        this.loops = new BackgroundSoundLoop[tiers][rings];
+        this.assets = new Object[tiers][rings];
     }
 }
 
 /**
- * Eases a layer towards {@code target}, crossfading on an asset change instead of cutting.
+ * WIND P3①（§3.10.5）：档位权重，<b>等增益</b>，和恒等于 1。
  *
- * <p>The outgoing loop is set to zero but not stopped here - it owns its own fade from that
- * point, so switching assets inside a storm does not slice one waveform in half.</p>
+ * <pre>
+ *   L   w ∈ [0.00, 0.30]   完全          1     0     0
+ *   L→M w ∈ (0.30, 0.50)   等增益交叉    1−u   u     0     u = (w − 0.30) / 0.20
+ *   M   w ∈ [0.50, 0.65]   完全          0     1     0
+ *   M→S w ∈ (0.65, 0.85)   等增益交叉    0     1−u   u     u = (w − 0.65) / 0.20
+ *   S   w ∈ [0.85, 1.00]   完全          0     0     1   ← 同时是"床换持续呼啸"的门限
+ * </pre>
+ *
+ * <p><b>同族用等增益、异素材用等功率</b>（§3.10.5 的两行表格，不能混用）：同族档位来自
+ * 同一条母带、同一个窗，只差零相位滤波与增益 ⇒ <b>相位锁定</b>，等增益给出恒定的合成
+ * 幅度；等功率在中点的凸起实测 +2.24 ~ +3.01 dB（附录 D.3），那就是"打嗝"。床素材 →
+ * 持续呼啸是两份互不相关的录音（实测 xcorr 0.010 ~ 0.146），那里走 {@code cos/sin}
+ * （见 {@link #bedOwnMaterialGain()}）。</p>
  */
-private void sustainLayer(final WindLayer layer, final ISoundFactory factory, final float target) {
-    if (target <= 0.005F) {
-        this.fadeLayer(layer);
+private static void tierWeights(final float w, final float[] out) {
+    out[0] = 0F;
+    out[1] = 0F;
+    out[2] = 0F;
+    if (w < TIER_LM_LO) {
+        out[0] = 1F;
         return;
     }
-    final var asset = factory.getLocation();
-    if (layer.loop == null || !asset.equals(layer.asset)) {
-        if (layer.loop != null)
-            layer.loop.setScaleTarget(0F);
-        layer.loop = factory.createBackgroundSoundLoop();
-        layer.loop.setVolume(1F);
-        layer.asset = asset;
-        layer.loop.setScaleTarget(target);
-        this.audioPlayer.play(layer.loop);
-    } else {
-        layer.loop.setScaleTarget(target);
+    if (w < TIER_LM_HI) {
+        final float u = (w - TIER_LM_LO) / (TIER_LM_HI - TIER_LM_LO);
+        out[0] = 1F - u;
+        out[1] = u;
+        return;
     }
+    if (w < TIER_MS_LO) {
+        out[1] = 1F;
+        return;
+    }
+    if (w < TIER_MS_HI) {
+        final float u = (w - TIER_MS_LO) / (TIER_MS_HI - TIER_MS_LO);
+        out[1] = 1F - u;
+        out[2] = u;
+        return;
+    }
+    out[2] = 1F;
+}
+
+/** 权重最大的那一档。只用于诊断报"现在是哪一档"（交叉区报正在变响的那一档）。 */
+private static int argMax(final float[] weights) {
+    int best = 0;
+    for (int i = 1; i < weights.length; i++)
+        if (weights[i] > weights[best])
+            best = i;
+    return best;
+}
+
+/**
+ * 把一族档位按权重铺进槽位。
+ *
+ * @param tierLevel 逐档的额外电平倍率；{@code null} = 三档共用一个电平
+ *                  （床与叶层的档差在素材里，呼啸族的电平表见 {@link #HOWL_TIER_LEVEL}）
+ */
+private void renderTierBank(final TierBank bank, final ResourceLocation[][] family, final float w,
+                            final float gain, final float[] tierLevel) {
+    tierWeights(w, this.tierWeightScratch);
+    for (int t = 0; t < this.tierWeightScratch.length; t++) {
+        final float level = (tierLevel == null ? 1F : tierLevel[t]) * gain * this.tierWeightScratch[t];
+        for (int r = 0; r < RING_ID.length; r++)
+            renderTier(bank, t, r, family[t][r], level);
+    }
+}
+
+/** 挂上（或换掉）一条档位循环，并把增益写进基础音量。 */
+private void renderTier(final TierBank bank, final int tier, final int ring, final ResourceLocation asset,
+                        final float gain) {
+    BackgroundSoundLoop loop = bank.loops[tier][ring];
+    if (loop != null && !asset.equals(bank.assets[tier][ring])) {
+        loop.setScaleTarget(0F);
+        loop = null;
+    }
+    if (gain <= 0.0005F) {
+        if (loop != null) {
+            loop.setScaleTarget(0F);
+            bank.loops[tier][ring] = null;
+            bank.assets[tier][ring] = null;
+        }
+        return;
+    }
+    if (loop == null) {
+        loop = ContainerManager.resolve(ISoundLibrary.class)
+                .getSoundFactoryOrDefault(asset)
+                .createBackgroundSoundLoop();
+        // scale 只负责这一条自己的淡入，全部权重都在基础音量里。
+        loop.setScaleTarget(1F);
+        bank.loops[tier][ring] = loop;
+        bank.assets[tier][ring] = asset;
+        this.audioPlayer.play(loop);
+    }
+    loop.setVolume(gain);
+}
+
+/** 让一族档位整族淡出：循环自己走到 0 后停止。 */
+private void fadeTierBank(final TierBank bank) {
+    for (final BackgroundSoundLoop[] row : bank.loops)
+        for (int r = 0; r < row.length; r++)
+            if (row[r] != null) {
+                row[r].setScaleTarget(0F);
+                row[r] = null;
+            }
+    for (final Object[] row : bank.assets)
+        java.util.Arrays.fill(row, null);
+}
+
+/** 换世界时清空一族档位槽。 */
+private void clearTierBank(final TierBank bank) {
+    for (final BackgroundSoundLoop[] row : bank.loops)
+        java.util.Arrays.fill(row, null);
+    for (final Object[] row : bank.assets)
+        java.util.Arrays.fill(row, null);
+}
+
+/**
+ * WIND P3①（§3.10.2 要点 3）：呼啸的拥有权分配器。
+ *
+ * <pre>
+ *   g_howl_bed + g_howl_layer ≡ 1.0     ← 等增益再分配，不是两条各自淡入淡出
+ * </pre>
+ *
+ * <p>只有<b>一条</b>持续呼啸信号（{@link #HOWL_TIERS} 那一族），两个增益乘在它上面。
+ * 和恒等于 1 就是"任何时刻只有一个呼啸拥有者"的可判定形式：代码里不存在第二条呼啸
+ * 路径，也就不可能出现 T3b 那种 max 1.4142 = +3.01 dB 的双呼啸。交接窗内两条的合计
+ * 增益因此是常数 1.0000（T3 实测 min = max = 1.0000）。</p>
+ *
+ * <p>判据（§3.10.1 规则表 A 第 4 列）：只有<b>没有群系自带风素材</b>的预设才换 ——
+ * ALPINE_PEAK / 沙漠这类有自带素材的，任何风级下床都是它自己的素材，呼啸只出现在层上。</p>
+ */
+private void updateHowlOwnership(final boolean active, final float level, final boolean hasOwnAsset) {
+    final boolean want = active && !hasOwnAsset
+            && gate(this.howlBedOwned, level, HOWL_BED_MIN_W, HOWL_BED_HYSTERESIS);
+    this.howlBedOwned = want;
+    final float goal = want ? 1F : 0F;
+    // SCAN_INTERVAL tick 走一步，所以交接恰好铺满 HOWL_HANDOFF_S 秒。
+    final float step = HOWL_HANDOFF_S <= 0F ? 1F : (SCAN_INTERVAL / 20F) / HOWL_HANDOFF_S;
+    if (this.howlBedGain < goal)
+        this.howlBedGain = Math.min(goal, this.howlBedGain + step);
+    else if (this.howlBedGain > goal)
+        this.howlBedGain = Math.max(goal, this.howlBedGain - step);
+}
+
+/** g_howl_layer = 1 − g_howl_bed，见 {@link #updateHowlOwnership}。和恒等于 1。 */
+private float howlLayerGain() {
+    return 1F - this.howlBedGain;
+}
+
+/**
+ * 床自己的素材对持续呼啸的退让：<b>等功率 {@code cos}</b>。
+ *
+ * <p>床素材与呼啸是两份互不相关的录音，等增益会在中点掉 3 dB（§3.10.5 中段），所以走
+ * {@code g_bed² + g_howl_bed² = 1}。它与 {@code g_howl_bed + g_howl_layer = 1} 是两条
+ * 不同的曲线：前者管"床的素材 vs 呼啸"，后者管"呼啸归谁"，不能混用。</p>
+ */
+private float bedOwnMaterialGain() {
+    return (float) Math.cos(this.howlBedGain * Math.PI * 0.5D);
 }
 
 /**
@@ -1839,12 +2080,10 @@ private static float gustSwell(final Player player) {
     private void handleWindLayers(final Player player) {
         if (!PrecipitationIntensity.grading() || !doBiomeSounds()
                 || !this.config.weatherOptions.enableWindSounds || this.scanner.isInside()) {
-            this.fadeLayer(this.howlLayer);
-            this.fadeLayer(this.canopyLayer);
+            fadeTierBank(this.howlTiers);
+            fadeTierBank(this.leafTiers);
             return;
         }
-        final float intensity = PrecipitationIntensity.ambient();
-        final int tier = gustTierFor(intensity, this.rainGustTier);
         final var info = this.scanner.playerLogicBiomeInfo();
         final WindProfile profile = info == null ? null : WindProfile.resolve(info.getTraits());
         final boolean wooded = info != null && isWooded(info);
@@ -1861,42 +2100,30 @@ private static float gustSwell(final Player player) {
         final float level = windLevel();
         final float swell = gustSwell(player);
         final float storm = player.level().isThundering() ? RAIN_GUST_STORM_GAIN : 1F;
+        final float volumeScale = windVolumeScale();
 
-        // 呼啸层：门控挂在【风】上，静风时整层到 0（可以真的不存在）。
+        // 呼啸：门控挂在【风】上，静风时整层到 0（可以真的不存在）。强风时拥有权搬到
+        // 床槽（§3.10.2 要点 3），所以这里乘的是 g_howl_bed + g_howl_layer —— 写出来
+        // 是为了让"只有一个呼啸拥有者"在代码里可读、可审、可被 -Ddsr.sound.diag 诊断。
         this.howlGateOpen = gate(this.howlGateOpen, level, HOWL_WIND_MIN, HOWL_GATE_HYSTERESIS);
         if (this.howlGateOpen && wHowl > 0F) {
-            // One asset per tier, re-drawn when the tier changes and not otherwise: redrawing every
-            // tick would make the layer hop between three different recordings.
-            // One long loop per tier instead of one of three short clips. The clip
-            // used to be redrawn from the pool whenever the tier changed, and every
-            // clip in it was under eleven seconds - the layer did not breathe, it
-            // repeated.
-            final ResourceLocation howl = tier >= 2 ? HOWL_HEAVY : HOWL_MEDIUM;
-            this.howlLayer.tier = tier;
-            final float base = tier >= 2 ? HOWL_LEVEL_HEAVY : HOWL_LEVEL_MEDIUM;
-            this.sustainLayer(this.howlLayer,
-                    ContainerManager.resolve(ISoundLibrary.class)
-                            .getSoundFactoryOrDefault(howl),
-                    base * swell * storm * wHowl * windVolumeScale());
+            final float owners = this.howlBedGain + this.howlLayerGain();
+            renderTierBank(this.howlTiers, HOWL_TIERS, level,
+                    swell * storm * wHowl * volumeScale * owners, HOWL_TIER_LEVEL);
         } else {
-            this.fadeLayer(this.howlLayer);
+            fadeTierBank(this.howlTiers);
         }
 
         // 叶声层：有覆盖度、床素材不自带叶声、风过门限，三条同时成立才存在。
-        // 门控同样挂在风上（旧口径挂在降水 tier 上，“小雨 / 雨后一阵大风带树叶响”
-        // 因此永远不可能发生）。
+        // 门控同样挂在风上（旧口径挂在降水 tier 上，"小雨 / 雨后一阵大风带树叶响"
+        // 因此永远不可能发生）。P3① 起用的是 L-leaf 档位族（每条两环，互质同时播）。
         final float leafMin = profile == null ? LEAF_WIND_MIN : profile.leafWindMin();
         this.leafGateOpen = gate(this.leafGateOpen, level, leafMin, LEAF_GATE_HYSTERESIS);
         if (coverage > 0F && !this.bedHasLeaves(profile) && this.leafGateOpen) {
-            final var lpool = RAIN_TEXTURE_LEAF;
-            if (this.canopyLayer.index < 0 || this.canopyLayer.index >= lpool.length)
-                this.canopyLayer.index = RANDOM.nextInt(lpool.length);
-            this.sustainLayer(this.canopyLayer,
-                    ContainerManager.resolve(ISoundLibrary.class)
-                            .getSoundFactoryOrDefault(lpool[this.canopyLayer.index]),
-                    CANOPY_LEVEL * swell * wLeaf * windVolumeScale());
+            renderTierBank(this.leafTiers, LEAF_TIERS, level,
+                    CANOPY_LEVEL * swell * wLeaf * volumeScale, null);
         } else {
-            this.fadeLayer(this.canopyLayer);
+            fadeTierBank(this.leafTiers);
         }
     }
 
@@ -1919,8 +2146,11 @@ private static float gustSwell(final Player player) {
         if (profile != null && profile.assetHasLeaves())
             return true;
         final var info = this.scanner.playerLogicBiomeInfo();
+        // P3① 起，没有自带素材的群系用的是档位族床（BED_TIERS_*，纯风，质心 0），
+        // 不再是 WIND_GENERIC（cinetony 的树叶录音，质心 4105 Hz）。所以有树群系的默认床
+        // 不再被判为"自带叶声"，叶层照叠 —— 叶子从叶层来，不从床来（§3.10.1 优先级 2）。
         final Object bedAsset = this.rainWindAsset != null ? this.rainWindAsset
-                : (info != null && isWooded(info) ? WIND_GENERIC : WIND_OPEN);
+                : (info != null && isWooded(info) ? BED_TIERS_WOOD[0][0] : BED_TIERS_OPEN[0][0]);
         return windAssetCentroid(bedAsset) > ASSET_LEAF_CENTROID_HZ;
     }
 
@@ -1949,11 +2179,8 @@ private static float gustSwell(final Player player) {
      * not of where the drops land, so it keeps blowing under a roof, muffled.
      */
     private void handleRainWindBed(final Player player) {
-        if (!PrecipitationIntensity.grading() || !doBiomeSounds()
-                || !this.config.weatherOptions.enableWindSounds) {
-            fadeRainWind();
-            return;
-        }
+        final boolean active = PrecipitationIntensity.grading() && doBiomeSounds()
+                && this.config.weatherOptions.enableWindSounds;
         final float intensity = PrecipitationIntensity.ambient();
         ResourceLocation wind = null;
         float trim = 1F;
@@ -1971,14 +2198,35 @@ private static float gustSwell(final Player player) {
         // 已经折进了强度、本场阵风幅度、群系和季节，所以耳朵听到的风与眼睛看到的
         // 雨幕倾斜是同一样东西的两个出口。swell 继续在这个 level 上起呼吸作用。
         final float bedLevel = windLevel();
-        if (wind == null)
-            // Only ground without an asset of its own reaches this, so this line decides the
-            // bed nearly everywhere. Where there are trees the leaves belong in it.
-            wind = (info != null && isWooded(info)) ? WIND_GENERIC : WIND_OPEN;
-        // The gate applies to both paths now. It used to guard only this fallback branch, so the
-        // biomes that carry their own asset were already blowing while the storm was still
-        // climbing out of zero - the complaint was "it starts before the rain does".
-        // (They also double up against generateBiomeSounds; see the skip there.)
+        // 拥有权先算：同一个 tick 里 handleWindLayers 要读 g_howl_layer（调用顺序见
+        // handleBiomeSounds：handleRainWindBed 在 handleWindLayers 之前）。
+        updateHowlOwnership(active, bedLevel, wind != null);
+        if (!active) {
+            fadeRainWind();
+            fadeTierBank(this.bedTiers);
+            return;
+        }
+        if (wind != null) {
+            // §3.10.1 规则表 A 优先级 1：群系自带素材优先，档位只作用于默认床。
+            fadeTierBank(this.bedTiers);
+            ownAssetBed(wind, trim, bedLevel, intensity);
+            return;
+        }
+        fadeRainWind();
+        defaultBed(info, bedLevel, intensity);
+    }
+
+    /**
+     * 群系自带风素材的床（§3.10.1 规则表 A 优先级 1）：P2 的原样保留 —— 一条流式循环、
+     * 按素材自己的响度做 {@link #windTrim}、按风等级与慢起伏呼吸。
+     *
+     * <p>The gate applies to both paths now. It used to guard only this fallback branch, so the
+     * biomes that carry their own asset were already blowing while the storm was still
+     * climbing out of zero - the complaint was "it starts before the rain does".
+     * (They also double up against generateBiomeSounds; see the skip there.)</p>
+     */
+    private void ownAssetBed(final ResourceLocation wind, final float trim, final float bedLevel,
+                             final float intensity) {
         float target = intensity <= RAIN_WIND_MIN_INTENSITY ? 0F : bedLevel;
         if (this.scanner.isInside())
             target *= INDOOR_VOLUME_SCALE;
@@ -2001,6 +2249,33 @@ private static float gustSwell(final Player player) {
         } else {
             this.rainWindLoop.setScaleTarget(target);
         }
+    }
+
+    /**
+     * WIND P3①：默认床 = 档位族（§3.10.4）。选族看有没有树冠，选档看 {@code windLevel}。
+     *
+     * <p>强风时床换成持续呼啸（{@code g_howl_bed → 1}），所以档位族在这一段按
+     * <b>等功率</b>退让 —— 见 {@link #bedOwnMaterialGain()}。到 {@code g_howl_bed = 1}
+     * 时档位族整族消失，床上只剩呼啸：这就是"床换成持续呼啸声"。</p>
+     *
+     * <p>WASTELAND 不需要分支：它的 {@code floorLevel = peakCeiling = 0}，所以
+     * {@code bedLevel ≡ 0} ⇒ {@code gain = 0} ⇒ 整族不存在（§3.10.1 优先级 0）。</p>
+     */
+    private void defaultBed(final BiomeInfo info, final float bedLevel, final float intensity) {
+        float target = intensity <= RAIN_WIND_MIN_INTENSITY ? 0F : bedLevel;
+        if (this.scanner.isInside())
+            target *= INDOOR_VOLUME_SCALE;
+        target *= windSwell(this.tickCount.getTickCount()) * windVolumeScale();
+        final float gain = BED_TIER_GAIN * target * bedOwnMaterialGain();
+        if (gain <= 0.0005F) {
+            fadeTierBank(this.bedTiers);
+            return;
+        }
+        // §3.10.1 优先级 2 / 3：两张默认床都是纯风（一点叶声都没有），差别只在 EQ 倾向，
+        // 树 / 无树由上面叠叶层还是叠呼啸层表达。
+        renderTierBank(this.bedTiers,
+                (info != null && isWooded(info)) ? BED_TIERS_WOOD : BED_TIERS_OPEN,
+                bedLevel, gain, null);
     }
 
     private void fadeRainWind() {

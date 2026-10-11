@@ -350,3 +350,32 @@ Rebirth.
      <li>S: <a href="https://freesound.org/people/Kinoton/sounds/494071/">Big Tree Fall in Forest</a> by <a href="https://freesound.org/people/Kinoton/">Kinoton</a> | License: Creative Commons 0</li>
      <li>Modifications: trimmed to 0.30-5.90 s (the source is 7.98 s with dead air after the crash), converted to mono, resampled to 48 kHz, fades, normalised to -27.8 dB RMS.</li>
 </ul>
+
+*dsurround:biome.wind.bed.open.l.a / .l.b / .m.a / .m.b / .s.a / .s.b*
+
+<ul>
+     <li>S: <a href="https://www.freesound.org/people/felix.blume/sounds/156414/">Wind blowing into some cactus spine, on the top of the mountain, in the desert of Atacama (Chile).</a> by <a href="https://www.freesound.org/people/felix.blume/">felix.blume</a> | License: Creative Commons 0</li>
+     <li>Modifications: wind.ogg (96 kHz to 48 kHz, 43.651 s) joined to wind_open.ogg (14.800 s) with a 4.0 s equal-power crossfade and a 40 Hz high pass gives a 54.451 s pure-wind master; two coprime loops are cut from it per wind tier (12.10 s / 17.90 s, tail-to-head equal-power crossfade 1.2 s) and tilted per tier (L: 3 kHz low pass plus shelf -6 dB at 1 kHz / M: shelf -1.5 dB at 1 kHz / S: shelf +3 dB at 1.2 kHz), then equalised for open country (low shelf +4 dB at 200 Hz, shelf -2 dB at 3 kHz). Normalised to -42 / -40 / -38 LUFS-I. Built by _sound_preview/_scripts/_v4_bed_audited.py.</li>
+</ul>
+
+*dsurround:biome.wind.bed.wood.l.a / .l.b / .m.a / .m.b / .s.a / .s.b*
+
+<ul>
+     <li>S: <a href="https://www.freesound.org/people/felix.blume/sounds/156414/">Wind blowing into some cactus spine, on the top of the mountain, in the desert of Atacama (Chile).</a> by <a href="https://www.freesound.org/people/felix.blume/">felix.blume</a> | License: Creative Commons 0</li>
+     <li>Modifications: same master, same windows and the same tier tilts as biome.wind.bed.open; the only difference is the neutral-woodland EQ (high pass 60 Hz, low shelf -2.5 dB at 200 Hz, shelf -2.5 dB at 5 kHz). Normalised to -42 / -40 / -38 LUFS-I.</li>
+</ul>
+
+*dsurround:biome.wind.leaf.l.a / .l.b / .m.a / .m.b / .s.a / .s.b*
+
+<ul>
+     <li>S: <a href="https://freesound.org/people/Cinetony/sounds/575380/">Leaves rustle in the wind</a> by <a href="https://freesound.org/people/Cinetony/">Cinetony</a> | License: Creative Commons 0</li>
+     <li>Modifications: from the 2-10 kHz band of the source, 4724 fine grains (110 ms, 2.5-11 kHz) and 4723 body grains (190 ms, 0.8-4.5 kHz) were detected and re-scheduled on a circular timeline into two coprime loops (17.30 s / 22.70 s); the tier tilt is a 4 kHz shelf at -7 / -1.5 / +3 dB. Normalised to -42 / -40 / -38 LUFS-I. Built by _sound_preview/_scripts/_build_v4_tiers.py.</li>
+</ul>
+
+*dsurround:biome.wind.howl.l.a / .l.b / .m.a / .m.b / .s.a / .s.b*
+
+<ul>
+     <li>S (medium section): derived from the medium wind loop, itself the three medium clips registered against <a href="https://freesound.org/people/cinetony/">cinetony</a> on dsurround:biome.rain.wind1-3 / dsurround:biome.wind.howl.medium | License: Creative Commons 0</li>
+     <li>S (heavy section): <a href="https://freesound.org/people/Bosk1/sounds/217186/">Wind at door howling 4.wav</a> by <a href="https://freesound.org/people/Bosk1/">Bosk1</a> | License: Attribution 4.0</li>
+     <li>Modifications: the medium and heavy loops are crossfaded over 4.0 s into a 91.998 s master; two coprime loops (17.30 s / 22.70 s, A cut from the medium section and B from the heavy section) are taken from it and tilted per wind tier (2-2.5 kHz shelf at -5 / -1 / +2.5 dB). Normalised to -38 / -36 / -34 LUFS-I. Built by _sound_preview/_scripts/_build_v4_tiers.py.</li>
+</ul>

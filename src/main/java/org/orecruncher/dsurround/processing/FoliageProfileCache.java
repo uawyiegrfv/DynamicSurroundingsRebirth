@@ -80,6 +80,8 @@ public final class FoliageProfileCache {
         CACHE.clear();
         builds = 0;
         overBudget = 0;
+        lastBuildNanos = 0L;
+        worstBuildNanos = 0L;
     }
 
     public static int size() {

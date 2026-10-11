@@ -1,6 +1,9 @@
 package org.orecruncher.dsurround.config.libraries.impl;
 
+import com.google.gson.JsonElement;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.Dynamic;
+import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.codecs.UnboundedMapCodec;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -58,7 +61,21 @@ public final class SoundLibrary implements ISoundLibrary {
     private static final String FACTORY_JSON = "sound_factories.json";
     private static final String SOUND_CONFIG_FILE = "soundconfig.json";
     private static final String SOUND_MAPPING_JSON = "sound_mappings.json";
-    private static final UnboundedMapCodec<String, SoundMetadataConfig> SOUND_FILE_CODEC = Codec.unboundedMap(Codec.STRING, SoundMetadataConfig.CODEC);
+    /**
+     * sounds.json, as an envelope only: the values are handed over undecoded.
+     *
+     * <p>Decoding them here is what turned one bad entry into an empty file.
+     * On the DataFixerUpper 26.1 ships, {@code optionalFieldOf} no longer
+     * swallows a decode error inside a present field, so a single
+     * {@code ds_credits} entry without {@code author} failed the whole
+     * {@code UnboundedMapCodec}: no DSR sound event registered at all and
+     * every ambient layer fell back to {@code missing_sound} (2026-10-11,
+     * commit "修复：呼啸/树冠层静默"). The file is a collection of entries;
+     * a bad entry is a bad entry, not a bad file. Each value is therefore
+     * decoded on its own in {@link #decodeSoundMetadata}, and one that cannot
+     * be read costs only that entry's title/subtitle/credits.</p>
+     */
+    private static final UnboundedMapCodec<String, Dynamic<?>> SOUND_FILE_CODEC = Codec.unboundedMap(Codec.STRING, Codec.PASSTHROUGH);
     private static final Codec<List<SoundFactory>> FACTORY_FILE_CODEC = Codec.list(SoundFactory.CODEC);
     private static final Codec<List<IndividualSoundConfigEntry>> SOUND_CONFIG_CODEC = Codec.list(IndividualSoundConfigEntry.CODEC);
     private static final Codec<List<SoundMappingConfigRule>> SOUND_MAPPING_CODEC = Codec.list(SoundMappingConfigRule.CODEC);
@@ -340,20 +357,66 @@ public final class SoundLibrary implements ISoundLibrary {
         return mappingRule != null && mappingRule.findMatch(state).map(SoundMapping.Mapping.MatchResult::explicit).orElse(false);
     }
 
-    private void registerSoundFile(DiscoveredResource<Map<String, SoundMetadataConfig>> soundFile) {
+    /**
+     * Registers one sounds.json, one entry at a time.
+     *
+     * <p>The envelope has already been decoded by the time this runs (see
+     * {@link #SOUND_FILE_CODEC}), so an unreadable entry cannot take the file
+     * with it. The sound event is registered for every entry either way - the
+     * audio never depends on the metadata being well formed.</p>
+     */
+    private void registerSoundFile(DiscoveredResource<Map<String, Dynamic<?>>> soundFile) {
         var result = soundFile.resourceContent();
-        result.forEach((key, value) -> {
+        int dropped = 0;
+        for (final var entry : result.entrySet()) {
             // We want to register the sound regardless of having metadata.
-            final Identifier loc = Identifier.fromNamespaceAndPath(soundFile.namespace(), key);
+            final Identifier loc = Identifier.fromNamespaceAndPath(soundFile.namespace(), entry.getKey());
             if (!this.myRegistry.containsKey(loc)) {
                 this.myRegistry.put(loc, SoundEvent.createVariableRangeEvent(loc));
+            }
+            final SoundMetadataConfig value = decodeSoundMetadata(entry.getKey(), entry.getValue());
+            if (value == null) {
+                dropped++;
+                continue;
             }
             if (!value.isDefault()) {
                 final SoundMetadata data = new SoundMetadata(loc, value);
                 this.soundMetadata.put(loc, data);
             }
-        });
-        this.logger.debug("Registered %d sounds for namespace %s", soundFile.resourceContent().size(), soundFile.namespace());
+        }
+        this.logger.debug("Registered %d sounds for namespace %s (%d with unreadable metadata)",
+                result.size(), soundFile.namespace(), dropped);
+    }
+
+    /**
+     * Decodes a single sounds.json entry, or returns null when that entry cannot be used.
+     *
+     * <p>A partial result (a field that failed but left a usable object behind) is kept and
+     * reported, which is what the old whole-file decode did on the older DataFixerUpper. Only
+     * an entry with no usable result at all loses its metadata.</p>
+     *
+     * @param key   the entry's key, for the warning
+     * @param value the entry's raw JSON, as handed over by {@link #SOUND_FILE_CODEC}
+     * @return the decoded metadata, or null when this entry has to be skipped
+     */
+    private SoundMetadataConfig decodeSoundMetadata(final String key, final Dynamic<?> value) {
+        if (!(value.getValue() instanceof JsonElement element)) {
+            this.logger.warn("sounds.json: '%s' is not a JSON object - its metadata is dropped, the sound itself is registered", key);
+            return null;
+        }
+        try {
+            final var parsed = SoundMetadataConfig.CODEC.parse(JsonOps.INSTANCE, element);
+            final SoundMetadataConfig config = parsed
+                    .resultOrPartial(msg -> this.logger.warn("sounds.json: '%s' - %s", key, msg))
+                    .orElse(null);
+            if (config == null)
+                this.logger.warn("sounds.json: '%s' could not be read (%s) - its metadata is dropped, the sound itself is registered",
+                        key, parsed.error().map(err -> err.message()).orElse("no detail"));
+            return config;
+        } catch (Throwable t) {
+            this.logger.warn("sounds.json: '%s' threw while decoding (%s) - its metadata is dropped", key, t);
+            return null;
+        }
     }
 
     private void registerSoundRemappings(DiscoveredResource<List<SoundMappingConfigRule>> mappings) {

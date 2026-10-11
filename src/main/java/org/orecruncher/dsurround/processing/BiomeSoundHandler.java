@@ -161,9 +161,17 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     // 群系 + 新的季节系数），两边各有一套大小：密林里雨丝几乎不斜而风声照旧走满，
     // 风袭/山地里雨丝斜得厉害、风声却一点没变响。现在风床和阵风都改问
     // WindField.speedAt()，再由下面这几个数把格/秒折回 0..1。
-    //   两个端点必须对得上 WindField 的速度常量：最小 0.8、最大 0.8+4.2+3.0=8.0。
+    //   两个端点必须对得上 WindField 的速度常量：最小 0.15、最大 0.15+4.2+3.0=7.35
+    //   （speedAt 先把 gustAmplitude 夹到 1.0，所以 7.35 就是真正的上限）。
     //   改 WindField 那几个速度常量时要跟着改这里，否则"同源"就名不副实。
-    private static final float WIND_LEVEL_MIN_BPS = 0.8F;
+    //
+    //   MIN 原来是 0.8 —— 那是 WindField 更早的常数地板，它留下一个死区：
+    //   bps <= 0.8 时 windLevel 被夹到 0，低风段整段听不见。WindField 的地板在
+    //   台账 #48 那一轮就降到了 0.15，这里没跟着改，于是耳朵和眼睛量的是两把尺子；
+    //   密林 + 夏季（0.75 x 0.90 = 0.675）的 bps 上限 4.96 也被这个 MIN 再削一刀
+    //   （level 上限 0.578 -> 0.668）。两端重新对齐后死区消失，低风段与上限都回到
+    //   WindField 自己的量程上。
+    private static final float WIND_LEVEL_MIN_BPS = 0.15F;
     private static final float WIND_LEVEL_SPAN_BPS = 7.2F;
     /** 阵风音量受风力调制的深度：静风保留 FLOOR，风拉满补到 FLOOR + SPAN。
      *  FLOOR 抬高 = 所有阵风一起变响；SPAN 加大 = 风大风小的差别更明显。 */

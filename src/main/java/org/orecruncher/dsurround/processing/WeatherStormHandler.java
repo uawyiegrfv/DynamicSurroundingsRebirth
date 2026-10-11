@@ -629,12 +629,11 @@ public class WeatherStormHandler extends AbstractClientHandler {
         final float drift = DUST_DRIFT_MIN + DUST_DRIFT_RANGE * veilNow;
         final float widthScale = VEIL_WIDTH_MIN + VEIL_WIDTH_RANGE * veilNow;
         final float veilDensity = Math.max(veilNow, VEIL_MIN_DENSITY);
-        // WIND：沙尘幕没有自己的降水事件，阵风项传 0，只按幕的强度给风。
-        // 群系系数这里故意传 1.0 不打折：沙尘只在干旱群系起来（DESERT / SANDY /
-        // BADLANDS / WASTELAND / SPARSE），而这些标签基本不在风力映射表里，
-        // 算出来本来就是 1.0；真正会把风调小的 DENSE / FOREST 与能起沙的地方互斥。
-        // 换句话说套上去几乎没差别，却会让"沙暴一定是全速风"这条不再成立 —— 不值得。
-        WindField.update(ticks, partialTick, veilNow, 0F, 1F);
+        // WIND：沙尘幕没有自己的降水事件，也没有降水强度可问，所以它把幕的强度直接
+        // 当风等级交给风场 —— "沙暴一定是全速风"是这个效果的定义。降水那边的风等级
+        // （群系预设驱动）在这里不适用：下界与沙漠的预设可能是 WASTELAND（无风），
+        // 而沙尘幕照旧要吹。
+        WindField.update(ticks, partialTick, veilNow);
 
 
         RenderSystem.enableBlend();

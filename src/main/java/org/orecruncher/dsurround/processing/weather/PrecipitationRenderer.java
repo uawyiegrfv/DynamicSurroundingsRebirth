@@ -791,12 +791,11 @@ public final class PrecipitationRenderer {
 
             refreshCaches(level, ticks);
             // WIND：风向/风速只依赖游戏时钟，每帧调一次即可，不需要 tick 钩子。
-            // 强度里已经折进了离散阵风，gustAmplitude 是本场事件摇出的阵风幅度。
-            // 最后一个参数是群系风力系数：多风的地方风更大、密林里风更小。
-            // 它在 PrecipitationIntensity 里每 tick 更新一次，这里只是取用 ——
-            // 千万别改成在这里查 BiomeInfo，更不要放进 per-column 循环。
-            WindField.update(ticks, partialTick, intensity, PrecipitationIntensity.gustAmplitude(),
-                    PrecipitationIntensity.windScale());
+            // 传进去的是统一风系统的风等级（群系预设 + 本场事件的形状），所以眼睛
+            // 看到的雨幕倾斜与耳朵听到的风是同一个量。它在 PrecipitationIntensity
+            // 里每 tick 解析一次，这里只是取用 —— 千万别改成在这里查 BiomeInfo，
+            // 更不要放进 per-column 循环。
+            WindField.update(ticks, partialTick, PrecipitationIntensity.windLevel());
 
 
             // The state set here belongs to the particle pass and has to be given

@@ -18,7 +18,6 @@ import org.orecruncher.dsurround.config.BiomeTrait;
 import org.orecruncher.dsurround.config.biome.biometraits.BiomeTraits;
 import org.orecruncher.dsurround.config.data.BiomeConfigRule;
 import org.orecruncher.dsurround.lib.logging.ModLog;
-import org.orecruncher.dsurround.processing.weather.WindField;
 import org.orecruncher.dsurround.lib.random.IRandomizer;
 import org.orecruncher.dsurround.lib.registry.RegistryUtils;
 import org.orecruncher.dsurround.lib.collections.ObjectArray;
@@ -154,22 +153,6 @@ public final class BiomeInfo implements Comparable<BiomeInfo>, IBiomeSoundProvid
 
     public BiomeTraits getTraits() {
         return this.traits;
-    }
-
-    /**
-     * WIND：这个群系的风力倍率，1.0 = 不修正。
-     *
-     * <p>由群系标签推导。标签到倍率的映射表集中在
-     * {@link WindField} 顶部（{@code WIND_BIOME_SCALE_TRAITS} /
-     * {@code WIND_BIOME_SCALE_VALUES}）—— 调风力改那一处就够了，
-     * 也不用为此新增配置文件字段或同步三版的 biomes.json。</p>
-     *
-     * <p>每 tick 会被调用一次，别放进渲染的 per-column 循环。</p>
-     *
-     * @return 风力倍率，通常落在 [0.75, 1.35]
-     */
-    public float windScale() {
-        return WindField.biomeScale(this.traits);
     }
 
     public void mergeTraits(BiomeConfigRule configRule) {

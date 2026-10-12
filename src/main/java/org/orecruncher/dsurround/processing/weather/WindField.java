@@ -16,7 +16,7 @@ import java.util.Random;
  * <pre>
  *   shape(t)  = 本场事件的双正弦 + tanh 软削波 + 一条非周期随机游走     0..1
  *   mean      = PRESET[群系].meanLevel[季节] x SEASON_FACTOR[季节] + 本场抖动
- *   depth     = PRESET[群系].gustDepth x GustResponse(本场降水强度)
+ *   depth     = PRESET[群系].gustDepth
  *   level(t)  = clamp(mean + depth x (2 x shape(t) - 1), 地板, 天花板)   0..1
  *   speed     = 0.15 + 7.2 x level                                      格/秒
  * </pre>
@@ -179,22 +179,30 @@ public final class WindField {
     /**
      * 风等级，0..1。<b>统一风系统的唯一输出。</b>
      *
-     * <p>纯函数：给定预设、降水强度和游戏时刻，答案永远一样。{@code strength} 只经
-     * 预设的 {@link GustResponse} 影响阵风<b>深度</b>，不再影响均值 —— 这就是
-     * "均值与波动解耦"的落点。</p>
+     * <p>纯函数：给定预设与游戏时刻，答案永远一样 —— <b>风有意独立于降水。</b></p>
+     *
+     * <p>这里曾经收一个 {@code strength}（本场降水的分级强度）形参，它只经预设的
+     * {@link GustResponse} 影响阵风<b>深度</b>。但七个预设全部是 {@code GustResponse.FLAT}
+     * （{@code factor(base) ≡ 1}），所以 {@code depth} 恒等于 {@code gustDepth}，
+     * 与降水没有任何关系：离线按 Java 语义逐行复算，CLEAR / drizzle(0.30) / heavy(0.80)
+     * 三档<b>逐 tick 完全相同</b>（{@code _weather_comprehensive/wind_sim.py}）。
+     * 维护者口径是<b>层只吃风</b>，所以形参删掉，而不是留一个假旋钮。</p>
+     *
+     * <p>雨的强弱在别处表达：降水自己有 {@code PrecipitationIntensity} 的曲线与摆动，
+     * 而 {@link GustResponse} 这个枚举在两个地方各有用途 —— 降水那边用它算雨的
+     * 摆动幅度（{@code PrecipitationProfile.gustAmplitudeAt}），风的这边只留预设的
+     * 固定深度。想让暴雨把风推大，那是一次新的设计决定，不是把这个死参数接回去。</p>
      *
      * @param profile     群系预设，null 视为没有风
-     * @param strength    本场降水的分级强度，0..1
      * @param gameTime    世界游戏时间
      * @param partialTick 帧内插值
      * @return 风等级，clamp 到预设的地板与天花板之间
      */
-    public static float levelAt(final WindProfile profile, final float strength,
-                                final long gameTime, final float partialTick) {
+    public static float levelAt(final WindProfile profile, final long gameTime, final float partialTick) {
         if (profile == null)
             return 0F;
         final float mean = Mth.clamp(profile.meanFor(PrecipitationIntensity.season()) + meanJitter, 0F, 1F);
-        final float depth = profile.gustResponse().amplitudeAt(Mth.clamp(strength, 0F, 1F), profile.gustDepth());
+        final float depth = profile.gustDepth();
         final float shape = windShapeAt(gameTime, partialTick);
         return Mth.clamp(mean + depth * (shape * 2F - 1F), profile.floorLevel(), profile.peakCeiling());
     }
@@ -263,6 +271,16 @@ public final class WindField {
         return WIND_LEVEL_MIN_BPS + Mth.clamp(windLevel, 0F, 1F) * WIND_LEVEL_SPAN_BPS;
     }
 
+    /**
+     * 某个风等级对应的格/tick。<b>纯函数</b>：不读也不写下面那组缓存。
+     *
+     * <p>给"用自己的量当风等级、又不想覆盖别人的缓存"的调用方用 —— 沙尘幕就是它
+     * （见 {@code WeatherStormHandler.renderVeil}）。</p>
+     */
+    public static float speedPerTickOf(final float windLevel) {
+        return speedOf(windLevel) / TICKS_PER_SECOND;
+    }
+
     /** 风速 -> 风等级。{@code BiomeSoundHandler} 的折回就是这一条。 */
     public static float levelOf(final float bps) {
         return Mth.clamp((bps - WIND_LEVEL_MIN_BPS) / WIND_LEVEL_SPAN_BPS, 0F, 1F);
@@ -271,11 +289,18 @@ public final class WindField {
     /**
      * 每次绘制前调一次，把当前时刻的风缓存下来。
      *
+     * <p><b>唯一写入者。</b>下面那一组 static（angle/dirX/dirZ/speedBPS/speedBPT）原来有
+     * 两个写入者：雨渲染器写 {@code windLevel()}，沙尘幕写 {@code veilNow}（幕自己的
+     * 强度），两者写同一个槽，谁后写谁赢 —— 正确性完全依赖调用顺序，任何"不先 update
+     * 就读"的第三方会拿到上一次是谁写的残留值。沙尘幕现在走纯函数
+     * （{@link #angleAt} + {@link #speedPerTickOf}，方向与速度放在它自己的局部变量里），
+     * 所以这里只剩降水渲染一个调用点。<b>不要再往这里灌第二个物理量。</b></p>
+     *
      * @param gameTime    世界游戏时间（level.getGameTime()）
      * @param partialTick 帧内插值，让转向连续
      * @param windLevel   当前风等级，0..1（{@code PrecipitationIntensity.windLevel()}）
      */
-    public static void update(final long gameTime, final float partialTick, final float windLevel) {
+    public static void updateFromWind(final long gameTime, final float partialTick, final float windLevel) {
         final float a = angleAt(gameTime, partialTick);
         final float bps = speedOf(windLevel);
         angle = a;

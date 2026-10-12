@@ -519,10 +519,17 @@ public class WeatherStormHandler extends AbstractClientHandler {
         final float widthScale = VEIL_WIDTH_MIN + VEIL_WIDTH_RANGE * veilNow;
         final float veilDensity = Math.max(veilNow, VEIL_MIN_DENSITY);
         // WIND：沙尘幕没有自己的降水事件，也没有降水强度可问，所以它把幕的强度直接
-        // 当风等级交给风场 —— "沙暴一定是全速风"是这个效果的定义。降水那边的风等级
+        // 当风等级用 —— "沙暴一定是全速风"是这个效果的定义。降水那边的风等级
         // （群系预设驱动）在这里不适用：下界与沙漠的预设可能是 WASTELAND（无风），
         // 而沙尘幕照旧要吹。
-        WindField.update(ticks, partialTick, veilNow);
+        //
+        // B1：但这里不再往 WindField 的共享缓存里灌数。那一组 static 是雨幕倾斜读的，
+        // 沙尘幕写进去就是和雨渲染器争同一个槽（谁后写谁赢，只靠调用顺序侥幸成立）。
+        // 现在走纯函数：方向与速度各算一次，存在本方法自己的局部变量里，全程只读。
+        final float veilAngle = WindField.angleAt(ticks, partialTick);
+        final float veilDirX = Mth.cos(veilAngle);
+        final float veilDirZ = Mth.sin(veilAngle);
+        final float veilSpeedBPT = WindField.speedPerTickOf(veilNow);
 
 
         RenderSystem.enableBlend();
@@ -615,7 +622,8 @@ public class WeatherStormHandler extends AbstractClientHandler {
                 final float dustAxisX = dustAxisLen > 0.0001F ? rainX / dustAxisLen : 1F;
                 final float dustAxisZ = dustAxisLen > 0.0001F ? rainY / dustAxisLen : 0F;
                 final float dustTan = dustStripWidth > 0.0001F
-                        ? Mth.clamp(DUST_TILT_GAIN * WindField.tangentialAlong(dustAxisX, dustAxisZ)
+                        ? Mth.clamp(DUST_TILT_GAIN
+                                * (veilDirX * dustAxisX + veilDirZ * dustAxisZ) * veilSpeedBPT
                                 / DUST_FALL_SPEED_BPT, -DUST_MAX_TILT_TAN, DUST_MAX_TILT_TAN)
                                 * WindField.SLANT_SIGN
                         : 0F;

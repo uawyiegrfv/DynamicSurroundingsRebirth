@@ -1,7 +1,9 @@
 {
-  "_comment": "Spears and the vanilla trident. Forge 1.20.1 uses the forge namespace, not c: - #forge:tools/tridents is the real convention tag here (shipped by Forge itself).",
+  "_comment": "Spears and the vanilla trident. Forge 1.20.1 uses the forge namespace, not c: - #forge:tools/tridents is the real convention tag here (shipped by Forge itself). Spartan Weaponry's own weapon-type tags are listed below: that mod ships no vanilla/loader tag for these weapons on this version, and its tags contain only its own items, so the reference is optional and resolves to nothing without the mod.",
   "values": [
     "minecraft:trident",
-    { "id": "#forge:tools/tridents", "required": false }
+    { "id": "#forge:tools/tridents", "required": false },
+    { "id": "#spartanweaponry:spears",   "required": false },
+    { "id": "#spartanweaponry:javelins", "required": false }
   ]
 }

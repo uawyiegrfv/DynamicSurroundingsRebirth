@@ -1,6 +1,25 @@
 {
+  "_comment": "Spartan Weaponry compatibility. Spartan Weaponry's own weapon-type tags are listed below: that mod ships no vanilla/loader tag for these weapons on this version, and its tags contain only its own items, so the reference is optional and resolves to nothing without the mod.",
   "values": [
     "#minecraft:swords",
-    "#c:tools/melee_weapon"
+    "#c:tools/melee_weapon",
+    { "id": "#spartanweaponry:daggers",          "required": false },
+    { "id": "#spartanweaponry:parrying_daggers", "required": false },
+    { "id": "#spartanweaponry:longswords",       "required": false },
+    { "id": "#spartanweaponry:katanas",          "required": false },
+    { "id": "#spartanweaponry:sabers",           "required": false },
+    { "id": "#spartanweaponry:rapiers",          "required": false },
+    { "id": "#spartanweaponry:greatswords",      "required": false },
+    { "id": "#spartanweaponry:clubs",            "required": false },
+    { "id": "#spartanweaponry:cestusae",         "required": false },
+    { "id": "#spartanweaponry:battle_hammers",   "required": false },
+    { "id": "#spartanweaponry:warhammers",       "required": false },
+    { "id": "#spartanweaponry:halberds",         "required": false },
+    { "id": "#spartanweaponry:pikes",            "required": false },
+    { "id": "#spartanweaponry:lances",           "required": false },
+    { "id": "#spartanweaponry:battleaxes",       "required": false },
+    { "id": "#spartanweaponry:glaives",          "required": false },
+    { "id": "#spartanweaponry:quarterstaves",    "required": false },
+    { "id": "#spartanweaponry:scythes",          "required": false }
   ]
 }

@@ -1,9 +1,9 @@
 {
-  "//": "统一风系统：风的性格预设（WindProfile）与季节因子。这个文件是默认值的一份副本，编译进 class 的那一份与它逐值相同；数据包/模组可以在自己的 assets/<命名空间>/dsconfigs/wind.json 里只写要改的字段来覆盖它（每个字段都可选，只覆盖写了的那些）。季节列的顺序固定为 SPRING, SUMMER, AUTUMN, WINTER, TROPICAL_DRY, TROPICAL_WET。数值来自 _wind_audit/wind_design_verify.py 的搜参结果（六个季节列全部通过各自的性格判据），改动前请先跑 _wind_unified/wind_offline.py 复算三个性格用例，并用 _wind_unified/p3_layers.py 重算门控统计、p4_howl.py 复核呼啸门控。leafWindMin = 叶声层的风等级门限（每个预设可不同；默认 0.25）；howlWindMin = 呼啸层的风等级门限（同样的按预设可配，默认 0.60）。两者都只影响“这一层从多大的风开始存在”，不改变风的形状；滞回（0.05 / 0.06）不在数据文件里。",
+  "//": "统一风系统：风的性格预设（WindProfile）与季节因子。这个文件是默认值的一份副本，编译进 class 的那一份与它逐值相同；数据包/模组可以在自己的 assets/<命名空间>/dsconfigs/wind.json 里只写要改的字段来覆盖它（每个字段都可选，只覆盖写了的那些）。季节列的顺序固定为 SPRING, SUMMER, AUTUMN, WINTER, TROPICAL_DRY, TROPICAL_WET。数值来自 _wind_audit/wind_design_verify.py 的搜参结果（六个季节列全部通过各自的性格判据），改动前请先跑 _wind_unified/wind_offline.py 复算三个性格用例，并用 _wind_unified/p3_layers.py 重算门控统计、p4_howl.py 复核呼啸门控。leafWindMin = 叶声层的风等级门限（每个预设可不同；默认 0.25）；howlWindMin = 呼啸层的风等级门限（同样的按预设可配，默认 0.60）；它允许高于本预设的 peakCeiling —— 那就是“这个预设不出呼啸”的写法（EXPOSED_BARREN 0.62 > 0.60：裸露荒地是稳定风床，呼啸留给海岸、高山、林地这类有地形或障碍的地方；压在天花板之下则是性格的一部分，海岸 0.40 / 上限 0.55，高山 0.50 / 上限 0.70）。两者都只影响“这一层从多大的风开始存在”，不改变风的形状；滞回（0.05 / 0.06）不在数据文件里。",
   "seasonFactor": [1.00, 0.95, 1.05, 1.10, 0.92, 1.04],
   "profiles": [
     {
-      "//": "恶地/风袭/荒原/沙地：始终风大且稳定（mean 高、depth 极浅、rate 极低、地板 0.35）",
+      "//": "恶地/风袭/荒原/沙地：始终风大且稳定（mean 高、depth 极浅、rate 极低、地板 0.35）。howlWindMin 0.62 高于本预设的 peakCeiling 0.60 —— 这是“这一层不存在”的写法：裸露荒地是稳定的风床、不出呼啸；呼啸留给海岸、高山、林地这类有地形或障碍的地方（按 0.60 判，它秋冬的门控 70.9% / 99.1% 常开，四季均 43.1%，一旦开就关不掉）",
       "preset": "EXPOSED_BARREN",
       "meanLevel": [0.55, 0.55, 0.55, 0.55, 0.55, 0.55],
       "levelJitter": 0.01,
@@ -13,7 +13,7 @@
       "peakCeiling": 0.60,
       "canopyResponse": 0.00,
       "leafWindMin": 0.25,
-      "howlWindMin": 0.60,
+      "howlWindMin": 0.62,
       "gustResponse": "FLAT"
     },
     {

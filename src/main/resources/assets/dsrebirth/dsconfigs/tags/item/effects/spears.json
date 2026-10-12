@@ -1,8 +1,10 @@
 {
-  "_comment": "Spears and the vanilla trident. #c: refs are optional so a loader without them still loads this tag.",
+  "_comment": "Spears and the vanilla trident. #c: refs are optional so a loader without them still loads this tag. Spartan Weaponry's own weapon-type tags are listed below: that mod ships no vanilla/loader tag for these weapons on this version, and its tags contain only its own items, so the reference is optional and resolves to nothing without the mod.",
   "values": [
     "minecraft:trident",
     { "id": "#c:tools/spears", "required": false },
-    { "id": "#c:spears",       "required": false }
+    { "id": "#c:spears",       "required": false },
+    { "id": "#spartan_weaponry_unofficial:spear",   "required": false },
+    { "id": "#spartan_weaponry_unofficial:javelin", "required": false }
   ]
 }

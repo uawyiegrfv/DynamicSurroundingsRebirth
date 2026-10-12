@@ -1,8 +1,9 @@
 {
-  "_comment": "Maces. Vanilla added the mace in 1.21; modded maces can be tagged here or via #c:.",
+  "_comment": "Maces. Vanilla added the mace in 1.21; modded maces can be tagged here or via #c:. Spartan Weaponry's own weapon-type tags are listed below: that mod ships no vanilla/loader tag for these weapons on this version, and its tags contain only its own items, so the reference is optional and resolves to nothing without the mod.",
   "values": [
     "minecraft:mace",
     { "id": "#c:tools/maces", "required": false },
-    { "id": "#c:maces",       "required": false }
+    { "id": "#c:maces",       "required": false },
+    { "id": "#spartan_weaponry_unofficial:flanged_mace", "required": false }
   ]
 }

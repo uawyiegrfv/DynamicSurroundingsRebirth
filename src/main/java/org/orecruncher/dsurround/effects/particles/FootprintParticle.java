@@ -50,7 +50,14 @@ public class FootprintParticle extends SingleQuadParticle {
         this.lifetime = LIFETIME;
         // Guard against a nonsense scale from a hand-edited variators.json: a zero or negative print
         // would be invisible or inverted, and nothing would report it.
-        this.quadSize = 0.12F * (scale > 0.01F ? scale : 1.0F);
+        // D1: 0.12 -> 0.25. The other two versions draw a 0.25 x 0.5 quad and map the
+        // whole 32-row cell onto it, so the PRINT (the sprite's content, rows 8..23 of
+        // the 32) lands at 0.25 x 0.25 world units. This version draws a square quad and
+        // samples exactly those rows (8.5..23.5), so the quad size IS the print size and
+        // 0.12 made every 26.1 footprint half the size of the same print on 1.20.1/1.21.1.
+        // Measured from footprint.png: content rows 8..23, content columns ~1..16 of the
+        // 32px cell - the crop itself is correct and loses nothing; only the size was off.
+        this.quadSize = 0.25F * (scale > 0.01F ? scale : 1.0F);
         this.alpha = 0.4F;
         this.yaw = yaw;
 

@@ -185,16 +185,25 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final float RAIN_WIND_BED_GAIN = 2.5F;
 
     // ---- rain wind layer (A-line) ------------------------------------------
-    // Sunny behavior is untouched: everything below only runs while the graded
-    // precipitation system owns the weather, and it fades out with the storm.
+    // B2: sunny behavior is NOT untouched any more, on purpose. The bed is an
+    // attribute of the WIND, not of the drops - it is what a clear day sounds
+    // like, and the layers above it are what a gust sounds like. It used to be
+    // the other way round: the bed was locked behind a rain gate while the howl
+    // and the canopy (which are supposed to answer the wind) had no rain gate
+    // at all, so a badlands clear day was a howl with nothing under it.
+    // WASTELAND still has no bed: its floorLevel and peakCeiling are 0, so
+    // bedLevel is 0 and the tier family never exists.
 
-    /** Intensity below which a windless biome gets no rain wind bed at all: it
-     *  keeps drizzle from howling across the plains and leaves the sound source
-     *  free. Biomes with their own wind asset skip this gate - their bed is a
-     *  pure proportion of the intensity and dies on its own at the low end.
-     *  0.3 -> 0.15: the bed is what a gust is meant to be riding on. At 0.3 it
-     *  was still silent through most of a medium rain, so every gust arrived
-     *  out of nowhere and read as a loud noise rather than as weather. */
+    /** Intensity below which the rain-gust ONE-SHOTS do not fire. Wooded ground
+     *  uses {@link #RAIN_LEAF_MIN_INTENSITY} instead.
+     *  0.3 -> 0.15: at 0.3 a gust was still silent through most of a medium
+     *  rain, so every one that did fire arrived out of nowhere and read as a
+     *  loud noise rather than as weather.
+     *
+     *  <p><b>It no longer gates the wind bed.</b> B2 removed that gate: the bed
+     *  runs on the wind level and its tier family, rain or shine. This constant
+     *  is left as the one-shot scheduler's threshold, which really is a question
+     *  about rain landing.</p> */
     private static final float RAIN_WIND_MIN_INTENSITY = 0.15F;
     /** Leaf gust pacing: frequency rises with intensity, divided by the event's
      *  rolled gust amplitude (convective profiles gust more often than steady
@@ -261,8 +270,33 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      *  这里只在没有预设时用。 */
     private static final float LEAF_WIND_MIN = 0.25F;
     private static final float LEAF_GATE_HYSTERESIS = 0.05F;
-    /** 呼啸层的最小风等级，滞回 {@link #HOWL_GATE_HYSTERESIS}。 */
-    private static final float HOWL_WIND_MIN = 0.35F;
+    /** 叶层幅度的风档归一指数（设计 §3.10.2：{@code windBandNorm(w)^0.8}）。 */
+    private static final float LEAF_BAND_EXPONENT = 0.8F;
+    /** {@code windBandNorm} 的折点：idle 0 / breeze 0.35 / gust 0.60 / storm 0.875。 */
+    private static final float BAND_BREEZE_W = 0.35F;
+    private static final float BAND_GUST_W = 0.60F;
+    private static final float BAND_STORM_W = 0.875F;
+    private static final float ONE_THIRD = 1F / 3F;
+    private static final float TWO_THIRDS = 2F / 3F;
+    /**
+     * 呼啸层的最小风等级，滞回 {@link #HOWL_GATE_HYSTERESIS}。
+     *
+     * <p>B2：0.35 → 0.60。0.35 是设计 §3.10.2 写的数，但那是在风床还被降水门锁着
+     * 的时候写的 —— 那时晴天唯一的风声就是呼啸，"0.35 以上常开"等于"晴天一直响"。
+     * 床现在无雨也在（走风等级与档位），呼啸就该留给真正的大风。</p>
+     *
+     * <p>0.60 不是随手挑的：它是 EXPOSED_BARREN 的 {@code peakCeiling}，也是档位
+     * 阶梯中段（M 完整区 0.50-0.65）的上半。离线按 Java 语义逐行复算晴天占比
+     * （{@code _weather_comprehensive/wind_sim.py} 的风场移植 + 12 场事件 x 各季节
+     * 1 小时 @1 Hz）：恶地 100.0% → <b>20.5%</b>（春夏旱季 0%，秋 29%，冬 52%），
+     * 高山 50.4% → 2.6%，海岸 38.7% → 0%（其风等级上限只有 0.44）。森林两档的
+     * {@code W_howl} 恒为 0（它们走叶层），本来就不发这一层。</p>
+     *
+     * <p>代价是海岸与高山的呼啸变得罕见：如果维护者要保留它们，正确做法是像
+     * {@code WindProfile.leafWindMin} 那样把门限做成按预设可配，而不是把 0.60 降回去
+     * —— 降回 0.55 恶地就又是 61%。</p>
+     */
+    private static final float HOWL_WIND_MIN = 0.60F;
     private static final float HOWL_GATE_HYSTERESIS = 0.06F;
 
     // ---- WIND P3①：床档位族与强风换持续呼啸（设计 §3.10.4 / §3.10.5 / 附录 D） ----
@@ -883,7 +917,6 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
                             + " bedDuck=" + f3(bedOwnMaterialGain())
                             + " windSwell=" + f3(bedSwell)
                             + " indoor=" + (inside ? f3(INDOOR_VOLUME_SCALE) : "1.000")
-                            + " gate=" + (ambient <= RAIN_WIND_MIN_INTENSITY ? "closed" : "open")
                             + " base=" + f3(loopBase(bed))
                             + " scale=" + f3(loopScale(bed))
                             + " target=" + f3(loopTarget(bed))
@@ -2139,11 +2172,41 @@ private static float gustSwell(final Player player) {
         final float leafMin = profile == null ? LEAF_WIND_MIN : profile.leafWindMin();
         this.leafGateOpen = gate(this.leafGateOpen, level, leafMin, LEAF_GATE_HYSTERESIS);
         if (coverage > 0F && !this.bedHasLeaves(profile) && this.leafGateOpen) {
+            // B3：幅度真的随风等级走。旧口径是 renderTierBank(..., tierLevel = null)，
+            // 三档权重和恒为 1，于是越过门限之后 leafGain ≡ CANOPY_LEVEL × gustSwell
+            // ——实测在 windLevel 0.25/0.30/0.45/0.60/0.90/1.00 上全是 0.3207，
+            // 微风与狂风一个响度。现在乘上设计 §3.10.2 的 windBandNorm(w)^0.8：
+            // 门口 0，满风 1，微风段上升快、强风段趋平（0.8 次幂），所以"树叶开始响"
+            // 与"树叶响成一片"是两个听得出来的状态。
+            //
+            // 设计同一条公式里的 LEAF_RATIO[降水档] 有意没有落进来：维护者口径是
+            // "层只吃风"，按降水档给叶层配比就是把它重新接回降水，而 B5 刚刚把同一
+            // 种耦合从 WindField.levelAt 上摘掉。叶层的绝对电平仍由 CANOPY_LEVEL 定。
+            final float leafBand = (float) Math.pow(windBandNorm(level), LEAF_BAND_EXPONENT);
             renderTierBank(this.leafTiers, LEAF_TIERS, level,
-                    CANOPY_LEVEL * swell * wLeaf * volumeScale, null);
+                    CANOPY_LEVEL * leafBand * swell * wLeaf * volumeScale, null);
         } else {
             fadeTierBank(this.leafTiers);
         }
+    }
+
+    /**
+     * 风档归一，0..1 —— 设计 §3.10.2 的 {@code windBandNorm}。
+     *
+     * <p>折线过四个点：{@code w = 0.00 -> 0.00 / 0.35 -> 1/3 / 0.60 -> 2/3 /
+     * 0.875 -> 1.00}，之外夹住。它不是"w 除以 1"，而是风档的语言：idle / breeze /
+     * gust / storm 四档等分，所以叶层在微风段就已经明显、在强风段趋平。</p>
+     */
+    static float windBandNorm(final float w) {
+        if (w <= 0F)
+            return 0F;
+        if (w >= BAND_STORM_W)
+            return 1F;
+        if (w <= BAND_BREEZE_W)
+            return (w / BAND_BREEZE_W) * ONE_THIRD;
+        if (w <= BAND_GUST_W)
+            return ONE_THIRD + (w - BAND_BREEZE_W) / (BAND_GUST_W - BAND_BREEZE_W) * ONE_THIRD;
+        return TWO_THIRDS + (w - BAND_GUST_W) / (BAND_STORM_W - BAND_GUST_W) * ONE_THIRD;
     }
 
     /**
@@ -2200,7 +2263,6 @@ private static float gustSwell(final Player player) {
     private void handleRainWindBed(final Player player) {
         final boolean active = PrecipitationIntensity.grading() && doBiomeSounds()
                 && this.config.weatherOptions.enableWindSounds;
-        final float intensity = PrecipitationIntensity.ambient();
         Identifier wind = null;
         float trim = 1F;
         var info = this.scanner.playerLogicBiomeInfo();
@@ -2228,11 +2290,11 @@ private static float gustSwell(final Player player) {
         if (wind != null) {
             // §3.10.1 规则表 A 优先级 1：群系自带素材优先，档位只作用于默认床。
             fadeTierBank(this.bedTiers);
-            ownAssetBed(wind, trim, bedLevel, intensity);
+            ownAssetBed(wind, trim, bedLevel);
             return;
         }
         fadeRainWind();
-        defaultBed(info, bedLevel, intensity);
+        defaultBed(info, bedLevel);
     }
 
     /**
@@ -2244,9 +2306,9 @@ private static float gustSwell(final Player player) {
      * climbing out of zero - the complaint was "it starts before the rain does".
      * (They also double up against generateBiomeSounds; see the skip there.)</p>
      */
-    private void ownAssetBed(final Identifier wind, final float trim, final float bedLevel,
-                             final float intensity) {
-        float target = intensity <= RAIN_WIND_MIN_INTENSITY ? 0F : bedLevel;
+    private void ownAssetBed(final Identifier wind, final float trim, final float bedLevel) {
+        // B2：没有降水门。床走风等级 —— 无雨也有床。
+        float target = bedLevel;
         if (this.scanner.isInside())
             target *= INDOOR_VOLUME_SCALE;
         target *= windSwell(this.tickCount.getTickCount()) * windVolumeScale();
@@ -2280,8 +2342,9 @@ private static float gustSwell(final Player player) {
      * <p>WASTELAND 不需要分支：它的 {@code floorLevel = peakCeiling = 0}，所以
      * {@code bedLevel ≡ 0} ⇒ {@code gain = 0} ⇒ 整族不存在（§3.10.1 优先级 0）。</p>
      */
-    private void defaultBed(final BiomeInfo info, final float bedLevel, final float intensity) {
-        float target = intensity <= RAIN_WIND_MIN_INTENSITY ? 0F : bedLevel;
+    private void defaultBed(final BiomeInfo info, final float bedLevel) {
+        // B2：没有降水门，见 ownAssetBed。
+        float target = bedLevel;
         if (this.scanner.isInside())
             target *= INDOOR_VOLUME_SCALE;
         target *= windSwell(this.tickCount.getTickCount()) * windVolumeScale();

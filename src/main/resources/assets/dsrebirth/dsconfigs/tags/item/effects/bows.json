@@ -1,6 +1,8 @@
 {
+  "_comment": "Spartan Weaponry compatibility. Spartan Weaponry's own weapon-type tags are listed below: that mod ships no vanilla/loader tag for these weapons on this version, and its tags contain only its own items, so the reference is optional and resolves to nothing without the mod.",
   "values": [
     "#c:tools/bow",
-    "minecraft:bow"
+    "minecraft:bow",
+    { "id": "#spartan_weaponry_unofficial:longbows", "required": false }
   ]
 }

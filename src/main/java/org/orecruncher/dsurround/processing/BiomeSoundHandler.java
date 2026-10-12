@@ -279,7 +279,9 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
     private static final float ONE_THIRD = 1F / 3F;
     private static final float TWO_THIRDS = 2F / 3F;
     /**
-     * 呼啸层的最小风等级，滞回 {@link #HOWL_GATE_HYSTERESIS}。
+     * 呼啸层风等级门限的<b>兜底值</b>，滞回 {@link #HOWL_GATE_HYSTERESIS}。
+     * 真正的门限按预设走（{@code WindProfile.howlWindMin}），这里只在没有预设时用 ——
+     * 与 {@link #LEAF_WIND_MIN} 完全同一个模式。
      *
      * <p>B2：0.35 → 0.60。0.35 是设计 §3.10.2 写的数，但那是在风床还被降水门锁着
      * 的时候写的 —— 那时晴天唯一的风声就是呼啸，"0.35 以上常开"等于"晴天一直响"。
@@ -288,13 +290,17 @@ public final class BiomeSoundHandler extends AbstractClientHandler {
      * <p>0.60 不是随手挑的：它是 EXPOSED_BARREN 的 {@code peakCeiling}，也是档位
      * 阶梯中段（M 完整区 0.50-0.65）的上半。离线按 Java 语义逐行复算晴天占比
      * （{@code _weather_comprehensive/wind_sim.py} 的风场移植 + 12 场事件 x 各季节
-     * 1 小时 @1 Hz）：恶地 100.0% → <b>20.5%</b>（春夏旱季 0%，秋 29%，冬 52%），
-     * 高山 50.4% → 2.6%，海岸 38.7% → 0%（其风等级上限只有 0.44）。森林两档的
-     * {@code W_howl} 恒为 0（它们走叶层），本来就不发这一层。</p>
+     * 1 小时 @1 Hz）：恶地 100.0% → <b>20.5%</b>（春 1.0%，夏 0.0%，秋 28.9%，冬 52.2%）。</p>
      *
-     * <p>代价是海岸与高山的呼啸变得罕见：如果维护者要保留它们，正确做法是像
-     * {@code WindProfile.leafWindMin} 那样把门限做成按预设可配，而不是把 0.60 降回去
-     * —— 降回 0.55 恶地就又是 61%。</p>
+     * <p>一刀切 0.60 的代价是海岸与高山的呼啸几乎绝迹（海岸 0.0%，高山 2.6% ——
+     * 海岸的风等级上限只有 0.55）。P4 把门限做成按预设可配：恶地仍是 0.60，
+     * 海岸 0.40（18.6%）、高山 0.50（25.7%），森林两档的 {@code W_howl} 恒为 0
+     * （它们走叶层），本来就不发这一层。复算表见 {@code _wind_unified/p4_howl.py}。</p>
+     *
+     * <p>两种口径要分开读：上面这些是<b>瞬时越线占比</b>（{@code level >= 门限}），而
+     * 0.06 的滞回让"门真正开着"的占比更高 —— 恶地仍是 20.5% 对 43.1%（冬 99.1%）。
+     * 也就是说恶地秋冬的呼啸按现在的门限几乎<b>一直开着</b>，这不是 P4 引入的
+     * （P4 没动它的门限），要收紧得动滞回或它的 peakCeiling。两张表都在 p4_howl.py。</p>
      */
     private static final float HOWL_WIND_MIN = 0.60F;
     private static final float HOWL_GATE_HYSTERESIS = 0.06F;
@@ -2157,7 +2163,10 @@ private static float gustSwell(final Player player) {
         // 呼啸：门控挂在【风】上，静风时整层到 0（可以真的不存在）。强风时拥有权搬到
         // 床槽（§3.10.2 要点 3），所以这里乘的是 g_howl_bed + g_howl_layer —— 写出来
         // 是为了让"只有一个呼啸拥有者"在代码里可读、可审、可被 -Ddsr.sound.diag 诊断。
-        this.howlGateOpen = gate(this.howlGateOpen, level, HOWL_WIND_MIN, HOWL_GATE_HYSTERESIS);
+        // 门限按预设走（与叶层同一模式）：海岸与高山的性格是"常年有风"，
+        // 按 0.60 判它们永远不响 —— 见 WindProfile.howlWindMin 的字段说明。
+        final float howlMin = profile == null ? HOWL_WIND_MIN : profile.howlWindMin();
+        this.howlGateOpen = gate(this.howlGateOpen, level, howlMin, HOWL_GATE_HYSTERESIS);
         if (this.howlGateOpen && wHowl > 0F) {
             final float owners = this.howlBedGain + this.howlLayerGain();
             renderTierBank(this.howlTiers, HOWL_TIERS, level,

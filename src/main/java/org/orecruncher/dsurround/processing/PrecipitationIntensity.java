@@ -36,8 +36,14 @@ import java.util.concurrent.ThreadLocalRandom;
  *       would be 0 and the sandstorm - which is driven by "it is raining over a
  *       dusty place" - would never appear. The sandstorm is about dust, not about
  *       precipitation landing on that biome.</li>
- *   <li><b>Precipitation rendering and audio</b> (N4/N7) use {@link #intensity()},
- *       which is gated: NONE means nothing falls, so intensity is 0.</li>
+ *   <li><b>Precipitation rendering and audio</b> (N4/N7) use {@link #intensity()}.
+ *       The geometry then gates itself per column with {@link #phase}: NONE at
+ *       that column means nothing falls there. The ambient chain - sky, fog, the
+ *       rain-sound stack - reads {@link #ambient()}, which is gated on the
+ *       <em>biome's</em> answer ({@link #localPrecipitationPossible}) and NOT on
+ *       the overhead-block test: standing under a tree is not a change in the
+ *       weather. Both halves are required; using one value for both is what put a
+ *       dark storm sky over a desert with no rain in it.</li>
  * </ul>
  *
  * <h2>Why every read goes through here</h2>
@@ -90,9 +96,12 @@ public final class PrecipitationIntensity {
      */
     private static final float THUNDER_ACTIVE_LEVEL = 0.02F;
 
-    /** Bounds on how far the climate you are standing in may re-express the roll. */
-    private static final float LOCATION_SCALE_MIN = 0.5F;
-    private static final float LOCATION_SCALE_MAX = 2.5F;
+    //  R1a: the bound pair that used to live here (LOCATION_SCALE_MIN 0.5F /
+    //  LOCATION_SCALE_MAX 2.5F) went with the ratio it bounded. The re-expression
+    //  is a shift in mode space now and needs no clamp - see locationShift(). The
+    //  bounds were never a safety net: a desert rolls at a mode near 0.02 and a
+    //  rainforest at 0.85, so the honest contrast between them is 26-36x and
+    //  [0.5, 2.5] saturated at both ends.
 
     /**
      * Bounds on roll two, the per-event gustiness multiplier. Below 1 an event is
@@ -458,8 +467,19 @@ public final class PrecipitationIntensity {
     }
 
     /**
-     * Our graded precipitation intensity, 0..1. Zero when nothing is falling at the
-     * player's position (dry season, no-precipitation biome, or not raining).
+     * Our graded precipitation intensity, 0..1: the rolled peak re-expressed
+     * against the climate the player is standing in, shaped by the event's own
+     * attack and wobble.
+     *
+     * <p>This is the value the geometry pass is handed, and it is deliberately NOT
+     * zeroed at a no-precipitation biome even though nothing falls there. The
+     * renderer turns it into one batch alpha for the whole view
+     * ({@code alphaRatio = intensity / peak}) and returns early when that is zero,
+     * so zeroing it here would delete every rain column in the frame - including
+     * the ones in the wet biome the player is standing at the edge of. What gates
+     * the geometry is per column ({@link #phase}), where the question can be asked
+     * about the right place. The ambient chain is the one that is gated on the
+     * player's own biome - see {@link #ambient()}.</p>
      *
      * @return graded intensity in [0, 1]
      */
@@ -690,22 +710,43 @@ public final class PrecipitationIntensity {
         squallGain = 0F;
     }
 
-    private static float locationScale() {
-        if (rollMode <= 0.01F)
-            return 1F;
-        // Bounded, and this bound is the fix for a sky that flickered. The raw
-        // ratio is a division by the mode where the roll happened, and that mode
-        // can be tiny - an arid profile sits near 0.02 - so a storm rolled in dry
-        // country and then walked into a rainforest produced a ratio above 40.
-        // The base clamps to 1, so the storm simply went to full intensity the
-        // moment the samples crossed, and hovered there: no gradient, just on and
-        // off, and visibly darker. Worse, near a border the samples cross back
-        // and forth, so it turned on and off repeatedly.
-        //
-        // Clamping is also the honest model. The roll says how heavy THIS event
-        // is; where you are standing scales that, and it does not scale it by
-        // forty.
-        return Mth.clamp(locationMode / rollMode, LOCATION_SCALE_MIN, LOCATION_SCALE_MAX);
+    /**
+     * How far the climate the player is standing in re-expresses this event's
+     * base - <b>as a shift in mode space</b>, not as a ratio of two modes.
+     *
+     * <p>The bounded ratio this replaces could not express the thing it was
+     * written for. A desert rolls at a mode near 0.02 and a rainforest at 0.85,
+     * so the honest contrast between them is 26-36x; the ratio was clamped to
+     * [0.5, 2.5] and saturated in both directions. Measured, the same storm read
+     * 0.039 in a rainforest when it had been rolled over a desert, against 0.830
+     * for the rainforest's own storms - a difference of one to two texture tiers,
+     * decided by where the storm happened to be born. The reverse over-delivered:
+     * a rainforest storm put 0.41 into a desert whose own median is 0.022.
+     *
+     * <p>A shift says the sentence the feature was always meant to say: carrying a
+     * storm from the climate it was rolled in to the climate you are standing in
+     * moves it by the difference between the two modes. A desert storm carried
+     * into a rainforest arrives at {@code 0.02 + (0.85 - 0.02) = 0.85}, which is
+     * indistinguishable from a rainforest storm. A rainforest storm carried into a
+     * desert arrives at {@code 0.83 + (0.02 - 0.85)}, which is nothing - and a
+     * desert is supposed to get nothing.
+     *
+     * <p>Additive also retires the degenerate cases the ratio needed special
+     * handling for. There is no division, so a mode of exactly zero is simply a
+     * mode of zero: the {@code rollMode <= 0.01F -> 1F} guard is <em>gone</em>
+     * rather than relaxed, and ARID/TROPICAL_DRY (mode 0.00 before R2) and
+     * WASTELAND stop being special cases. WASTELAND is the clearest of them - a
+     * biome whose own mode is zero surrounded by biomes whose modes are also zero
+     * produces a shift of exactly zero, so its rolls are neither scaled nor
+     * frozen: they come through unchanged, which is what the old guard was
+     * approximating. And because the shift is linear in {@code locationMode},
+     * which is already low-passed at {@link #LOCATION_FOLLOW_SECONDS}, crossing a
+     * border slides the base instead of pinning it to a clamp bound.
+     *
+     * @return the shift to apply to the rolled base, in [-1, 1]
+     */
+    private static float locationShift() {
+        return locationMode - rollMode;
     }
 
     // skyRainLevel() - the max(SKY, SUN) patch - had no consumer: renderSky feeds
@@ -1323,9 +1364,18 @@ public final class PrecipitationIntensity {
      * <p>Only positions in loaded chunks are sampled. Calling {@code getBiome} on
      * an unloaded position forces a load, and that is exactly how a tick ends up
      * blocked on chunk generation.</p>
+     *
+     * <p><b>R1b: every sample is read against the season of the biome it lands in,
+     * not the season the event was rolled in.</b> The event keeps its own frozen
+     * {@code currentSeason} - that is the column its own mode was drawn against -
+     * but the destination was being looked up in that same frozen column, so an
+     * ARID-started storm read TROPICAL's tropical-dry entry for its whole life
+     * even in a tropical wet season, and a TROPICAL-started storm read ARID's
+     * monsoon. The javadoc on {@code rollMode} says "the position <em>and
+     * season</em> the event was rolled at"; this is the other half of that
+     * sentence - the destination is evaluated in its own climate.</p>
      */
-    private static float sampleLocationMode(Level level, BlockPos pos,
-                                            PrecipitationSeason season, float fallback) {
+    private static float sampleLocationMode(Level level, BlockPos pos, float fallback) {
         double fx = 0D;
         double fz = 0D;
         double speed = 0D;
@@ -1375,7 +1425,7 @@ public final class PrecipitationIntensity {
                     pos.getY(),
                     pos.getZ() + (int) Math.round(oz));
             if (level.isLoaded(at)) {
-                final float mode = modeAt(level, at, season, i);
+                final float mode = modeAt(level, at, i);
                 if (mode >= 0F)
                     lastSampleModes[i] = mode;
             }
@@ -1385,8 +1435,12 @@ public final class PrecipitationIntensity {
         return total > 0D ? (float) (weighted / total) : fallback;
     }
 
-    /** The profile mode at one position, or -1 when it cannot be determined. */
-    private static float modeAt(Level level, BlockPos pos, PrecipitationSeason season, int index) {
+    /**
+     * The profile mode at one position, <b>in that position's own season</b>, or
+     * -1 when it cannot be determined. See the R1b note on
+     * {@link #sampleLocationMode}.
+     */
+    private static float modeAt(Level level, BlockPos pos, int index) {
         try {
             var holder = level.getBiome(pos);
             // The key itself, not a rendered string: written per sample per tick,
@@ -1397,7 +1451,8 @@ public final class PrecipitationIntensity {
                     .dsurround_getInfo();
             if (info == null)
                 return -1F;
-            return PrecipitationProfile.resolve(info.getTraits()).modeFor(season);
+            final PrecipitationProfile resolved = PrecipitationProfile.resolve(info.getTraits());
+            return resolved.modeFor(seasonFor(resolved));
         } catch (Throwable t) {
             // A sample is a refinement. Never let a bad one stop the tick.
             return -1F;
@@ -1634,6 +1689,17 @@ public final class PrecipitationIntensity {
         WindField.rollShape(windEventSeed, profile.gustRatePerMin(), profile.levelJitter());
     }
 
+    /**
+     * The ambient intensity: what the sky, the fog and the rain-sound stack are
+     * driven with, as opposed to what the geometry is drawn with.
+     *
+     * <p>Zero whenever the player's own biome cannot receive precipitation right
+     * now - see {@link #localPrecipitationPossible}. It is deliberately NOT gated
+     * on {@link #phase}, which also answers "is a block overhead": stepping under a
+     * tree must not silence the storm.</p>
+     *
+     * @return ambient intensity in [0, 1]
+     */
     public static float ambient() {
         return ambient;
     }
@@ -1677,6 +1743,32 @@ public final class PrecipitationIntensity {
 
     public static Biome.Precipitation phase(BlockPos pos) {
         return SeasonManager.HANDLER.getActivePrecipitation(pos);
+    }
+
+    /**
+     * Whether the player's own biome can receive precipitation <em>at all</em>
+     * right now - the phase gate {@link #ambient()} is built on.
+     *
+     * <p>Not the same question as {@link #phase}. That one also asks whether it is
+     * raining this instant and whether a block is over the player's head, which is
+     * right for a rain column and wrong for the weather around them. This is
+     * {@code getPrecipitationAt}: the biome's own answer, seasonally adjusted by
+     * Serene Seasons when it is installed (its tropical dry season vetoes
+     * precipitation outright). A desert answers NONE even while vanilla is raining
+     * over it, because a desert has no precipitation to give.</p>
+     *
+     * <p>Fail-open on purpose: a throwing query must never be the reason the
+     * weather switched itself off.</p>
+     *
+     * @param pos the position to test
+     * @return true when this biome can precipitate here, now
+     */
+    private static boolean localPrecipitationPossible(BlockPos pos) {
+        try {
+            return SeasonManager.HANDLER.getPrecipitationAt(pos) != Biome.Precipitation.NONE;
+        } catch (Throwable t) {
+            return true;
+        }
     }
 
     /** The profile resolved for the player's current biome; never null. */
@@ -1788,12 +1880,15 @@ public final class PrecipitationIntensity {
         // when the sky misbehaves - the one thing that could never be seen. The
         // hook counters moved back to the long line; they were only needed to
         // prove the injections ran, and they have.
-        return "Precip now=%.2f target=%.2f peak=%.2f loc=%.2f %s | sky=%.2f sun=%.2f fog=%.2f"
+        // shift= is the mode-space re-expression, in [-1, 1] - it replaced a
+        // clamped ratio, so it is signed and can no longer be read as "how many
+        // times the roll". See locationShift().
+        return "Precip now=%.2f target=%.2f peak=%.2f shift=%.2f %s | sky=%.2f sun=%.2f fog=%.2f"
                 .formatted(
                         graded,
                         smoothed,
                         rolled,
-                        locationScale(),
+                        locationShift(),
                         PrecipitationRenderer.levelName(forced >= 0F ? forced : graded),
                         // SKY alone: this is what the sky COLOUR is driven with
                         // now that colour and sun alpha have been separated. The
@@ -2014,8 +2109,7 @@ public final class PrecipitationIntensity {
         if (level.getGameTime() - lastLocationSampleTick >= LOCATION_SAMPLE_INTERVAL
                 || level.getGameTime() < lastLocationSampleTick) {
             lastLocationSampleTick = level.getGameTime();
-            final float modeNow = sampleLocationMode(level, pos, currentSeason,
-                    profile.modeFor(currentSeason));
+            final float modeNow = sampleLocationMode(level, pos, profile.modeFor(seasonFor(profile)));
             // A negative return means "too few usable samples" - hold what we have.
             if (modeNow >= 0F) {
                 if (locationMode <= 0F)
@@ -2224,6 +2318,31 @@ public final class PrecipitationIntensity {
         // Squalls advance on the tick, where the game time lives.
         advanceSqualls(level);
 
+        // ---- the phase gate (R4) -------------------------------------------------
+        // The class comment has always said the ambient chain reads zero where
+        // nothing can fall - "dry season, no-precipitation biome" - and it never
+        // did. Only the geometry was gated, and it is gated per column, so a
+        // jungle-born storm could darken a desert sky, thicken its fog and play
+        // rain sound over ground that gets no rain at all. Measured before this:
+        // 0.41 of ambient in a desert with not one visible rain column.
+        //
+        // What is asked here is the BIOME's own answer - getPrecipitationAt, which
+        // on Serene Seasons carries the seasonal tropical veto - and deliberately
+        // NOT phase(pos), which adds two tests that must never gate the ambient
+        // chain:
+        //
+        //   * "is it raining right now" - the release has to keep running after the
+        //     ramp starts down, or the storm ends in a step;
+        //   * "is there a block overhead" - stepping under a tree is not a change in
+        //     the weather. That is the case the comment on graded is about, and it
+        //     is why the geometry keeps its own per-column phase test rather than
+        //     inheriting a player-position one.
+        //
+        // A diagnostics lock is exempt: /dsprecip lock exists to hold a level and
+        // prove what it looks like, including in a desert.
+        if (forced < 0F && !localPrecipitationPossible(pos))
+            ambient = 0F;
+
         PrecipitationResponse.tickAll(graded, ambient, attackProgress, dustIntensity, 1F / 20F);
 
         // Everything the F3 line can no longer hold goes to the log instead.
@@ -2385,11 +2504,19 @@ public final class PrecipitationIntensity {
         // Re-express the rolled base against the climate the player is standing in
         // now. The roll itself is fixed for the event (that is what makes it a
         // weather event rather than a per-biome lookup), but it was drawn against
-        // the mode where it started, so walking into wetter country scales it up
-        // and walking into drier country scales it down - smoothly, because
-        // locationMode is low-passed.
-        final float scale = locationScale();
-        final float base = Mth.clamp(rolled * attackFactor * scale, 0F, 1F);
+        // the mode where it started, so walking into wetter country moves it up and
+        // walking into drier country moves it down - by the DIFFERENCE between the
+        // two modes, smoothly, because locationMode is low-passed. See
+        // locationShift() for why this is a shift and not the bounded ratio it
+        // replaced.
+        //
+        // The shift is added before the attack factor, not after. The attack is the
+        // event climbing to wherever it is going to sit, so a storm carried into
+        // wetter country has to build into the higher level; adding the shift after
+        // the factor would teleport it there on the first tick and throw the climb
+        // away.
+        final float shifted = Mth.clamp(rolled + locationShift(), 0F, 1F);
+        final float base = Mth.clamp(shifted * attackFactor, 0F, 1F);
         final float swing = base * gustAmplitude;
         final float up = Math.min(swing, 1F - base);
         final float down = Math.min(swing, base);

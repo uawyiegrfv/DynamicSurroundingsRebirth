@@ -44,8 +44,32 @@ public enum PrecipitationProfile {
     //  savanna's tropical WET season is where it gets intense rain and its DRY
     //  season is a hard zero - that is exactly what the TROPICAL_* columns are for.
     //
-    //  Spreads are deliberately tight (0.15-0.20): a wide spread makes consecutive
+    //  Spreads are deliberately tight (0.21-0.30): a wide spread makes consecutive
     //  storms feel unrelated to one another, which reads as noise rather than weather.
+    //
+    //  R2 (round 50): the middle of this table was raised by one texture rung. The
+    //  system was measured against vanilla's getRainLevel(1F), which is 1.00 for the
+    //  whole of a storm, and the 54 profile x season medians fell short by 0.586 on
+    //  average - 0.558 of that the mode the roll is centred on, only 0.028 the
+    //  distribution curves. These are that report's one-rung increments (REPORT.md
+    //  section Q4e), applied to ALL SIX columns so the seasonal shape is untouched
+    //  and only the level moves:
+    //
+    //      ARID +0.086    OPEN +0.003      TEMPERATE +0.123   COASTAL +0.038
+    //      WETLAND +0.124 ALPINE +0.117    DUST_STORM +0.102  TROPICAL +0.000
+    //
+    //  TROPICAL is deliberately untouched: it already lands on intense..torrential
+    //  (79.8% of its summer rolls clear 0.85) and lifting it would only flatten the
+    //  top of the scale. ARID's lift is also the answer to R3 - it carries ARID's
+    //  TROPICAL_DRY column off a hard 0.00 to 0.086, where 52% of that column's
+    //  rolls used to come out at exactly zero while the takeover owned the frame.
+    //  EXTREME_RATE is unchanged at 0.14: the cloudburst tail is the only route most
+    //  profiles have to the top tier and it had to survive the lift.
+    //
+    //  R6: the seasonSensitivity constructor argument went in the same pass. It was
+    //  declared, constructed and read by nothing anywhere in the tree, and the
+    //  seasonal shape is entirely the mode table - so it was one more knob that
+    //  looked like it did something.
 
     /**
      * Deserts, badlands and savanna: essentially dry, unless the monsoon says
@@ -55,10 +79,9 @@ public enum PrecipitationProfile {
      * as a drizzle that forgot to stop.
      */
     ARID(
-            new float[] { 0.02F, 0.06F, 0.02F, 0.01F, 0.00F, 0.45F },
+            new float[] { 0.106F, 0.146F, 0.106F, 0.096F, 0.086F, 0.536F },
             0.21F,
             0.00F,
-            0.30F,
             8F,
             0.45F,
             GustResponse.DECAYING,
@@ -78,17 +101,19 @@ public enum PrecipitationProfile {
      * than a coastal soak and never really steadies.
      */
     OPEN(
-            new float[] { 0.40F, 0.50F, 0.35F, 0.20F, 0.10F, 0.55F },
+            new float[] { 0.403F, 0.503F, 0.353F, 0.203F, 0.103F, 0.553F },
             0.28F,
             0.15F,
-            1.00F,
             18F,
             0.34F,
             GustResponse.DECAYING,
-            // Convective rain over open ground: mostly light, with a long tail into
-            // real downpours. The shape of a place that gets a lot of grey weather
-            // and occasional cloudbursts.
-            IntensityDistribution.skewedWeak(),
+            // R2: was skewedWeak. A curve whose mean offset is -0.392 puts its median
+            // 0.14 below the mode it is centred on - a whole texture rung spent for
+            // nothing on the profile whose mode is already the lowest of the temperate
+            // ones. symmetric() has a mean offset of exactly zero, so the mode is the
+            // median and OPEN reads as the open, changeable ground it is meant to be:
+            // light rain with the odd proper downpour, not a permanently weak one.
+            IntensityDistribution.symmetric(),
             // Open ground, changeable air: grey and clear spells both show up,
             // neither owns the place.
             0.050F, 0.035F),
@@ -100,10 +125,9 @@ public enum PrecipitationProfile {
      * so the numbers here stay visibly "nothing special".
      */
     TEMPERATE(
-            new float[] { 0.50F, 0.62F, 0.52F, 0.32F, 0.15F, 0.65F },
+            new float[] { 0.623F, 0.743F, 0.643F, 0.443F, 0.273F, 0.773F },
             0.28F,
             0.20F,
-            1.00F,
             // The baseline every other profile departs from, for the sky events
             // too: ~2 grey starts and ~1 hard-clear start per game day, which
             // puts roughly a quarter of the quiet hours under a lifted grey and
@@ -117,10 +141,9 @@ public enum PrecipitationProfile {
      * smallest wobble of any profile.
      */
     COASTAL(
-            new float[] { 0.55F, 0.58F, 0.70F, 0.72F, 0.25F, 0.70F },
+            new float[] { 0.588F, 0.618F, 0.738F, 0.758F, 0.288F, 0.738F },
             0.28F,
             0.30F,
-            0.60F,
             40F,
             0.14F,
             GustResponse.FLAT,
@@ -135,10 +158,9 @@ public enum PrecipitationProfile {
      * Slower to build than temperate and calmer once there.
      */
     WETLAND(
-            new float[] { 0.58F, 0.62F, 0.60F, 0.50F, 0.30F, 0.70F },
+            new float[] { 0.704F, 0.744F, 0.724F, 0.624F, 0.424F, 0.824F },
             0.25F,
             0.15F,
-            0.70F,
             35F,
             0.22F,
             GustResponse.FLAT,
@@ -168,10 +190,10 @@ public enum PrecipitationProfile {
      * drizzle that happens to be standing in a rainforest.</p>
      */
     TROPICAL(
+            // R2: the one column set that does NOT move. See the table note above.
             new float[] { 0.72F, 0.85F, 0.75F, 0.60F, 0.40F, 0.85F },
             0.25F,
             0.70F,
-            0.40F,
             7F,
             0.45F,
             GustResponse.GROWING,
@@ -187,16 +209,16 @@ public enum PrecipitationProfile {
      * kind, while both drizzle and a proper snowfall are steady.
      */
     ALPINE(
-            new float[] { 0.38F, 0.52F, 0.34F, 0.22F, 0.10F, 0.50F },
+            new float[] { 0.497F, 0.637F, 0.457F, 0.337F, 0.217F, 0.617F },
             0.28F,
             0.10F,
-            1.00F,
             22F,
             0.30F,
             GustResponse.BELL,
-            // As OPEN: mostly light with a tail into heavier falls. High ground gets
-            // a lot of drizzle and the odd proper storm.
-            IntensityDistribution.skewedWeak(),
+            // R2: as OPEN, skewedWeak -> symmetric(). High ground gets a lot of
+            // drizzle and the odd proper storm, and the -0.392 mean offset was
+            // pushing that drizzle a whole rung below the mode ALPINE asks for.
+            IntensityDistribution.symmetric(),
             // Thin mountain air clears hard and stays clear: when the deck
             // lifts up there it is gone, and grey is the rarer state.
             0.030F, 0.060F),
@@ -226,10 +248,9 @@ public enum PrecipitationProfile {
      * there is something to look at.</p>
      */
     DUST_STORM(
-            new float[] { 0.45F, 0.55F, 0.40F, 0.30F, 0.62F, 0.15F },
+            new float[] { 0.552F, 0.652F, 0.502F, 0.402F, 0.722F, 0.252F },
             0.30F,
             0.00F,
-            0.70F,
             12F,
             0.38F,
             GustResponse.GROWING,
@@ -242,7 +263,6 @@ public enum PrecipitationProfile {
     /** Nowhere with a weather cycle: nether, end, void, underground. */
     WASTELAND(
             new float[] { 0F, 0F, 0F, 0F, 0F, 0F },
-            0F,
             0F,
             0F,
             // Literal, not DEFAULT_ATTACK_SECONDS: an enum constant cannot forward
@@ -261,8 +281,6 @@ public enum PrecipitationProfile {
     public final float spread;
     /** How much this profile favours thunder on top of the intensity roll, 0..1. */
     public final float thunderBias;
-    /** How strongly seasons move this profile, 0 (immune) .. 1 (fully exposed). */
-    public final float seasonSensitivity;
     /** Seconds an event takes to climb from nothing to its rolled peak. */
     public final float attackSeconds;
     /** Size of the gusting wobble at {@link #gustResponse}'s worst point, 0..1. */
@@ -309,15 +327,15 @@ public enum PrecipitationProfile {
     public static final float EXTREME_RATE = 0.14F;
 
     PrecipitationProfile(final float[] seasonalMode, final float spread,
-                         final float thunderBias, final float seasonSensitivity,
+                         final float thunderBias,
                          final float overcastChance, final float clearChance) {
-        this(seasonalMode, spread, thunderBias, seasonSensitivity,
+        this(seasonalMode, spread, thunderBias,
                 DEFAULT_ATTACK_SECONDS, DEFAULT_GUST_AMPLITUDE, GustResponse.FLAT, null,
                 overcastChance, clearChance);
     }
 
     PrecipitationProfile(final float[] seasonalMode, final float spread,
-                         final float thunderBias, final float seasonSensitivity,
+                         final float thunderBias,
                          final float attackSeconds, final float gustAmplitude,
                          final GustResponse gustResponse,
                          final IntensityDistribution distribution,
@@ -325,7 +343,6 @@ public enum PrecipitationProfile {
         this.seasonalMode = seasonalMode;
         this.spread = spread;
         this.thunderBias = thunderBias;
-        this.seasonSensitivity = seasonSensitivity;
         this.attackSeconds = attackSeconds;
         this.gustAmplitude = gustAmplitude;
         this.gustResponse = gustResponse == null ? GustResponse.FLAT : gustResponse;
@@ -514,9 +531,11 @@ public enum PrecipitationProfile {
      * a third of the day under lifted grey - while a desert summer rolls
      * clear at 0.096 and grey at 0.006, which is what a desert is.</p>
      *
-     * <p>A profile's {@code seasonSensitivity} is deliberately not applied
-     * here - that knob shapes the <em>intensity</em> roll, and whether today
-     * is grey is a coarser question than how hard.</p>
+     * <p>The intensity roll's seasonal shaping is entirely the mode table and is
+     * deliberately not consulted here: whether today is grey is a coarser question
+     * than how hard it rains. (This paragraph used to name a
+     * {@code seasonSensitivity} knob, which was declared, constructed and read by
+     * nothing - deleted in round 50, R6.)</p>
      */
     private static final float[] OVERCAST_SEASON_FACTOR =
             { 1.00F, 0.60F, 1.30F, 1.40F, 0.50F, 1.60F };

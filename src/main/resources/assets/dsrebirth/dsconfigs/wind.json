@@ -1,5 +1,5 @@
 {
-  "//": "统一风系统：风的性格预设（WindProfile）与季节因子。这个文件是默认值的一份副本，编译进 class 的那一份与它逐值相同；数据包/模组可以在自己的 assets/<命名空间>/dsconfigs/wind.json 里只写要改的字段来覆盖它（每个字段都可选，只覆盖写了的那些）。季节列的顺序固定为 SPRING, SUMMER, AUTUMN, WINTER, TROPICAL_DRY, TROPICAL_WET。数值来自 _wind_audit/wind_design_verify.py 的搜参结果（六个季节列全部通过各自的性格判据），改动前请先跑 _wind_unified/wind_offline.py 复算三个性格用例，并用 _wind_unified/p3_layers.py 重算门控统计。leafWindMin = 叶声层的风等级门限（每个预设可不同；默认 0.25）。",
+  "//": "统一风系统：风的性格预设（WindProfile）与季节因子。这个文件是默认值的一份副本，编译进 class 的那一份与它逐值相同；数据包/模组可以在自己的 assets/<命名空间>/dsconfigs/wind.json 里只写要改的字段来覆盖它（每个字段都可选，只覆盖写了的那些）。季节列的顺序固定为 SPRING, SUMMER, AUTUMN, WINTER, TROPICAL_DRY, TROPICAL_WET。数值来自 _wind_audit/wind_design_verify.py 的搜参结果（六个季节列全部通过各自的性格判据），改动前请先跑 _wind_unified/wind_offline.py 复算三个性格用例，并用 _wind_unified/p3_layers.py 重算门控统计、p4_howl.py 复核呼啸门控。leafWindMin = 叶声层的风等级门限（每个预设可不同；默认 0.25）；howlWindMin = 呼啸层的风等级门限（同样的按预设可配，默认 0.60）。两者都只影响“这一层从多大的风开始存在”，不改变风的形状；滞回（0.05 / 0.06）不在数据文件里。",
   "seasonFactor": [1.00, 0.95, 1.05, 1.10, 0.92, 1.04],
   "profiles": [
     {
@@ -13,6 +13,7 @@
       "peakCeiling": 0.60,
       "canopyResponse": 0.00,
       "leafWindMin": 0.25,
+      "howlWindMin": 0.60,
       "gustResponse": "FLAT"
     },
     {
@@ -26,6 +27,7 @@
       "peakCeiling": 0.25,
       "canopyResponse": 0.00,
       "leafWindMin": 0.25,
+      "howlWindMin": 0.60,
       "gustResponse": "FLAT"
     },
     {
@@ -39,6 +41,7 @@
       "peakCeiling": 0.45,
       "canopyResponse": 1.00,
       "leafWindMin": 0.25,
+      "howlWindMin": 0.60,
       "gustResponse": "FLAT"
     },
     {
@@ -52,10 +55,11 @@
       "peakCeiling": 0.30,
       "canopyResponse": 1.00,
       "leafWindMin": 0.12,
+      "howlWindMin": 0.60,
       "gustResponse": "FLAT"
     },
     {
-      "//": "海岸/海洋/河流/沙滩：长周期稳定风（rate 0.1/min = 十分钟一个阵风峰），秋冬略高",
+      "//": "海岸/海洋/河流/沙滩：长周期稳定风（rate 0.1/min = 十分钟一个阵风峰），秋冬略高。howlWindMin 0.40：本预设风等级上限只有 0.55，按默认 0.60 判呼啸层永远不响（离线 0.0%），而常年有风正是它的性格；0.40 让四季回到 2.7%~40.6%（四季均 18.6%）",
       "preset": "COASTAL_EXPOSED",
       "meanLevel": [0.30, 0.30, 0.32, 0.34, 0.30, 0.32],
       "levelJitter": 0.03,
@@ -65,10 +69,11 @@
       "peakCeiling": 0.55,
       "canopyResponse": 0.10,
       "leafWindMin": 0.25,
+      "howlWindMin": 0.40,
       "gustResponse": "FLAT"
     },
     {
-      "//": "高海拔/雪线/高原/冰原：强、冷、低频重；半树（canopy 0.35）。注意 canopyResponse 还要乘 coverage，而 coverage 目前只有 isWooded 那一级（1/0），所以非有树群系里这 0.35 恒为 0（现在没有叶层），等本地树冠扫描落地才生效 —— 这不是 bug",
+      "//": "高海拔/雪线/高原/冰原：强、冷、低频重；半树（canopy 0.35）。howlWindMin 0.50：按默认 0.60 判只剩 2.6%（山顶反而最安静），0.50 回到 25.7%（四季 18.6%~32.4%）。注意 canopyResponse 还要乘 coverage，而 coverage 目前只有 isWooded 那一级（1/0），所以非有树群系里这 0.35 恒为 0（现在没有叶层），等本地树冠扫描落地才生效 —— 这不是 bug",
       "preset": "ALPINE_PEAK",
       "meanLevel": [0.35, 0.35, 0.35, 0.35, 0.35, 0.35],
       "levelJitter": 0.04,
@@ -78,6 +83,7 @@
       "peakCeiling": 0.70,
       "canopyResponse": 0.35,
       "leafWindMin": 0.25,
+      "howlWindMin": 0.50,
       "gustResponse": "FLAT"
     },
     {
@@ -91,6 +97,7 @@
       "peakCeiling": 0.00,
       "canopyResponse": 0.00,
       "leafWindMin": 0.25,
+      "howlWindMin": 0.60,
       "gustResponse": "FLAT"
     }
   ]

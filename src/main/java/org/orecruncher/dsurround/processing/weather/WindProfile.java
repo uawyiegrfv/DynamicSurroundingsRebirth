@@ -36,7 +36,7 @@ import java.util.Optional;
  *   <tr><td>{@code floorLevel}</td><td>地板：最静到哪</td></tr>
  *   <tr><td>{@code peakCeiling}</td><td>天花板：最响到哪</td></tr>
  *   <tr><td>{@code canopyResponse}</td><td>叶声响应（0 = 无树，1 = 全是树）</td></tr>
- *   <tr><td>{@code gustResponse}</td><td>阵风深度随强度的曲线（复用降水那四条）</td></tr>
+ *   <tr><td>{@code gustResponse}</td><td>阵风深度随强度的曲线（复用降水那四条）。<b>B5 起运行期没有读者</b>——见字段说明</td></tr>
  * </table>
  *
  * <p>数值来自风场审查 §5.2 / {@code _wind_audit/wind_design_verify.py} 的搜参结果，
@@ -137,6 +137,15 @@ public enum WindProfile {
     private float floorLevel;
     private float peakCeiling;
     private float canopyResponse;
+    /**
+     * 阵风深度随"强度"的曲线。<b>B5 之后运行期没有任何读者</b>：七个预设全是
+     * {@code GustResponse.FLAT}，而 {@code WindField.levelAt} 已经把那个强度形参删掉了
+     * —— 风有意独立于降水，那条通道本来就恒等于 {@code gustDepth}。
+     *
+     * <p>字段与 {@code wind.json} 的 {@code gustResponse} 键保留，是因为删掉它要动
+     * 数据包格式与 {@code describe()} 那一行（三版一致性脚本读的就是那一行），而它现在
+     * 是惰性的、有文档的。真要重新接上"暴雨风更大"，这里就是现成的接口。</p>
+     */
     private GustResponse gustResponse;
     /**
      * 叶声层的风等级门限，<b>按预设可配</b>（默认 {@link #DEFAULT_LEAF_WIND_MIN}）。

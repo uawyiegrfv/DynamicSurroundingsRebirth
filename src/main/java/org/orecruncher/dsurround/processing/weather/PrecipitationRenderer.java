@@ -795,7 +795,7 @@ public final class PrecipitationRenderer {
             // 看到的雨幕倾斜与耳朵听到的风是同一个量。它在 PrecipitationIntensity
             // 里每 tick 解析一次，这里只是取用 —— 千万别改成在这里查 BiomeInfo，
             // 更不要放进 per-column 循环。
-            WindField.update(ticks, partialTick, PrecipitationIntensity.windLevel());
+            WindField.updateFromWind(ticks, partialTick, PrecipitationIntensity.windLevel());
 
 
             // The state set here belongs to the particle pass and has to be given

@@ -1673,7 +1673,8 @@ public final class PrecipitationIntensity {
     public static float windLevel() {
         final Level level = clientLevel;
         final long now = level == null ? 0L : level.getGameTime();
-        return WindField.levelAt(windProfile, ambient, now, 0F);
+        // B5：不再传降水强度。风有意独立于降水 —— 见 WindField.levelAt。
+        return WindField.levelAt(windProfile, now, 0F);
     }
 
     /** WIND：把本场事件的形状参数交给 {@code WindField}（频率与抖动来自预设）。 */

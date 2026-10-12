@@ -58,7 +58,7 @@ public enum WindProfile {
      * <p>mean 高（0.55）、depth 极浅（0.04）、rate 极低（0.2/min）、地板 0.35：
      * 它没有"静下来"这个状态，只有"大"和"更大一点"。</p>
      */
-    EXPOSED_BARREN(level(0.55F), 0.01F, 0.04F, 0.2F, 0.35F, 0.60F, 0.00F, GustResponse.FLAT, 0.25F),
+    EXPOSED_BARREN(level(0.55F), 0.01F, 0.04F, 0.2F, 0.35F, 0.60F, 0.00F, GustResponse.FLAT, 0.25F, 0.60F),
 
     /**
      * 草原 / 平原 / 沙丘 / 热带草原 —— <b>用例②「平时基本微风」</b>。
@@ -67,7 +67,7 @@ public enum WindProfile {
      * {@code level ∈ [0,0.25]} 的时间占比 >= 90%，而 cap 是这条判据的结构性保证，
      * 不是调出来的。</p>
      */
-    OPEN_LOWLAND(level(0.08F), 0.02F, 0.08F, 0.2F, 0.03F, 0.25F, 0.00F, GustResponse.FLAT, 0.25F),
+    OPEN_LOWLAND(level(0.08F), 0.02F, 0.08F, 0.2F, 0.03F, 0.25F, 0.00F, GustResponse.FLAT, 0.25F, 0.60F),
 
     /**
      * 阔叶林 / 混合林 —— <b>用例③「微风为主 + 偶发大风 + 叶声」</b>。
@@ -76,29 +76,41 @@ public enum WindProfile {
      * 这正是"加性解耦"买到的东西。cap 0.45 是叶层门控（0.35）的上方，所以"偶尔刮大"
      * 与"树叶响"是同一件事。</p>
      */
-    WOODLAND(level(0.09F), 0.01F, 0.36F, 0.4F, 0.05F, 0.45F, 1.00F, GustResponse.FLAT, 0.25F),
+    WOODLAND(level(0.09F), 0.01F, 0.36F, 0.4F, 0.05F, 0.45F, 1.00F, GustResponse.FLAT, 0.25F, 0.60F),
 
     /**
      * 密林 / 丛林 / 沼泽 / 蘑菇岛：风被树挡住，均值更低、阵风更频繁但更浅。
      * 叶声仍然是满的 —— 这里叶子最多，风最少。
      */
-    DENSE_CANOPY(level(0.06F), 0.01F, 0.18F, 0.5F, 0.03F, 0.30F, 1.00F, GustResponse.FLAT, 0.12F),
+    DENSE_CANOPY(level(0.06F), 0.01F, 0.18F, 0.5F, 0.03F, 0.30F, 1.00F, GustResponse.FLAT, 0.12F, 0.60F),
 
     /**
      * 海岸 / 海洋 / 河流 / 沙滩：长周期、稳定的风。rate 0.1/min（十分钟一个阵风峰）
      * 就是"涌浪式"的表达；meanLevel 按季节给，秋冬略高。
+     *
+     * <p>{@code howlWindMin} 取 0.40 而不是默认的 0.60：它的风等级上限只有 0.55，
+     * 按 0.60 判这一层<b>永远不响</b>（离线复算 0.0%），而海岸常年有风正是这个预设
+     * 存在的理由。0.40 让这一层四季都在 2.7%~40.6% 之间（四季均 18.6%，秋冬更高，
+     * 与它自己的 meanLevel 季节列同向），见 {@code _wind_unified/p4_howl.py}。</p>
      */
     COASTAL_EXPOSED(new float[] { 0.30F, 0.30F, 0.32F, 0.34F, 0.30F, 0.32F },
-            0.03F, 0.10F, 0.1F, 0.22F, 0.55F, 0.10F, GustResponse.FLAT, 0.25F),
+            0.03F, 0.10F, 0.1F, 0.22F, 0.55F, 0.10F, GustResponse.FLAT, 0.25F, 0.40F),
 
-    /** 高海拔 / 雪线 / 高原 / 冰原：强、冷、低频重。半树（canopy 0.35）。 */
-    ALPINE_PEAK(level(0.35F), 0.04F, 0.22F, 0.6F, 0.18F, 0.70F, 0.35F, GustResponse.FLAT, 0.25F),
+    /**
+     * 高海拔 / 雪线 / 高原 / 冰原：强、冷、低频重。半树（canopy 0.35）。
+     *
+     * <p>{@code howlWindMin} 取 0.50 而不是默认的 0.60：按 0.60 判，它的风等级
+     * （mean 0.35 / depth 0.22 / cap 0.70）只在冬春偶尔越线，离线复算四季均值
+     * 2.6% —— 山顶反而是最安静的。0.50 把它拉回 25.7%（四季 18.6%~32.4%，见
+     * {@code _wind_unified/p4_howl.py}）。</p>
+     */
+    ALPINE_PEAK(level(0.35F), 0.04F, 0.22F, 0.6F, 0.18F, 0.70F, 0.35F, GustResponse.FLAT, 0.25F, 0.50F),
 
     /**
      * 下界 / 末地 / 虚空 / 地下：<b>没有风这个维度</b>。全部为 0 ⇒ 床与层都不存在。
      * 名字沿用降水那边的 {@code PrecipitationProfile.WASTELAND}。
      */
-    WASTELAND(level(0.00F), 0.00F, 0.00F, 0.0F, 0.00F, 0.00F, 0.00F, GustResponse.FLAT, 0.25F);
+    WASTELAND(level(0.00F), 0.00F, 0.00F, 0.0F, 0.00F, 0.00F, 0.00F, GustResponse.FLAT, 0.25F, 0.60F);
 
     /** 六个季节列一份的便捷写法（列的顺序见类头）。 */
     private static float[] level(final float value) {
@@ -122,11 +134,14 @@ public enum WindProfile {
     /** 编译期默认值的一份快照。{@link #reload} 先从这里复位，再覆盖。 */
     private record Defaults(float[] meanLevel, float levelJitter, float gustDepth, float gustRatePerMin,
                             float floorLevel, float peakCeiling, float canopyResponse, GustResponse gustResponse,
-                            float leafWindMin) {
+                            float leafWindMin, float howlWindMin) {
     }
 
     /** 叶层门限的默认值，见 {@code leafWindMin}。 */
     private static final float DEFAULT_LEAF_WIND_MIN = 0.25F;
+
+    /** 呼啸门限的默认值，见 {@code howlWindMin}。 */
+    private static final float DEFAULT_HOWL_WIND_MIN = 0.60F;
 
     private final Defaults defaults;
 
@@ -158,6 +173,20 @@ public enum WindProfile {
      */
     private float leafWindMin = DEFAULT_LEAF_WIND_MIN;
     /**
+     * 呼啸层的风等级门限，<b>按预设可配</b>（默认 {@link #DEFAULT_HOWL_WIND_MIN}）。
+     *
+     * <p>与 {@link #leafWindMin} 同一个模式、同一个理由：门限是一条线，而"多大的风
+     * 才值得呼啸"是性格的一部分。批次 B 把这条线从 0.35 一刀切提到 0.60，恶地晴天
+     * 因此从 100% 落到 20%（想要的），代价是<b>海岸与高山几乎不再呼啸</b>——海岸的
+     * 风等级上限只有 0.55，按 0.60 判是 0.0%；高山按 0.60 判只剩 2.6%。所以门限跟着
+     * 预设走，而 mean/depth/cap 那三个数是三用例标定过的，一个都不动。</p>
+     *
+     * <p>数据包可覆盖：{@code wind.json} 的 {@code howlWindMin}。滞回仍是
+     * {@code BiomeSoundHandler.HOWL_GATE_HYSTERESIS}（0.06，不在预设里 —— 它是门控的
+     * 时间行为，不是风的性格）。</p>
+     */
+    private float howlWindMin = DEFAULT_HOWL_WIND_MIN;
+    /**
      * 这个预设的床素材是不是<b>自带叶声</b>（§3.10.1 要点 5）。
      *
      * <p>不是那 8 个自由度之一：它是一条"这条素材里已经有树叶了"的声明，用来决定还要
@@ -168,9 +197,10 @@ public enum WindProfile {
 
     WindProfile(final float[] meanLevel, final float levelJitter, final float gustDepth,
                 final float gustRatePerMin, final float floorLevel, final float peakCeiling,
-                final float canopyResponse, final GustResponse gustResponse, final float leafWindMin) {
+                final float canopyResponse, final GustResponse gustResponse, final float leafWindMin,
+                final float howlWindMin) {
         this.defaults = new Defaults(meanLevel.clone(), levelJitter, gustDepth, gustRatePerMin,
-                floorLevel, peakCeiling, canopyResponse, gustResponse, leafWindMin);
+                floorLevel, peakCeiling, canopyResponse, gustResponse, leafWindMin, howlWindMin);
         applyDefaults();
     }
 
@@ -184,6 +214,7 @@ public enum WindProfile {
         this.canopyResponse = this.defaults.canopyResponse();
         this.gustResponse = this.defaults.gustResponse();
         this.leafWindMin = this.defaults.leafWindMin();
+        this.howlWindMin = this.defaults.howlWindMin();
     }
 
     // ================= 取值 =================
@@ -247,6 +278,11 @@ public enum WindProfile {
     /** 叶声层的风等级门限；见字段说明。 */
     public float leafWindMin() {
         return this.leafWindMin;
+    }
+
+    /** 呼啸层的风等级门限；见字段说明。 */
+    public float howlWindMin() {
+        return this.howlWindMin;
     }
 
     /** 床素材是否自带叶声；见字段说明。 */
@@ -328,7 +364,7 @@ public enum WindProfile {
                         Optional<Float> gustDepth, Optional<Float> gustRatePerMin, Optional<Float> floorLevel,
                         Optional<Float> peakCeiling, Optional<Float> canopyResponse,
                         Optional<GustResponse> gustResponse, Optional<Boolean> assetHasLeaves,
-                        Optional<Float> leafWindMin) {
+                        Optional<Float> leafWindMin, Optional<Float> howlWindMin) {
         static final Codec<Rule> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.fieldOf("preset").forGetter(Rule::preset),
                 Codec.list(Codec.FLOAT).optionalFieldOf("meanLevel").forGetter(Rule::meanLevel),
@@ -340,7 +376,8 @@ public enum WindProfile {
                 Codec.FLOAT.optionalFieldOf("canopyResponse").forGetter(Rule::canopyResponse),
                 GUST_RESPONSE_CODEC.optionalFieldOf("gustResponse").forGetter(Rule::gustResponse),
                 Codec.BOOL.optionalFieldOf("assetHasLeaves").forGetter(Rule::assetHasLeaves),
-                Codec.FLOAT.optionalFieldOf("leafWindMin").forGetter(Rule::leafWindMin)
+                Codec.FLOAT.optionalFieldOf("leafWindMin").forGetter(Rule::leafWindMin),
+                Codec.FLOAT.optionalFieldOf("howlWindMin").forGetter(Rule::howlWindMin)
         ).apply(instance, Rule::new));
     }
 
@@ -423,6 +460,7 @@ public enum WindProfile {
         rule.gustResponse().ifPresent(v -> profile.gustResponse = v);
         rule.assetHasLeaves().ifPresent(v -> profile.assetHasLeaves = v);
         rule.leafWindMin().ifPresent(v -> profile.leafWindMin = v);
+        rule.howlWindMin().ifPresent(v -> profile.howlWindMin = v);
     }
 
     private void setMeanLevel(final List<Float> values, final String namespace) {

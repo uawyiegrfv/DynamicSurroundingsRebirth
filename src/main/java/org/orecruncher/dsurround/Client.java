@@ -47,6 +47,10 @@ public final class Client {
     private CompletableFuture<Optional<VersionResult>> versionInfo;
 
     public Client() {
+        // 改名迁移：config/dsurround/ 下改名前的配置复制到新目录，必须在下面读
+        // Configuration 之前做；只在客户端启动路径上跑一次（见 compat/ConfigMigration）。
+        org.orecruncher.dsurround.compat.ConfigMigration.onClientStartup();
+
         // Bootstrap library functions
         this.logger = Library.LOGGER;
 

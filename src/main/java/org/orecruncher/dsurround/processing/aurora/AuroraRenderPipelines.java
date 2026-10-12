@@ -38,6 +38,21 @@ public final class AuroraRenderPipelines {
      * Additive blend matching the original 1.12.2 aurora look. The fragment
      * shader always writes alpha 1.0 and scales RGB by its own intensity, so
      * {@code SRC_ALPHA} effectively becomes a pure additive path.
+     *
+     * <p><b>On 1.20.1 this shard is not the last word on the blend.</b> The draw runs
+     * {@code RenderType.end} -&gt; {@code BufferUploader.drawWithShader} -&gt;
+     * {@code VertexBuffer.drawWithShader} -&gt; {@code ShaderInstance.apply}, and 1.20.1's
+     * {@code apply()} starts with {@code this.blend.apply()} ({@code ShaderInstance.java:314}),
+     * where {@code blend} is parsed from the shader JSON's {@code blend} node
+     * ({@code ShaderInstance.java:191}). A missing node parses to the default
+     * {@code new BlendMode()}, which is {@code opaque} and so calls
+     * {@code RenderSystem.disableBlend()} - blending switched off, and the ribbon's black
+     * envelope (the shader early-outs to {@code vec4(0,0,0,1)}) is then painted opaquely over
+     * the sky: the reported black slab around the aurora. The {@code blend} node in
+     * {@code assets/dsrebirth/shaders/core/aurora_64.json} and {@code aurora_128.json}
+     * repeats this exact function and is the state that really reaches the draw, so the two
+     * must be kept in step. 1.21.1 dropped the shader-level blend entirely, which is why its
+     * JSONs need no node and this bug is 1.20.1 only.
      */
     private static final RenderStateShard.TransparencyStateShard AURORA_TRANSPARENCY =
             new RenderStateShard.TransparencyStateShard("aurora_transparency",

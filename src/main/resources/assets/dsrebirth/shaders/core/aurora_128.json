@@ -1,6 +1,13 @@
 {
     "vertex": "dsrebirth:aurora_128",
     "fragment": "dsrebirth:aurora_128",
+    "blend": {
+        "func": "add",
+        "srcrgb": "srcalpha",
+        "dstrgb": "srcalpha",
+        "srcalpha": "one",
+        "dstalpha": "zero"
+    },
     "attributes": [
         "Position",
         "UV0",

@@ -580,8 +580,8 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             detail.append(String.format(" | dist nearest %.1f median %.1f furthest %.1f (<=8: %d)",
                     nearest, dists[dists.length / 2], dists[dists.length - 1], within8));
         }
-        detail.append(String.format(" | fog given %.1f/%.1f%s",
-                this.frameFogStart, this.frameFogEnd,
+        detail.append(String.format(" | fog given %s/%s%s",
+                fogPlane(this.frameFogStart), fogPlane(this.frameFogEnd),
                 this.loggedFogNeutralised ? " (neutralised by this pass)" : ""));
         if (this.quads.count > 0) {
             final ShoreScan.ShoreQuad q = this.quads.items[0];
@@ -736,6 +736,18 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     }
 
     /**
+     * A fog plane for the log: {@code "%.1f"}, or {@code "none"} for the
+     * {@code Float.MAX_VALUE} a render type writes when it disables fog.
+     *
+     * <p>Not cosmetics. The disabled case is one of the two states the log exists
+     * to tell apart, and {@code 340282346638528859811704183484516925440.0} in the
+     * middle of a line is exactly the kind of output a reader skips.</p>
+     */
+    private static String fogPlane(final float value) {
+        return value >= Float.MAX_VALUE * 0.5F ? "none" : String.format("%.1f", value);
+    }
+
+    /**
      * Says what fog the pass found, once per change - and, when it neutralised
      * it, why that is the difference between a blue film and a pale sheet.
      *
@@ -755,13 +767,12 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         this.loggedFogEnd = end;
         this.loggedFogNeutralised = neutralised;
         if (neutralised)
-            this.logger.info("[ShoreWave] fog start %.1f end %.1f -> NEUTRALISED for this pass"
-                            + " (bound %d): a range this short replaces every vertex colour with"
-                            + " FogColor, so the film and the foam would both paint the fog colour",
-                    start, end, ShoreScan.MAX_QUAD_DISTANCE);
-        else
-            this.logger.info("[ShoreWave] fog start %.1f end %.1f -> kept (bound %d)",
-                    start, end, ShoreScan.MAX_QUAD_DISTANCE);
+            this.logger.info("[ShoreWave] fog start %s end %s -> %s (bound %d)%s",
+                    fogPlane(start), fogPlane(end),
+                    neutralised ? "NEUTRALISED for this pass" : "kept",
+                    ShoreScan.MAX_QUAD_DISTANCE,
+                    neutralised ? ": a range this short replaces every vertex colour with FogColor,"
+                            + " so the film and the foam would both paint the fog colour" : "");
     }
 
     /**
@@ -999,8 +1010,8 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // a pale sheet, this is the number that says whether the pass handed the
         // shader a colour at all.
         event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
-                "Shore fog: given %.1f/%.1f -> %s (pass bound %d, film debug %s)",
-                this.frameFogStart, this.frameFogEnd,
+                "Shore fog: given %s/%s -> %s (pass bound %d, film debug %s)",
+                fogPlane(this.frameFogStart), fogPlane(this.frameFogEnd),
                 this.loggedFogNeutralised ? "neutralised" : "kept",
                 ShoreScan.MAX_QUAD_DISTANCE,
                 this.config.shoreWaveOptions.shoreFilmDebugColor ? "ON rgb=FF00FF" : "off"));

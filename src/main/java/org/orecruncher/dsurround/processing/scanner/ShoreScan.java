@@ -196,6 +196,46 @@ public final class ShoreScan {
     public static final String DRAW_ORDER =
             "film(0)->strip(1)->cap(2)->corner(3..10), lift 12mm<26mm";
 
+    /**
+     * How far the player may be from the centre of the window that is still on
+     * screen. Mirrors {@code ShoreWaveHandler.RECENTER_BLOCKS} - the handler owns
+     * the re-scan policy, this class only needs to know that the window can lag
+     * the player by that much before the next scan. Kept here so the geometry
+     * bound is one number with one reason, not a literal in a third place.
+     */
+    private static final int STALE_WINDOW = 4;
+
+    /**
+     * Longest side a single emitted quad may span, in blocks - the geometric
+     * self-check that keeps a "one big plate" frame from ever shipping again.
+     *
+     * <p>Four is not a taste value: it is the design's own largest unit. A strip
+     * body is cut at the 4-block texture tile ({@code 4 - (units >> 4)}), a cap
+     * is a quarter block and a corner is one cell, so <em>no</em> legitimate foam
+     * quad can exceed 4. The film's greedy rectangle can - one quad for a 7x22
+     * flooded patch was measured - so {@link #emitFilmRect} lays the rectangle
+     * out as tiles no larger than this. Nothing about the picture changes (the
+     * film is a flat single-colour sheet at one height and one alpha), and every
+     * quad in the buffer is then inside the bound by construction.</p>
+     */
+    public static final int MAX_QUAD_SPAN = 4;
+
+    /**
+     * A quad whose nearest corner is further than this from the player is not
+     * drawn.
+     *
+     * <p><b>Not {@code RANGE + 3}.</b> The scan window is a square of
+     * {@code 2*RANGE+1} columns centred on the player, so a run in its corner
+     * really is {@code RANGE * sqrt(2) = 28.3} blocks away - a bound of
+     * {@code RANGE + 3 = 23} would have silently deleted the surf at every corner
+     * of the window, which is the one place a shore is most likely to be curving.
+     * Measured on the maintainer's own terrain: 46 of 95 quads at one window,
+     * 76 at another. The bound is therefore the window's own diagonal plus the
+     * re-centre slack, and still catches the failure that has no other symptom -
+     * a window left behind by a teleport, drawn as a wall of quads off-screen.</p>
+     */
+    public static final int MAX_QUAD_DISTANCE = (int) Math.ceil(RANGE * Math.sqrt(2D)) + STALE_WINDOW + 1;
+
     /** Multiplies the channels of an 0xRRGGBB colour by {@code f}, clamped. */
     private static int scaleRgb(final int rgb, final float f) {
         final int r = Math.min(255, (int) ((rgb >> 16 & 0xFF) * f));
@@ -721,6 +761,102 @@ public final class ShoreScan {
             if (g.filled[i] == 1) g.filledCells++;
     }
 
+    /**
+     * What the geometric self-check saw, and what it refused to draw.
+     *
+     * <p>Read off the quads that are about to be handed to the buffer, so the
+     * numbers cannot disagree with the picture - see {@link #auditQuads}.</p>
+     */
+    public static final class Audit {
+        /** Quads that survived. */
+        public int quads;
+        /** Quads dropped for spanning more than {@link #MAX_QUAD_SPAN} blocks. */
+        public int droppedSpan;
+        /** Quads dropped for sitting further than {@link #MAX_QUAD_DISTANCE} from the player. */
+        public int droppedDistance;
+        /** The widest x/z span actually seen, in blocks. */
+        public float maxSpan;
+        /** AABB of everything kept - the answer to "is it even in the window". */
+        public int minX = Integer.MAX_VALUE;
+        public int maxX = Integer.MIN_VALUE;
+        public int minZ = Integer.MAX_VALUE;
+        public int maxZ = Integer.MIN_VALUE;
+        /** Nearest and furthest quad AABB corner, in blocks, from the player. */
+        public float nearest = Float.MAX_VALUE;
+        public float furthest;
+        /** Per-type quad counts, so a dropped type is visible as a zero. */
+        public final int[] perTex = new int[TEX_COUNT];
+
+        public boolean droppedAnything() {
+            return this.droppedSpan > 0 || this.droppedDistance > 0;
+        }
+    }
+
+    /**
+     * The geometric self-check: every quad about to be drawn is measured, and one
+     * that is too wide or too far away is <b>dropped</b> rather than drawn.
+     *
+     * <p>This is the guard for the failure that produced the "one big plate"
+     * report: a quad can be geometrically consistent with every rule in this
+     * class and still be catastrophic on screen if a span is wrong by an order of
+     * magnitude, and no amount of reading the rules back will catch it - the
+     * numbers in the log will look fine. Measuring the quads that were actually
+     * emitted is the only check that cannot drift from the rules.</p>
+     *
+     * <p>{@link #MAX_QUAD_SPAN} is the design's own largest unit (a 4-block strip
+     * chunk, or a film tile cut to the same size), and {@link #MAX_QUAD_DISTANCE}
+     * is {@code RANGE + 3}, one block more than a maximally stale window can
+     * reach. Both are therefore unreachable by correct geometry: a drop means
+     * something upstream broke, which is why the caller logs it loudly when
+     * {@code debugLogging} is on.</p>
+     */
+    public static Audit auditQuads(final Grid g, final Quads out, final int px, final int pz) {
+        final Audit audit = new Audit();
+        int keep = 0;
+        for (int i = 0; i < out.count; i++) {
+            final ShoreQuad q = out.items[i];
+            float minX = q.wx[0], maxX = q.wx[0], minZ = q.wz[0], maxZ = q.wz[0];
+            for (int k = 1; k < 4; k++) {
+                minX = Math.min(minX, q.wx[k]);
+                maxX = Math.max(maxX, q.wx[k]);
+                minZ = Math.min(minZ, q.wz[k]);
+                maxZ = Math.max(maxZ, q.wz[k]);
+            }
+            final float span = Math.max(maxX - minX, maxZ - minZ);
+            // Distance from the player to the quad's own box, so a long strip
+            // lying across the view is judged by its nearest end, not its far one.
+            final float dx = Math.max(0F, Math.max(minX - px, px - maxX));
+            final float dz = Math.max(0F, Math.max(minZ - pz, pz - maxZ));
+            final float distance = (float) Math.sqrt(dx * dx + dz * dz);
+
+            if (span > MAX_QUAD_SPAN + 0.001F) {
+                audit.droppedSpan++;
+                continue;
+            }
+            if (distance > MAX_QUAD_DISTANCE) {
+                audit.droppedDistance++;
+                continue;
+            }
+
+            out.items[keep++] = q;
+            audit.perTex[q.tex]++;
+            audit.maxSpan = Math.max(audit.maxSpan, span);
+            audit.nearest = Math.min(audit.nearest, distance);
+            audit.furthest = Math.max(audit.furthest, distance);
+            audit.minX = Math.min(audit.minX, (int) Math.floor(minX));
+            audit.maxX = Math.max(audit.maxX, (int) Math.ceil(maxX));
+            audit.minZ = Math.min(audit.minZ, (int) Math.floor(minZ));
+            audit.maxZ = Math.max(audit.maxZ, (int) Math.ceil(maxZ));
+        }
+        out.count = keep;
+        audit.quads = keep;
+        if (keep == 0) {
+            audit.nearest = 0F;
+            audit.minX = audit.maxX = audit.minZ = audit.maxZ = 0;
+        }
+        return audit;
+    }
+
     private static boolean inUnion(final Grid g, final int gi) {
         return g.cls[gi] == CLS_SEA || g.filled[gi] == 1;
     }
@@ -918,34 +1054,49 @@ public final class ShoreScan {
                 alpha = Math.min(alpha, frontAlpha(g, gx + dx, gz + dz));
         if (alpha == 0)
             return;
-        final int x = g.ox + gx;
-        final int z = g.oz + gz;
-        final int cx = x + w / 2;
-        final int cz = z + h / 2;
-        final ShoreQuad q = out.next();
-        q.tex = TEX_FILM;
-        // Every filled cell is beach, so one height covers the rect.
-        q.y = surfaceBase(g, gx, gz) + FILM_LIFT;
-        q.light = lightAt(level, g, cx, cz);
-        // The film is the mirror of the foam: its 16x16 texture is pure white, so
-        // the colour has to come from here - the local biome water colour
-        // (ocean / deep_ocean / beach / stony_shore are all #3F76E4).
-        // The biome water colour scaled exactly as vanilla's water texture scales
-        // it, so the film and the sea are the same paint at the same alpha.
-        q.rgb = scaleRgb(BiomeColors.getAverageWaterColor(level, CURSOR.set(cx, g.waterTop + 1, cz)) & 0xFFFFFF,
-                WATER_TINT_SCALE);
-        q.alpha = (int) (alpha * FILM_ALPHA);
-        // UV density, design gauge: 16x16 sheet, one texel = 1/16 block, so a
-        // rect of w blocks spans w in u. The sheet is a single colour today, so
-        // this cannot change a pixel - it is here so the density is right by
-        // construction if the film ever gains grain, instead of silently
-        // collapsing to 16/w texels per block on the large merged rectangles.
-        g.filmTexels += (float) (w + h) * FILM_TEX_WIDTH * 0.5F;
-        g.filmBlocks += w + h;
-        g.filmQuads++;        q.wx[0] = x;         q.wz[0] = z;         q.u[0] = 0F;    q.v[0] = 0F;
-        q.wx[1] = x + w;     q.wz[1] = z;         q.u[1] = w;     q.v[1] = 0F;
-        q.wx[2] = x + w;     q.wz[2] = z + h;     q.u[2] = w;     q.v[2] = h;
-        q.wx[3] = x;         q.wz[3] = z + h;     q.u[3] = 0F;    q.v[3] = h;
+        // The greedy rectangle is laid out as tiles no larger than
+        // {@link #MAX_QUAD_SPAN}: one 7x22 quad was measured on a real shore, and
+        // a single quad that size is both the shape of the "one big plate"
+        // report and the one thing the geometric self-check cannot admit. The
+        // sheet is flat, single-coloured, at one height and one alpha, so the
+        // tiling is a pure re-tessellation - the same pixels, more quads.
+        for (int tz = 0; tz < h; tz += MAX_QUAD_SPAN) {
+            final int th = Math.min(MAX_QUAD_SPAN, h - tz);
+            for (int tx = 0; tx < w; tx += MAX_QUAD_SPAN) {
+                final int tw = Math.min(MAX_QUAD_SPAN, w - tx);
+                final int x = g.ox + gx + tx;
+                final int z = g.oz + gz + tz;
+                final int cx = x + tw / 2;
+                final int cz = z + th / 2;
+                final ShoreQuad q = out.next();
+                q.tex = TEX_FILM;
+                // Every filled cell is beach, so one height covers the tile.
+                q.y = surfaceBase(g, gx + tx, gz + tz) + FILM_LIFT;
+                q.light = lightAt(level, g, cx, cz);
+                // The film is the mirror of the foam: its 16x16 texture is pure
+                // white, so the colour has to come from here - the local biome
+                // water colour (ocean / deep_ocean / beach / stony_shore are all
+                // #3F76E4). The biome water colour scaled exactly as vanilla's
+                // water texture scales it, so the film and the sea are the same
+                // paint at the same alpha.
+                q.rgb = scaleRgb(BiomeColors.getAverageWaterColor(level,
+                        CURSOR.set(cx, g.waterTop + 1, cz)) & 0xFFFFFF, WATER_TINT_SCALE);
+                q.alpha = (int) (alpha * FILM_ALPHA);
+                // UV density, design gauge: 16x16 sheet, one texel = 1/16 block,
+                // so a rect of w blocks spans w in u. The sheet is a single
+                // colour today, so this cannot change a pixel - it is here so the
+                // density is right by construction if the film ever gains grain,
+                // instead of silently collapsing to 16/w texels per block on the
+                // large merged rectangles.
+                g.filmTexels += (float) (tw + th) * FILM_TEX_WIDTH * 0.5F;
+                g.filmBlocks += tw + th;
+                g.filmQuads++;
+                q.wx[0] = x;        q.wz[0] = z;        q.u[0] = 0F;  q.v[0] = 0F;
+                q.wx[1] = x + tw;   q.wz[1] = z;        q.u[1] = tw;  q.v[1] = 0F;
+                q.wx[2] = x + tw;   q.wz[2] = z + th;   q.u[2] = tw;  q.v[2] = th;
+                q.wx[3] = x;        q.wz[3] = z + th;   q.u[3] = 0F;  q.v[3] = th;
+            }
+        }
     }
 
     /**

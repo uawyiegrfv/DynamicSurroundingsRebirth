@@ -116,6 +116,8 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     private long lastBuildNanos = 0L;
     private int lastRunCells = 0;
     private int lastFoamCells = 0;
+    /** Result of the geometric self-check for the quads currently in the buffer. */
+    private ShoreScan.Audit lastAudit = new ShoreScan.Audit();
     private float lastProgress = 0F;
 
     private boolean filterPinned = false;
@@ -216,10 +218,16 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // Replaces the surf with opaque magenta blocks - see ShoreScan.buildDebug.
         if (this.config.shoreWaveOptions.debugSolidBlocks)
             ShoreScan.buildDebug(this.grid, this.quads);
+        // Geometric self-check, on the quads themselves and not on the rules: any
+        // quad that spans more than ShoreScan.MAX_QUAD_SPAN blocks, or that sits
+        // further than MAX_QUAD_DISTANCE from the player, is dropped here with a
+        // warning instead of being drawn. It runs inside the build timing so the
+        // audit's own cost is in the reported number rather than hidden.
+        this.lastAudit = ShoreScan.auditQuads(this.grid, this.quads, px, pz);
         this.lastBuildNanos = System.nanoTime() - mark;
         this.lastFoamCells = this.grid.foamCells;
         this.failures = 0;
-        logBuild(tick, this.grid, player);
+        logBuild(tick, this.grid, player, this.lastAudit);
     }
 
     // =====================================================================
@@ -421,7 +429,8 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         this.sawTerrain = true;
     }
 
-    private void logBuild(final long tick, final ShoreScan.Grid g, final Player player) {
+    private void logBuild(final long tick, final ShoreScan.Grid g, final Player player,
+                          final ShoreScan.Audit audit) {
         if (!logging())
             return;
         final boolean due = tick >= this.logAtTick;
@@ -456,6 +465,34 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             detail.append(" | NO QUADS (runs ").append(g.runCells)
                     .append(", biome-dropped ").append(g.runsDroppedByBiome)
                     .append(", foam cells ").append(g.foamCells).append(')');
+        }
+
+        // The geometric range, in one line: what the pass emitted, the constants
+        // that are actually compiled in (so a stale jar is visible), the box every
+        // quad fell in, and the nearest/furthest quad from the player. This is the
+        // line to ask for when a report says "one big plate": a plate is either a
+        // span that is out of bounds (it will show up in maxSpan and in the drop
+        // counts) or a span that is in bounds and still too big for the picture -
+        // two different bugs that look identical from the player's chair.
+        detail.append(String.format(
+                " | geom: RANGE %d RUNUP_MAX %d D_SCAN_MAX %d maxSpan %d maxDist %d"
+                        + " | across %d dropped (span %d dist %d) | world x %d..%d z %d..%d"
+                        + " | dist nearest %.1f furthest %.1f",
+                ShoreScan.RANGE, ShoreScan.RUNUP_MAX, ShoreScan.D_SCAN_MAX,
+                ShoreScan.MAX_QUAD_SPAN, ShoreScan.MAX_QUAD_DISTANCE,
+                audit.droppedSpan + audit.droppedDistance, audit.droppedSpan, audit.droppedDistance,
+                audit.minX, audit.maxX, audit.minZ, audit.maxZ, audit.nearest, audit.furthest));
+
+        if (audit.droppedAnything()) {
+            // Not a warning about the shore: a warning about this class. Nothing
+            // correct can exceed either bound, so a drop means an emitter upstream
+            // is producing geometry no rule here can justify, and the player is
+            // owed a log line rather than a wall of quads.
+            this.logger.warn("[ShoreWave] GEOMETRY DROPPED: %d quad(s) over %d blocks of span,"
+                            + " %d quad(s) further than %d blocks from the player - the picture is"
+                            + " missing them; fix the emitter, do not raise the bound",
+                    audit.droppedSpan, ShoreScan.MAX_QUAD_SPAN,
+                    audit.droppedDistance, ShoreScan.MAX_QUAD_DISTANCE);
         }
         this.logger.info(detail.toString());
     }
@@ -828,6 +865,21 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                     foamDensity, medianAlpha(ShoreScan.TEX_FILM, true), medianAlpha(ShoreScan.TEX_FILM, false),
                     ShoreScan.DRAW_ORDER, filmDensity, this.quads.count));
         }
+        // The geometric check's own tally, beside the uv density line: the bounds
+        // that are compiled in, the widest span actually emitted, the box the
+        // quads fell in, and how many were dropped for breaking a bound. A drop
+        // count that is not zero means the picture is missing geometry on purpose.
+        final ShoreScan.Audit audit = this.lastAudit;
+        event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
+                "Shore geom: bounds span<=%d dist<=%d (RANGE %d RUNUP_MAX %d D_SCAN_MAX %d)"
+                        + " | maxSpan %d maxDist %d | dropped span %d dist %d"
+                        + " | world x %d..%d z %d..%d | nearest %.1f furthest %.1f",
+                ShoreScan.MAX_QUAD_SPAN, ShoreScan.MAX_QUAD_DISTANCE,
+                ShoreScan.RANGE, ShoreScan.RUNUP_MAX, ShoreScan.D_SCAN_MAX,
+                audit.maxSpan, audit.furthest,
+                audit.droppedSpan, audit.droppedDistance,
+                audit.minX, audit.maxX, audit.minZ, audit.maxZ,
+                audit.nearest, audit.furthest));
         event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
                 "Shore: q %d (f%d s%d c%d x%d) foam %d runs %d p %.2f %.1f/%.1fms%s",
                 this.quads.count,

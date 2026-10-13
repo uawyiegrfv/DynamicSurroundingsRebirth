@@ -768,6 +768,10 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("TROUBLESHOOTING ONLY: draw one opaque magenta block per surf cell, a full block wide, floating half a block up. If the magenta sits on the shoreline the geometry and transform are correct and only the band's width/opacity need work; if it is anywhere else, the fault is upstream. Turn off for normal play")
         public boolean debugSolidBlocks = false;
+
+        @Property
+        @Comment("TROUBLESHOOTING ONLY: force the water film's vertex colour to magenta 0xFF00FF, keeping its real geometry, height and alpha. Magenta on screen means the film's vertex colour reaches the GPU and only the colour computed for it is wrong; still-white (or still the old pale blue) means the vertex colour is being replaced downstream - look at the fog range and the shader, not at the colour maths. Turn off for normal play")
+        public boolean shoreFilmDebugColor = false;
     }
 
     public static class SpeechBubbles {

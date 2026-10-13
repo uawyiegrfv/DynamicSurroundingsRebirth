@@ -252,6 +252,8 @@
   "dsrebirth.config.shoreWaveOptions.debugSolidBlocks.tooltip": "仅用于排障：每个浪花格画一个整格宽、不透明、上浮半格的品红方块。若品红落在海岸线上，说明几何与变换都对，只剩带子的宽度/透明度要调；若落在别处，问题在上游。正常游玩请关掉",
   "dsrebirth.config.shoreWaveOptions.enableShoreWaves": "海岸浪花",
   "dsrebirth.config.shoreWaveOptions.enableShoreWaves.tooltip": "启用/禁用 沿海岸线冲刷上下的浪花带",
+  "dsrebirth.config.shoreWaveOptions.shoreFilmDebugColor": "调试：水膜品红",
+  "dsrebirth.config.shoreWaveOptions.shoreFilmDebugColor.tooltip": "仅用于排障：把水膜的顶点色强制成品红 0xFF00FF，几何、高度与 alpha 全部照旧。屏上出现品红 ⇒ 顶点色确实到了 GPU，问题只在给它算的颜色；仍是白、或仍是原来的淡蓝 ⇒ 顶点色在下游被替换掉了，该查的是雾的范围与着色器，不是颜色算式。正常游玩请关掉",
   "dsrebirth.config.shoreWaveOptions.tooltip": "海洋岸线浪花带的配置选项",
   "dsrebirth.config.shoreWaveOptions.wavePeriodTicks": "浪的周期（刻）",
   "dsrebirth.config.shoreWaveOptions.wavePeriodTicks.tooltip": "一道浪冲上沙滩再退回去所需的刻数。20 刻 = 1 秒",

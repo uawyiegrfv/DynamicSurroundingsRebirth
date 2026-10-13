@@ -9,6 +9,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
@@ -121,6 +122,15 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     private float lastProgress = 0F;
 
     private boolean filterPinned = false;
+    /** Last {@code shoreFilmDebugColor} value the log was told about. */
+    private boolean loggedFilmDebugColor = false;
+    /** Last fog range the log was told about, and what the pass did with it. */
+    private float loggedFogStart = Float.NaN;
+    private float loggedFogEnd = Float.NaN;
+    private boolean loggedFogNeutralised = false;
+    /** The fog the frame handed this pass on the last draw - the raw pair, not what was drawn with. */
+    private float frameFogStart = Float.NaN;
+    private float frameFogEnd = Float.NaN;
     private boolean broken = false;
     private int failures = 0;
     private long framesSeen = 0L;
@@ -213,8 +223,10 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         }
 
         this.lastProgress = swellProgress(tick, this.config.shoreWaveOptions.wavePeriodTicks);
+        logFilmDebugColor();
         final long mark = System.nanoTime();
-        ShoreScan.build(this.grid, this.lastProgress, level, this.quads);
+        ShoreScan.build(this.grid, this.lastProgress, level, this.quads,
+                this.config.shoreWaveOptions.shoreFilmDebugColor);
         // Replaces the surf with opaque magenta blocks - see ShoreScan.buildDebug.
         if (this.config.shoreWaveOptions.debugSolidBlocks)
             ShoreScan.buildDebug(this.grid, this.quads);
@@ -568,6 +580,9 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             detail.append(String.format(" | dist nearest %.1f median %.1f furthest %.1f (<=8: %d)",
                     nearest, dists[dists.length / 2], dists[dists.length - 1], within8));
         }
+        detail.append(String.format(" | fog given %.1f/%.1f%s",
+                this.frameFogStart, this.frameFogEnd,
+                this.loggedFogNeutralised ? " (neutralised by this pass)" : ""));
         if (this.quads.count > 0) {
             final ShoreScan.ShoreQuad q = this.quads.items[0];
             detail.append(String.format(" | sample cam-space (%.2f,%.2f,%.2f) y %.3f",
@@ -641,6 +656,24 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         if (level == null)
             return;
 
+        // The fog the frame hands over is part of the paint, not part of the
+        // surf: particle.fsh ends with linear_fog(), and a range that is closed at
+        // or inside this pass's own draw bound replaces EVERY fragment's RGB with
+        // FogColor while leaving the alpha alone. That failure is invisible in the
+        // vertex data - the log keeps saying rgb 0x3F76E4 - and on screen it is a
+        // single pale sheet at exactly the right alpha, which is why it was twice
+        // read as "the vertex colour is not applied". Read, decided and logged
+        // here; restored in the finally below.
+        final float fogStart = RenderSystem.getShaderFogStart();
+        final float fogEnd = RenderSystem.getShaderFogEnd();
+        final boolean fogNeutralised = fogClosed(fogStart, fogEnd);
+        this.frameFogStart = fogStart;
+        this.frameFogEnd = fogEnd;
+        logFog(fogStart, fogEnd, fogNeutralised);
+        if (fogNeutralised) {
+            RenderSystem.setShaderFogStart(Float.MAX_VALUE);
+            RenderSystem.setShaderFogEnd(Float.MAX_VALUE);
+        }
         try {
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
@@ -648,6 +681,15 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             RenderSystem.depthMask(Minecraft.useShaderTransparency());
             RenderSystem.disableCull();
             RenderSystem.setShader(GameRenderer::getParticleShader);
+            // setShader() only calls apply() when the shader INSTANCE changes, and
+            // this one is shared with the two precipitation passes - so after a
+            // neutralisation the uniforms have to be pushed again on purpose or
+            // the draw would still use the fog it was given.
+            if (fogNeutralised) {
+                final ShaderInstance particle = GameRenderer.getParticleShader();
+                if (particle != null)
+                    particle.apply();
+            }
             pinPixelFilter();
             mc.gameRenderer.lightTexture().turnOnLightLayer();
             final Vec3 cam = event.getCamera().getPosition();
@@ -668,7 +710,80 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             }
         } finally {
             restoreRenderState(mc);
+            if (fogNeutralised) {
+                RenderSystem.setShaderFogStart(fogStart);
+                RenderSystem.setShaderFogEnd(fogEnd);
+            }
         }
+    }
+
+    /**
+     * True when the frame's fog range would replace the colour of geometry this
+     * pass is allowed to draw.
+     *
+     * <p>Every quad the pass emits is within {@link ShoreScan#MAX_QUAD_DISTANCE}
+     * blocks of the player by construction, so a range whose far plane is inside
+     * that bound - or one that is not a range at all ({@code start >= end}) -
+     * cannot be describing this pass's geometry; it is a range computed for
+     * something else and left behind. Normal terrain fog starts at
+     * {@code 0.75 * renderDistance * 16}, i.e. 96 blocks at the shortest render
+     * distance the game allows and 192 at the default 16 chunks, so a well-formed
+     * frame never reaches this branch and the pass is then left exactly as it
+     * found the frame.</p>
+     */
+    private static boolean fogClosed(final float start, final float end) {
+        return !(end > ShoreScan.MAX_QUAD_DISTANCE) || !(start < end);
+    }
+
+    /**
+     * Says what fog the pass found, once per change - and, when it neutralised
+     * it, why that is the difference between a blue film and a pale sheet.
+     *
+     * <p>Logged rather than assumed: the value is a property of the frame and of
+     * whatever ran before this pass, and nothing else in the mod writes it down.
+     * A player report of "the surf is white again" is then one line away from
+     * being a number.</p>
+     */
+    private void logFog(final float start, final float end, final boolean neutralised) {
+        if (!logging())
+            return;
+        if (Float.compare(start, this.loggedFogStart) == 0
+                && Float.compare(end, this.loggedFogEnd) == 0
+                && neutralised == this.loggedFogNeutralised)
+            return;
+        this.loggedFogStart = start;
+        this.loggedFogEnd = end;
+        this.loggedFogNeutralised = neutralised;
+        if (neutralised)
+            this.logger.info("[ShoreWave] fog start %.1f end %.1f -> NEUTRALISED for this pass"
+                            + " (bound %d): a range this short replaces every vertex colour with"
+                            + " FogColor, so the film and the foam would both paint the fog colour",
+                    start, end, ShoreScan.MAX_QUAD_DISTANCE);
+        else
+            this.logger.info("[ShoreWave] fog start %.1f end %.1f -> kept (bound %d)",
+                    start, end, ShoreScan.MAX_QUAD_DISTANCE);
+    }
+
+    /**
+     * One line when the film's debug colour is switched, so the switch cannot be
+     * silently ignored - the one thing a troubleshooting toggle must never do.
+     *
+     * <p>Not gated on {@code debugLogging} when it turns ON: the player flipped a
+     * switch whose whole purpose is to be looked at, and the confirmation is the
+     * only proof the build they launched actually contains it. Turning it off
+     * again is ordinary state and stays behind the gate.</p>
+     */
+    private void logFilmDebugColor() {
+        final boolean on = this.config.shoreWaveOptions.shoreFilmDebugColor;
+        if (on == this.loggedFilmDebugColor)
+            return;
+        this.loggedFilmDebugColor = on;
+        if (on)
+            this.logger.info("[ShoreWave] film debug color ON: rgb=FF00FF - the water film keeps its"
+                    + " geometry, height and alpha and paints solid magenta; back to normal the moment"
+                    + " the option is turned off");
+        else if (logging())
+            this.logger.info("[ShoreWave] film debug color OFF: the film is back to the biome water colour");
     }
 
     /**
@@ -880,6 +995,15 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 audit.droppedSpan, audit.droppedDistance,
                 audit.minX, audit.maxX, audit.minZ, audit.maxZ,
                 audit.nearest, audit.furthest));
+        // The fog the draw inherited, next to the geometry: when the film reads as
+        // a pale sheet, this is the number that says whether the pass handed the
+        // shader a colour at all.
+        event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
+                "Shore fog: given %.1f/%.1f -> %s (pass bound %d, film debug %s)",
+                this.frameFogStart, this.frameFogEnd,
+                this.loggedFogNeutralised ? "neutralised" : "kept",
+                ShoreScan.MAX_QUAD_DISTANCE,
+                this.config.shoreWaveOptions.shoreFilmDebugColor ? "ON rgb=FF00FF" : "off"));
         event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
                 "Shore: q %d (f%d s%d c%d x%d) foam %d runs %d p %.2f %.1f/%.1fms%s",
                 this.quads.count,

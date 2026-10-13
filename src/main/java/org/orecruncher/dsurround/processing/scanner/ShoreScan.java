@@ -154,6 +154,19 @@ public final class ShoreScan {
     public static final int FOAM_RGB = 0xFFFFFF;
 
     /**
+     * The colour {@code shoreFilmDebugColor} forces on the film - magenta, the
+     * same one {@link #buildDebug} paints its blocks with, and for the same
+     * reason: nothing in the world is that colour, so one glance separates "the
+     * colour is wrong" from "the colour never arrived".
+     *
+     * <p>The film is the only layer whose colour is not in its texture (its
+     * 16x16 sheet is pure white), so it is the only layer where "is the vertex
+     * colour even in effect" is a real question. Answering it with a tint that
+     * still looks like water cannot work; answering it with magenta can.</p>
+     */
+    public static final int FILM_DEBUG_RGB = 0xFF00FF;
+
+    /**
      * What vanilla's water texture does to the biome tint before the surface
      * reaches the screen - and therefore what the film lying on that water has
      * to do as well.
@@ -597,6 +610,20 @@ public final class ShoreScan {
      * snapshot, so it is cheap enough to run every tick.
      */
     public static void build(final Grid g, final float p, final Level level, final Quads out) {
+        build(g, p, level, out, false);
+    }
+
+    /**
+     * As {@link #build(Grid, float, Level, Quads)}, with the film's vertex colour
+     * optionally forced to {@link #FILM_DEBUG_RGB}.
+     *
+     * <p>The flag reaches only {@link #emitFilmRect}: the geometry, the height and
+     * the alpha of every quad are untouched, so the debug picture still shows the
+     * film's real shape and its real fade. That is deliberate - a switch that
+     * changed the geometry too could not answer which of the two was wrong.</p>
+     */
+    public static void build(final Grid g, final float p, final Level level, final Quads out,
+                             final boolean filmDebugColor) {
         out.clear();
         Arrays.fill(g.filled, (byte) 0);
         Arrays.fill(g.cov, 0F);
@@ -711,7 +738,7 @@ public final class ShoreScan {
         }
 
         // ---- emit: the water film first (it lies under the foam) ----
-        emitFilm(g, level, out);
+        emitFilm(g, level, out, filmDebugColor);
         for (int gz = 0; gz < size; gz++) {
             for (int gx = 0; gx < size; gx++) {
                 final int gi = gz * size + gx;
@@ -1000,7 +1027,8 @@ public final class ShoreScan {
      * colour, so a swamp shore films brown and a frozen one pale without any
      * per-biome table here.
      */
-    private static void emitFilm(final Grid g, final Level level, final Quads out) {
+    private static void emitFilm(final Grid g, final Level level, final Quads out,
+                                 final boolean filmDebugColor) {
         final int size = g.size;
         // Cells the front is still crossing: they belong to no rectangle (a
         // greedy merge would lose their fraction, and with it the fade), so they
@@ -1013,7 +1041,7 @@ public final class ShoreScan {
                     continue;
                 g.used[gi] = 1;
                 if (g.inRenderArea(g.ox + gx, g.oz + gz))
-                    emitFilmRect(g, level, gx, gz, 1, 1, out);
+                    emitFilmRect(g, level, gx, gz, 1, 1, out, filmDebugColor);
             }
         }
 
@@ -1040,14 +1068,14 @@ public final class ShoreScan {
                 for (int dz = 0; dz < h; dz++)
                     for (int dx = 0; dx < w; dx++)
                         g.used[(gz + dz) * size + gx + dx] = 1;
-                emitFilmRect(g, level, gx, gz, w, h, out);
+                emitFilmRect(g, level, gx, gz, w, h, out, filmDebugColor);
             }
         }
     }
 
     private static void emitFilmRect(final Grid g, final Level level,
                                      final int gx, final int gz, final int w, final int h,
-                                     final Quads out) {
+                                     final Quads out, final boolean filmDebugColor) {
         int alpha = 255;
         for (int dz = 0; dz < h; dz++)
             for (int dx = 0; dx < w; dx++)
@@ -1079,8 +1107,13 @@ public final class ShoreScan {
                 // #3F76E4). The biome water colour scaled exactly as vanilla's
                 // water texture scales it, so the film and the sea are the same
                 // paint at the same alpha.
-                q.rgb = scaleRgb(BiomeColors.getAverageWaterColor(level,
-                        CURSOR.set(cx, g.waterTop + 1, cz)) & 0xFFFFFF, WATER_TINT_SCALE);
+                // shoreFilmDebugColor replaces the paint, not the shape: a
+                // magenta film that still fades along the front says the vertex
+                // colour arrived and only its value is in question.
+                q.rgb = filmDebugColor
+                        ? FILM_DEBUG_RGB
+                        : scaleRgb(BiomeColors.getAverageWaterColor(level,
+                                CURSOR.set(cx, g.waterTop + 1, cz)) & 0xFFFFFF, WATER_TINT_SCALE);
                 q.alpha = (int) (alpha * FILM_ALPHA);
                 // UV density, design gauge: 16x16 sheet, one texel = 1/16 block,
                 // so a rect of w blocks spans w in u. The sheet is a single

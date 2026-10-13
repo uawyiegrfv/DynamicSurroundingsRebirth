@@ -117,6 +117,10 @@ public class Handlers {
         // Snow settled on plants, on the precipitation-event clock.
         ContainerManager.resolve(FoliageSnowHandler.class);
 
+        // Surf running up ocean shorelines - ticks the shore scan, draws on the
+        // translucent level stage.
+        this.register(ShoreWaveHandler.class);
+
         this.register(AreaBlockEffects.class); // drives RandomBlockEffectSystem which populates the BlockInfo cache (reflectance/occlusion) used by reverb
         this.register(StepAccentGenerator.class);
         this.register(FogHandler.class);
@@ -262,6 +266,7 @@ public class Handlers {
             .registerSingleton(FoliageRainDripHandler.class)
             .registerSingleton(FoliageDewHandler.class)
             .registerSingleton(FoliageSnowHandler.class)
+            .registerSingleton(ShoreWaveHandler.class)
             .registerSingleton(AreaBlockEffects.class)
             .registerSingleton(FootstepAccents.class)
             .registerSingleton(StepAccentGenerator.class)

@@ -71,6 +71,10 @@ public class Configuration extends ConfigurationData {
     public final AuroraOptions auroraOptions = new AuroraOptions();
 
     @Property
+    @Comment("Configuration options for the surf band along ocean shorelines")
+    public final ShoreWaveOptions shoreWaveOptions = new ShoreWaveOptions();
+
+    @Property
     @Comment("Configuration options for other things")
     public final OtherOptions otherOptions = new OtherOptions();
 
@@ -745,6 +749,25 @@ public class Configuration extends ConfigurationData {
         @Property
         @Comment("Enable/disable aurora processing and rendering")
         public boolean enableAurora = true;
+    }
+
+    public static class ShoreWaveOptions {
+        @Property
+        @Comment("Enable/disable the surf band that washes up and down along ocean shorelines")
+        public boolean enableShoreWaves = true;
+
+        @Property
+        @IntegerRange(min = 40, max = 400)
+        @Comment("Ticks for one wave to run up the beach and fall back (20 ticks = 1 second)")
+        public int wavePeriodTicks = 90;
+
+        @Property
+        @Comment("Write surf scan/render detail to the log (terrain tally, quad counts, world vs camera-space sample). Turn off once it looks right")
+        public boolean debugLogging = true;
+
+        @Property
+        @Comment("TROUBLESHOOTING ONLY: draw one opaque magenta block per surf cell, a full block wide, floating half a block up. If the magenta sits on the shoreline the geometry and transform are correct and only the band's width/opacity need work; if it is anywhere else, the fault is upstream. Turn off for normal play")
+        public boolean debugSolidBlocks = false;
     }
 
     public static class SpeechBubbles {

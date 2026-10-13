@@ -118,6 +118,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     private int lastFoamCells = 0;
     private float lastProgress = 0F;
 
+    private boolean filterPinned = false;
     private boolean broken = false;
     private int failures = 0;
     private long framesSeen = 0L;
@@ -610,6 +611,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             RenderSystem.depthMask(Minecraft.useShaderTransparency());
             RenderSystem.disableCull();
             RenderSystem.setShader(GameRenderer::getParticleShader);
+            pinPixelFilter();
             mc.gameRenderer.lightTexture().turnOnLightLayer();
             final Vec3 cam = event.getCamera().getPosition();
             logInheritedMatrix(event.getCamera(), cam);
@@ -798,6 +800,34 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     protected void gatherDiagnostics(final CollectDiagnosticsEvent event) {
         if (!this.config.shoreWaveOptions.enableShoreWaves)
             return;
+        // The one line that answers "is the surf pale because the texture is
+        // being minified, because the film and the foam have collapsed into one
+        // another, or because the film is drawn with the wrong paint" without
+        // another round in game. Every value is read off the quads the pass will
+        // actually draw and the grid it actually built - none is recomputed from
+        // a second copy of the rules.
+        //
+        //   foam uv density  texels of texture per block of foam line. The design
+        //                    gauge is 16 (one texel = 1/16 block). Anything much
+        //                    below that is minification, which is what feeds the
+        //                    sampler a deep mip and turns the band into a smear.
+        //   film alpha p50   median film vertex alpha, 0..255. The film's own
+        //                    opacity is FILM_ALPHA x this.
+        //   foam alpha p50   median foam vertex alpha. White foam at alpha 100
+        //                    over a film that is itself pale is one flat field;
+        //                    this is the number that says so.
+        //   order            draw order and the two lifts, verbatim.
+        if (this.grid != null) {
+            final double foamDensity = this.grid.lineBlocks <= 0F
+                    ? 0D : this.grid.lineTexels / this.grid.lineBlocks;
+            final double filmDensity = this.grid.filmBlocks <= 0F
+                    ? 0D : this.grid.filmTexels / this.grid.filmBlocks;
+            event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
+                    "Shore foam uv density=%.1f texel/block | film alpha p50=%d | foam alpha p50=%d"
+                            + " | order=%s | film uv density=%.1f texel/block (%d quads)",
+                    foamDensity, medianAlpha(ShoreScan.TEX_FILM, true), medianAlpha(ShoreScan.TEX_FILM, false),
+                    ShoreScan.DRAW_ORDER, filmDensity, this.quads.count));
+        }
         event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
                 "Shore: q %d (f%d s%d c%d x%d) foam %d runs %d p %.2f %.1f/%.1fms%s",
                 this.quads.count,
@@ -808,5 +838,55 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 this.lastFoamCells, this.lastRunCells, this.lastProgress,
                 this.lastScanNanos / 1_000_000D, this.lastBuildNanos / 1_000_000D,
                 this.broken ? " BROKEN" : ""));
+    }
+
+    /**
+     * Median vertex alpha of one side of the pass, 0 when that side is empty.
+     *
+     * @param film true selects the film ({@link ShoreScan#TEX_FILM}), false the
+     *             whole foam line - strip, caps and corner tiles.
+     */
+    private int medianAlpha(final int filmSlot, final boolean film) {
+        final int n = this.quads.count;
+        if (n == 0)
+            return 0;
+        final int[] sorted = new int[n];
+        int k = 0;
+        for (int i = 0; i < n; i++) {
+            final ShoreScan.ShoreQuad q = this.quads.items[i];
+            if ((q.tex == filmSlot) == film)
+                sorted[k++] = q.alpha;
+        }
+        if (k == 0)
+            return 0;
+        java.util.Arrays.sort(sorted, 0, k);
+        return sorted[k / 2];
+    }
+
+    /**
+     * Pins the eleven surf textures to NEAREST/NEAREST with no mip chain, once.
+     *
+     * <p>This is what {@code SimpleTexture} already gives them -
+     * {@code load} calls {@code TextureUtil.prepareImage(id, 0, w, h)}, which
+     * sets {@code GL_TEXTURE_MAX_LEVEL} to 0, and {@code AbstractTexture}
+     * defaults {@code blur} and {@code mipmap} to false - so today it changes
+     * nothing. It is here because that is the whole reason the band reads as
+     * pixel art rather than as a smear, it is invisible in every other number
+     * the pass logs, and one line in a loader is all it would take to lose it.
+     * Written down, it is a policy; assumed, it is a coincidence.</p>
+     */
+    private void pinPixelFilter() {
+        if (this.filterPinned)
+            return;
+        this.filterPinned = true;
+        final net.minecraft.client.renderer.texture.TextureManager manager =
+                Minecraft.getInstance().getTextureManager();
+        for (final ResourceLocation location : TEXTURES) {
+            try {
+                manager.getTexture(location).setFilter(false, false);
+            } catch (final Throwable t) {
+                this.logger.warn("[ShoreWave] could not pin the filter on %s: %s", location, t);
+            }
+        }
     }
 }

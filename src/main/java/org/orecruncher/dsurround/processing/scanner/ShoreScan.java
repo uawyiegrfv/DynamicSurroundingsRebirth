@@ -154,6 +154,57 @@ public final class ShoreScan {
     public static final int FOAM_RGB = 0xFFFFFF;
 
     /**
+     * What vanilla's water texture does to the biome tint before the surface
+     * reaches the screen - and therefore what the film lying on that water has
+     * to do as well.
+     *
+     * <p>This is measured off {@code assets/minecraft/textures/block/water_still.png}
+     * itself, not read out of a sentence: <b>every texel of every frame is alpha
+     * 180</b>, and frame 0's RGB mean is <b>177</b>. Vanilla draws the sea as
+     * {@code water_still * tint * lightmap} - {@code FluidRenderer} writes vertex
+     * alpha 1.0 and lets the texture's own alpha through - so the surface the
+     * player actually sees is {@code tint * 177/255}:
+     * {@code #3F76E4 * 177/255 = #2C529E}, at alpha 180/255.</p>
+     *
+     * <p>The film used to be drawn with the raw tint at alpha 0.70, so it was
+     * {@code 255/177 = 1.44x} brighter than the water beside it at the same
+     * alpha. That is the whole of the reported "washed out, and nothing like the
+     * sea it sits on": not a shading accident, a missing factor. Multiplying by
+     * this constant is the fix; it is not a taste knob.</p>
+     */
+    public static final float WATER_TINT_SCALE = 177F / 255F;
+
+    /**
+     * Texture gauges, in texels. These must match the PNGs; they exist so the
+     * diagnostics can report the UV density the pass actually produced instead
+     * of the density somebody hoped for. {@code _foam_strip.py} emits 64x16 for
+     * the 4-block strip tile, 4x16 for the caps and 16x16 for the corners and
+     * the film.
+     */
+    public static final int STRIP_TEX_WIDTH = 64;
+    public static final int CAP_TEX_WIDTH = 4;
+    public static final int CORNER_TEX_WIDTH = 16;
+    public static final int FILM_TEX_WIDTH = 16;
+
+    /**
+     * The lift and the slot order together are what keeps the foam on top of the
+     * film. Slots are drawn ascending ({@code TEX_FILM} = 0 first), and the foam
+     * rides 14 mm above the film, so neither the order nor the depth test can
+     * put the film over the crest. Reported verbatim in the diagnostics line so
+     * a future reorder cannot be silent.
+     */
+    public static final String DRAW_ORDER =
+            "film(0)->strip(1)->cap(2)->corner(3..10), lift 12mm<26mm";
+
+    /** Multiplies the channels of an 0xRRGGBB colour by {@code f}, clamped. */
+    private static int scaleRgb(final int rgb, final float f) {
+        final int r = Math.min(255, (int) ((rgb >> 16 & 0xFF) * f));
+        final int g = Math.min(255, (int) ((rgb >> 8 & 0xFF) * f));
+        final int b = Math.min(255, (int) ((rgb & 0xFF) * f));
+        return r << 16 | g << 8 | b;
+    }
+
+    /**
      * Lift above the surface, in blocks. Measured against the depth precision of
      * a 24-bit buffer at 60 blocks (~4 mm): 0.003 z-fought at the far end of the
      * water, so the film rides 12 mm and the foam 26 mm - the foam is drawn on
@@ -245,6 +296,17 @@ public final class ShoreScan {
         public int highCells = 0;
         public int unknownCells = 0;
         public int runsDroppedByBiome = 0;
+        /**
+         * UV density tally: texels of texture laid along the foam line, against
+         * the blocks of foam line they were laid along. Read off the quads the
+         * emitters actually produced, so the diagnostics line cannot disagree
+         * with the geometry - see {@link #STRIP_TEX_WIDTH}.
+         */
+        public float lineTexels = 0F;
+        public float lineBlocks = 0F;
+        /** Same tally for the film, which is a merged rectangle rather than a line. */
+        public float filmTexels = 0F;
+        public float filmBlocks = 0F;
         /** Quad tally from the last build, split by type. */
         public int stripQuads = 0;
         public int capQuads = 0;
@@ -503,6 +565,10 @@ public final class ShoreScan {
         Arrays.fill(g.used, (byte) 0);
         g.foamCells = 0;
         g.filmQuads = 0;
+        g.lineTexels = 0F;
+        g.lineBlocks = 0F;
+        g.filmTexels = 0F;
+        g.filmBlocks = 0F;
 
         // ---- run-up, the three gates, and the wet sand they produce ----
         for (final Run r : g.runs) {
@@ -751,6 +817,8 @@ public final class ShoreScan {
                 final float u1 = u0 + chunk * 0.25F;
                 final float a0 = offset - 0.5F;
                 final float a1 = offset + chunk - 0.5F;
+                g.lineTexels += (u1 - u0) * STRIP_TEX_WIDTH;
+                g.lineBlocks += chunk;
                 final ShoreQuad body = out.next();
                 body.tex = TEX_STRIP;
                 body.y = y;
@@ -771,13 +839,21 @@ public final class ShoreScan {
         // layers of foam on one cell.
         if (!isDrawnStraight(g, gx - ux, gz - uz, li)) {
             final int alpha = frontAlpha(g, gx, gz);
-            if (alpha > 0)
+            if (alpha > 0) {
                 emitCap(ax, az, ux, uz, lx, lz, -0.75F, -0.5F, 0F, 1F, y(g, gx, gz), light, alpha, out);
+                // A cap lays the whole 4-texel tile across a quarter block, which
+                // is the same 16 texels per block the body uses.
+                g.lineTexels += CAP_TEX_WIDTH;
+                g.lineBlocks += 0.25F;
+            }
         }
         if (!isDrawnStraight(g, gx + len * ux, gz + len * uz, li)) {
             final int alpha = frontAlpha(g, gx + (len - 1) * ux, gz + (len - 1) * uz);
-            if (alpha > 0)
+            if (alpha > 0) {
                 emitCap(ax, az, ux, uz, lx, lz, len - 0.5F, len - 0.25F, 1F, 0F, y(g, gx, gz), light, alpha, out);
+                g.lineTexels += CAP_TEX_WIDTH;
+                g.lineBlocks += 0.25F;
+            }
         }
     }
 
@@ -854,22 +930,37 @@ public final class ShoreScan {
         // The film is the mirror of the foam: its 16x16 texture is pure white, so
         // the colour has to come from here - the local biome water colour
         // (ocean / deep_ocean / beach / stony_shore are all #3F76E4).
-        q.rgb = BiomeColors.getAverageWaterColor(level, CURSOR.set(cx, g.waterTop + 1, cz)) & 0xFFFFFF;
+        // The biome water colour scaled exactly as vanilla's water texture scales
+        // it, so the film and the sea are the same paint at the same alpha.
+        q.rgb = scaleRgb(BiomeColors.getAverageWaterColor(level, CURSOR.set(cx, g.waterTop + 1, cz)) & 0xFFFFFF,
+                WATER_TINT_SCALE);
         q.alpha = (int) (alpha * FILM_ALPHA);
-        g.filmQuads++;        q.wx[0] = x;         q.wz[0] = z;         q.u[0] = 0F; q.v[0] = 0F;
-        q.wx[1] = x + w;     q.wz[1] = z;         q.u[1] = 1F; q.v[1] = 0F;
-        q.wx[2] = x + w;     q.wz[2] = z + h;     q.u[2] = 1F; q.v[2] = 1F;
-        q.wx[3] = x;         q.wz[3] = z + h;     q.u[3] = 0F; q.v[3] = 1F;
+        // UV density, design gauge: 16x16 sheet, one texel = 1/16 block, so a
+        // rect of w blocks spans w in u. The sheet is a single colour today, so
+        // this cannot change a pixel - it is here so the density is right by
+        // construction if the film ever gains grain, instead of silently
+        // collapsing to 16/w texels per block on the large merged rectangles.
+        g.filmTexels += (float) (w + h) * FILM_TEX_WIDTH * 0.5F;
+        g.filmBlocks += w + h;
+        g.filmQuads++;        q.wx[0] = x;         q.wz[0] = z;         q.u[0] = 0F;    q.v[0] = 0F;
+        q.wx[1] = x + w;     q.wz[1] = z;         q.u[1] = w;     q.v[1] = 0F;
+        q.wx[2] = x + w;     q.wz[2] = z + h;     q.u[2] = w;     q.v[2] = h;
+        q.wx[3] = x;         q.wz[3] = z + h;     q.u[3] = 0F;    q.v[3] = h;
     }
 
-    /** Opacity of the flood film, 0..1 - a thin sheet, not a pool. */
     /**
-     * The film is water lying on wet sand, so it has to read as a film and not
-     * as blue paint - but at 0.59 over sand it was close enough to the sand's
-     * own colour that the whole layer went unnoticed, which was reported as
-     * "the water film is missing entirely".
+     * Opacity of the flood film, 0..1.
+     *
+     * <p><b>180/255 is not a taste knob either.</b> It is the alpha vanilla's
+     * water texture carries, so a film drawn at this alpha over a background is
+     * <em>bit-identical</em> to the water surface drawn over the same
+     * background: same paint ({@link #WATER_TINT_SCALE}), same alpha. Raise it
+     * and the wet sand the film is supposed to be lying on stops showing
+     * through; lower it and the film stops matching the sea it runs into.
+     * The 0.70 this replaced happened to sit within 0.6% of the right number -
+     * the colour was the whole defect.</p>
      */
-    private static final float FILM_ALPHA = 0.70F;
+    private static final float FILM_ALPHA = 180F / 255F;
 
     /**
      * Alpha for a cell: 0 in the unstable margin ring, fading in over
@@ -936,6 +1027,11 @@ public final class ShoreScan {
         // picking one, so neither arm jumps at the joint.
         final int w = (WAVE[Math.floorMod(x, 64)] + WAVE[Math.floorMod(z, 64)] + 1) >> 1;
         final int slot = (convex ? TEX_CONVEX : TEX_CONCAVE) + (w < 0 ? 0 : w > 3 ? 3 : w);
+
+        // One 16x16 tile across one cell: the same 16 texels per block again,
+        // which is why the corner tiles read at the same grain as the strip.
+        g.lineTexels += CORNER_TEX_WIDTH;
+        g.lineBlocks += 1F;
 
         final ShoreQuad q = out.next();
         q.tex = slot;

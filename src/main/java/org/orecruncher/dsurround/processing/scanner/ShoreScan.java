@@ -131,6 +131,29 @@ public final class ShoreScan {
     public static final int TEX_COUNT = 11;
 
     /**
+     * Vertex colour for every foam quad: the identity, and it has to stay that
+     * way.
+     *
+     * <p>The three colours are <em>in the texture</em>, not in the vertex
+     * stream: {@code shore_foam_strip.png} carries 白 {@code #FFFFFF} /
+     * 浅蓝 {@code #95B4F0} / 深蓝 {@code #2C529E} (192/128/256 texels), and
+     * those are the art spec's screen colours - 深蓝 is the <em>measured</em>
+     * on-screen water colour, {@code #3F76E4} x 177/255, i.e. the biome tint
+     * is already baked in. Multiplying that by the water colour a second time
+     * gives {@code #3F76E4/#2453D6/#0A258D}: the white crest becomes exactly
+     * the water colour (invisible over water) and the whole band turns dark
+     * blue. So the identity is not a default that nobody got round to - it is
+     * the only vertex colour that reproduces the approved three-layer art.</p>
+     *
+     * <p>{@code 16x16} film is the mirror case: pure white with the colour
+     * entirely from the vertex ({@link #emitFilmRect} writes the biome water
+     * colour there). Foam white, film water colour - that asymmetry is the
+     * design, recorded in {@code SHORE-WAVE-SPEC.md} §1 and in the offline
+     * twin's {@code LAYERS}.</p>
+     */
+    public static final int FOAM_RGB = 0xFFFFFF;
+
+    /**
      * Lift above the surface, in blocks. Measured against the depth precision of
      * a 24-bit buffer at 60 blocks (~4 mm): 0.003 z-fought at the far end of the
      * water, so the film rides 12 mm and the foam 26 mm - the foam is drawn on
@@ -421,9 +444,14 @@ public final class ShoreScan {
         public int tex;
         public float y;
         public int light;
-        /** Vertex colour, 0xRRGGBB - white for foam, the biome water colour for film. */
-        public int rgb = 0xFFFFFF;
-        /** Vertex alpha, 0..255: the window-edge fade. */
+        /**
+         * Vertex colour, 0xRRGGBB. Every emission site states its own -
+         * {@link #FOAM_RGB} for the foam, the biome water colour for the film,
+         * magenta for {@link #buildDebug} - so a recycled slot can never hand
+         * one quad another's colour.
+         */
+        public int rgb = FOAM_RGB;
+        /** Vertex alpha, 0..255: the window-edge fade, also stated per emitter. */
         public int alpha = 255;
         public final float[] wx = new float[4];
         public final float[] wz = new float[4];
@@ -448,10 +476,14 @@ public final class ShoreScan {
                 q = new ShoreQuad();
                 this.items[this.count] = q;
             }
-            // Slots are reused across builds, and only the film sets rgb - leaving
-            // the last film's water colour on a slot would recolour a foam quad.
-            q.rgb = 0xFFFFFF;
-            q.alpha = 255;
+            // No colour/alpha reset here on purpose. The pool is shared, so a
+            // reset would silently become the foam's colour - and it is not the
+            // foam's colour to state: every emitter sets both fields on the quad
+            // it takes (foam FOAM_RGB, film the biome water colour, debug
+            // magenta), which is the only way a slot can never recolour a quad.
+            // Do not "restore" a white reset here: with 0xFFFFFF being the
+            // identity the on-screen result is identical, so a reset buys
+            // nothing and hides which emitter owns the colour.
             this.count++;
             return q;
         }
@@ -723,6 +755,7 @@ public final class ShoreScan {
                 body.tex = TEX_STRIP;
                 body.y = y;
                 body.light = light;
+                body.rgb = FOAM_RGB;
                 body.alpha = alpha;
                 put(body, 0, ax, az, ux, uz, lx, lz, a0, 0F, u0);
                 put(body, 1, ax, az, ux, uz, lx, lz, a1, 0F, u1);
@@ -818,6 +851,9 @@ public final class ShoreScan {
         // Every filled cell is beach, so one height covers the rect.
         q.y = surfaceBase(g, gx, gz) + FILM_LIFT;
         q.light = lightAt(level, g, cx, cz);
+        // The film is the mirror of the foam: its 16x16 texture is pure white, so
+        // the colour has to come from here - the local biome water colour
+        // (ocean / deep_ocean / beach / stony_shore are all #3F76E4).
         q.rgb = BiomeColors.getAverageWaterColor(level, CURSOR.set(cx, g.waterTop + 1, cz)) & 0xFFFFFF;
         q.alpha = (int) (alpha * FILM_ALPHA);
         g.filmQuads++;        q.wx[0] = x;         q.wz[0] = z;         q.u[0] = 0F; q.v[0] = 0F;
@@ -884,6 +920,7 @@ public final class ShoreScan {
         q.tex = TEX_CAP;
         q.y = y;
         q.light = light;
+        q.rgb = FOAM_RGB;
         q.alpha = alpha;
         put(q, 0, ax, az, ux, uz, lx, lz, a0, 0F, uAtA0);
         put(q, 1, ax, az, ux, uz, lx, lz, a1, 0F, uAtA1);
@@ -904,6 +941,7 @@ public final class ShoreScan {
         q.tex = slot;
         q.y = surfaceBase(g, gx, gz) + FOAM_LIFT;
         q.light = lightAt(level, g, x, z);
+        q.rgb = FOAM_RGB;
         q.alpha = frontAlpha(g, gx, gz);
 
         // Cell corners: 0 NW, 1 NE, 2 SE, 3 SW. The tile's land sits at its own

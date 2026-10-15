@@ -1787,11 +1787,27 @@ public final class ShoreScan {
         // outer corner of the turn uncovered - the "there's a gap where the vertical
         // meets" report. Both ends move by the same half width, so the joint's length is
         // unchanged; it just sits where the ribbon actually is.
+        // A band is a ribbon of width BAND_WIDTH swept along the shore. Where two bands
+        // step sideways, the RIBBON's centre line steps with them - and a ribbon that
+        // steps sideways has to travel the step DIAGONALLY, not as a flat horizontal
+        // piece: a flat piece's own cross-section runs the wrong way, which is why the
+        // gradient never met the bands' ends and the two hard cuts showed as notches
+        // (the maintainer circled exactly those).
+        //
+        // So the joint is the same ribbon, sheared: its start cross-section IS band A's
+        // cross-section, its end cross-section IS band B's, each taken half a width back
+        // from the centre line (the bands draw one-sided: baseline -> baseline + width)
+        // and pushed half a width along the shore so the two meet with something to blend
+        // through. u/v then run exactly as they do on a band - v across, u along - and no
+        // corner art is needed to hide anything.
         final float half = BAND_WIDTH * 0.5F;
-        final float ex0 = jx0 + (d0 + half) * b0.dx;
-        final float ez0 = jz0 + (d0 + half) * b0.dz;
-        final float ex1 = jx1 + (d1 + half) * b1.dx;
-        final float ez1 = jz1 + (d1 + half) * b1.dz;
+        final float run = BAND_WIDTH * 0.5F;
+        final float px = -cz;
+        final float pz = cx;
+        final float aOx = jx0 + d0 * b0.dx - half * b0.dx - px * run;
+        final float aOz = jz0 + d0 * b0.dz - half * b0.dz - pz * run;
+        final float bOx = jx1 + d1 * b1.dx - half * b1.dx + px * run;
+        final float bOz = jz1 + d1 * b1.dz - half * b1.dz + pz * run;
         final int gx0 = b0.x0 - g.ox + (d0 >= 1F ? b0.dx : 0);
         final int gz0 = b0.z0 - g.oz + (d0 >= 1F ? b0.dz : 0);
         final int gx1 = b1.x0 - g.ox + (d1 >= 1F ? b1.dx : 0);
@@ -1810,20 +1826,17 @@ public final class ShoreScan {
             g.jointInts[o6 + 5] = jz0;
             g.jointInts[o6 + 6] = jx1;
             g.jointInts[o6 + 7] = jz1;
-            g.jointFloats[o4] = ex0;
-            g.jointFloats[o4 + 1] = ez0;
-            g.jointFloats[o4 + 2] = ex1;
-            g.jointFloats[o4 + 3] = ez1;
+            g.jointFloats[o4] = aOx;
+            g.jointFloats[o4 + 1] = aOz;
+            g.jointFloats[o4 + 2] = bOx;
+            g.jointFloats[o4 + 3] = bOz;
             g.jointSampleCount++;
         }
-        if (y0 == y1) {
-            emitConnectorQuad(g, level, out, ex0, ez0, ex1, ez1, ix, iz, y0, gx0, gz0);
-        } else {
-            final float mx = (ex0 + ex1) * 0.5F;
-            final float mz = (ez0 + ez1) * 0.5F;
-            emitConnectorQuad(g, level, out, ex0, ez0, mx, mz, ix, iz, y0, gx0, gz0);
-            emitConnectorQuad(g, level, out, mx, mz, ex1, ez1, ix, iz, y1, gx1, gz1);
-        }
+        emitConnectorQuad(g, level, out,
+                aOx, aOz,
+                aOx + BAND_WIDTH * b0.dx, aOz + BAND_WIDTH * b0.dz,
+                bOx + BAND_WIDTH * b1.dx, bOz + BAND_WIDTH * b1.dz,
+                bOx, bOz, y0, gx0, gz0);
     }
 
     /**
@@ -1836,32 +1849,27 @@ public final class ShoreScan {
      */
     private static void emitConnectorQuad(final Grid g, final Level level, final Quads out,
                                           final float x0, final float z0, final float x1, final float z1,
-                                          final int ix, final int iz, final float y,
-                                          final int gx, final int gz) {
+                                          final float x2, final float z2, final float x3, final float z3,
+                                          final float y, final int gx, final int gz) {
         final ShoreQuad q = out.next();
         q.tex = TEX_STRIP;
         q.y = y;
         q.light = lightAt(level, g, gx, gz);
         q.rgb = FOAM_RGB;
         q.alpha = 255;
-        final float seg = (float) Math.hypot(x1 - x0, z1 - z0);
+        // Corners 0/1 are the start cross-section (water side, inland side) and 2/3 the
+        // end one, so v runs ACROSS the ribbon exactly as on a band and u runs along it.
+        // The gradient therefore points the same way at both ends - that is the whole fix.
+        final float seg = (float) Math.hypot(x2 - x0, z2 - z0);
+        final float uu = seg / STRIP_PERIOD - (float) Math.floor(seg / STRIP_PERIOD);
+        q.wx[0] = x0;      q.wz[0] = z0;      q.v[0] = 0.75F;
+        q.wx[1] = x1;      q.wz[1] = z1;      q.v[1] = 0F;
+        q.wx[2] = x2;      q.wz[2] = z2;      q.v[2] = 0F;
+        q.wx[3] = x3;      q.wz[3] = z3;      q.v[3] = 0.75F;
         q.u[0] = 0F;
-        q.u[1] = seg / STRIP_PERIOD - (float) Math.floor(seg / STRIP_PERIOD);
-        q.u[2] = q.u[1];
-        q.u[3] = q.u[0];
-        // The band is one-sided - baseline out to baseline + width - but the joint's
-        // baseline runs BETWEEN two bands, so a one-sided body sits off to one side of
-        // the junction instead of straddling it. Measured on the real simulator: the
-        // joint body came out centred 0.22 blocks off where the two band bodies meet,
-        // always the same way, which is the maintainer's "about a quarter of a block,
-        // always the same direction". Half the band width, and it is exactly what
-        // centring the body on the baseline buys.
-        final float hx = -BAND_WIDTH * 0.5F * ix;
-        final float hz = -BAND_WIDTH * 0.5F * iz;
-        q.wx[0] = x0 + hx;                              q.wz[0] = z0 + hz;                              q.v[0] = 0.75F;
-        q.wx[1] = x1 + hx;                              q.wz[1] = z1 + hz;                              q.v[1] = 0.75F;
-        q.wx[2] = q.wx[1] + BAND_WIDTH * ix;            q.wz[2] = q.wz[1] + BAND_WIDTH * iz;            q.v[2] = 0F;
-        q.wx[3] = q.wx[0] + BAND_WIDTH * ix;            q.wz[3] = q.wz[0] + BAND_WIDTH * iz;            q.v[3] = 0F;
+        q.u[1] = uu;
+        q.u[2] = uu;
+        q.u[3] = 0F;
         g.lineTexels += seg * STRIP_TEX_WIDTH;
         g.lineBlocks += seg;
         g.stripQuads++;

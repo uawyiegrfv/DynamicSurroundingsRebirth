@@ -1594,6 +1594,15 @@ public final class ShoreScan {
         final float bz0 = z0 - runZ;
         final float bx1 = x1 + runX;
         final float bz1 = z1 + runZ;
+        // u must follow the OVERRUN length, not the cell's: the quad is now
+        // (cell + 2 x run) long, and leaving u at the cell length squeezed the whole
+        // strip along its length. The maintainer's "lengthen it AND fit the two ends".
+        final float longSeg = (float) Math.hypot(bx1 - bx0, bz1 - bz0);
+        final float uLong = longSeg / STRIP_PERIOD - (float) Math.floor(longSeg / STRIP_PERIOD);
+        q.u[0] = 0F;
+        q.u[1] = uLong;
+        q.u[2] = uLong;
+        q.u[3] = 0F;
         q.wx[0] = bx0;                     q.wz[0] = bz0;                     q.v[0] = 0.75F;
         q.wx[1] = bx1;                     q.wz[1] = bz1;                     q.v[1] = 0.75F;
         q.wx[2] = bx1 + BAND_WIDTH * ix;   q.wz[2] = bz1 + BAND_WIDTH * iz;   q.v[2] = 0F;

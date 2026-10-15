@@ -1455,7 +1455,20 @@ public final class ShoreScan {
             else
                 alongZ++;
         }
-        g.mainAlongX = alongX >= alongZ;
+        // It used to be whichever way had ONE more edge. The window is centred on the
+        // player, so on a coast that is anywhere near balanced - an L, a spit, a beach
+        // running diagonally - the counts swap as he walks and the whole picture swaps
+        // with them: every band becomes a joint and every joint a band. That is the
+        // "verticals keep appearing and disappearing depending on where I stand and
+        // which way I look". Require a margin before changing direction; near a tie,
+        // keep what we had.
+        if (alongX >= alongZ + MAIN_DIR_MARGIN)
+            g.mainAlongX = true;
+        else if (alongZ >= alongX + MAIN_DIR_MARGIN)
+            g.mainAlongX = false;
+        else
+            g.mainAlongX = lastMainAlongX;
+        lastMainAlongX = g.mainAlongX;
         g.edgeX = alongX;
         g.edgeZ = alongZ;
         g.shuffle = 1; // reached the tail: along flags are assigned
@@ -1599,6 +1612,15 @@ public final class ShoreScan {
 
 
 
+
+    /**
+     * How many more edges one orientation must have before the window's main direction
+     * switches to it. Without it a near-tie flips on every recount - see
+     * {@link #collectShoreEdges}.
+     */
+    private static final int MAIN_DIR_MARGIN = 2;
+    /** The main direction of the previous build, held across builds for stability. */
+    private static boolean lastMainAlongX = true;
 
     /**
      * How far along its own axis a connector will look for the band it joins. Two, not
@@ -1807,10 +1829,19 @@ public final class ShoreScan {
         q.u[1] = seg / STRIP_PERIOD - (float) Math.floor(seg / STRIP_PERIOD);
         q.u[2] = q.u[1];
         q.u[3] = q.u[0];
-        q.wx[0] = x0;                      q.wz[0] = z0;                      q.v[0] = 1F;
-        q.wx[1] = x1;                      q.wz[1] = z1;                      q.v[1] = 1F;
-        q.wx[2] = x1 + BAND_WIDTH * ix;    q.wz[2] = z1 + BAND_WIDTH * iz;    q.v[2] = 0F;
-        q.wx[3] = x0 + BAND_WIDTH * ix;    q.wz[3] = z0 + BAND_WIDTH * iz;    q.v[3] = 0F;
+        // The band is one-sided - baseline out to baseline + width - but the joint's
+        // baseline runs BETWEEN two bands, so a one-sided body sits off to one side of
+        // the junction instead of straddling it. Measured on the real simulator: the
+        // joint body came out centred 0.22 blocks off where the two band bodies meet,
+        // always the same way, which is the maintainer's "about a quarter of a block,
+        // always the same direction". Half the band width, and it is exactly what
+        // centring the body on the baseline buys.
+        final float hx = -BAND_WIDTH * 0.5F * ix;
+        final float hz = -BAND_WIDTH * 0.5F * iz;
+        q.wx[0] = x0 + hx;                              q.wz[0] = z0 + hz;                              q.v[0] = 1F;
+        q.wx[1] = x1 + hx;                              q.wz[1] = z1 + hz;                              q.v[1] = 1F;
+        q.wx[2] = q.wx[1] + BAND_WIDTH * ix;            q.wz[2] = q.wz[1] + BAND_WIDTH * iz;            q.v[2] = 0F;
+        q.wx[3] = q.wx[0] + BAND_WIDTH * ix;            q.wz[3] = q.wz[0] + BAND_WIDTH * iz;            q.v[3] = 0F;
         g.lineTexels += seg * STRIP_TEX_WIDTH;
         g.lineBlocks += seg;
         g.stripQuads++;

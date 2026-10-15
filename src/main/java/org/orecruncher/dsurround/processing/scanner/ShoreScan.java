@@ -195,6 +195,18 @@ public final class ShoreScan {
      * the film.
      */
     public static final int STRIP_TEX_WIDTH = 64;
+
+    /**
+     * Band width in blocks: three layers of 3/4/5 sixteenth-units, 9 units total.
+     * From the art spec - the same number the old per-cell emitters used.
+     */
+    private static final float BAND_WIDTH = 9F / 16F;
+
+    /**
+     * The u unit: the strip tile spans {@link #STRIP_TEX_WIDTH} texels, which is
+     * four blocks at one texel per sixteenth, so one block is a quarter of it.
+     */
+    private static final float STRIP_PERIOD = STRIP_TEX_WIDTH / 16F;
     public static final int CAP_TEX_WIDTH = 4;
     public static final int CORNER_TEX_WIDTH = 16;
     public static final int FILM_TEX_WIDTH = 16;
@@ -338,6 +350,16 @@ public final class ShoreScan {
         final byte[] fdir;
         /** Scratch: which cells the film already covered, so rects cannot overlap. */
         final byte[] used;
+        /** Scratch: the coast as cell edges, each with its own beach depth. */
+        ShoreEdge[] shoreEdges = new ShoreEdge[0];
+        public int shoreEdgeCount;
+        /** True when the window's main direction runs along X. */
+        boolean mainAlongX = true;
+        /** Diagnostics: coast edges by orientation, and the id/shuffle of the build. */
+        public int edgeX, edgeZ;
+        /** Diagnostics: identity of the grid the build actually used, and how many edges it collected. */
+        public int gridId;
+        public int shuffle;
 
         public int runCells = 0;
         public int foamCells = 0;
@@ -624,6 +646,12 @@ public final class ShoreScan {
      */
     public static void build(final Grid g, final float p, final Level level, final Quads out,
                              final boolean filmDebugColor) {
+        build(g, p, level, out, filmDebugColor, true, true);
+    }
+
+    public static void build(final Grid g, final float p, final Level level, final Quads out,
+                             final boolean filmDebugColor, final boolean filmEnabled,
+                             final boolean foldLine) {
         out.clear();
         Arrays.fill(g.filled, (byte) 0);
         Arrays.fill(g.cov, 0F);
@@ -692,6 +720,12 @@ public final class ShoreScan {
         }
 
         // ---- the foam line ----
+        if (foldLine) {
+            collectShoreEdges(g);
+            emitShoreLine(g, level, p, out);
+            tallyQuads(g, out);
+            return;
+        }
         final int size = g.size;
         for (int gz = 0; gz < size; gz++) {
             for (int gx = 0; gx < size; gx++) {
@@ -773,6 +807,7 @@ public final class ShoreScan {
      */
     private static void tallyQuads(final Grid g, final Quads out) {
         g.stripQuads = 0;
+
         g.capQuads = 0;
         g.cornerQuads = 0;
         g.filmQuads = 0;
@@ -1267,6 +1302,414 @@ public final class ShoreScan {
     private static float surfaceBase(final Grid g, final int gx, final int gz) {
         final byte c = g.cls[gz * g.size + gx];
         return c == CLS_SEA ? g.waterTop + 8F / 9F : g.waterTop + 1F;
+    }
+
+    // =====================================================================
+    // The maintainer's design - SPEC §10.1 items 1, 2 and 3
+    // =====================================================================
+    //
+    // ONE direction for the whole window. Whichever way this coast actually runs
+    // is chosen by counting edges; runs parallel to it draw the band; runs across
+    // it connect and NEVER draw a band of their own.
+    //
+    // That last rule is the whole design and it is what the earlier per-cell
+    // version could not honour. Judging each cell's own direction means the two
+    // Runs that start at the same sea cell both emit, so one stretch of coast gets
+    // its band twice and the two copies cross instead of joining - which is the
+    // "everything slanted, the perpendicular ones spawn waves of their own"
+    // report. A single global direction removes the choice, so the two copies
+    // cannot both be along it.
+    //
+    // Depth is per column: how far inland this column's beach runs before it hits
+    // a cell one block higher, times the swell's progress. Neighbouring columns
+    // differ, so the band edge is a staircase. That is the wanted shape - a
+    // staircase is axis-aligned. The thing that read as "slanted" before was a
+    // straight line drawn between two columns of different depth, which is a
+    // different mistake and is not what this does.
+
+    /** One cell edge of the coast: which way it runs, which way is inland, how deep. */
+    private static final class ShoreEdge {
+        final int x0, z0, x1, z1;
+        /** Inland: one of the four DIR vectors. */
+        final int dx, dz;
+        /** Beach depth inland of this edge in blocks - the maintainer's d. */
+        final int depth;
+        /** True when this edge runs along the window's chosen main direction. */
+        boolean along;
+
+        ShoreEdge(final int x0, final int z0, final int x1, final int z1,
+                  final int dx, final int dz, final int depth) {
+            this.x0 = x0;
+            this.z0 = z0;
+            this.x1 = x1;
+            this.z1 = z1;
+            this.dx = dx;
+            this.dz = dz;
+            this.depth = depth;
+        }
+
+        /** True when the edge runs along X. */
+        boolean isX() {
+            return this.z0 == this.z1;
+        }
+
+        long key() {
+            final long a = ((long) x0 << 32) ^ (z0 & 0xFFFFFFFFL);
+            final long b = ((long) x1 << 32) ^ (z1 & 0xFFFFFFFFL);
+            return a < b ? (a * 1000003L + b) : (b * 1000003L + a);
+        }
+    }
+
+    /**
+     * Every coast cell edge, once, each carrying its own beach depth.
+     *
+     * <p>Deduplicated: two Runs meeting at a sea cell describe one edge twice, and
+     * without this the band is drawn twice over the same ground - the overlap is
+     * what reads as a second wave.</p>
+     */
+    private static void collectShoreEdges(final Grid g) {
+        if (g.shoreEdges.length < g.runCells + 8)
+            g.shoreEdges = new ShoreEdge[g.runCells + 8];
+        g.shoreEdgeCount = 0;
+        g.gridId = System.identityHashCode(g);
+        g.shuffle = 0;
+        for (final Run r : g.runs) {
+            for (int i = 0; i < r.len; i++) {
+                final int ax = r.startX + i * r.ux;
+                final int az = r.startZ + i * r.uz;
+                final ShoreEdge e = new ShoreEdge(ax, az, ax + r.ux, az + r.uz,
+                        r.dx, r.dz, r.d[i]);
+                final long k = e.key();
+                boolean seen = false;
+                for (int j = 0; j < g.shoreEdgeCount; j++)
+                    if (g.shoreEdges[j].key() == k) {
+                        seen = true;
+                        break;
+                    }
+                if (seen)
+                    continue;
+                if (g.shoreEdgeCount >= g.shoreEdges.length)
+                    return;
+                g.shoreEdges[g.shoreEdgeCount++] = e;
+            }
+        }
+        // The main direction comes from the coast, not from a constant: whichever
+        // orientation has more edges. Read from the terrain it needs no setting and
+        // it makes connectors the minority by construction - otherwise they would
+        // be the ones drawing bands, which is the thing to avoid.
+        int alongX = 0;
+        int alongZ = 0;
+        for (int i = 0; i < g.shoreEdgeCount; i++) {
+            if (g.shoreEdges[i].isX())
+                alongX++;
+            else
+                alongZ++;
+        }
+        g.mainAlongX = alongX >= alongZ;
+        g.edgeX = alongX;
+        g.edgeZ = alongZ;
+        g.shuffle = 1; // reached the tail: along flags are assigned
+        for (int i = 0; i < g.shoreEdgeCount; i++)
+            g.shoreEdges[i].along = g.shoreEdges[i].isX() == g.mainAlongX;
+    }
+
+    /**
+     * The band, under the maintainer's design.
+     *
+     * <p>Two passes, and the order is the design rather than a detail: every
+     * main-direction edge first, then the cross-direction edges as connectors.
+     * A connector is only ever emitted between two points that main-direction
+     * edges already reached, so it can join a coast but can never start one.</p>
+     */
+    private static void emitShoreLine(final Grid g, final Level level, final float p, final Quads out) {
+        // A coastline with no edges means the collection step did not run, not that
+        // the coast is empty: the scan reports dozens of runs every tick. The first
+        // version of this method read the edge list without collecting it, and the
+        // symptom was "no waves at all" with no error anywhere - the loop simply
+        // had nothing to iterate. Thrown rather than warned because this class has
+        // no logger, and the caller already isolates and reports build failures, so
+        // it reaches the log with a stack instead of vanishing.
+        if (g.shoreEdgeCount == 0)
+            throw new IllegalStateException("[ShoreWave] fold line: 0 coast edges from "
+                    + g.runs.size() + " runs - collection did not run");
+        // Pass 1: the bands - main-direction edges only, each placed by ITS OWN inland
+        // direction and depth. Summing the normals of whatever edges meet at a point was
+        // tried and is unsafe: where the coast is a one-cell spit the normals cancel, the
+        // mitre length 2w/|s| blows up, and the shore becomes a few twisted sheets while
+        // the ordinary bands are dropped by the span audit. Per-edge placement cannot do
+        // that - the offset is always exactly one beach depth in one direction.
+        for (int i = 0; i < g.shoreEdgeCount; i++) {
+            final ShoreEdge e = g.shoreEdges[i];
+            if (!e.along)
+                continue;
+            final float depth = Math.min(e.depth, RUNUP_MAX) * p;
+            if (depth <= 0.001F)
+                continue;
+            emitShoreBand(g, level, out, e, depth);
+        }
+        // Pass 2: a cross-direction edge is never a wave of its own - it may only appear
+        // as a joint between two bands, placed on the bands' own corners so both ends meet.
+        for (int i = 0; i < g.shoreEdgeCount; i++) {
+            final ShoreEdge e = g.shoreEdges[i];
+            if (e.along)
+                continue;
+            emitShoreConnector(g, level, out, e, p);
+        }
+    }
+
+
+
+    /** One band quad: this edge, offset inland from the waterline by the line's own travel. */
+    /** One band quad: this edge, from the coastline inland by {@code depth}. */
+    private static void emitShoreBand(final Grid g, final Level level, final Quads out,
+                               final ShoreEdge e, final float depth) {
+        final int gx = e.x0 - g.ox + (depth >= 1F ? e.dx : 0);
+        final int gz = e.z0 - g.oz + (depth >= 1F ? e.dz : 0);
+        final float x0 = e.x0 + depth * e.dx;
+        final float z0 = e.z0 + depth * e.dz;
+        final float x1 = e.x1 + depth * e.dx;
+        final float z1 = e.z1 + depth * e.dz;
+        emitShoreQuad(g, level, out, x0, z0, x1, z1, e, e.dx, e.dz, gx, gz);
+    }
+
+    /**
+     * One strip quad. The inland direction is forced perpendicular to the baseline: an
+     * edge whose carried inland vector runs parallel to its own baseline builds a
+     * zero-area quad - submitted, counted everywhere, invisible.
+     */
+    private static void emitShoreQuad(final Grid g, final Level level, final Quads out,
+                               final float x0, final float z0, final float x1, final float z1,
+                               final ShoreEdge e, final int inlandX, final int inlandZ,
+                               final int gx, final int gz) {
+        final ShoreQuad q = out.next();
+        q.tex = TEX_STRIP;
+        q.y = surfaceBase(g, gx, gz) + FOAM_LIFT;
+        q.light = lightAt(level, g, gx, gz);
+        q.rgb = FOAM_RGB;
+        q.alpha = 255;
+        final float seg = (float) Math.hypot(x1 - x0, z1 - z0);
+        // Each quad shows the same slice of the tile (u 0..len/PERIOD). Mapping u from the
+        // world position instead made every quad sample a different part of a tile that has
+        // transparent cells by design, and the line came out as scattered dashes.
+        q.u[0] = 0F;
+        q.u[1] = seg / STRIP_PERIOD - (float) Math.floor(seg / STRIP_PERIOD);
+        q.u[2] = q.u[1];
+        q.u[3] = q.u[0];
+        final int ix = inlandPerp(x0, z0, x1, z1, inlandX, inlandZ) ? INLAND[0] : inlandX;
+        final int iz = inlandPerp(x0, z0, x1, z1, inlandX, inlandZ) ? INLAND[1] : inlandZ;
+        q.wx[0] = x0;                      q.wz[0] = z0;                      q.v[0] = 1F;
+        q.wx[1] = x1;                      q.wz[1] = z1;                      q.v[1] = 1F;
+        q.wx[2] = x1 + BAND_WIDTH * ix;    q.wz[2] = z1 + BAND_WIDTH * iz;    q.v[2] = 0F;
+        q.wx[3] = x0 + BAND_WIDTH * ix;    q.wz[3] = z0 + BAND_WIDTH * iz;    q.v[3] = 0F;
+        g.lineTexels += seg * STRIP_TEX_WIDTH;
+        g.lineBlocks += seg;
+        g.stripQuads++;
+    }
+
+
+
+    /** Scratch for {@link #inlandPerp}: {x, z}. Build is single threaded. */
+    private static final int[] INLAND = new int[2];
+
+    /**
+     * The inland direction, forced perpendicular to the baseline.
+     *
+     * @return {@code true} when {x, z} may be read from {@link #INLAND}
+     */
+    private static boolean inlandPerp(final float x0, final float z0, final float x1, final float z1,
+                                      final int inlandX, final int inlandZ) {
+        final int ex = x1 > x0 ? 1 : (x1 < x0 ? -1 : 0);
+        final int ez = z1 > z0 ? 1 : (z1 < z0 ? -1 : 0);
+        if (ex == 0 && ez == 0)
+            return false;
+        if (inlandX * ex + inlandZ * ez != 0) {
+            final int ax = -ez, az = ex;
+            if (ax * inlandX + az * inlandZ >= 0) {
+                INLAND[0] = ax;
+                INLAND[1] = az;
+            } else {
+                INLAND[0] = ez;
+                INLAND[1] = -ex;
+            }
+        } else {
+            INLAND[0] = inlandX;
+            INLAND[1] = inlandZ;
+        }
+        return true;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+    /**
+     * How far along its own axis a connector will look for the band it joins. Two, not
+     * one: on a stepped coast the two lines a joint bridges are often a cell further
+     * apart than the joint itself is long, and at one the search walked past both of
+     * them. Measured on the six synthetic coasts, two raises the joints from 15 to 19
+     * and costs none of the ones one already found.
+     */
+    private static final int CONNECTOR_TOLERANCE = 2;
+
+    /** Scratch for {@link #nearestBandEnd}: the band found, and which corner of it. */
+    private static ShoreEdge jointBand;
+    private static int jointX;
+    private static int jointZ;
+    /** A corner the search must skip: see {@link #nearestBandEnd}. */
+    private static boolean jointSkip;
+    private static int jointSkipX;
+    private static int jointSkipZ;
+
+    /**
+     * The nearest main-direction band corner to {@code (x, z)}, looking along
+     * {@code (ux, uz)} out to {@link #CONNECTOR_TOLERANCE} cells either way. The band
+     * lands in {@link #jointBand} and its corner in {@link #jointX}/{@link #jointZ}.
+     *
+     * <p>Two things here are what make a joint actually appear.</p>
+     *
+     * <p><b>The corner comes back, not just the band.</b> The joint's end has to be
+     * placed ON the band - the two must share that exact point, or the joint leaves a
+     * notch where it should meet. Placing it on the cross edge's own endpoint instead
+     * is only the same thing when the match is exact, which is why the old code looked
+     * right on a staircase and wrong everywhere else.</p>
+     *
+     * <p><b>{@code exclude} keeps the two ends apart.</b> At a one-cell step both ends
+     * of the joint are within tolerance of ONE line, and the old rule - find a band at
+     * each end, then reject the joint if they are the same band - threw those away.
+     * That is the whole of "stepped coasts have no verticals at all": the joint was
+     * there, it was the rejection that removed it. Asking the second end for a DIFFERENT
+     * band gets the step the two lines it is supposed to bridge.</p>
+     */
+    private static boolean nearestBandEnd(final Grid g, final int x, final int z,
+                                          final int ux, final int uz, final ShoreEdge exclude) {
+        for (int k = 0; k <= CONNECTOR_TOLERANCE; k++) {
+            for (int s = -1; s <= 1; s += 2) {
+                if (k == 0 && s < 0)
+                    continue;
+                final int px = x + ux * k * s;
+                final int pz = z + uz * k * s;
+                for (int i = 0; i < g.shoreEdgeCount; i++) {
+                    final ShoreEdge e = g.shoreEdges[i];
+                    if (!e.along || e == exclude)
+                        continue;
+                    // Two bands share a corner wherever the coast has two edges in a
+                    // row - (7,12)-(7,13) and (7,13)-(7,14) both own (7,13). Excluding
+                    // the band is not enough: the second end then finds the OTHER band
+                    // at the SAME corner and the joint comes out zero long, which is a
+                    // quad that is submitted, counted, and invisible. Skip the corner.
+                    if (jointSkip && px == jointSkipX && pz == jointSkipZ)
+                        continue;
+                    if (e.x0 == px && e.z0 == pz) {
+                        jointBand = e;
+                        jointX = e.x0;
+                        jointZ = e.z0;
+                        return true;
+                    }
+                    if (e.x1 == px && e.z1 == pz) {
+                        jointBand = e;
+                        jointX = e.x1;
+                        jointZ = e.z1;
+                        return true;
+                    }
+                }
+            }
+        }
+        jointBand = null;
+        return false;
+    }
+
+    /**
+     * A joint: drawn ONLY where both ends touch a band, so a cross-direction edge can never
+     * become a wave of its own. Each end is placed on ITS OWN band - that band's depth along
+     * that band's inland direction - and the width runs perpendicular to the joint's own
+     * baseline; borrowing the bands' inland direction for the width is what collapsed these
+     * quads to a line (four corners sharing one coordinate: submitted, counted, invisible).
+     */
+    private static void emitShoreConnector(final Grid g, final Level level, final Quads out,
+                                           final ShoreEdge e, final float p) {
+        final int cx = Integer.signum(e.x1 - e.x0);
+        final int cz = Integer.signum(e.z1 - e.z0);
+        jointSkip = false;
+        if (!nearestBandEnd(g, e.x0, e.z0, cx, cz, null))
+            return;
+        final ShoreEdge b0 = jointBand;
+        final int jx0 = jointX;
+        final int jz0 = jointZ;
+        // The other end must land on a DIFFERENT band at a DIFFERENT corner - see
+        // nearestBandEnd. With no second band there is no joint, and a cross-direction
+        // edge must never become a wave of its own.
+        jointSkip = true;
+        jointSkipX = jx0;
+        jointSkipZ = jz0;
+        final boolean found = nearestBandEnd(g, e.x1, e.z1, cx, cz, b0);
+        jointSkip = false;
+        if (!found)
+            return;
+        final ShoreEdge b1 = jointBand;
+        final int jx1 = jointX;
+        final int jz1 = jointZ;
+        // The joint spans the gap between the two lines as they are placed right now:
+        // its ends ARE those lines' positions, so it meets both of them however far apart
+        // the swell has moved them, and its length is whatever that gap happens to be -
+        // not a whole number of tiles. The tile is laid on by arc length, so a fractional
+        // length is simply a fractional piece of the same tile rather than a stretched one.
+        final float d0 = Math.min(b0.depth, RUNUP_MAX) * p;
+        final float d1 = Math.min(b1.depth, RUNUP_MAX) * p;
+        if (d0 <= 0.001F && d1 <= 0.001F)
+            return;
+        int ix = e.dx;
+        int iz = e.dz;
+        if (ix * cx + iz * cz != 0) {
+            final int px = -cz;
+            final int pz = cx;
+            if (px * e.dx + pz * e.dz >= 0) {
+                ix = px;
+                iz = pz;
+            } else {
+                ix = cz;
+                iz = -cx;
+            }
+        }
+        // The ends are the BANDS' corners, not this edge's: the joint then shares a
+        // point with each line and cannot leave a notch, however far the swell has
+        // moved them apart.
+        emitConnectorQuad(g, level, out,
+                jx0 + d0 * b0.dx, jz0 + d0 * b0.dz,
+                jx1 + d1 * b1.dx, jz1 + d1 * b1.dz,
+                ix, iz, e.x0 - g.ox, e.z0 - g.oz);
+    }
+
+    /** The joint quad: baseline between the two bands' corners, width perpendicular to it. */
+    private static void emitConnectorQuad(final Grid g, final Level level, final Quads out,
+                                          final float x0, final float z0, final float x1, final float z1,
+                                          final int ix, final int iz,
+                                          final int gx, final int gz) {
+        final ShoreQuad q = out.next();
+        q.tex = TEX_STRIP;
+        q.y = surfaceBase(g, gx, gz) + FOAM_LIFT;
+        q.light = lightAt(level, g, gx, gz);
+        q.rgb = FOAM_RGB;
+        q.alpha = 255;
+        final float seg = (float) Math.hypot(x1 - x0, z1 - z0);
+        q.u[0] = 0F;
+        q.u[1] = seg / STRIP_PERIOD - (float) Math.floor(seg / STRIP_PERIOD);
+        q.u[2] = q.u[1];
+        q.u[3] = q.u[0];
+        q.wx[0] = x0;                      q.wz[0] = z0;                      q.v[0] = 1F;
+        q.wx[1] = x1;                      q.wz[1] = z1;                      q.v[1] = 1F;
+        q.wx[2] = x1 + BAND_WIDTH * ix;    q.wz[2] = z1 + BAND_WIDTH * iz;    q.v[2] = 0F;
+        q.wx[3] = x0 + BAND_WIDTH * ix;    q.wz[3] = z0 + BAND_WIDTH * iz;    q.v[3] = 0F;
+        g.lineTexels += seg * STRIP_TEX_WIDTH;
+        g.lineBlocks += seg;
+        g.stripQuads++;
     }
 
     /** Foam height: the cell's own surface plus the foam lift. */

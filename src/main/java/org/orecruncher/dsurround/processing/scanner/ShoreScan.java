@@ -1781,10 +1781,17 @@ public final class ShoreScan {
         // two so each half lies on the surface its own end is on.
         final float y0 = bandSurfaceY(g, b0, d0);
         final float y1 = bandSurfaceY(g, b1, d1);
-        final float ex0 = jx0 + d0 * b0.dx;
-        final float ez0 = jz0 + d0 * b0.dz;
-        final float ex1 = jx1 + d1 * b1.dx;
-        final float ez1 = jz1 + d1 * b1.dz;
+        // Half a band width further inland, because a band is drawn from its baseline
+        // OUT to baseline + width: its visible middle is half a width in. A joint that ran
+        // baseline to baseline stopped half a width short on the far side and left the
+        // outer corner of the turn uncovered - the "there's a gap where the vertical
+        // meets" report. Both ends move by the same half width, so the joint's length is
+        // unchanged; it just sits where the ribbon actually is.
+        final float half = BAND_WIDTH * 0.5F;
+        final float ex0 = jx0 + (d0 + half) * b0.dx;
+        final float ez0 = jz0 + (d0 + half) * b0.dz;
+        final float ex1 = jx1 + (d1 + half) * b1.dx;
+        final float ez1 = jz1 + (d1 + half) * b1.dz;
         final int gx0 = b0.x0 - g.ox + (d0 >= 1F ? b0.dx : 0);
         final int gz0 = b0.z0 - g.oz + (d0 >= 1F ? b0.dz : 0);
         final int gx1 = b1.x0 - g.ox + (d1 >= 1F ? b1.dx : 0);

@@ -214,6 +214,16 @@ public final class ShoreScan {
     private static final float BAND_END_RUN = 0.19F;
 
     /**
+     * Round 12: how far the joint's INNER edge is slid along the joint's own length,
+     * turning that rectangle into a sheared parallelogram. The maintainer's words:
+     * "stretch the dark blue at the bottom-left corner and the white at the top-right,
+     * make it a sort of parallelogram" - the gradient then runs diagonally across the
+     * joint instead of dead across it, which is what lets the white of one band meet the
+     * dark of the next without the light blue poking out between them.
+     */
+    private static final float JOINT_SHEAR = 0.45F;
+
+    /**
      * Round 12: was 9/16, which sampled the strip's TRANSPARENT rows. The art is 12
      * opaque rows out of 16 (rows 12-15 are fully clear - measured, see the work
      * record), so a band that mapped its width onto all 16 rows spent a third of itself
@@ -1846,13 +1856,15 @@ public final class ShoreScan {
             g.jointFloats[o4 + 3] = ez1;
             g.jointSampleCount++;
         }
+        final int qx = (int) Math.signum(Math.round(ex1 - ex0));
+        final int qz = (int) Math.signum(Math.round(ez1 - ez0));
         if (y0 == y1) {
-            emitConnectorQuad(g, level, out, ex0, ez0, ex1, ez1, ix, iz, y0, gx0, gz0);
+            emitConnectorQuad(g, level, out, ex0, ez0, ex1, ez1, ix, iz, qx, qz, y0, gx0, gz0);
         } else {
             final float mx = (ex0 + ex1) * 0.5F;
             final float mz = (ez0 + ez1) * 0.5F;
-            emitConnectorQuad(g, level, out, ex0, ez0, mx, mz, ix, iz, y0, gx0, gz0);
-            emitConnectorQuad(g, level, out, mx, mz, ex1, ez1, ix, iz, y1, gx1, gz1);
+            emitConnectorQuad(g, level, out, ex0, ez0, mx, mz, ix, iz, qx, qz, y0, gx0, gz0);
+            emitConnectorQuad(g, level, out, mx, mz, ex1, ez1, ix, iz, qx, qz, y1, gx1, gz1);
         }
     }
 
@@ -1866,7 +1878,8 @@ public final class ShoreScan {
      */
     private static void emitConnectorQuad(final Grid g, final Level level, final Quads out,
                                           final float x0, final float z0, final float x1, final float z1,
-                                          final int ix, final int iz, final float y,
+                                          final int ix, final int iz,
+                                          final int lx, final int lz, final float y,
                                           final int gx, final int gz) {
         final ShoreQuad q = out.next();
         q.tex = TEX_STRIP;
@@ -1888,10 +1901,19 @@ public final class ShoreScan {
         // centring the body on the baseline buys.
         final float hx = -BAND_WIDTH * 0.5F * ix;
         final float hz = -BAND_WIDTH * 0.5F * iz;
+        // Shear: the inland edge slides along the joint's own length (lx, lz), so the
+        // piece is a parallelogram. The gradient still runs seaward->inland across it,
+        // but diagonally with respect to the world, and the white of one band and the
+        // dark of the next meet instead of the light blue showing through between them.
+        // Lean the inland edge TOWARDS the band the ribbon is heading for. (lx, lz) runs
+        // from the second end back to the first, so the shear has to be negated or the
+        // piece leans out over the water instead - which is what the first attempt did.
+        final float shx = -JOINT_SHEAR * lx;
+        final float shz = -JOINT_SHEAR * lz;
         q.wx[0] = x0 + hx;                              q.wz[0] = z0 + hz;                              q.v[0] = 0.75F;
         q.wx[1] = x1 + hx;                              q.wz[1] = z1 + hz;                              q.v[1] = 0.75F;
-        q.wx[2] = q.wx[1] + BAND_WIDTH * ix;            q.wz[2] = q.wz[1] + BAND_WIDTH * iz;            q.v[2] = 0F;
-        q.wx[3] = q.wx[0] + BAND_WIDTH * ix;            q.wz[3] = q.wz[0] + BAND_WIDTH * iz;            q.v[3] = 0F;
+        q.wx[2] = q.wx[1] + BAND_WIDTH * ix + shx;       q.wz[2] = q.wz[1] + BAND_WIDTH * iz + shz;       q.v[2] = 0F;
+        q.wx[3] = q.wx[0] + BAND_WIDTH * ix + shx;       q.wz[3] = q.wz[0] + BAND_WIDTH * iz + shz;       q.v[3] = 0F;
         g.lineTexels += seg * STRIP_TEX_WIDTH;
         g.lineBlocks += seg;
         g.stripQuads++;

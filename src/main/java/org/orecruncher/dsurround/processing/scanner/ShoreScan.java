@@ -361,6 +361,22 @@ public final class ShoreScan {
         public int gridId;
         public int shuffle;
 
+        /**
+         * Joints, counted and sampled. The maintainer can see the joints on screen but
+         * reports "some that should be there are not, and every one that is there is in
+         * the wrong place, always the same way" - which no offline harness has reproduced
+         * (six synthetic coasts all place every joint exactly on the two bands it is
+         * meant to bridge, distance 0). Rather than guess again, the first few joints are
+         * written down verbatim so a log line can be compared against the screen.
+         * Read-only: nothing here changes what is drawn.
+         */
+        public int jointEmitted, jointSplit, jointNoBandA, jointNoBandB, jointSameLine, jointFlat;
+        /** Up to {@link #JOINT_SAMPLE} joints: cross edge, band corners, resulting ends. */
+        public static final int JOINT_SAMPLE = 4;
+        public final int[] jointInts = new int[JOINT_SAMPLE * 8];
+        public final float[] jointFloats = new float[JOINT_SAMPLE * 4];
+        public int jointSampleCount;
+
         public int runCells = 0;
         public int foamCells = 0;
         public int filmQuads = 0;
@@ -1373,6 +1389,13 @@ public final class ShoreScan {
         g.shoreEdgeCount = 0;
         g.gridId = System.identityHashCode(g);
         g.shuffle = 0;
+        g.jointEmitted = 0;
+        g.jointSplit = 0;
+        g.jointNoBandA = 0;
+        g.jointNoBandB = 0;
+        g.jointSameLine = 0;
+        g.jointFlat = 0;
+        g.jointSampleCount = 0;
         for (final Run r : g.runs) {
             for (int i = 0; i < r.len; i++) {
                 final int ax = r.startX + i * r.ux;
@@ -1638,8 +1661,10 @@ public final class ShoreScan {
         final int cx = Integer.signum(e.x1 - e.x0);
         final int cz = Integer.signum(e.z1 - e.z0);
         jointSkip = false;
-        if (!nearestBandEnd(g, e.x0, e.z0, cx, cz, null))
+        if (!nearestBandEnd(g, e.x0, e.z0, cx, cz, null)) {
+            g.jointNoBandA++;
             return;
+        }
         final ShoreEdge b0 = jointBand;
         final int jx0 = jointX;
         final int jz0 = jointZ;
@@ -1651,8 +1676,13 @@ public final class ShoreScan {
         jointSkipZ = jz0;
         final boolean found = nearestBandEnd(g, e.x1, e.z1, cx, cz, b0);
         jointSkip = false;
-        if (!found)
+        if (!found) {
+            // Either nothing that far, or only the one line the first end already took.
+            // The two are told apart by a second, exclusion-free probe.
+            g.jointSameLine = nearestBandEnd(g, e.x1, e.z1, cx, cz, null) ? 1 : 0;
+            g.jointNoBandB++;
             return;
+        }
         final ShoreEdge b1 = jointBand;
         final int jx1 = jointX;
         final int jz1 = jointZ;
@@ -1663,8 +1693,10 @@ public final class ShoreScan {
         // length is simply a fractional piece of the same tile rather than a stretched one.
         final float d0 = Math.min(b0.depth, RUNUP_MAX) * p;
         final float d1 = Math.min(b1.depth, RUNUP_MAX) * p;
-        if (d0 <= 0.001F && d1 <= 0.001F)
+        if (d0 <= 0.001F && d1 <= 0.001F) {
+            g.jointFlat++;
             return;
+        }
         int ix = e.dx;
         int iz = e.dz;
         if (ix * cx + iz * cz != 0) {
@@ -1695,6 +1727,26 @@ public final class ShoreScan {
         final int gz0 = b0.z0 - g.oz + (d0 >= 1F ? b0.dz : 0);
         final int gx1 = b1.x0 - g.ox + (d1 >= 1F ? b1.dx : 0);
         final int gz1 = b1.z0 - g.oz + (d1 >= 1F ? b1.dz : 0);
+        g.jointEmitted++;
+        if (y0 != y1)
+            g.jointSplit++;
+        if (g.jointSampleCount < Grid.JOINT_SAMPLE) {
+            final int o6 = g.jointSampleCount * 8;
+            final int o4 = g.jointSampleCount * 4;
+            g.jointInts[o6] = e.x0;
+            g.jointInts[o6 + 1] = e.z0;
+            g.jointInts[o6 + 2] = e.x1;
+            g.jointInts[o6 + 3] = e.z1;
+            g.jointInts[o6 + 4] = jx0;
+            g.jointInts[o6 + 5] = jz0;
+            g.jointInts[o6 + 6] = jx1;
+            g.jointInts[o6 + 7] = jz1;
+            g.jointFloats[o4] = ex0;
+            g.jointFloats[o4 + 1] = ez0;
+            g.jointFloats[o4 + 2] = ex1;
+            g.jointFloats[o4 + 3] = ez1;
+            g.jointSampleCount++;
+        }
         if (y0 == y1) {
             emitConnectorQuad(g, level, out, ex0, ez0, ex1, ez1, ix, iz, y0, gx0, gz0);
         } else {
@@ -1735,6 +1787,20 @@ public final class ShoreScan {
         g.lineTexels += seg * STRIP_TEX_WIDTH;
         g.lineBlocks += seg;
         g.stripQuads++;
+    }
+
+    /** The cell class at a world position - for the joint diagnostic line. */
+    public static String cellName(final Grid g, final float wx, final float wz) {
+        final int gx = (int) Math.floor(wx) - g.ox;
+        final int gz = (int) Math.floor(wz) - g.oz;
+        if (gx < 0 || gz < 0 || gx >= g.size || gz >= g.size)
+            return "OUT";
+        return switch (g.cls[gz * g.size + gx]) {
+            case CLS_SEA -> "SEA";
+            case CLS_BEACH -> "BEACH";
+            case CLS_HIGH -> "HIGH";
+            default -> "UNKNOWN";
+        };
     }
 
     /** Foam height: the cell's own surface plus the foam lift. */

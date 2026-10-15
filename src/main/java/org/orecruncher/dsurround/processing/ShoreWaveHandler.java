@@ -56,8 +56,7 @@ import org.orecruncher.dsurround.tags.BiomeTags;
  * stack a few statements earlier. The surf draws at
  * {@code AFTER_TRANSLUCENT_BLOCKS}, which is <em>before</em> that point in the
  * frame, so it installs the rotation itself - taken from the event's own pose
- * stack. See {@link #draw} for the derivation; {@link #logInheritedMatrix}
- * reports what the inherited matrix actually turned out to be.</p>
+ * stack. See {@link #draw} for the derivation. what the inherited matrix actually turned out to be.</p>
  *
  * <p>Sound is deliberately not synchronised: {@code beach.ogg} carries five
  * swells in thirty seconds at irregular 0.75-10.55s spacing, so driving the
@@ -226,7 +225,9 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         logFilmDebugColor();
         final long mark = System.nanoTime();
         ShoreScan.build(this.grid, this.lastProgress, level, this.quads,
-                this.config.shoreWaveOptions.shoreFilmDebugColor);
+                this.config.shoreWaveOptions.shoreFilmDebugColor,
+                this.config.shoreWaveOptions.enableShoreFilm,
+                this.config.shoreWaveOptions.shoreFoamFoldLine);
         // Replaces the surf with opaque magenta blocks - see ShoreScan.buildDebug.
         if (this.config.shoreWaveOptions.debugSolidBlocks)
             ShoreScan.buildDebug(this.grid, this.quads);
@@ -241,92 +242,24 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         this.failures = 0;
         logBuild(tick, this.grid, player, this.lastAudit);
     }
-
-    // =====================================================================
-    // Diagnostics logging
-    // =====================================================================
-    //
-    // Every number below is read off the structures the pass actually uses -
-    // the grids it scanned and the quads it will draw. Nothing is recomputed
-    // from a second copy of the rules: a diagnostic that disagrees with the
-    // renderer is worse than no diagnostic at all.
-
-    /**
-     * What the frame left behind, before this pass replaces it - said once and
-     * then never again, because it is a property of the frame, not of the surf.
-     *
-     * <p>The transform bug this chase started with is invisible in every other
-     * number the pass logs: the quad counts were always fine, the geometry was
-     * always on the shore, the alpha was always full. Only the matrix knows, and
-     * sixteen floats cannot be read at a glance - so it is printed as
-     * <em>effects</em>: the translation against {@code -cam}, and then two
-     * points and a basis pushed through it.</p>
-     *
-     * <p>{@code eye+5*look} through the inherited matrix is the decisive one. It
-     * reads {@code (0,0,-5)} if and only if the frame has already installed the
-     * camera rotation into the model view - which is the whole question of
-     * whether world coordinates need {@code T(-cam)} alone or
-     * {@code R * T(-cam)}. The three world axes and the camera's own three
-     * vectors are printed beside it so that the rotation itself, not just its
-     * effect on one line, can be read back out of the log when the two
-     * disagree.</p>
-     */
-    private void logInheritedMatrix(final Camera camera, final Vec3 cam) {
-        if (!logging() || this.loggedMatrix)
-            return;
-        final Matrix4f inherited = RenderSystem.getModelViewMatrix();
-        final Vector3f look = camera.getLookVector();
-        this.logger.info("[ShoreWave] inherited model view translate (%.2f,%.2f,%.2f) | cam (%.1f,%.1f,%.1f)"
-                        + " | -cam (%.1f,%.1f,%.1f)",
-                inherited.m30(), inherited.m31(), inherited.m32(),
-                cam.x, cam.y, cam.z, -cam.x, -cam.y, -cam.z);
-        // The decisive probe. (0,0,-5) here means the frame already carries R and
-        // world coordinates only need T(-cam); anything else means the rotation
-        // has to be supplied by this pass - which is what draw() now does, so the
-        // line is recorded rather than acted upon.
-        this.logger.info("[ShoreWave] inherited model view: eye -> %s | eye+5*look -> %s"
-                        + " [reads (0,0,-5) only if the frame already has R here] | basis %s",
-                position(inherited, cam.x, cam.y, cam.z),
-                position(inherited, cam.x + look.x() * 5D, cam.y + look.y() * 5D, cam.z + look.z() * 5D),
-                basis(inherited, camera));
+    /** The first quad whose baseline runs along X (or along Z), or null if there is none. */
+    private static ShoreScan.ShoreQuad firstOriented(final ShoreScan.Quads quads, final boolean alongX) {
+        for (int i = 0; i < quads.count; i++) {
+            final ShoreScan.ShoreQuad q = quads.items[i];
+            if ((q.wz[0] == q.wz[1]) == alongX)
+                return q;
+        }
+        return null;
     }
 
-    /**
-     * Verifies the matrix this pass just installed: two points with known
-     * answers, and then the basis.
-     *
-     * <p>The eye must map to the origin and five blocks of look direction must
-     * map to {@code -Z}. Both are properties of the transform, not of the
-     * terrain, so they hold whether or not there is any surf in the world, and
-     * one line settles "is the camera transform right" without another round
-     * trial in game. The basis is the same statement six more times: world
-     * {@code x^/y^/z^} must land on the camera's own axes and the camera's
-     * {@code look/up/left} on {@code (0,0,-1)/(0,1,0)/(-1,0,0)} exactly.</p>
-     *
-     * <p>{@code sourceDelta} checks where the rotation came from, not what it
-     * is: it compares the pose stack handed to the event against the same
-     * rotation rebuilt from the camera, {@code Ry(180) * conj(rotation())}. It
-     * prints 0.000000 when they agree. They are the same matrix - the 180 is the
-     * difference between "five blocks in front" and "five blocks behind" - and
-     * a large number here would mean the pose stack is not the level view at
-     * this stage, which is the single assumption {@link #draw} rests on and
-     * therefore worth a number rather than a promise.</p>
-     */
-    private void logMatrixOnce(final Camera camera, final Vec3 cam, final Matrix4f source) {
-        if (!logging() || this.loggedMatrix)
-            return;
-        this.loggedMatrix = true;
-        final Matrix4f m = RenderSystem.getModelViewMatrix();
-        final Vector3f look = camera.getLookVector();
-
-        this.logger.info("[ShoreWave] matrix check: eye -> %s [want ~(0,0,0)]"
-                        + " | eye+5*look -> %s [want ~(0,0,-5)]",
-                position(m, cam.x, cam.y, cam.z),
-                position(m, cam.x + look.x() * 5D, cam.y + look.y() * 5D, cam.z + look.z() * 5D));
-        this.logger.info("[ShoreWave] matrix check: basis %s"
-                        + " [want x^(-1,0,0) y^(0,1,0) z^(0,0,-1); look(0,0,-1) up(0,1,0) left(-1,0,0)]"
-                        + " | pose-stack R vs Ry(180)*conj(camera.rotation()) max delta %.6f",
-                basis(m, camera), rotationDelta(source, camera));
+    /** One quad's geometry as a single line - corners, height, alpha, arc-length u. */
+    private static String describe(final ShoreScan.ShoreQuad q) {
+        if (q == null)
+            return "none";
+        return String.format("tex %d y %.3f a %d corners (%.2f,%.2f)(%.2f,%.2f)(%.2f,%.2f)(%.2f,%.2f) uSpan %.3f v %.1f",
+                q.tex, q.y, q.alpha,
+                q.wx[0], q.wz[0], q.wx[1], q.wz[1], q.wx[2], q.wz[2], q.wx[3], q.wz[3],
+                Math.abs(q.u[1] - q.u[0]), q.v[0]);
     }
 
     /** {@code m * (x,y,z,1)}, a position - the translation takes part. */
@@ -432,6 +365,9 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 g.seaCells, g.beachCells, g.highCells, g.unknownCells,
                 g.runs.size(), g.runCells, g.scanNanos / 1_000_000D);
         logRunLengths(g);
+        // NOTE: the coast-edge / connector counters are set during ShoreScan.build, which runs AFTER
+        // this method - logging them here reads zeros by construction (that mistake cost one round).
+        // They are printed by logBuild instead.
         // A window with no beach next to no water is why most "nothing draws"
         // reports start: say which of the two is missing.
         if (g.beachCells == 0 || g.seaCells == 0)
@@ -463,6 +399,32 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 this.quads.count, g.filmQuads, g.stripQuads, g.capQuads, g.cornerQuads,
                 g.foamCells, g.filledCells, g.runCells, this.lastBuildNanos / 1_000_000D));
 
+        this.logger.info("[ShoreWave] coast edges: alongX %d alongZ %d | grid id %d shuffle %d shoreEdgeCount %d",
+                g.edgeX, g.edgeZ, g.gridId, g.shuffle, g.shoreEdgeCount);
+
+        // Joints, verbatim. The screen shows them in the wrong place "always the same
+        // way", which no offline harness reproduces, so the first few are written down as
+        // they are emitted: the cross edge that triggered them, the two band corners they
+        // were given, the two ends that came out, and what cell each end landed on. Read
+        // this against the screenshot and the offset is measurable rather than guessed.
+        this.logger.info("[ShoreWave] joints: emitted %d (split for height %d) | no band at A %d"
+                        + " | no band at B %d (of those, only the same line %d) | both ends flat %d",
+                g.jointEmitted, g.jointSplit, g.jointNoBandA, g.jointNoBandB, g.jointSameLine, g.jointFlat);
+        for (int i = 0; i < g.jointSampleCount; i++) {
+            final int o8 = i * 8;
+            final int o4 = i * 4;
+            this.logger.info("[ShoreWave]   joint %d: cross (%d,%d)-(%d,%d) corners (%d,%d)+(%d,%d)"
+                            + " -> ends (%.2f,%.2f)[%s]-(%.2f,%.2f)[%s] len %.2f",
+                    i, g.jointInts[o8], g.jointInts[o8 + 1], g.jointInts[o8 + 2], g.jointInts[o8 + 3],
+                    g.jointInts[o8 + 4], g.jointInts[o8 + 5], g.jointInts[o8 + 6], g.jointInts[o8 + 7],
+                    g.jointFloats[o4], g.jointFloats[o4 + 1],
+                    ShoreScan.cellName(g, g.jointFloats[o4], g.jointFloats[o4 + 1]),
+                    g.jointFloats[o4 + 2], g.jointFloats[o4 + 3],
+                    ShoreScan.cellName(g, g.jointFloats[o4 + 2], g.jointFloats[o4 + 3]),
+                    Math.hypot(g.jointFloats[o4 + 2] - g.jointFloats[o4],
+                            g.jointFloats[o4 + 3] - g.jointFloats[o4 + 1]));
+        }
+
         // World vs camera-space sample: the fastest way to tell "nothing is
         // produced" from "it is drawn somewhere else".
         final Vec3 eye = player.position();
@@ -478,6 +440,12 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                     .append(", biome-dropped ").append(g.runsDroppedByBiome)
                     .append(", foam cells ").append(g.foamCells).append(')');
         }
+        // The two coast orientations go through different code paths (bands vs
+        // connectors), and one of them is invisible on screen while both are counted.
+        // Print the first quad of each orientation with its full geometry, so the two
+        // can be compared as numbers rather than by eye.
+        detail.append(" | horizontal ").append(describe(firstOriented(this.quads, true)))
+                .append(" | vertical ").append(describe(firstOriented(this.quads, false)));
 
         // The geometric range, in one line: what the pass emitted, the constants
         // that are actually compiled in (so a stale jar is visible), the box every
@@ -508,93 +476,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         }
         this.logger.info(detail.toString());
     }
-
-    /**
-     * What actually reached the buffer this frame, counted per texture group,
-     * plus one sample in camera space. That last part is the whole point: if
-     * the sample lands hundreds of blocks from the camera, the geometry is
-     * right and the transform is wrong, and no amount of staring at the shader
-     * will tell you which.
-     */
-    private void logRender(final Vec3 cam) {
-        if (!logging())
-            return;
-        this.framesDrawn++;
-        if (this.framesDrawn > 1 && this.framesDrawn % 200 != 0)
-            return;
-        final int[] perGroup = new int[ShoreScan.TEX_COUNT];
-        int alphaZero = 0;
-        int zeroArea = 0;
-        for (int i = 0; i < this.quads.count; i++) {
-            final ShoreScan.ShoreQuad q = this.quads.items[i];
-            perGroup[q.tex]++;
-            if (q.alpha <= 0)
-                alphaZero++;
-            // A quad whose four corners collapsed onto each other draws nothing
-            // and does not fail - it just is not there.
-            if (q.wx[0] == q.wx[1] && q.wx[0] == q.wx[2] && q.wx[0] == q.wx[3]
-                    && q.wz[0] == q.wz[1] && q.wz[0] == q.wz[2] && q.wz[0] == q.wz[3])
-                zeroArea++;
-        }
-        final StringBuilder groups = new StringBuilder();
-        for (int t = 0; t < perGroup.length; t++)
-            if (perGroup[t] > 0)
-                groups.append(' ').append(TEX_NAMES[t]).append('=').append(perGroup[t]);
-        final StringBuilder detail = new StringBuilder(200);
-        detail.append(String.format(
-                "[ShoreWave] frame %d cam (%.1f,%.1f,%.1f) | %d quads -> %d (%.2fms) |%s",
-                this.framesDrawn, cam.x, cam.y, cam.z,
-                this.quads.count, this.quads.count * 4, this.lastRenderNanos / 1_000_000D, groups));
-        if (alphaZero > 0)
-            detail.append(" | alpha=0 skipped in build: ").append(alphaZero);
-        if (zeroArea > 0)
-            detail.append(" | ZERO-AREA: ").append(zeroArea);
-        // "Invisible" and "too faint" have different fixes, and both look like
-        // nothing at all from the player's chair. One line settles it.
-        int faint = 0, mid = 0, solid = 0;
-        for (int i = 0; i < this.quads.count; i++) {
-            final int a = this.quads.items[i].alpha;
-            if (a < 32) faint++;
-            else if (a < 128) mid++;
-            else solid++;
-        }
-        detail.append(String.format(" | alpha <32:%d 32-127:%d >=128:%d", faint, mid, solid));
-        // "It is drawn but too far to see" and "it is drawn in the wrong place"
-        // look identical on screen. Distance to the NEAREST quad separates
-        // them: if the closest foam is 20 blocks away while the player stands
-        // on the beach, the fault is upstream of rendering entirely. The single
-        // quad0 sample could not show this - it is the outermost grid row by
-        // construction, so it is always the furthest one.
-        float nearest = Float.MAX_VALUE;
-        int within8 = 0;
-        final float[] dists = new float[this.quads.count];
-        for (int i = 0; i < this.quads.count; i++) {
-            final ShoreScan.ShoreQuad q = this.quads.items[i];
-            final float d = (float) Math.hypot(q.wx[0] - cam.x, q.wz[0] - cam.z);
-            dists[i] = d;
-            if (d < nearest) nearest = d;
-            if (d <= 8F) within8++;
-        }
-        if (this.quads.count > 0) {
-            java.util.Arrays.sort(dists);
-            detail.append(String.format(" | dist nearest %.1f median %.1f furthest %.1f (<=8: %d)",
-                    nearest, dists[dists.length / 2], dists[dists.length - 1], within8));
-        }
-        detail.append(String.format(" | fog given %s/%s%s",
-                fogPlane(this.frameFogStart), fogPlane(this.frameFogEnd),
-                this.loggedFogNeutralised ? " (neutralised by this pass)" : ""));
-        if (this.quads.count > 0) {
-            final ShoreScan.ShoreQuad q = this.quads.items[0];
-            detail.append(String.format(" | sample cam-space (%.2f,%.2f,%.2f) y %.3f",
-                    q.wx[0] - (float) cam.x, q.y - (float) cam.y, q.wz[0] - (float) cam.z, q.y));
-            // A fully lit foam drawn at light 0 is a black line on water, which
-            // reads as "nothing is drawn". Cheap to rule out once.
-            detail.append(String.format(" | light raw 0x%08X block %d sky %d rgb 0x%06X",
-                    q.light, q.light & 0xFFFF, q.light >> 16 & 0xFFFF, q.rgb));
-        }
-        this.logger.info(detail.toString());
-    }
-
     /** Names for the log, same order as the texture slots. */
     private static final String[] TEX_NAMES = buildTexNames();
 
@@ -669,7 +550,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         final boolean fogNeutralised = fogClosed(fogStart, fogEnd);
         this.frameFogStart = fogStart;
         this.frameFogEnd = fogEnd;
-        logFog(fogStart, fogEnd, fogNeutralised);
         if (fogNeutralised) {
             RenderSystem.setShaderFogStart(Float.MAX_VALUE);
             RenderSystem.setShaderFogEnd(Float.MAX_VALUE);
@@ -693,11 +573,19 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             pinPixelFilter();
             mc.gameRenderer.lightTexture().turnOnLightLayer();
             final Vec3 cam = event.getCamera().getPosition();
-            logInheritedMatrix(event.getCamera(), cam);
+            // Advanced per frame, in whole tiles per second, so the film drifts
+            // like the sea instead of sitting still between scans. Deliberately
+            // incommensurate between the two axes: equal rates on a square tile
+            // read as a diagonal slide, which is not what water does.
+            // One frame per FILM_FRAME_TICKS, the rate vanilla advances its own
+            // still water. Taken from the continuous clock, not from the scan
+            // cadence, so the film keeps moving between rebuilds.
+            this.filmFrame = (int) Math.floor(
+                    (level.getGameTime() + event.getPartialTick()) / FILM_FRAME_TICKS)
+                    % FILM_FRAMES;
             this.lastRenderNanos = System.nanoTime();
             draw(event, event.getCamera(), cam);
             this.lastRenderNanos = System.nanoTime() - this.lastRenderNanos;
-            logRender(cam);
         } catch (final Throwable t) {
             // A render failure must cost the pass, not the frame.
             this.broken = true;
@@ -746,35 +634,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     private static String fogPlane(final float value) {
         return value >= Float.MAX_VALUE * 0.5F ? "none" : String.format("%.1f", value);
     }
-
-    /**
-     * Says what fog the pass found, once per change - and, when it neutralised
-     * it, why that is the difference between a blue film and a pale sheet.
-     *
-     * <p>Logged rather than assumed: the value is a property of the frame and of
-     * whatever ran before this pass, and nothing else in the mod writes it down.
-     * A player report of "the surf is white again" is then one line away from
-     * being a number.</p>
-     */
-    private void logFog(final float start, final float end, final boolean neutralised) {
-        if (!logging())
-            return;
-        if (Float.compare(start, this.loggedFogStart) == 0
-                && Float.compare(end, this.loggedFogEnd) == 0
-                && neutralised == this.loggedFogNeutralised)
-            return;
-        this.loggedFogStart = start;
-        this.loggedFogEnd = end;
-        this.loggedFogNeutralised = neutralised;
-        if (neutralised)
-            this.logger.info("[ShoreWave] fog start %s end %s -> %s (bound %d)%s",
-                    fogPlane(start), fogPlane(end),
-                    neutralised ? "NEUTRALISED for this pass" : "kept",
-                    ShoreScan.MAX_QUAD_DISTANCE,
-                    neutralised ? ": a range this short replaces every vertex colour with FogColor,"
-                            + " so the film and the foam would both paint the fog colour" : "");
-    }
-
     /**
      * One line when the film's debug colour is switched, so the switch cannot be
      * silently ignored - the one thing a troubleshooting toggle must never do.
@@ -820,7 +679,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
      * project world-minus-camera positions through it, and
      * {@code PrecipitationRenderer} draws camera-relative world coordinates
      * relying on the model view vanilla installs from the same stack at
-     * {@code AFTER_WEATHER}. {@link #logMatrixOnce} re-derives the identity
+     * {@code AFTER_WEATHER}. the matrix check re-derives the identity
      * numerically every session rather than trusting this paragraph.</p>
      *
      * <p><b>Why not {@code camera.rotation()}.</b> That quaternion is the other
@@ -862,7 +721,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
      * had already cleared the matrix by the time it looked - and it no longer
      * has to be: taking R from the pose stack is correct whether or not the
      * frame happens to hold it, so the pass no longer depends on the answer.
-     * {@link #logInheritedMatrix} still reports it, for the record.</p>
+     *</p>
      */
     private void draw(final RenderLevelStageEvent event, final Camera camera, final Vec3 cam) {
         final Tesselator tesselator = Tesselator.getInstance();
@@ -876,19 +735,25 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         final PoseStack mv = RenderSystem.getModelViewStack();
         mv.pushPose();
         try {
+            // Rotation only: the camera TRANSLATION lives in the vertices (see
+            // emit), not here. fog_distance's shape != 0 branch transforms the
+            // vertex with two axes zeroed, so any translation in the model view
+            // lands in vertexDistance - with T(-cam) installed and world-space
+            // vertices it reported ~|cam| (2200+ blocks, on a beach where the surf
+            // is 17 away), which drove linear_fog past fogEnd and replaced every
+            // fragment's RGB with FogColor while leaving the alpha alone: sky
+            // tint, sun-facing gradient, no texture, opacity intact.
             mv.setIdentity();
             mv.mulPoseMatrix(view);
-            mv.translate(-cam.x, -cam.y, -cam.z);
             RenderSystem.applyModelViewMatrix();
-            logMatrixOnce(camera, cam, view);
-            drawQuads(buffer, tesselator);
+            drawQuads(buffer, tesselator, cam);
         } finally {
             mv.popPose();
             RenderSystem.applyModelViewMatrix();
         }
     }
 
-    private void drawQuads(final BufferBuilder buffer, final Tesselator tesselator) {
+    private void drawQuads(final BufferBuilder buffer, final Tesselator tesselator, final Vec3 cam) {
         // One begin/draw per texture slot. RenderSystem.setShaderTexture binds
         // immediately, but the draw happens at Tesselator.end() - so a single
         // begin() over all ten slots painted every quad with whichever texture
@@ -900,11 +765,15 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 if (q.tex != tex)
                     continue;
                 if (!building) {
+                    // The film's slot samples the vanilla water sprite instead of
+                    // one of our own PNGs - the colour still comes from the vertex,
+                    // the same way vanilla paints the sea. See the section above
+                    // waterSprite() for the three things that costs.
                     RenderSystem.setShaderTexture(0, TEXTURES[tex]);
                     buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
                     building = true;
                 }
-                emit(buffer, q);
+                emit(buffer, q, cam);
             }
             if (building)
                 tesselator.end();
@@ -916,7 +785,15 @@ public class ShoreWaveHandler extends AbstractClientHandler {
      * view that {@link #draw} installs, and nowhere else - doing it here as well
      * is what anchored the surf to the camera instead of the shore.
      */
-    private static void emit(final BufferBuilder buffer, final ShoreScan.ShoreQuad q) {
+    /**
+     * Camera-relative vertices: the camera rotation comes from the model view,
+     * the camera position is subtracted here. World coordinates with T(-cam) in
+     * the matrix put the surf in the same place on screen - but fog_distance's
+     * shape != 0 branch would then read the camera's distance from the world
+     * origin as the vertex distance and repaint every fragment with FogColor.
+     * See draw().
+     */
+    private void emit(final BufferBuilder buffer, final ShoreScan.ShoreQuad q, final Vec3 cam) {
         // getLightColor packs sky << 20 | block << 4, so the high half is sky.
         // uv2() wants (block, sky) - handing them over the other way round puts
         // the outdoor-constant sky term on the block axis and the foam never
@@ -926,13 +803,38 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         final int r = q.rgb >> 16 & 0xFF;
         final int g = q.rgb >> 8 & 0xFF;
         final int b = q.rgb & 0xFF;
+        final float cx = (float) cam.x;
+        final float cy = (float) cam.y;
+        final float cz = (float) cam.z;
+        // Fold the tile-local coordinate back into 0..1 and then into the
+        // sprite's window in the atlas. The fold has to happen BEFORE the remap:
+        // taking a 0..3 coordinate straight into the sprite's window would walk
+        // out of the sprite and into whatever is stitched beside it.
         for (int i = 0; i < 4; i++) {
-            buffer.vertex(q.wx[i], q.y, q.wz[i])
-                    .uv(q.u[i], q.v[i])
+            float u = q.u[i];
+            float v = q.v[i];
+            if (q.tex == ShoreScan.TEX_FILM) {
+                u = wrap(u);
+                // The film tile is a 16x512 strip: 32 frames of 16x16 stacked
+                // vertically, exactly as vanilla's water is laid out. Pick the
+                // frame of the moment and keep the quad inside it - the frame
+                // window is one 32nd of the sheet, so v is folded first and then
+                // placed in that window. Stepping the frame here rather than at
+                // build time is what makes it animate between scans.
+                v = (this.filmFrame + wrap(v)) / FILM_FRAMES;
+            }
+            buffer.vertex(q.wx[i] - cx, q.y - cy, q.wz[i] - cz)
+                    .uv(u, v)
                     .color(r, g, b, q.alpha)
                     .uv2(block, sky)
                     .endVertex();
         }
+    }
+
+    /** Fold a coordinate that may run past 1 back into 0..1, positively. */
+    private static float wrap(final float value) {
+        final float f = value - (float) Math.floor(value);
+        return f;
     }
 
     /**
@@ -1061,6 +963,61 @@ public class ShoreWaveHandler extends AbstractClientHandler {
      * pixel art rather than as a smear, it is invisible in every other number
      * the pass logs, and one line in a loader is all it would take to lose it.
      * Written down, it is a policy; assumed, it is a coincidence.</p>
+     */
+    // =====================================================================
+    // The film samples the vanilla water sprite
+    // =====================================================================
+    //
+    // The film's own 16x16 PNG was pure white, and that was never an accident:
+    // its colour has to come from the biome water colour at the vertex, because
+    // that is exactly how vanilla paints the sea - a greyscale water texture
+    // multiplied by a tint. So the tile the film wants is not "a water-coloured
+    // texture"; it is "the vanilla water texture", and vanilla already has one.
+    //
+    // Sampling it costs three things this class has to own:
+    //
+    //   1. the sprite lives in the BLOCK atlas, not in a file of ours, so the
+    //      sampler has to be bound to the atlas object and the quad's u/v are
+    //      then atlas coordinates rather than tile-local ones;
+    //   2. a tile-local u/v of 0..1 has to be remapped into the sprite's own
+    //      window inside the atlas, or the sampler reads whatever neighbour
+    //      happens to sit at that position in the sheet;
+    //   3. an atlas cannot be wrapped. The film's u/v run past 1 on the merged
+    //      rectangles by design (one texel per 1/16 block across a 4-block
+    //      tile), so they are folded back into 0..1 before the remap - wrapping
+    //      inside the sprite is fine, wrapping in the atlas is not.
+    //
+    // The animation is ours too, for the same reason: sprite frames are advanced
+    // by the atlas ticker and the quads are rebuilt on a scan cadence, not every
+    // frame, so a frame index baked in at build time would step. The offset is
+    // applied at emit time instead, which runs every frame.
+
+    /** The vanilla water sprite the film samples; null until the atlas is up. */
+    /** True once the sprite has been looked for, found or not. */
+    /** The atlas window for the slot now being built; null for our own tiles. */
+    /** Film animation frame for this draw, 0..{@link #FILM_FRAMES} - 1. */
+    private int filmFrame;
+
+    private static final net.minecraft.resources.ResourceLocation WATER_STILL =
+            new net.minecraft.resources.ResourceLocation("minecraft", "block/water_still");
+
+    /**
+     * How fast the film's texture drifts, in tile widths per second.
+     *
+     * <p>Vanilla's still water advances one texture every 32 ticks, i.e. 0.03125
+     * tile widths per second - far too slow to read as motion at the one-texel-
+     * per-1/16-block density the film uses. These are faster on purpose and not
+     * an even multiple of each other, so the two axes never line up into a
+     * repeating diagonal.</p>
+     */
+    /** Frames in the film tile, matching the sheet vanilla's water uses. */
+    private static final int FILM_FRAMES = 32;
+    /** Ticks per frame. Vanilla advances still water once every 32 ticks. */
+    private static final int FILM_FRAME_TICKS = 32;
+
+    /**
+     * The atlas window of the water sprite, or null when the film keeps its own
+     * tile. Ordered u0, v0, du, dv.
      */
     private void pinPixelFilter() {
         if (this.filterPinned)

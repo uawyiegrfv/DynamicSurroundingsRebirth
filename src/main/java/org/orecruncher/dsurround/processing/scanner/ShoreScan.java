@@ -214,15 +214,6 @@ public final class ShoreScan {
     private static final float BAND_END_RUN = 0.19F;
 
     /**
-     * Round 12: how far the joint runs past each of its own ends, along its own length -
-     * the same trick {@link #BAND_END_RUN} plays on the bands. The maintainer's words:
-     * "not a parallelogram, just lengthen the two ends a bit so it meets the horizontal
-     * piece". The piece stays a rectangle; the overrun is what carries its colour into
-     * the bands it joins, instead of stopping at a hard cut a pixel short of them.
-     */
-    private static final float JOINT_END_RUN = 0.30F;
-
-    /**
      * Round 12: was 9/16, which sampled the strip's TRANSPARENT rows. The art is 12
      * opaque rows out of 16 (rows 12-15 are fully clear - measured, see the work
      * record), so a band that mapped its width onto all 16 rows spent a third of itself
@@ -1584,6 +1575,9 @@ public final class ShoreScan {
         // world position instead made every quad sample a different part of a tile that has
         // transparent cells by design, and the line came out as scattered dashes.
         q.u[0] = 0F;
+        q.u[1] = seg / STRIP_PERIOD - (float) Math.floor(seg / STRIP_PERIOD);
+        q.u[2] = q.u[1];
+        q.u[3] = q.u[0];
         final int ix = inlandPerp(x0, z0, x1, z1, inlandX, inlandZ) ? INLAND[0] : inlandX;
         final int iz = inlandPerp(x0, z0, x1, z1, inlandX, inlandZ) ? INLAND[1] : inlandZ;
         // v: the DIRECTION was right all along - the art reads crest (row 0, white) at the
@@ -1852,15 +1846,13 @@ public final class ShoreScan {
             g.jointFloats[o4 + 3] = ez1;
             g.jointSampleCount++;
         }
-        final int qx = (int) Math.signum(Math.round(ex1 - ex0));
-        final int qz = (int) Math.signum(Math.round(ez1 - ez0));
         if (y0 == y1) {
-            emitConnectorQuad(g, level, out, ex0, ez0, ex1, ez1, ix, iz, qx, qz, y0, gx0, gz0);
+            emitConnectorQuad(g, level, out, ex0, ez0, ex1, ez1, ix, iz, y0, gx0, gz0);
         } else {
             final float mx = (ex0 + ex1) * 0.5F;
             final float mz = (ez0 + ez1) * 0.5F;
-            emitConnectorQuad(g, level, out, ex0, ez0, mx, mz, ix, iz, qx, qz, y0, gx0, gz0);
-            emitConnectorQuad(g, level, out, mx, mz, ex1, ez1, ix, iz, qx, qz, y1, gx1, gz1);
+            emitConnectorQuad(g, level, out, ex0, ez0, mx, mz, ix, iz, y0, gx0, gz0);
+            emitConnectorQuad(g, level, out, mx, mz, ex1, ez1, ix, iz, y1, gx1, gz1);
         }
     }
 
@@ -1874,8 +1866,7 @@ public final class ShoreScan {
      */
     private static void emitConnectorQuad(final Grid g, final Level level, final Quads out,
                                           final float x0, final float z0, final float x1, final float z1,
-                                          final int ix, final int iz,
-                                          final int lx, final int lz, final float y,
+                                          final int ix, final int iz, final float y,
                                           final int gx, final int gz) {
         final ShoreQuad q = out.next();
         q.tex = TEX_STRIP;
@@ -1897,26 +1888,10 @@ public final class ShoreScan {
         // centring the body on the baseline buys.
         final float hx = -BAND_WIDTH * 0.5F * ix;
         final float hz = -BAND_WIDTH * 0.5F * iz;
-        // Overrun both ends along the joint's own length - see JOINT_END_RUN. The piece
-        // stays a rectangle and the gradient still runs straight across it; what changes
-        // is that it now reaches into the two bands instead of stopping a pixel short.
-        final float erx = lx * JOINT_END_RUN;
-        final float erz = lz * JOINT_END_RUN;
-        final float kx0 = x0 + hx - erx;
-        final float kz0 = z0 + hz - erz;
-        final float kx1 = x1 + hx + erx;
-        final float kz1 = z1 + hz + erz;
-        q.wx[0] = kx0;                     q.wz[0] = kz0;                     q.v[0] = 0.75F;
-        q.wx[1] = kx1;                     q.wz[1] = kz1;                     q.v[1] = 0.75F;
-        q.wx[2] = kx1 + BAND_WIDTH * ix;   q.wz[2] = kz1 + BAND_WIDTH * iz;   q.v[2] = 0F;
-        q.wx[3] = kx0 + BAND_WIDTH * ix;   q.wz[3] = kz0 + BAND_WIDTH * iz;   q.v[3] = 0F;
-        // u follows the overrun length, or the strip is squeezed along its own direction.
-        final float jSeg = (float) Math.hypot(kx1 - kx0, kz1 - kz0);
-        final float jU = jSeg / STRIP_PERIOD - (float) Math.floor(jSeg / STRIP_PERIOD);
-        q.u[0] = 0F;
-        q.u[1] = jU;
-        q.u[2] = jU;
-        q.u[3] = 0F;
+        q.wx[0] = x0 + hx;                              q.wz[0] = z0 + hz;                              q.v[0] = 0.75F;
+        q.wx[1] = x1 + hx;                              q.wz[1] = z1 + hz;                              q.v[1] = 0.75F;
+        q.wx[2] = q.wx[1] + BAND_WIDTH * ix;            q.wz[2] = q.wz[1] + BAND_WIDTH * iz;            q.v[2] = 0F;
+        q.wx[3] = q.wx[0] + BAND_WIDTH * ix;            q.wz[3] = q.wz[0] + BAND_WIDTH * iz;            q.v[3] = 0F;
         g.lineTexels += seg * STRIP_TEX_WIDTH;
         g.lineBlocks += seg;
         g.stripQuads++;

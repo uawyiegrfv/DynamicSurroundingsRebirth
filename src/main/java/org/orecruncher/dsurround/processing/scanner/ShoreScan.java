@@ -1678,23 +1678,48 @@ public final class ShoreScan {
                 iz = -cx;
             }
         }
-        // The ends are the BANDS' corners, not this edge's: the joint then shares a
-        // point with each line and cannot leave a notch, however far the swell has
-        // moved them apart.
-        emitConnectorQuad(g, level, out,
-                jx0 + d0 * b0.dx, jz0 + d0 * b0.dz,
-                jx1 + d1 * b1.dx, jz1 + d1 * b1.dz,
-                ix, iz, e.x0 - g.ox, e.z0 - g.oz);
+        // Each end sits on its OWN band's surface. A band is drawn at the water plane
+        // while it is still out over the sea and lifts onto the flooded sand once it has
+        // climbed a block - emitShoreBand moves its sample cell inland for exactly that.
+        // A joint drawn at ONE height cannot follow both, and at the lower of the two its
+        // inland end is inside the sand: the "verticals are buried" report. Take the
+        // height each band is actually drawn at, and where they differ cut the joint in
+        // two so each half lies on the surface its own end is on.
+        final float y0 = bandSurfaceY(g, b0, d0);
+        final float y1 = bandSurfaceY(g, b1, d1);
+        final float ex0 = jx0 + d0 * b0.dx;
+        final float ez0 = jz0 + d0 * b0.dz;
+        final float ex1 = jx1 + d1 * b1.dx;
+        final float ez1 = jz1 + d1 * b1.dz;
+        final int gx0 = b0.x0 - g.ox + (d0 >= 1F ? b0.dx : 0);
+        final int gz0 = b0.z0 - g.oz + (d0 >= 1F ? b0.dz : 0);
+        final int gx1 = b1.x0 - g.ox + (d1 >= 1F ? b1.dx : 0);
+        final int gz1 = b1.z0 - g.oz + (d1 >= 1F ? b1.dz : 0);
+        if (y0 == y1) {
+            emitConnectorQuad(g, level, out, ex0, ez0, ex1, ez1, ix, iz, y0, gx0, gz0);
+        } else {
+            final float mx = (ex0 + ex1) * 0.5F;
+            final float mz = (ez0 + ez1) * 0.5F;
+            emitConnectorQuad(g, level, out, ex0, ez0, mx, mz, ix, iz, y0, gx0, gz0);
+            emitConnectorQuad(g, level, out, mx, mz, ex1, ez1, ix, iz, y1, gx1, gz1);
+        }
     }
 
-    /** The joint quad: baseline between the two bands' corners, width perpendicular to it. */
+    /**
+     * The joint quad: baseline between the two bands' corners, width perpendicular to it.
+     *
+     * <p>{@code y} is passed in rather than sampled here. Sampling it at the cross edge's
+     * own cell is what buried the joints: that cell is open water, so the quad sat at the
+     * water plane while its two ends were up on the flooded sand a ninth of a block
+     * higher - entirely inside the beach. The caller knows which surface each end is on.</p>
+     */
     private static void emitConnectorQuad(final Grid g, final Level level, final Quads out,
                                           final float x0, final float z0, final float x1, final float z1,
-                                          final int ix, final int iz,
+                                          final int ix, final int iz, final float y,
                                           final int gx, final int gz) {
         final ShoreQuad q = out.next();
         q.tex = TEX_STRIP;
-        q.y = surfaceBase(g, gx, gz) + FOAM_LIFT;
+        q.y = y;
         q.light = lightAt(level, g, gx, gz);
         q.rgb = FOAM_RGB;
         q.alpha = 255;
@@ -1714,6 +1739,17 @@ public final class ShoreScan {
 
     /** Foam height: the cell's own surface plus the foam lift. */
     private static float y(final Grid g, final int gx, final int gz) {
+        return surfaceBase(g, gx, gz) + FOAM_LIFT;
+    }
+
+    /**
+     * The height {@link #emitShoreBand} draws a band at - the SAME expression, cell and
+     * all. A joint has to be told this per end rather than working it out from its own
+     * cell, because the two ends are usually on different surfaces.
+     */
+    private static float bandSurfaceY(final Grid g, final ShoreEdge b, final float depth) {
+        final int gx = b.x0 - g.ox + (depth >= 1F ? b.dx : 0);
+        final int gz = b.z0 - g.oz + (depth >= 1F ? b.dz : 0);
         return surfaceBase(g, gx, gz) + FOAM_LIFT;
     }
 

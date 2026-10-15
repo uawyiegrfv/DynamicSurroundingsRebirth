@@ -1567,14 +1567,16 @@ public final class ShoreScan {
         q.u[3] = q.u[0];
         final int ix = inlandPerp(x0, z0, x1, z1, inlandX, inlandZ) ? INLAND[0] : inlandX;
         final int iz = inlandPerp(x0, z0, x1, z1, inlandX, inlandZ) ? INLAND[1] : inlandZ;
-        // v was water 1 / inland 0, which put row 15 (fully transparent) on the water
-        // side and row 0 (the white crest) inland - a third of the band invisible AND the
-        // crest pointing the wrong way. Water is 0 now: crest at the sea, and 0.75 stops
-        // at the last opaque row.
-        q.wx[0] = x0;                      q.wz[0] = z0;                      q.v[0] = 0F;
-        q.wx[1] = x1;                      q.wz[1] = z1;                      q.v[1] = 0F;
-        q.wx[2] = x1 + BAND_WIDTH * ix;    q.wz[2] = z1 + BAND_WIDTH * iz;    q.v[2] = 0.75F;
-        q.wx[3] = x0 + BAND_WIDTH * ix;    q.wz[3] = z0 + BAND_WIDTH * iz;    q.v[3] = 0.75F;
+        // v: the DIRECTION was right all along - the art reads crest (row 0, white) at the
+        // inland edge and dark tail (row 11) toward the sea, which is a swash: bright where
+        // the wash runs out on the sand, dark where it drains back. The bug was the RANGE:
+        // the baseline sat at 1.0, so rows 12-15 - measured fully transparent - were part
+        // of the band and a third of it drew nothing at all. 0.75 stops at the last
+        // visible row; the art keeps its direction.
+        q.wx[0] = x0;                      q.wz[0] = z0;                      q.v[0] = 0.75F;
+        q.wx[1] = x1;                      q.wz[1] = z1;                      q.v[1] = 0.75F;
+        q.wx[2] = x1 + BAND_WIDTH * ix;    q.wz[2] = z1 + BAND_WIDTH * iz;    q.v[2] = 0F;
+        q.wx[3] = x0 + BAND_WIDTH * ix;    q.wz[3] = z0 + BAND_WIDTH * iz;    q.v[3] = 0F;
         g.lineTexels += seg * STRIP_TEX_WIDTH;
         g.lineBlocks += seg;
         g.stripQuads++;
@@ -1849,10 +1851,10 @@ public final class ShoreScan {
         // centring the body on the baseline buys.
         final float hx = -BAND_WIDTH * 0.5F * ix;
         final float hz = -BAND_WIDTH * 0.5F * iz;
-        q.wx[0] = x0 + hx;                              q.wz[0] = z0 + hz;                              q.v[0] = 0F;
-        q.wx[1] = x1 + hx;                              q.wz[1] = z1 + hz;                              q.v[1] = 0F;
-        q.wx[2] = q.wx[1] + BAND_WIDTH * ix;            q.wz[2] = q.wz[1] + BAND_WIDTH * iz;            q.v[2] = 0.75F;
-        q.wx[3] = q.wx[0] + BAND_WIDTH * ix;            q.wz[3] = q.wz[0] + BAND_WIDTH * iz;            q.v[3] = 0.75F;
+        q.wx[0] = x0 + hx;                              q.wz[0] = z0 + hz;                              q.v[0] = 0.75F;
+        q.wx[1] = x1 + hx;                              q.wz[1] = z1 + hz;                              q.v[1] = 0.75F;
+        q.wx[2] = q.wx[1] + BAND_WIDTH * ix;            q.wz[2] = q.wz[1] + BAND_WIDTH * iz;            q.v[2] = 0F;
+        q.wx[3] = q.wx[0] + BAND_WIDTH * ix;            q.wz[3] = q.wz[0] + BAND_WIDTH * iz;            q.v[3] = 0F;
         g.lineTexels += seg * STRIP_TEX_WIDTH;
         g.lineBlocks += seg;
         g.stripQuads++;

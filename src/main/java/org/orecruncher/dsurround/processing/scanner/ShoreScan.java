@@ -1845,30 +1845,23 @@ public final class ShoreScan {
         q.rgb = FOAM_RGB;
         q.alpha = 255;
         final float seg = (float) Math.hypot(x1 - x0, z1 - z0);
-        // A band varies its colour ACROSS itself, along its own inland direction, and its
-        // pattern ALONG its length. A joint crosses the bands, so v across it ran the
-        // other way and the gradient hit the bands' cut ends side-on: bright against
-        // bright, and the two ends showed as notches - the maintainer circled exactly
-        // those. Here the roles are taken the other way round, so the gradient runs ALONG
-        // the joint, the same way it runs along a band, and the whole staircase reads as
-        // one continuous white-to-blue sweep. No corner art needed to hide a seam.
+        q.u[0] = 0F;
+        q.u[1] = seg / STRIP_PERIOD - (float) Math.floor(seg / STRIP_PERIOD);
+        q.u[2] = q.u[1];
+        q.u[3] = q.u[0];
+        // The band is one-sided - baseline out to baseline + width - but the joint's
+        // baseline runs BETWEEN two bands, so a one-sided body sits off to one side of
+        // the junction instead of straddling it. Measured on the real simulator: the
+        // joint body came out centred 0.22 blocks off where the two band bodies meet,
+        // always the same way, which is the maintainer's "about a quarter of a block,
+        // always the same direction". Half the band width, and it is exactly what
+        // centring the body on the baseline buys.
         final float hx = -BAND_WIDTH * 0.5F * ix;
         final float hz = -BAND_WIDTH * 0.5F * iz;
-        // u follows the joint's width (its "length" is only 0.75 blocks, the tile's is 4),
-        // v follows its length and carries the gradient.
-        final float uu = BAND_WIDTH / STRIP_PERIOD;
-        q.wx[0] = x0 + hx;                              q.wz[0] = z0 + hz;
-        q.wx[1] = x1 + hx;                              q.wz[1] = z1 + hz;
-        q.wx[2] = q.wx[1] + BAND_WIDTH * ix;            q.wz[2] = q.wz[1] + BAND_WIDTH * iz;
-        q.wx[3] = q.wx[0] + BAND_WIDTH * ix;            q.wz[3] = q.wz[0] + BAND_WIDTH * iz;
-        q.u[0] = 0F;
-        q.u[1] = 0F;
-        q.u[2] = uu;
-        q.u[3] = uu;
-        q.v[0] = 0.75F;
-        q.v[1] = 0F;
-        q.v[2] = 0F;
-        q.v[3] = 0.75F;
+        q.wx[0] = x0 + hx;                              q.wz[0] = z0 + hz;                              q.v[0] = 0.75F;
+        q.wx[1] = x1 + hx;                              q.wz[1] = z1 + hz;                              q.v[1] = 0.75F;
+        q.wx[2] = q.wx[1] + BAND_WIDTH * ix;            q.wz[2] = q.wz[1] + BAND_WIDTH * iz;            q.v[2] = 0F;
+        q.wx[3] = q.wx[0] + BAND_WIDTH * ix;            q.wz[3] = q.wz[0] + BAND_WIDTH * iz;            q.v[3] = 0F;
         g.lineTexels += seg * STRIP_TEX_WIDTH;
         g.lineBlocks += seg;
         g.stripQuads++;

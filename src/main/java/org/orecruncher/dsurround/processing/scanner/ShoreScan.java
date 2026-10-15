@@ -492,6 +492,25 @@ public final class ShoreScan {
             for (int x = ox; x < ox + size; x++)
                 g.cls[g.idx(x, z)] = classify(level, x, z, waterTop, p);
 
+        collectRuns(g);
+
+        g.scanNanos = System.nanoTime() - mark;
+        return g;
+    }
+
+    /**
+     * Every beach run in a classified grid: the cell census, then one pass per inland
+     * direction. Split out of {@link #scan} so the offline simulator can drive the real
+     * collection instead of a copy of it - a harness that re-implements this is a
+     * harness that can disagree with the game, which is exactly how the joints were
+     * measured as correct while the screen showed them wrong.
+     *
+     * <p>Needs no {@link Level}: everything here reads {@link Grid#cls}.</p>
+     */
+    static void collectRuns(final Grid g) {
+        final int size = g.size;
+        final int ox = g.ox;
+        final int oz = g.oz;
         for (int i = 0; i < g.cls.length; i++) {
             switch (g.cls[i]) {
                 case CLS_SEA -> g.seaCells++;
@@ -532,9 +551,17 @@ public final class ShoreScan {
                 }
             }
         }
+    }
 
-        g.scanNanos = System.nanoTime() - mark;
-        return g;
+    /**
+     * Offline test seam: the whole build, on a grid the caller has already classified,
+     * with no {@link Level}. Runs the SAME {@link #collectRuns} and {@link #build} the
+     * game runs - nothing here is a re-implementation - so whatever it draws is what the
+     * game would draw for that terrain.
+     */
+    static void simulate(final Grid g, final float p, final Quads out) {
+        collectRuns(g);
+        build(g, p, null, out);
     }
 
     private static byte classify(final Level level, final int x, final int z,
@@ -1820,6 +1847,11 @@ public final class ShoreScan {
     }
 
     private static int lightAt(final Level level, final Grid g, final int x, final int z) {
+        // Offline there is no world to ask. The offline simulator drives this very code
+        // (see simulate) and does not care about light, so hand back full bright rather
+        // than throwing - the geometry it is there to measure is unaffected.
+        if (level == null)
+            return 0xF000F0;
         return LevelRenderer.getLightColor(level, CURSOR.set(x, g.waterTop + 1, z));
     }
 

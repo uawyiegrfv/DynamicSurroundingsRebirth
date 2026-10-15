@@ -201,6 +201,19 @@ public final class ShoreScan {
      * From the art spec - the same number the old per-cell emitters used.
      */
     /**
+     * How far a band's own quad runs past each end of its cell edge, in blocks.
+     *
+     * <p>Round 12: at a step the joint only reached half a width past the bands' centre
+     * lines, so the outer half of each band's end stuck out over nothing and read as a
+     * notch. Letting every band overrun its own cell by this much closes it: neighbours in
+     * the same row simply overlap (foam over foam, which cannot be seen), and at a step
+     * the overhang lands exactly where the joint is not. This is what the maintainer
+     * asked for - "just give the two ends of the vertical piece a corner" - rather than
+     * shearing the joint into a ramp, which turned the whole step slanted.</p>
+     */
+    private static final float BAND_END_RUN = 0.19F;
+
+    /**
      * Round 12: was 9/16, which sampled the strip's TRANSPARENT rows. The art is 12
      * opaque rows out of 16 (rows 12-15 are fully clear - measured, see the work
      * record), so a band that mapped its width onto all 16 rows spent a third of itself
@@ -1573,10 +1586,18 @@ public final class ShoreScan {
         // the baseline sat at 1.0, so rows 12-15 - measured fully transparent - were part
         // of the band and a third of it drew nothing at all. 0.75 stops at the last
         // visible row; the art keeps its direction.
-        q.wx[0] = x0;                      q.wz[0] = z0;                      q.v[0] = 0.75F;
-        q.wx[1] = x1;                      q.wz[1] = z1;                      q.v[1] = 0.75F;
-        q.wx[2] = x1 + BAND_WIDTH * ix;    q.wz[2] = z1 + BAND_WIDTH * iz;    q.v[2] = 0F;
-        q.wx[3] = x0 + BAND_WIDTH * ix;    q.wz[3] = z0 + BAND_WIDTH * iz;    q.v[3] = 0F;
+        // Overrun the cell at both ends along the band's own length - see BAND_END_RUN.
+        // The gradient (v) is untouched: it still runs across the band, seaward to inland.
+        final float runX = Math.signum(x1 - x0) * BAND_END_RUN;
+        final float runZ = Math.signum(z1 - z0) * BAND_END_RUN;
+        final float bx0 = x0 - runX;
+        final float bz0 = z0 - runZ;
+        final float bx1 = x1 + runX;
+        final float bz1 = z1 + runZ;
+        q.wx[0] = bx0;                     q.wz[0] = bz0;                     q.v[0] = 0.75F;
+        q.wx[1] = bx1;                     q.wz[1] = bz1;                     q.v[1] = 0.75F;
+        q.wx[2] = bx1 + BAND_WIDTH * ix;   q.wz[2] = bz1 + BAND_WIDTH * iz;   q.v[2] = 0F;
+        q.wx[3] = bx0 + BAND_WIDTH * ix;   q.wz[3] = bz0 + BAND_WIDTH * iz;   q.v[3] = 0F;
         g.lineTexels += seg * STRIP_TEX_WIDTH;
         g.lineBlocks += seg;
         g.stripQuads++;

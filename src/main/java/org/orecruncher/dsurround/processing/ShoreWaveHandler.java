@@ -1168,6 +1168,9 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             return "concave" + (tex - ShoreScan.TEX_CONCAVE);
         return "slot" + tex;
     }
+    /** How many draw-side failures have been reported this session. */
+    private int drawFailures = 0;
+
     private void drawQuads(final BufferBuilder buffer, final Tesselator tesselator, final Vec3 cam) {
         // One begin/draw per texture slot. RenderSystem.setShaderTexture binds
         // immediately, but the draw happens at Tesselator.end() - so a single
@@ -1175,23 +1178,40 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // was bound last, and the strip tiles never reached the screen at all.
         for (int tex = 0; tex < ShoreScan.TEX_COUNT; tex++) {
             boolean building = false;
-            for (int i = 0; i < this.quads.count; i++) {
-                final ShoreScan.ShoreQuad q = this.quads.items[i];
-                if (q.tex != tex)
-                    continue;
-                if (!building) {
-                    // The film's slot samples the vanilla water sprite instead of
-                    // one of our own PNGs - the colour still comes from the vertex,
-                    // the same way vanilla paints the sea. See the section above
-                    // waterSprite() for the three things that costs.
-                    RenderSystem.setShaderTexture(0, TEXTURES[tex]);
-                    buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
-                    building = true;
+            try {
+                for (int i = 0; i < this.quads.count; i++) {
+                    final ShoreScan.ShoreQuad q = this.quads.items[i];
+                    if (q.tex != tex)
+                        continue;
+                    if (!building) {
+                        // The film's slot samples the vanilla water sprite instead of
+                        // one of our own PNGs - the colour still comes from the vertex,
+                        // the same way vanilla paints the sea. See the section above
+                        // waterSprite() for the three things that costs.
+                        RenderSystem.setShaderTexture(0, TEXTURES[tex]);
+                        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
+                        building = true;
+                    }
+                    emit(buffer, q, cam);
                 }
-                emit(buffer, q, cam);
+            } catch (final Throwable t) {
+                // Tesselator is process-wide: a begin() that never reaches end()
+                // leaves its builder mid-batch, and from then on every pass adds to a
+                // buffer that is never drawn - which looks exactly like "whole
+                // stretches of surf vanish, it spreads, and only restarting the game
+                // brings it back". Always close the batch, then report once.
+                if (this.drawFailures++ < 3)
+                    this.logger.warn("[ShoreWave] draw aborted for texture {}: {}", tex, t.toString());
+            } finally {
+                if (building) {
+                    try {
+                        tesselator.end();
+                    } catch (final Throwable t) {
+                        if (this.drawFailures++ < 3)
+                            this.logger.warn("[ShoreWave] tesselator.end failed: {}", t.toString());
+                    }
+                }
             }
-            if (building)
-                tesselator.end();
         }
     }
 

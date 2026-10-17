@@ -272,24 +272,11 @@ final class ShoreField {
             q.tex = ShoreScan.TEX_STRIP;
             q.kind = 0;
             q.rgb = ShoreScan.FOAM_RGB;
-            // Height: the TALLEST ground under the piece, not one flat value. A flat
-            // waterTop+1 put every piece below the sand wherever the beach steps up by
-            // a block, so it was depth-rejected and vanished - and because the scan
-            // window re-classifies cells as the player walks, WHICH pieces vanished
-            // moved with the player. That is the "random segments disappear" report.
-            // (The maintainer's "do not climb onto the higher block" still holds: the
-            // piece stands on the sand it covers, it does not move inland onto it.)
-            float yq = 0F;
-            for (int k = 0; k < 4; k++) {
-                final float px = g.ox + (k < 2 ? s0x : s1x) + (k == 0 || k == 3 ? 0F : inFx * w);
-                final float pz = g.oz + (k == 0 || k == 3 ? s0z : s1z) + (k == 0 || k == 3 ? inEz * w : inFz * w);
-                final int cx = (int) Math.floor(px) - g.ox;
-                final int cz = (int) Math.floor(pz) - g.oz;
-                if (cx < 0 || cz < 0 || cx >= g.size || cz >= g.size)
-                    continue;
-                yq = Math.max(yq, ShoreScan.surfaceBase(g, cx, cz));
-            }
-            q.y = (yq <= 0F ? g.waterTop + 1F : yq) + ShoreScan.FOAM_LIFT;
+            // Flat water level + lift. (A per-quad tallest-ground version was tried
+            // for the pieces that vanish near steps; the maintainer says that is NOT the
+            // cause - whole stretches go missing and the damage persists across world
+            // reloads - so it was reverted.)
+            q.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT;
             q.light = ShoreScan.lightAt(level, g, g.ox + gx, g.oz + gz);
             q.alpha = alpha;
             q.wx[0] = g.ox + s0x;

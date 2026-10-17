@@ -758,20 +758,26 @@ public class Configuration extends ConfigurationData {
 
         @Property
         @IntegerRange(min = 40, max = 400)
-        @Comment("Ticks for one wave to run up the beach and fall back (20 ticks = 1 second)")
-        public int wavePeriodTicks = 90;
+        @Comment("Ticks for one wave to run up the beach and fall back (20 ticks = 1 second). "
+                + "Raised from 90 at the maintainer's request - the travel is now a fraction of the "
+                + "beach rather than all of it, so it needed to be slower to read as water washing")
+        public int wavePeriodTicks = 180;
 
         @Property
         @Comment("Write surf scan/render detail to the log (terrain tally, quad counts, world vs camera-space sample). Turn off once it looks right")
         public boolean debugLogging = true;
 
         @Property
-        @Comment("TROUBLESHOOTING ONLY: draw one opaque magenta block per surf cell, a full block wide, floating half a block up. If the magenta sits on the shoreline the geometry and transform are correct and only the band's width/opacity need work; if it is anywhere else, the fault is upstream. Turn off for normal play")
-        public boolean debugSolidBlocks = false;
+        @Comment("Draw the foam band as a polyline that follows the shoreline, with the wave front placed at a fractional distance inland, instead of as whole grid cells. ON is the new path: the front then advances continuously instead of stepping a block at a time, and corners need no corner tiles. Turn OFF to fall back to the older cell-based band")
+        public boolean shoreFoamFoldLine = true;
 
         @Property
-        @Comment("TROUBLESHOOTING ONLY: force the water film's vertex colour to magenta 0xFF00FF, keeping its real geometry, height and alpha. Magenta on screen means the film's vertex colour reaches the GPU and only the colour computed for it is wrong; still-white (or still the old pale blue) means the vertex colour is being replaced downstream - look at the fog range and the shader, not at the colour maths. Turn off for normal play")
-        public boolean shoreFilmDebugColor = false;
+        @Comment("Rebuilt surf: draw the wave line as the contour of the distance to the sea (a level set) instead of a band per coast edge stitched by joints. ON is the rebuild - the line is continuous by construction, follows bends and islands, never ends up in the water and cannot fold when the run-up grows. Turn OFF to fall back to the per-edge bands, which is the picture to compare against")
+        public boolean shoreFieldSurf = true;
+
+        @Property
+        @Comment("Draw the translucent water film that lies under the foam. Turn OFF to leave only the foam (surf band) on its own - used to tell whether a colour problem belongs to the film or to the foam, since the foam is opaque white and the film is a half-transparent sheet whose final colour is mostly whatever is behind it. Turn back ON for normal play")
+        public boolean enableShoreFilm = true;
     }
 
     public static class SpeechBubbles {

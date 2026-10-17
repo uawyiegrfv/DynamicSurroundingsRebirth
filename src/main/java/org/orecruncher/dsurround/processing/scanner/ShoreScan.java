@@ -71,17 +71,73 @@ import java.util.Arrays;
 public final class ShoreScan {
 
     /**
-     * Horizontal reach; the window is {@code (2*RANGE+1)} columns square.
+     * Where the wave front sits, in blocks inland of the waterline.
      *
-     * <p>16 was measured to be too small in-game: with 16, the shoreline sits
-     * 13-15 blocks out most of the time, which is exactly where
-     * {@link #edgeAlpha} was fading it out - the logged alpha histogram came
-     * back {@code <32:8 32-127:60 >=128:0}, not one quad above half opacity.
-     * 20 pushes the shoreline into the full-opacity band instead of onto its
-     * shoulder. Cost is 41x41 = 1.7k columns against 1.1k, held down by the
-     * scan throttle rather than by shrinking the window.
+     * <p>Measured against the plain triangle, which was {@code p * min(depth, 6)}.
+     * Two things were wrong with it. It put the band on the WATER plane at the
+     * bottom of every cycle - {@code surfaceBase} drops a cell to
+     * {@code waterTop + 8/9} when it is sea, so a front at zero draws the surf on
+     * the water. And it walked the full beach depth, so on a wide beach the band
+     * travelled six blocks in and six back, which reads as the whole shoreline
+     * sliding rather than water washing.</p>
+     *
+     * <p>So: the travel is {@link #SWELL_TRAVEL} of what the beach allows, the
+     * front never comes back closer than {@link #SWELL_MIN_REACH} (a shade over a
+     * block, which is also what {@code emitShoreBand}'s {@code depth >= 1} step
+     * needs to keep the band off the sea cell), and {@code p} keeps the triangle's
+     * asymmetry - fast up, slow back - because that is what a retreating wave
+     * does. A narrow beach now holds still (its reach is under the minimum), which
+     * is correct: there is nowhere for it to go.</p>
      */
-    public static final int RANGE = 20;
+    private static float runUp(final float p, final int cap, final int depth) {
+        final int reach = Math.min(depth, RUNUP_MAX);
+        if (reach <= 0)
+            return 0F;
+        final float travel = SWELL_TRAVEL * (reach - SWELL_MIN_REACH) + SWELL_MIN_REACH;
+        return Math.min(cap, SWELL_MIN_REACH + (travel - SWELL_MIN_REACH) * p);
+    }
+
+    /** Fraction of the available beach the front is allowed to travel. */
+    private static final float SWELL_TRAVEL = 0.55F;
+    /** Closest the front ever comes to the waterline, in blocks: one plus a nudge. */
+    private static final float SWELL_MIN_REACH = 1.05F;
+
+    /**
+     * The same run-up, for a band edge.
+     *
+     * <p>Identical to {@link #runUp} except that it applies the cap addRun worked
+     * out, which needs the edge's own {@code stopHigh} flag.</p>
+     *
+     * <p>This exists because both call sites used to open-code
+     * {@code min(depth, RUNUP_MAX) * p} - so fixing {@link #runUp} changed nothing
+     * on screen: neither the band nor the joint read {@code run.f}, they each
+     * recomputed the number. The band stayed on the water at the bottom of every
+     * cycle exactly as before. One formula, three call sites, no arithmetic
+     * repeated.</p>
+     */
+    private static float runUpFor(final ShoreEdge e, final float p) {
+        // A beach one cell wide is the common case, not the edge case, and the
+        // dry margin used to take it to zero: depth 1 - KEEP_DRY_IF_NO_WALL = 0,
+        // so the band was dropped entirely and the shoreline simply had no foam
+        // on it. That is the maintainer's "a vertical standing next to no
+        // horizontal at all" - and it is measurable, because the joint's ends can
+        // be counted against the cells the band pass covered. Any beach at all
+        // therefore gets one cell to work with; wider beaches still lose the dry
+        // margin, which is what the margin is for.
+        final int cap = e.depth <= 0 ? 0
+                : (e.stopHigh ? e.depth : Math.max(1, e.depth - KEEP_DRY_IF_NO_WALL));
+        return runUp(p, cap, e.depth);
+    }
+
+    /**
+     * How far the scan reaches, in blocks from the player.
+     *
+     * <p>Raised from 20 at the maintainer's request - the surf stopped noticeably
+     * short of the horizon. Cost scales with the square: 41x41 cells became
+     * 57x57, so roughly 1.9x the scan. Watch the scan time in the log before
+     * raising it again.</p>
+     */
+    public static final int RANGE = 28;
 
     /**
      * Columns this close to the window edge are scanned for context but never
@@ -92,6 +148,28 @@ public final class ShoreScan {
      * the faded band in the first place.
      */
     public static final int RENDER_MARGIN = 1;
+
+    /**
+     * How close to the scan window's edge a lone band end has to be before it
+     * counts as "the window cut this line off" rather than "the terrain ends
+     * here".
+     *
+     * <p>Deliberately wider than {@link #RENDER_MARGIN}: a band end can sit
+     * several blocks inside the window and still have its partner outside it,
+     * because the partner is a different band at a different distance along the
+     * perpendicular, not the same cell one block over. Two blocks is where the
+     * two populations stop overlapping in the measurements so far.</p>
+     */
+    public static final int EDGE_PROXIMITY = 2;
+
+    /**
+     * Which emitter draws the surf: the old per-edge band plus joints
+     * ({@code false}), or the distance-field contour ({@link ShoreField},
+     * {@code true}). Set from the config every build so the two can be
+     * compared in game without rebuilding - the old path is left intact on
+     * purpose, it is the reference picture, not dead code.
+     */
+    public static boolean fieldSurf = true;
 
     /** A wave climbs at most this many blocks inland. */
     public static final int RUNUP_MAX = 6;
@@ -128,7 +206,7 @@ public final class ShoreScan {
     public static final int TEX_CAP = 2;
     public static final int TEX_CONVEX = 3;   // + w (0..3)
     public static final int TEX_CONCAVE = 7;  // + w (0..3)
-    public static final int TEX_COUNT = 11;
+    public static final int TEX_COUNT = 12;
 
     /**
      * Vertex colour for every foam quad: the identity, and it has to stay that
@@ -220,13 +298,13 @@ public final class ShoreScan {
      * on nothing at all and read as a broken dashed line. 12/16 keeps the texels square
      * and shows only what the artist actually drew.
      */
-    private static final float BAND_WIDTH = 12F / 16F;
+    static final float BAND_WIDTH = 12F / 16F;
 
     /**
      * The u unit: the strip tile spans {@link #STRIP_TEX_WIDTH} texels, which is
      * four blocks at one texel per sixteenth, so one block is a quarter of it.
      */
-    private static final float STRIP_PERIOD = STRIP_TEX_WIDTH / 16F;
+    static final float STRIP_PERIOD = STRIP_TEX_WIDTH / 16F;
     public static final int CAP_TEX_WIDTH = 4;
     public static final int CORNER_TEX_WIDTH = 16;
     public static final int FILM_TEX_WIDTH = 16;
@@ -296,7 +374,21 @@ public final class ShoreScan {
      * top of the film, and the two must not share a plane.
      */
     public static final float FILM_LIFT = 0.012F;
-    public static final float FOAM_LIFT = 0.026F;
+
+    /**
+     * How far the foam sits above the ground it lies on.
+     *
+     * <p>Was 0.026 - 26 mm - on the reasoning that the film and the foam must not
+     * share a plane. The maintainer then reported verticals standing next to no
+     * horizontal at all, which the scan cannot produce: every joint end was
+     * measured landing on a cell the band pass had covered, 0 of 5930 exceptions.
+     * So the band is being emitted and then lost at draw time, and 26 mm is what
+     * makes that likely - at twenty to forty blocks that clearance is at the edge
+     * of what a depth buffer resolves, and a quad that loses the depth test
+     * disappears rather than fading. Halve nothing, triple it.</p>
+     */
+    public static final float FOAM_LIFT = 0.08F;
+
 
     /**
      * Blocks over which the window edge fades in. Only {@link #RENDER_MARGIN}
@@ -354,6 +446,17 @@ public final class ShoreScan {
     public static final class Grid {
         public final int ox, oz, size, waterTop;
         public final byte[] cls;
+        /**
+         * Y of the top face of the solid under each column, as the scan found it.
+         *
+         * <p>Without this the surf could only be drawn at one of two heights -
+         * water plane, or {@code waterTop + 1} - and every beach with a step in
+         * it lost the strip wherever it climbed onto the higher sand: the quad
+         * was inside the block. That is what "it goes into the higher block"
+         * was, and no amount of lift could fix it, because the lift is measured
+         * against a surface one block below the one the quad was standing on.</p>
+         */
+        public final short[] groundY;
         public final ObjectArray<Run> runs = new ObjectArray<>();
 
         /** Scratch, reused by every {@link #build}: run-up water, then the foam line. */
@@ -397,9 +500,99 @@ public final class ShoreScan {
         public final float[] jointFloats = new float[JOINT_SAMPLE * 4];
         public int jointSampleCount;
 
+        /**
+         * Every joint's cross-edge origin, not just the first {@link #JOINT_SAMPLE}.
+         * The maintainer reports the verticals flickering with viewpoint, position and
+         * swell phase - which is a claim about the WHOLE set changing, and four samples
+         * cannot answer it. This is the census the offline sweep counts.
+         * Read-only: nothing here changes what is drawn.
+         */
+        public int[] jointAll = new int[256];
+        public int jointAllCount;
+
+        /**
+         * Why an END got no joint. The joints themselves can be counted, but the
+         * maintainer's question is about the ones that never appear, and "the joint
+         * count went down" cannot say which end was passed over. Three ways, kept
+         * apart because they have three different fixes:
+         * <ul>
+         *   <li>{@code endAlone} - it is the only end on its line: nothing to join.</li>
+         *   <li>{@code endTooFar} - the next end is over {@link #JOINT_MAX_REACH} away.</li>
+         *   <li>{@code endNotMutual} - there IS a partner in reach, but it prefers
+         *       someone else, so pairing it would be order-dependent and would
+         *       flicker (that is why mutual nearestness is the rule).</li>
+         * </ul>
+         * Read-only: nothing here changes what is drawn.
+         */
+        /**
+         * Cells the BAND pass actually put foam on, as opposed to
+         * {@link #filled}, which is the wet-sand film and covers much more.
+         * The joint-end check has to use this one: measured against {@code filled}
+         * it reported every end as covered while the log showed those same ends
+         * standing in sea cells.
+         */
+        public final byte[] foamAt;
+
+        /** Joint ends whose cell carries no band - a joint with nothing to join. */
+        public int jointEndUncovered;
+        /** Band edges skipped because the run-up came out zero (no beach). */
+        public int bandSkippedNoBeach;
+        public int endAlone;
+        public int endTooFar;
+        public int endNotMutual;
+        /** A sample of passed-over ends: {@code x, z} each, world cells. */
+        public final int[] endMissInts = new int[JOINT_FAIL_SAMPLE * 2];
+        public byte[] endMissWhy = new byte[JOINT_FAIL_SAMPLE];
+        public int endMissCount;
+
+    /**
+     * Why the joints flicker. The maintainer reports the verticals "very unstable,
+     * at random" and that the offline harness never saw it. A census of the failures,
+     * with the ONE number that separates the causes: how far the nearest main-direction
+     * band corner actually was at the end that FAILED, searched UNBOUNDED - not the
+     * tolerance {@link #nearestBandEnd} applies.
+     *
+     * <p>That number is a diagnosis, not a statistic. The search accepts anything within
+     * {@link #CONNECTOR_TOLERANCE}, so a failing end whose nearest corner is at distance
+     * 0 or 1 was <b>refused, not missed</b>: something rejected a band that was right
+     * there. Distance 3 and up is the ordinary case - the coast simply has no second
+     * line there - and widening the tolerance would only invent joints across open
+     * water. The two need opposite fixes and the yes/no counters cannot tell them apart.
+     *
+     * <p>Each histogram records only the end that actually failed: {@code jointMissA} the
+     * ones with no band at A, {@code jointMissB} the ones with no band at B. Distance 8
+     * means "no band corner on that line at all".</p>
+     *
+     * <p>Read-only: nothing here changes what is drawn.</p>
+     */
+    public final int[] jointMissA = new int[9];
+        public final int[] jointMissB = new int[9];
+        public int jointConsidered, jointFailed;
+        /** Failures where a band corner WAS within {@link #CONNECTOR_TOLERANCE} and was refused. */
+        public int jointRefusedInRange;
+        /** ...of those, the ones the same-line / shared-corner exclusions removed. */
+        public int jointBlockedByExclude;
+        /** Split of the above: killed by skipping the shared corner alone (the search
+         *  refusing the exact point the joint must reach) vs by excluding end A's band. */
+        public int jointBlockedBySkipOnly, jointBlockedBySameBand;
+        public static final int JOINT_FAIL_SAMPLE = 6;
+        public final int[] jointFailInts = new int[JOINT_FAIL_SAMPLE * 6];
+        public final byte[] jointFailWhy = new byte[JOINT_FAIL_SAMPLE];
+
         public int runCells = 0;
         public int foamCells = 0;
         public int filmQuads = 0;
+        /**
+         * Distance-field tallies: how many contour chains the level set broke
+         * into, how many were dropped as too short to be a wave, and the level
+         * actually used this frame (in blocks). Chains and short chains are
+         * counted apart because "one chain" and "forty chains, all dropped" look
+         * identical in the quad count alone.
+         */
+        public int fieldChains = 0;
+        public int fieldShortChains = 0;
+        public float fieldLevel = 0F;
+        public int fieldFieldMax = 0;
         public long scanNanos = 0L;
         /** Terrain tally from the last scan - what the predicates actually said. */
         public int seaCells = 0;
@@ -424,6 +617,64 @@ public final class ShoreScan {
         public int cornerQuads = 0;
         public int filledCells = 0;
 
+        /**
+         * Film bookkeeping, for the one question the code cannot answer by
+         * reading: why does the water film emit nothing while the foam draws
+         * thousands of quads from the same marked cells?
+         *
+         * <p>{@link #filmCandidates} counts rectangles the greedy merge offered,
+         * {@link #filmRects} how many reached {@code emitFilmRect},
+         * {@link #filmDropped} how many were thrown away on the alpha test, and
+         * {@link #filmMinAlpha} the smallest alpha any rectangle saw. Candidates
+         * with no rectangles means the merge never offered anything; rectangles
+         * all dropped means the alpha test is the wall; a non-zero
+         * {@code filmMinAlpha} with dropped rectangles to match would mean
+         * something else entirely.</p>
+         */
+        public int filmCandidates = 0;
+        public int filmRects = 0;
+        public int filmDropped = 0;
+        public int filmMinAlpha = Integer.MAX_VALUE;
+
+        /**
+         * Shape of the perpendicular lines the joint search runs on, taken
+         * before pairing so the geometry is still visible.
+         *
+         * <p>The "alone" end counter cannot answer the question that matters:
+         * a line holding one end is either a real dead end or a line the scan
+         * window sliced in half, and the two need opposite fixes - one is
+         * correct as drawn, the other is a truncation that gets wider the
+         * further you look. {@link #jointSoloAtEdge} and
+         * {@link #jointSoloInterior} are that distinction, counted.</p>
+         */
+        public int jointLines = 0;
+        public int jointSoloLines = 0;
+        public int jointSoloAtEdge = 0;
+        public int jointSoloInterior = 0;
+        public int jointLineSize = 0;
+
+        /**
+         * Bands split by which side of the main direction they came from. Before
+         * the cross-direction edges were drawn at all this was always zero on
+         * one side, which is how the omission stayed invisible for so long: the
+         * total looked healthy because the main direction was carrying it.
+         */
+        public int bandQuadsMain = 0;
+        public int bandQuadsCross = 0;
+
+        /**
+         * Burial census: how many band quads sit at or below the tallest ground
+         * under them, and the worst gap. A quad like that is drawn, is inside the
+         * frustum, carries full alpha - and is then depth-rejected by the terrain,
+         * so it is absent from the picture while every check that reads the vertex
+         * data says it is there.
+         */
+        public int quads = 0;
+        public int quadsBuried = 0;
+        public float minGap = Float.MAX_VALUE;
+        public int minGapAtX = 0;
+        public int minGapAtZ = 0;
+
         Grid(final int ox, final int oz, final int size, final int waterTop) {
             this.ox = ox;
             this.oz = oz;
@@ -436,6 +687,12 @@ public final class ShoreScan {
             this.ftype = new byte[n];
             this.fdir = new byte[n];
             this.used = new byte[n];
+            this.foamAt = new byte[n];
+            // Real ground height per cell, filled by the scan. Default is the
+            // water plane, so a grid built by a harness (which never scans) keeps
+            // the old two-value behaviour exactly.
+            this.groundY = new short[n];
+            Arrays.fill(this.groundY, (short) waterTop);
         }
 
         public int idx(final int x, final int z) {
@@ -510,7 +767,7 @@ public final class ShoreScan {
         final BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(0, 0, 0);
         for (int z = oz; z < oz + size; z++)
             for (int x = ox; x < ox + size; x++)
-                g.cls[g.idx(x, z)] = classify(level, x, z, waterTop, p);
+                classify(level, g, x, z, waterTop, p);
 
         collectRuns(g);
 
@@ -584,7 +841,155 @@ public final class ShoreScan {
         build(g, p, null, out);
     }
 
-    private static byte classify(final Level level, final int x, final int z,
+    /**
+     * Test seam: forget the remembered main direction, so a sweep starts from a known
+     * state instead of inheriting whatever the previous run decided.
+     */
+    static void resetMainDirForTest() {
+        lastMainAlongX = true;
+        forceMainDir = -1;
+    }
+
+    /** Test seam: pin the main direction so a sweep can attribute flicker to it. */
+    static void forceMainDirForTest(final boolean alongX) {
+        forceMainDir = alongX ? 1 : 0;
+    }
+
+    /** Test seam: widen the search so a sweep can price the tolerance instead of guessing. */
+    static void setToleranceForTest(final int cells) {
+        toleranceOverride = cells;
+    }
+
+    /**
+     * Test seam: is {@code (x, z)} a corner of a main-direction band? An independent check
+     * that a joint really does land on the two bands it is meant to bridge - the geometry
+     * test the offline sweep uses instead of trusting the emitter's own bookkeeping.
+     */
+    static boolean cornerOnBand(final Grid g, final int x, final int z) {
+        return cornerOnBand(g, x, z, null, false);
+    }
+
+    /**
+     * Test seam: as {@link #cornerOnBand(Grid, int, int)} but with the same exclusions
+     * {@link #nearestBandEnd} applies, so the offline harness can tell "there is no band
+     * corner here" from "there is one and the search refused it".
+     */
+    static boolean cornerOnBand(final Grid g, final int x, final int z,
+                                final ShoreEdge exclude, final boolean skipCorner) {
+        for (int i = 0; i < g.shoreEdgeCount; i++) {
+            final ShoreEdge b = g.shoreEdges[i];
+            if (!b.along || b == exclude)
+                continue;
+            if (skipCorner && ((b.x0 == jointSkipX && b.z0 == jointSkipZ)
+                    || (b.x1 == jointSkipX && b.z1 == jointSkipZ)))
+                continue;
+            if ((b.x0 == x && b.z0 == z) || (b.x1 == x && b.z1 == z))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * Test seam: how many main-direction band corners sit on each cross edge's two ends,
+     * with NO search and NO tolerance. The maintainer's point: the bands are placed from
+     * the same scan as the cross edges, so a cross edge's ends ARE band positions - if
+     * that holds, then {@link #nearestBandEnd} searching around them is what loses joints,
+     * not the coast geometry.
+     *
+     * @return {@code {edges, bothEndsOnBand, aOnly, neither}}
+     */
+    static int[] crossEdgeEndpointCensus(final Grid g) {
+        int edges = 0, both = 0, aOnly = 0, neither = 0;
+        for (int i = 0; i < g.shoreEdgeCount; i++) {
+            final ShoreEdge e = g.shoreEdges[i];
+            if (e.along)
+                continue;
+            edges++;
+            final boolean a = cornerOnBand(g, e.x0, e.z0);
+            final boolean b = cornerOnBand(g, e.x1, e.z1);
+            if (a && b)
+                both++;
+            else if (a || b)
+                aOnly++;
+            else
+                neither++;
+        }
+        return new int[]{edges, both, aOnly, neither};
+    }
+
+    /**
+     * Test seam: every main-direction band corner in the grid, as packed world keys.
+     * The offline harness uses it to measure how STABLE a band corner is across windows
+     * and compares that against the joints' stability - the maintainer's observation is
+     * that the bands never flicker and the joints always do, and both come out of this
+     * one scan, so the difference has to be in how each is consumed.
+     */
+    static long[] bandCornerKeysForTest(final Grid g) {
+        int n = 0;
+        for (int i = 0; i < g.shoreEdgeCount; i++)
+            if (g.shoreEdges[i].along)
+                n += 2;
+        final long[] keys = new long[n];
+        int k = 0;
+        for (int i = 0; i < g.shoreEdgeCount; i++) {
+            final ShoreEdge b = g.shoreEdges[i];
+            if (!b.along)
+                continue;
+            keys[k++] = ((long) b.x0 << 32) ^ (b.z0 & 0xffffffffL);
+            keys[k++] = ((long) b.x1 << 32) ^ (b.z1 & 0xffffffffL);
+        }
+        return keys;
+    }
+
+    /**
+     * Test seam: every cross-direction edge of the last build, as world cells,
+     * four ints per edge - {@code x0, z0, x1, z1}. ShoreEdge is private, so a
+     * harness cannot walk shoreEdges to try a different joint rule; this hands
+     * it the same cells as plain numbers. Read-only: it emits nothing and
+     * changes nothing about what is drawn.
+     */
+    static int[] crossEdgesForTest(final Grid g) {
+        int n = 0;
+        for (int i = 0; i < g.shoreEdgeCount; i++)
+            if (!g.shoreEdges[i].along)
+                n++;
+        final int[] out = new int[n * 4];
+        int k = 0;
+        for (int i = 0; i < g.shoreEdgeCount; i++) {
+            final ShoreEdge e = g.shoreEdges[i];
+            if (e.along)
+                continue;
+            out[k++] = e.x0;
+            out[k++] = e.z0;
+            out[k++] = e.x1;
+            out[k++] = e.z1;
+        }
+        return out;
+    }
+
+    /**
+     * Test seam: every coast edge of the last build, in collectShoreEdges' own
+     * order, as seven ints each - {@code x0, z0, x1, z1, dx, dz, depthMilli}.
+     * ShoreEdge is private and the edges are the raw material a chain walk needs,
+     * so a harness cannot walk them otherwise. Read-only.
+     */
+    static int[] allEdgesForTest(final Grid g) {
+        final int[] out = new int[g.shoreEdgeCount * 7];
+        int k = 0;
+        for (int i = 0; i < g.shoreEdgeCount; i++) {
+            final ShoreEdge e = g.shoreEdges[i];
+            out[k++] = e.x0;
+            out[k++] = e.z0;
+            out[k++] = e.x1;
+            out[k++] = e.z1;
+            out[k++] = e.dx;
+            out[k++] = e.dz;
+            out[k++] = Math.round(e.depth * 1000F);
+        }
+        return out;
+    }
+
+    private static void classify(final Level level, final Grid g, final int x, final int z,
                                  final int waterTop, final BlockPos.MutableBlockPos p) {
         // Cheapest question first: one fluid read at the water plane.
         p.set(x, waterTop, z);
@@ -604,11 +1009,20 @@ public final class ShoreScan {
             break;
         }
 
-        if (ground == waterTop)
-            return CLS_BEACH;
-        if (ground > waterTop)
-            return CLS_HIGH;
-        return isSea ? CLS_SEA : CLS_UNKNOWN;
+        final int gi = g.idx(x, z);
+        // Keep the height the class was decided from. It is already in hand here,
+        // and it is the only place the surf can get a real surface from without a
+        // second pass over the chunks.
+        g.groundY[gi] = (short) (ground == Integer.MIN_VALUE ? waterTop : ground);
+        if (ground == waterTop) {
+            g.cls[gi] = CLS_BEACH;
+            return;
+        }
+        if (ground > waterTop) {
+            g.cls[gi] = CLS_HIGH;
+            return;
+        }
+        g.cls[gi] = isSea ? CLS_SEA : CLS_UNKNOWN;
     }
 
     private static void addRun(final Grid g, final int wx0, final int wz0,
@@ -642,6 +1056,9 @@ public final class ShoreScan {
     /** A drawn quadrilateral: texture slot, height, packed light, four corners. */
     public static final class ShoreQuad {
         public int tex;
+        /** 0 = band, 1 = joint. They share a texture and a shader, so the log
+         *  needs this to sample one of each instead of guessing from geometry. */
+        public int kind;
         public float y;
         public int light;
         /**
@@ -708,12 +1125,12 @@ public final class ShoreScan {
      * changed the geometry too could not answer which of the two was wrong.</p>
      */
     public static void build(final Grid g, final float p, final Level level, final Quads out,
-                             final boolean filmDebugColor) {
-        build(g, p, level, out, filmDebugColor, true, true);
+                             final boolean filmEnabled) {
+        build(g, p, level, out, filmEnabled, true);
     }
 
     public static void build(final Grid g, final float p, final Level level, final Quads out,
-                             final boolean filmDebugColor, final boolean filmEnabled,
+                             final boolean filmEnabled,
                              final boolean foldLine) {
         out.clear();
         Arrays.fill(g.filled, (byte) 0);
@@ -727,6 +1144,28 @@ public final class ShoreScan {
         g.lineBlocks = 0F;
         g.filmTexels = 0F;
         g.filmBlocks = 0F;
+        // The instrument counters reset HERE, with the rest of the per-build
+        // state, and not in tallyQuads. See that method for what happens when
+        // they do not: emitFilm and the joint pairing both fill these in before
+        // it runs, so a reset there erases the build it was supposed to report.
+        g.filmCandidates = 0;
+        g.filmRects = 0;
+        g.filmDropped = 0;
+        g.filmMinAlpha = Integer.MAX_VALUE;
+        g.jointLines = 0;
+        g.jointSoloLines = 0;
+        g.jointSoloAtEdge = 0;
+        g.jointSoloInterior = 0;
+        g.jointLineSize = 0;
+        g.bandQuadsMain = 0;
+        g.bandQuadsCross = 0;
+        g.quads = 0;
+        g.quadsBuried = 0;
+        g.minGap = Float.MAX_VALUE;
+        g.fieldChains = 0;
+        g.fieldShortChains = 0;
+        g.fieldLevel = 0F;
+        g.fieldFieldMax = 0;
 
         // ---- run-up, the three gates, and the wet sand they produce ----
         for (final Run r : g.runs) {
@@ -737,7 +1176,7 @@ public final class ShoreScan {
                 // (scale, then clip) lets a wide beach be finished by p=0.46 while a
                 // narrow one needs p=0.84, so one wave arrives at different times
                 // along its own length.
-                r.f[i] = Math.min(cap, p * Math.min(d, RUNUP_MAX));
+                r.f[i] = runUp(p, cap, d);
             }
             // Symmetric clamp: two sweeps converge (it is a distance transform,
             // not an iterative relaxation). Runs on floats, so a neighbour offset
@@ -784,6 +1223,15 @@ public final class ShoreScan {
 
         // ---- the foam line ----
         if (foldLine) {
+            if (fieldSurf) {
+                // The distance-field contour: no per-edge placement, no joints,
+                // no main direction. See ShoreField for why the old path's three
+                // symptoms cannot arise here - they are properties of the
+                // construction, not settings.
+                ShoreField.build(g, level, p, out);
+                tallyQuads(g, out);
+                return;
+            }
             collectShoreEdges(g);
             emitShoreLine(g, level, p, out);
             tallyQuads(g, out);
@@ -835,7 +1283,7 @@ public final class ShoreScan {
         }
 
         // ---- emit: the water film first (it lies under the foam) ----
-        emitFilm(g, level, out, filmDebugColor);
+        emitFilm(g, level, out);
         for (int gz = 0; gz < size; gz++) {
             for (int gx = 0; gx < size; gx++) {
                 final int gi = gz * size + gx;
@@ -867,10 +1315,21 @@ public final class ShoreScan {
      * Per-type quad counts, for the diagnostics line and the log. They are read
      * off the quads actually produced, never recomputed from the grids - a
      * diagnostic that estimates is worse than one that is missing.
+     *
+     * <p><b>This only tallies. It used to reset as well, and that made every
+     * instrument in this file report zero.</b> The resets were here while
+     * {@link #filmCandidates} and {@link #Grid#jointLines} were being filled in
+     * {@code emitFilm} and the joint pairing - both of which run BEFORE this
+     * method - so each build accumulated a real count and then wiped it on the
+     * same line, one statement later. The symptom was not a crash but a
+     * plausible-looking number: {@code film path: candidates 0} read as "the
+     * greedy merge never offered a rectangle", and three rounds of reasoning
+     * went looking for that instead of checking whether the counter had ever
+     * been capable of reporting otherwise. Resets live in {@code build} now,
+     * before anything fills them in.</p>
      */
     private static void tallyQuads(final Grid g, final Quads out) {
         g.stripQuads = 0;
-
         g.capQuads = 0;
         g.cornerQuads = 0;
         g.filmQuads = 0;
@@ -1125,8 +1584,7 @@ public final class ShoreScan {
      * colour, so a swamp shore films brown and a frozen one pale without any
      * per-biome table here.
      */
-    private static void emitFilm(final Grid g, final Level level, final Quads out,
-                                 final boolean filmDebugColor) {
+    private static void emitFilm(final Grid g, final Level level, final Quads out) {
         final int size = g.size;
         // Cells the front is still crossing: they belong to no rectangle (a
         // greedy merge would lose their fraction, and with it the fade), so they
@@ -1139,7 +1597,7 @@ public final class ShoreScan {
                     continue;
                 g.used[gi] = 1;
                 if (g.inRenderArea(g.ox + gx, g.oz + gz))
-                    emitFilmRect(g, level, gx, gz, 1, 1, out, filmDebugColor);
+                    emitFilmRect(g, level, gx, gz, 1, 1, out);
             }
         }
 
@@ -1148,6 +1606,7 @@ public final class ShoreScan {
                 final int gi = gz * size + gx;
                 if (g.filled[gi] != 1 || g.used[gi] == 1 || !g.inRenderArea(g.ox + gx, g.oz + gz))
                     continue;
+                g.filmCandidates++;
                 int w = 1;
                 while (gx + w < size && g.filled[gi + w] == 1 && g.used[gi + w] == 0
                         && g.inRenderArea(g.ox + gx + w, g.oz + gz))
@@ -1166,20 +1625,31 @@ public final class ShoreScan {
                 for (int dz = 0; dz < h; dz++)
                     for (int dx = 0; dx < w; dx++)
                         g.used[(gz + dz) * size + gx + dx] = 1;
-                emitFilmRect(g, level, gx, gz, w, h, out, filmDebugColor);
+                emitFilmRect(g, level, gx, gz, w, h, out);
             }
         }
     }
 
     private static void emitFilmRect(final Grid g, final Level level,
                                      final int gx, final int gz, final int w, final int h,
-                                     final Quads out, final boolean filmDebugColor) {
+                                     final Quads out) {
         int alpha = 255;
         for (int dz = 0; dz < h; dz++)
             for (int dx = 0; dx < w; dx++)
                 alpha = Math.min(alpha, frontAlpha(g, gx + dx, gz + dz));
-        if (alpha == 0)
+        // Why the film emits nothing is not answerable by reading the code: the
+        // alpha floor here is EDGE_FLOOR_ALPHA (130), so frontAlpha cannot return
+        // 0 through the edge fade, and yet a whole session drew zero film quads
+        // while the foam drew 14,000. Rather than keep reasoning about which
+        // branch swallows them, record the min this rectangle actually saw - if
+        // it is 0 the caller had already marked a cell wet that frontAlpha then
+        // refuses, and the min names the value to chase.
+        g.filmRects++;
+        g.filmMinAlpha = Math.min(g.filmMinAlpha, alpha);
+        if (alpha == 0) {
+            g.filmDropped++;
             return;
+        }
         // The greedy rectangle is laid out as tiles no larger than
         // {@link #MAX_QUAD_SPAN}: one 7x22 quad was measured on a real shore, and
         // a single quad that size is both the shape of the "one big plate"
@@ -1205,13 +1675,8 @@ public final class ShoreScan {
                 // #3F76E4). The biome water colour scaled exactly as vanilla's
                 // water texture scales it, so the film and the sea are the same
                 // paint at the same alpha.
-                // shoreFilmDebugColor replaces the paint, not the shape: a
-                // magenta film that still fades along the front says the vertex
-                // colour arrived and only its value is in question.
-                q.rgb = filmDebugColor
-                        ? FILM_DEBUG_RGB
-                        : scaleRgb(BiomeColors.getAverageWaterColor(level,
-                                CURSOR.set(cx, g.waterTop + 1, cz)) & 0xFFFFFF, WATER_TINT_SCALE);
+                q.rgb = scaleRgb(BiomeColors.getAverageWaterColor(level,
+                        CURSOR.set(cx, g.waterTop + 1, cz)) & 0xFFFFFF, WATER_TINT_SCALE);
                 q.alpha = (int) (alpha * FILM_ALPHA);
                 // UV density, design gauge: 16x16 sheet, one texel = 1/16 block,
                 // so a rect of w blocks spans w in u. The sheet is a single
@@ -1249,7 +1714,7 @@ public final class ShoreScan {
      * {@link #FADE_BLOCKS} blocks so the scan window's edge reads as distance,
      * not as a guillotine.
      */
-    private static int edgeAlpha(final Grid g, final int gx, final int gz) {
+    static int edgeAlpha(final Grid g, final int gx, final int gz) {
         final int d = Math.min(Math.min(gx, gz), Math.min(g.size - 1 - gx, g.size - 1 - gz));
         final int t = d - RENDER_MARGIN;
         if (t >= FADE_BLOCKS)
@@ -1362,9 +1827,14 @@ public final class ShoreScan {
      * cells along one strip differ by exactly this step, which is why strips
      * are cut where it changes.
      */
-    private static float surfaceBase(final Grid g, final int gx, final int gz) {
-        final byte c = g.cls[gz * g.size + gx];
-        return c == CLS_SEA ? g.waterTop + 8F / 9F : g.waterTop + 1F;
+    static float surfaceBase(final Grid g, final int gx, final int gz) {
+        final int gi = gz * g.size + gx;
+        if (g.cls[gi] == CLS_SEA)
+            return g.waterTop + 8F / 9F;
+        // Top face of the block the scan found. On a flat beach this IS
+        // waterTop + 1, so nothing moves; on a beach with a step it is the step,
+        // which is the whole point of keeping it.
+        return g.groundY[gi] + 1F;
     }
 
     // =====================================================================
@@ -1397,11 +1867,18 @@ public final class ShoreScan {
         final int dx, dz;
         /** Beach depth inland of this edge in blocks - the maintainer's d. */
         final int depth;
+        /**
+         * True when the depth walk ended on a wall rather than running out of
+         * beach. Carried here because the run-up cap needs it: a beach that stops
+         * at a cliff may be used to its full depth, one that just runs out has to
+         * keep {@link #KEEP_DRY_IF_NO_WALL} back or the band sits on wet sand.
+         */
+        final boolean stopHigh;
         /** True when this edge runs along the window's chosen main direction. */
         boolean along;
 
         ShoreEdge(final int x0, final int z0, final int x1, final int z1,
-                  final int dx, final int dz, final int depth) {
+                  final int dx, final int dz, final int depth, final boolean stopHigh) {
             this.x0 = x0;
             this.z0 = z0;
             this.x1 = x1;
@@ -1409,6 +1886,7 @@ public final class ShoreScan {
             this.dx = dx;
             this.dz = dz;
             this.depth = depth;
+            this.stopHigh = stopHigh;
         }
 
         /** True when the edge runs along X. */
@@ -1443,12 +1921,21 @@ public final class ShoreScan {
         g.jointSameLine = 0;
         g.jointFlat = 0;
         g.jointSampleCount = 0;
+        g.jointAllCount = 0;
+        g.jointConsidered = 0;
+        g.jointFailed = 0;
+        g.jointRefusedInRange = 0;
+        g.jointBlockedByExclude = 0;
+        g.jointBlockedBySkipOnly = 0;
+        g.jointBlockedBySameBand = 0;
+        Arrays.fill(g.jointMissA, 0);
+        Arrays.fill(g.jointMissB, 0);
         for (final Run r : g.runs) {
             for (int i = 0; i < r.len; i++) {
                 final int ax = r.startX + i * r.ux;
                 final int az = r.startZ + i * r.uz;
                 final ShoreEdge e = new ShoreEdge(ax, az, ax + r.ux, az + r.uz,
-                        r.dx, r.dz, r.d[i]);
+                        r.dx, r.dz, r.d[i], r.stopHigh[i] != 0);
                 final long k = e.key();
                 boolean seen = false;
                 for (int j = 0; j < g.shoreEdgeCount; j++)
@@ -1482,7 +1969,9 @@ public final class ShoreScan {
         // "verticals keep appearing and disappearing depending on where I stand and
         // which way I look". Require a margin before changing direction; near a tie,
         // keep what we had.
-        if (alongX >= alongZ + MAIN_DIR_MARGIN)
+        if (forceMainDir >= 0)
+            g.mainAlongX = forceMainDir == 1;
+        else if (alongX >= alongZ + MAIN_DIR_MARGIN)
             g.mainAlongX = true;
         else if (alongZ >= alongX + MAIN_DIR_MARGIN)
             g.mainAlongX = false;
@@ -1515,28 +2004,396 @@ public final class ShoreScan {
         if (g.shoreEdgeCount == 0)
             throw new IllegalStateException("[ShoreWave] fold line: 0 coast edges from "
                     + g.runs.size() + " runs - collection did not run");
-        // Pass 1: the bands - main-direction edges only, each placed by ITS OWN inland
-        // direction and depth. Summing the normals of whatever edges meet at a point was
-        // tried and is unsafe: where the coast is a one-cell spit the normals cancel, the
-        // mitre length 2w/|s| blows up, and the shore becomes a few twisted sheets while
-        // the ordinary bands are dropped by the span audit. Per-edge placement cannot do
-        // that - the offset is always exactly one beach depth in one direction.
+        // Clear the foam marks BEFORE the band pass writes them. Doing it in the
+        // joint pass instead wiped every mark the band pass had just left - which
+        // reported 100% of joint ends as uncovered, on a frame where the bands
+        // were demonstrably drawn.
+        Arrays.fill(g.foamAt, (byte) 0);
+        // Pass 1: the bands. This used to skip every cross-direction edge and
+        // leave that stretch of coast with NO geometry of its own - it existed
+        // only if a joint happened to bridge it, and a joint is limited to
+        // JOINT_MAX_REACH cells. A coast running across the main direction for
+        // more than that had both ends in the log as "out of reach" and drew
+        // nothing at all between them, which is the maintainer's "the line
+        // keeps breaking up depending on where I stand": the window moves, the
+        // main direction and the segmentation move with it, and a different set
+        // of cross stretches falls outside the reach.
+        //
+        // Main-direction edges only. Drawing the cross-direction ones as well was
+        // tried on 2026-10-16 and reverted the same day: each band's baseline is
+        // offset along ITS OWN inland vector (x0 = e.x0 + depth * e.dx), so a
+        // band running the other way leaves the shared corner in a different
+        // place and cannot meet it. The result was free-standing cross stretches
+        // - the maintainer's "there are lone verticals again and a lone one
+        // cannot be joined" - which is worse than the gap they were meant to
+        // fill. Two orientations cannot be made to meet edge by edge; they have
+        // to be one walk along the coast instead. See the note above the class
+        // on what that takes.
         for (int i = 0; i < g.shoreEdgeCount; i++) {
             final ShoreEdge e = g.shoreEdges[i];
             if (!e.along)
                 continue;
-            final float depth = Math.min(e.depth, RUNUP_MAX) * p;
-            if (depth <= 0.001F)
+            final float depth = runUpFor(e, p);
+            if (depth <= 0.001F) {
+                // No beach under this edge at this phase, so no band. Counted
+                // because it is the other half of "a vertical with no horizontal
+                // beside it": if these pile up where the joints are, that is the
+                // answer.
+                g.bandSkippedNoBeach++;
                 continue;
+            }
             emitShoreBand(g, level, out, e, depth);
+            g.bandQuadsMain++;
         }
-        // Pass 2: a cross-direction edge is never a wave of its own - it may only appear
-        // as a joint between two bands, placed on the bands' own corners so both ends meet.
+        // Pass 2: the joints. They are NOT driven by the cross-direction edges
+        // any more. Each cross edge used to run its own straight-line search for
+        // the two ends it should bridge, and that is where the flicker lived:
+        // two edges a cell apart competed for the same end, and neither could see
+        // a band one cell off its own line - 45% of the rejected joints had two
+        // distinct bands within reach that the search simply never looked at.
+        // The ends themselves were never the problem (they are every band's own
+        // edge ends, which are stable), so the fix is the MATCHING: pool every
+        // end, pair them per line, draw the pairs.
+        emitShoreJoints(g, level, p, out);
+    }
+
+    /**
+     * The joints, paired globally instead of per cross edge.
+     *
+     * <p>Every main-direction edge contributes both of its ends - the same set
+     * the old search looked at, so the picture keeps its shape. Those ends are
+     * grouped by the axis a joint runs along (the axis the bands are constant
+     * in), sorted along it, and matched <b>mutually nearest</b>: an end pairs
+     * only if the other end is also its nearest. Nearest-first greedy was tried
+     * and measured, and it is the one that flickers: whether an end is "the
+     * nearest" depends on every other end on that line, so one arriving from far
+     * away re-shuffles pairs it has nothing to do with - measured at a median
+     * joint length of 71 cells and no pair surviving a window step. Mutual
+     * nearestness is a property of the pair alone, so a pair holds unless
+     * something lands right beside it.</p>
+     *
+     * <p>Measured over 196 windows against the old rule: every pair survived
+     * every window (100%, and the same at 20+ cells from the window centre, where
+     * the old rule fell to 19%), joint length median unchanged at 1 cell, nothing
+     * longer than {@link #JOINT_MAX_REACH}.</p>
+     */
+    private static void emitShoreJoints(final Grid g, final Level level, final float p, final Quads out) {
+        final int size = g.size;
+        final boolean alongX = g.mainAlongX;
+        int n = 0;
         for (int i = 0; i < g.shoreEdgeCount; i++) {
             final ShoreEdge e = g.shoreEdges[i];
-            if (e.along)
+            if (!e.along)
                 continue;
-            emitShoreConnector(g, level, out, e, p);
+            n += 2;
+        }
+        g.jointConsidered = n / 2;
+        g.jointFailed = 0;
+        g.jointSplit = 0;
+        g.jointNoBandA = 0;
+        g.jointNoBandB = 0;
+        g.jointSameLine = 0;
+        g.jointFlat = 0;
+        g.jointRefusedInRange = 0;
+        g.jointBlockedByExclude = 0;
+        g.jointBlockedBySkipOnly = 0;
+        g.jointBlockedBySameBand = 0;
+        Arrays.fill(g.jointMissA, 0);
+        Arrays.fill(g.jointMissB, 0);
+        g.jointAllCount = 0;
+        g.jointSampleCount = 0;
+        g.endAlone = 0;
+        g.jointEndUncovered = 0;
+        g.endTooFar = 0;
+        g.endNotMutual = 0;
+        g.endMissCount = 0;
+        if (n == 0)
+            return;
+        if (jointNodes.length < n * 3) {
+            jointNodes = new int[n * 3];
+            jointOffsets = new int[size + 1];
+        }
+        if (jointOffsets.length < size + 1)
+            jointOffsets = new int[size + 1];
+
+        // Collect. An end is (line, along, which edge, which end of it). Ends
+        // outside the window are dropped: they have no cell to be placed on.
+        final int[] nodes = jointNodes;
+        int m = 0;
+        Arrays.fill(jointOffsets, 0);
+        for (int i = 0; i < g.shoreEdgeCount; i++) {
+            final ShoreEdge e = g.shoreEdges[i];
+            if (!e.along)
+                continue;
+            final int lx0 = e.x0 - g.ox;
+            final int lz0 = e.z0 - g.oz;
+            final int lx1 = e.x1 - g.ox;
+            final int lz1 = e.z1 - g.oz;
+            if (lx0 >= 0 && lx0 < size && lz0 >= 0 && lz0 < size) {
+                nodes[m * 3] = alongX ? lx0 : lz0;
+                nodes[m * 3 + 1] = alongX ? lz0 : lx0;
+                nodes[m * 3 + 2] = i * 2;
+                m++;
+                jointOffsets[nodes[m * 3 - 3] + 1]++;
+            }
+            if (lx1 >= 0 && lx1 < size && lz1 >= 0 && lz1 < size) {
+                nodes[m * 3] = alongX ? lx1 : lz1;
+                nodes[m * 3 + 1] = alongX ? lz1 : lx1;
+                nodes[m * 3 + 2] = i * 2 + 1;
+                m++;
+                jointOffsets[nodes[m * 3 - 3] + 1]++;
+            }
+        }
+        // Counting sort by line, then insertion sort each line (they are tiny).
+        for (int i = 1; i <= size; i++)
+            jointOffsets[i] += jointOffsets[i - 1];
+        final int[] sorted = new int[m * 3];
+        final int[] fill = new int[size];
+        System.arraycopy(jointOffsets, 0, fill, 0, size);
+        for (int i = 0; i < m; i++) {
+            final int line = nodes[i * 3];
+            final int at = fill[line]++;
+            sorted[at * 3] = nodes[i * 3];
+            sorted[at * 3 + 1] = nodes[i * 3 + 1];
+            sorted[at * 3 + 2] = nodes[i * 3 + 2];
+        }
+        for (int line = 0; line < size; line++) {
+            final int lo = jointOffsets[line];
+            final int hi = jointOffsets[line + 1];
+            for (int i = lo + 1; i < hi; i++) {
+                final int a = sorted[i * 3 + 1];
+                final int e2 = sorted[i * 3 + 2];
+                int j = i - 1;
+                while (j >= lo && sorted[j * 3 + 1] > a) {
+                    sorted[(j + 1) * 3] = sorted[j * 3];
+                    sorted[(j + 1) * 3 + 1] = sorted[j * 3 + 1];
+                    sorted[(j + 1) * 3 + 2] = sorted[j * 3 + 2];
+                    j--;
+                }
+                sorted[(j + 1) * 3] = line;
+                sorted[(j + 1) * 3 + 1] = a;
+                sorted[(j + 1) * 3 + 2] = e2;
+            }
+            // Ends that share a cell (several edges meet at a corner) collapse:
+            // keep the first of each run of equal along values.
+            int w = lo;
+            for (int i = lo; i < hi; i++) {
+                if (i > lo && sorted[i * 3 + 1] == sorted[(i - 1) * 3 + 1])
+                    continue;
+                sorted[w * 3] = sorted[i * 3];
+                sorted[w * 3 + 1] = sorted[i * 3 + 1];
+                sorted[w * 3 + 2] = sorted[i * 3 + 2];
+                w++;
+            }
+            // Mutual nearest within the line.
+            final int cnt = w - lo;
+            // Which ends got a joint, so a passed-over end is counted once and
+            // not again from the other side of the pair it failed to make.
+            final boolean[] taken = jointTaken.length >= cnt ? jointTaken : (jointTaken = new boolean[cnt]);
+            Arrays.fill(taken, 0, cnt, false);
+            // How many ends each perpendicular line contributed, and how many of
+            // those lines held exactly one. This is the split the "alone" counter
+            // cannot make on its own: a line with one end is either a real dead
+            // end in the terrain or a line the scan window cut in half, and the
+            // two need opposite fixes. Grouping the tally by size answers which
+            // it is without changing a single rule - the count has to be taken
+            // before the pairing loop, while the line is intact.
+            g.jointLines++;
+            if (cnt == 1) {
+                g.jointSoloLines++;
+                // A solo line sitting against the scan window's edge is a line
+                // the window cut in half - its partner is out there, unmeasured.
+                // One in the middle is a dead end the terrain really has. Same
+                // counter, opposite fix, so they are tallied apart.
+                final int ax0 = g.ox + sorted[lo * 3];
+                final int az0 = g.oz + sorted[lo * 3 + 1];
+                if (ax0 <= g.ox + EDGE_PROXIMITY || az0 <= g.oz + EDGE_PROXIMITY
+                        || ax0 >= g.ox + g.size - 1 - EDGE_PROXIMITY
+                        || az0 >= g.oz + g.size - 1 - EDGE_PROXIMITY)
+                    g.jointSoloAtEdge++;
+                else
+                    g.jointSoloInterior++;
+            }
+            g.jointLineSize = g.jointLineSize > cnt ? g.jointLineSize : cnt;
+            for (int i = lo; i < w; i++) {
+                int near = -1;
+                int best = Integer.MAX_VALUE;
+                boolean anyOther = false;
+                for (int j = lo; j < w; j++) {
+                    if (j == i)
+                        continue;
+                    anyOther = true;
+                    final int gap = Math.abs(sorted[j * 3 + 1] - sorted[i * 3 + 1]);
+                    if (gap == 0 || gap > JOINT_MAX_REACH)
+                        continue;
+                    if (gap < best) {
+                        best = gap;
+                        near = j;
+                    }
+                }
+                if (near < 0) {
+                    // Nothing in reach. Either it is alone on its line, or the
+                    // next end is too far to bridge - two different fixes.
+                    if (!taken[i - lo])
+                        noteEndMiss(g, sorted, i, (byte) (anyOther ? 1 : 0));
+                    continue;
+                }
+                if (near <= i)
+                    continue;
+                int back = -1;
+                int best2 = Integer.MAX_VALUE;
+                for (int j = lo; j < w; j++) {
+                    if (j == near)
+                        continue;
+                    final int gap = Math.abs(sorted[j * 3 + 1] - sorted[near * 3 + 1]);
+                    if (gap == 0 || gap > JOINT_MAX_REACH)
+                        continue;
+                    if (gap < best2) {
+                        best2 = gap;
+                        back = j;
+                    }
+                }
+                if (back != i) {
+                    // A partner was in reach but it prefers somebody else. Joining
+                    // them anyway would be order-dependent, which is the flicker.
+                    if (!taken[i - lo])
+                        noteEndMiss(g, sorted, i, (byte) 2);
+                    if (!taken[near - lo])
+                        noteEndMiss(g, sorted, near, (byte) 2);
+                    g.jointFailed++;
+                    continue;
+                }
+                taken[i - lo] = true;
+                taken[near - lo] = true;
+                emitJointPair(g, level, out, p, sorted, i, near, alongX);
+            }
+        }
+    }
+
+    /** Did the band pass put foam on this window cell? */
+    private static boolean covered(final Grid g, final int gx, final int gz) {
+        if (gx < 0 || gz < 0 || gx >= g.size || gz >= g.size)
+            return false;
+        return g.foamAt[gz * g.size + gx] == 1;
+    }
+
+    /** Record that foam sits on this window cell. */
+    private static void markFoam(final Grid g, final int gx, final int gz) {
+        if (gx >= 0 && gz >= 0 && gx < g.size && gz < g.size)
+            g.foamAt[gz * g.size + gx] = 1;
+    }
+
+    /**
+     * Record one end that got no joint, and why. 0 = alone on its line,
+     * 1 = the nearest end further than {@link #JOINT_MAX_REACH}, 2 = a partner was
+     * in reach but the match was not mutual.
+     */
+    private static void noteEndMiss(final Grid g, final int[] sorted, final int i, final byte why) {
+        switch (why) {
+            case 1 -> g.endTooFar++;
+            case 2 -> g.endNotMutual++;
+            default -> g.endAlone++;
+        }
+        if (g.endMissCount < Grid.JOINT_FAIL_SAMPLE) {
+            final int slot = g.endMissCount;
+            final ShoreEdge e = g.shoreEdges[sorted[i * 3 + 2] / 2];
+            g.endMissInts[slot * 2] = (sorted[i * 3 + 2] & 1) == 0 ? e.x0 : e.x1;
+            g.endMissInts[slot * 2 + 1] = (sorted[i * 3 + 2] & 1) == 0 ? e.z0 : e.z1;
+            if (g.endMissWhy.length <= slot)
+                g.endMissWhy = java.util.Arrays.copyOf(g.endMissWhy, slot * 2 + 8);
+            g.endMissWhy[slot] = why;
+            g.endMissCount++;
+        }
+    }
+
+    /** Draw one matched pair of band ends as a joint, exactly as the old rule placed it. */
+    private static void emitJointPair(final Grid g, final Level level, final Quads out,
+                                      final float p, final int[] nodes, final int ia, final int ib,
+                                      final boolean alongX) {
+        final ShoreEdge b0 = g.shoreEdges[nodes[ia * 3 + 2] / 2];
+        final ShoreEdge b1 = g.shoreEdges[nodes[ib * 3 + 2] / 2];
+        // The end point each side sits on: whichever end of its edge it is.
+        final int jx0 = (nodes[ia * 3 + 2] & 1) == 0 ? b0.x0 : b0.x1;
+        final int jz0 = (nodes[ia * 3 + 2] & 1) == 0 ? b0.z0 : b0.z1;
+        final int jx1 = (nodes[ib * 3 + 2] & 1) == 0 ? b1.x0 : b1.x1;
+        final int jz1 = (nodes[ib * 3 + 2] & 1) == 0 ? b1.z0 : b1.z1;
+        if (jx0 == jx1 && jz0 == jz1)
+            return;
+        // Two ends of the SAME edge are one band, not a joint between two.
+        if (b0 == b1) {
+            g.jointFailed++;
+            return;
+        }
+
+        final float d0 = runUpFor(b0, p);
+        final float d1 = runUpFor(b1, p);
+        // One end on the water is enough to refuse: a joint links two places the
+        // water has actually reached, so an end whose run-up is zero has no beach
+        // under it. Skipping only when BOTH were flat is what let the log show
+        // ends sitting in [SEA] cells, at the water plane, 0.05 blocks long.
+        if (d0 <= 0.001F || d1 <= 0.001F) {
+            g.jointFlat++;
+            return;
+        }
+        // The joint runs across the bands, so its width axis is along the band.
+        final int ix = alongX ? 1 : 0;
+        final int iz = alongX ? 0 : 1;
+
+        final float y0 = bandSurfaceY(g, b0, d0);
+        final float y1 = bandSurfaceY(g, b1, d1);
+        // Half a band width further inland, because a band is drawn from its
+        // baseline OUT to baseline + width: its visible middle is half a width in.
+        // Both ends move by the same half width, so the length is unchanged.
+        final float half = BAND_WIDTH * 0.5F;
+        final float ex0 = jx0 + (d0 + half) * b0.dx;
+        final float ez0 = jz0 + (d0 + half) * b0.dz;
+        final float ex1 = jx1 + (d1 + half) * b1.dx;
+        final float ez1 = jz1 + (d1 + half) * b1.dz;
+        final int gx0 = b0.x0 - g.ox + (d0 >= 1F ? b0.dx : 0);
+        final int gz0 = b0.z0 - g.oz + (d0 >= 1F ? b0.dz : 0);
+        final int gx1 = b1.x0 - g.ox + (d1 >= 1F ? b1.dx : 0);
+        final int gz1 = b1.z0 - g.oz + (d1 >= 1F ? b1.dz : 0);
+        g.jointEmitted++;
+        // A joint is supposed to be a link BETWEEN two bands, so each end has to
+        // land on a cell the band pass actually covered. The maintainer reports
+        // seeing a vertical with no horizontal beside it, which this cannot produce
+        // by construction - so either the band is being skipped, or its coverage
+        // does not reach the end. Count the ends whose cell carries no foam.
+        if (!covered(g, gx0, gz0))
+            g.jointEndUncovered++;
+        if (!covered(g, gx1, gz1))
+            g.jointEndUncovered++;
+        if (g.jointAllCount * 2 + 1 >= g.jointAll.length)
+            g.jointAll = java.util.Arrays.copyOf(g.jointAll, g.jointAll.length * 2);
+        g.jointAll[g.jointAllCount * 2] = jx0;
+        g.jointAll[g.jointAllCount * 2 + 1] = jz0;
+        g.jointAllCount++;
+        if (y0 != y1)
+            g.jointSplit++;
+        if (g.jointSampleCount < Grid.JOINT_SAMPLE) {
+            final int o8 = g.jointSampleCount * 8;
+            final int o4 = g.jointSampleCount * 4;
+            g.jointInts[o8] = jx0;
+            g.jointInts[o8 + 1] = jz0;
+            g.jointInts[o8 + 2] = jx1;
+            g.jointInts[o8 + 3] = jz1;
+            g.jointInts[o8 + 4] = jx0;
+            g.jointInts[o8 + 5] = jz0;
+            g.jointInts[o8 + 6] = jx1;
+            g.jointInts[o8 + 7] = jz1;
+            g.jointFloats[o4] = ex0;
+            g.jointFloats[o4 + 1] = ez0;
+            g.jointFloats[o4 + 2] = ex1;
+            g.jointFloats[o4 + 3] = ez1;
+            g.jointSampleCount++;
+        }
+        if (y0 == y1) {
+            emitConnectorQuad(g, level, out, ex0, ez0, ex1, ez1, ix, iz, y0, gx0, gz0);
+        } else {
+            final float mx = (ex0 + ex1) * 0.5F;
+            final float mz = (ez0 + ez1) * 0.5F;
+            emitConnectorQuad(g, level, out, ex0, ez0, mx, mz, ix, iz, y0, gx0, gz0);
+            emitConnectorQuad(g, level, out, mx, mz, ex1, ez1, ix, iz, y1, gx1, gz1);
         }
     }
 
@@ -1566,7 +2423,68 @@ public final class ShoreScan {
                                final int gx, final int gz) {
         final ShoreQuad q = out.next();
         q.tex = TEX_STRIP;
-        q.y = surfaceBase(g, gx, gz) + FOAM_LIFT;
+        q.kind = 0;
+        // Mark the ground this band actually covers, so a joint end can be
+        // checked against foam rather than against the wet-sand film.
+        markFoam(g, gx, gz);
+        // The band straddles the water line: its baseline sits over the sea cell
+        // but it is BAND_WIDTH wide and that width runs inland, over the sand.
+        // Sampling the ground from the sea cell alone put the quad at
+        // waterTop + 8/9 + FOAM_LIFT, which is 0.031 blocks BELOW the sand top at
+        // waterTop + 1 - so for every edge whose swell had not finished climbing
+        // (depth < 1, i.e. most of a wave's life) the inland three quarters of
+        // the band were depth-rejected by the sand in front of them.
+        //
+        // That is the whole "bands appear and vanish at random, tied to where I
+        // stand": depth is per column and moves with the swell, and the window
+        // re-derives it every rescans. The quad was never missing from the
+        // buffer and never outside the frustum - it was buried, which is why
+        // every check that looked at geometry, alpha and GL state came back
+        // clean while the picture kept losing pieces.
+        //
+        // Take the higher of the two grounds the quad spans. It cannot be buried
+        // by either, and over water it is the FOAM_LIFT the design already had.
+        float yGround = surfaceBase(g, gx, gz);
+        final int inx = gx + inlandX;
+        final int inz = gz + inlandZ;
+        // The inland neighbour can be outside the window; surfaceBase indexes the
+        // grids directly, so it has to be asked only about cells it owns. A band
+        // against the window edge keeps the sea-side ground, which is the one it
+        // was already drawing with.
+        if (inx >= 0 && inx < g.size && inz >= 0 && inz < g.size)
+            yGround = Math.max(yGround, surfaceBase(g, inx, inz));
+        q.y = yGround + FOAM_LIFT;
+        // Burial census. The quad is drawn flat at one y, so what decides whether
+        // any of it survives the depth test is the gap between that y and the
+        // tallest ground anywhere under it - and under a band that reaches inland
+        // the tallest is the sand top, not the water it starts over. Negative is
+        // buried: the quad reaches the buffer, sits inside the frustum, carries
+        // full alpha, and then loses the depth test to the beach in front of it.
+        {
+            float tallest = yGround;
+            for (int cx = (int) Math.floor(Math.min(x0, x1) - 0.5F);
+                 cx <= (int) Math.ceil(Math.max(x0, x1) + 0.5F); cx++) {
+                for (int cz = (int) Math.floor(Math.min(z0, z1) - 0.5F);
+                     cz <= (int) Math.ceil(Math.max(z0, z1) + 0.5F); cz++) {
+                    final int lx = cx - g.ox;
+                    final int lz = cz - g.oz;
+                    if (lx < 0 || lx >= g.size || lz < 0 || lz >= g.size)
+                        continue;
+                    final float y = surfaceBase(g, lx, lz);
+                    if (y > tallest)
+                        tallest = y;
+                }
+            }
+            final float gap = q.y - tallest;
+            g.quads++;
+            if (gap < g.minGap) {
+                g.minGap = gap;
+                g.minGapAtX = e.x0;
+                g.minGapAtZ = e.z0;
+            }
+            if (gap <= 0F)
+                g.quadsBuried++;
+        }
         q.light = lightAt(level, g, gx, gz);
         q.rgb = FOAM_RGB;
         q.alpha = 255;
@@ -1652,7 +2570,39 @@ public final class ShoreScan {
      * switches to it. Without it a near-tie flips on every recount - see
      * {@link #collectShoreEdges}.
      */
-    private static final int MAIN_DIR_MARGIN = 2;
+    private static final int MAIN_DIR_MARGIN = 24;
+
+    /**
+     * How far apart two ends may sit on the same line and still be joined, in
+     * cells.
+     *
+     * <p>Two reasons this number has to exist. One vertical line can carry the
+     * ends of coastlines that are tens of cells apart - two beaches, or the same
+     * beach on both sides of an inlet - and without a cap a joint would be drawn
+     * across open water; measured over 196 windows, uncapped pairing produced
+     * joints a median of 71 cells long. The other is that the pairing has to stop
+     * growing the picture: at 2 the joints came out a median of 1 cell, at 5 the
+     * median is unchanged and 4.2% of them reach 5 cells, which is a real step
+     * across a narrow inlet and worth having.</p>
+     */
+    public static final int JOINT_MAX_REACH = 5;
+
+    /**
+     * Scratch for {@link #emitShoreJoints}, grown on demand and reused: three
+     * ints per endpoint (line, along, edge*2+which end), plus the counting sort
+     * over lines. Allocating these per build would put garbage on the render
+     * thread once per scan.
+     */
+    private static int[] jointNodes = new int[0];
+    private static int[] jointOffsets = new int[0];
+    /** Per-line scratch for {@link #emitShoreJoints}: which ends already got a joint. */
+    private static boolean[] jointTaken = new boolean[0];
+
+    /** Test seam only: -1 = decide as the game does, 0 = pin along Z, 1 = pin along X. */
+    private static int forceMainDir = -1;
+
+    /** Test seam only: -1 = use {@link #CONNECTOR_TOLERANCE}. */
+    private static int toleranceOverride = -1;
     /** The main direction of the previous build, held across builds for stability. */
     private static boolean lastMainAlongX = true;
 
@@ -1663,7 +2613,7 @@ public final class ShoreScan {
      * them. Measured on the six synthetic coasts, two raises the joints from 15 to 19
      * and costs none of the ones one already found.
      */
-    private static final int CONNECTOR_TOLERANCE = 2;
+    public static final int CONNECTOR_TOLERANCE = 2;
 
     /** Scratch for {@link #nearestBandEnd}: the band found, and which corner of it. */
     private static ShoreEdge jointBand;
@@ -1696,7 +2646,8 @@ public final class ShoreScan {
      */
     private static boolean nearestBandEnd(final Grid g, final int x, final int z,
                                           final int ux, final int uz, final ShoreEdge exclude) {
-        for (int k = 0; k <= CONNECTOR_TOLERANCE; k++) {
+        final int tolerance = toleranceOverride >= 0 ? toleranceOverride : CONNECTOR_TOLERANCE;
+        for (int k = 0; k <= tolerance; k++) {
             for (int s = -1; s <= 1; s += 2) {
                 if (k == 0 && s < 0)
                     continue;
@@ -1733,6 +2684,97 @@ public final class ShoreScan {
     }
 
     /**
+     * Diagnostics: how far the nearest main-direction band corner really is from
+     * {@code (x, z)}, searched with NO tolerance limit. {@link #nearestBandEnd} stops at
+     * {@link #CONNECTOR_TOLERANCE} and reports only yes/no; a census needs the number.
+     * Measures along {@code (ux, uz)} exactly as that search does, so the two agree.
+     * Returns {@link Integer#MAX_VALUE} when no band corner lies on that line at all.
+     */
+    private static int bandCornerDistance(final Grid g, final int x, final int z,
+                                          final int ux, final int uz) {
+        return bandCornerDistance(g, x, z, ux, uz, null, false);
+    }
+
+    /**
+     * As {@link #bandCornerDistance} but honouring the same exclusions
+     * {@link #nearestBandEnd} applies. Running the census both ways is what separates
+     * "the coast has no second line here" from "there was one and the search threw it
+     * away": the first has a small distance everywhere and no band after excluding,
+     * the second has a small distance before and a large one after.
+     */
+    private static int bandCornerDistance(final Grid g, final int x, final int z,
+                                          final int ux, final int uz,
+                                          final ShoreEdge exclude, final boolean skipCorner) {
+        int best = Integer.MAX_VALUE;
+        for (int i = 0; i < g.shoreEdgeCount; i++) {
+            final ShoreEdge b = g.shoreEdges[i];
+            if (!b.along || b == exclude)
+                continue;
+            if (skipCorner) {
+                final int d0 = cornerLineDistance(x, z, ux, uz, b.x0, b.z0);
+                final int d1 = cornerLineDistance(x, z, ux, uz, b.x1, b.z1);
+                if ((d0 == 0 || d1 == 0) && ((b.x0 == jointSkipX && b.z0 == jointSkipZ)
+                        || (b.x1 == jointSkipX && b.z1 == jointSkipZ)))
+                    continue;
+            }
+            final int d0 = cornerLineDistance(x, z, ux, uz, b.x0, b.z0);
+            final int d1 = cornerLineDistance(x, z, ux, uz, b.x1, b.z1);
+            if (d0 < best)
+                best = d0;
+            if (d1 < best)
+                best = d1;
+        }
+        return best;
+    }
+
+    /** Steps from {@code (x,z)} along {@code (ux,uz)} to reach {@code (tx,tz)}, or MAX_VALUE. */
+    private static int cornerLineDistance(final int x, final int z, final int ux, final int uz,
+                                          final int tx, final int tz) {
+        final int dx = tx - x, dz = tz - z;
+        if (ux != 0) {
+            if (dz != 0)
+                return Integer.MAX_VALUE;   // not on this line
+            return Math.abs(dx);
+        }
+        if (dx != 0)
+            return Integer.MAX_VALUE;
+        return Math.abs(dz);
+    }
+
+    /** Bucket a distance into the 0..8 histogram, 8 = "further than 8". */
+    private static int missBucket(final int d) {
+        if (d == Integer.MAX_VALUE)
+            return 8;
+        return Math.min(d, 8);
+    }
+
+    private static void recordJointFailure(final Grid g, final ShoreEdge e,
+                                           final int why, final int distA, final int distB) {
+        g.jointFailed++;        // Only the end that actually failed goes in the histogram - recording both would
+        // bury the signal under the end that succeeded, whose distance is always 0.
+        final int dist = why == 0 ? distA : distB;
+        if (why == 0)
+            g.jointMissA[missBucket(dist)]++;
+        else
+            g.jointMissB[missBucket(dist)]++;
+        // The whole point of measuring unbounded: a band WAS within tolerance and was
+        // still refused. That is a rejection bug, not a missing band, and it is the
+        // only shape of this that is worth a code change rather than a bigger tolerance.
+        if (dist <= CONNECTOR_TOLERANCE)
+            g.jointRefusedInRange++;
+        if (g.jointFailed <= Grid.JOINT_FAIL_SAMPLE) {
+            final int o = (g.jointFailed - 1) * 6;
+            g.jointFailInts[o] = e.x0;
+            g.jointFailInts[o + 1] = e.z0;
+            g.jointFailInts[o + 2] = e.x1;
+            g.jointFailInts[o + 3] = e.z1;
+            g.jointFailInts[o + 4] = Math.min(distA, 999);
+            g.jointFailInts[o + 5] = Math.min(distB, 999);
+            g.jointFailWhy[g.jointFailed - 1] = (byte) why;
+        }
+    }
+
+    /**
      * A joint: drawn ONLY where both ends touch a band, so a cross-direction edge can never
      * become a wave of its own. Each end is placed on ITS OWN band - that band's depth along
      * that band's inland direction - and the width runs perpendicular to the joint's own
@@ -1743,9 +2785,12 @@ public final class ShoreScan {
                                            final ShoreEdge e, final float p) {
         final int cx = Integer.signum(e.x1 - e.x0);
         final int cz = Integer.signum(e.z1 - e.z0);
+        g.jointConsidered++;
         jointSkip = false;
         if (!nearestBandEnd(g, e.x0, e.z0, cx, cz, null)) {
             g.jointNoBandA++;
+            recordJointFailure(g, e, 0, bandCornerDistance(g, e.x0, e.z0, cx, cz),
+                    bandCornerDistance(g, e.x1, e.z1, cx, cz));
             return;
         }
         final ShoreEdge b0 = jointBand;
@@ -1764,6 +2809,25 @@ public final class ShoreScan {
             // The two are told apart by a second, exclusion-free probe.
             g.jointSameLine = nearestBandEnd(g, e.x1, e.z1, cx, cz, null) ? 1 : 0;
             g.jointNoBandB++;
+            // Measured twice on purpose. Without exclusions the corner may be right
+            // there; with them the search still said no. Comparing the two numbers is
+            // what tells us whether the second end was refused for sharing a line with
+            // the first - the case a bigger tolerance cannot fix - or whether the
+            // corner genuinely was not on the line.
+            final int plain = bandCornerDistance(g, e.x1, e.z1, cx, cz);
+            final int excl = bandCornerDistance(g, e.x1, e.z1, cx, cz, b0, true);
+            if (plain <= CONNECTOR_TOLERANCE && excl > CONNECTOR_TOLERANCE) {
+                g.jointBlockedByExclude++;
+                // Which of the two rules did it? They are different bugs with different
+                // fixes: "the only band here is the one end A already took" is a genuine
+                // dead end, while "the corner both ends share is exactly the corner the
+                // joint has to reach" is the search refusing the very point it needs.
+                if (bandCornerDistance(g, e.x1, e.z1, cx, cz, b0, false) <= CONNECTOR_TOLERANCE)
+                    g.jointBlockedBySkipOnly++;
+                else
+                    g.jointBlockedBySameBand++;
+            }
+            recordJointFailure(g, e, g.jointSameLine != 0 ? 1 : 2, plain, excl);
             return;
         }
         final ShoreEdge b1 = jointBand;
@@ -1818,6 +2882,11 @@ public final class ShoreScan {
         final int gx1 = b1.x0 - g.ox + (d1 >= 1F ? b1.dx : 0);
         final int gz1 = b1.z0 - g.oz + (d1 >= 1F ? b1.dz : 0);
         g.jointEmitted++;
+        if (g.jointAllCount * 2 + 1 >= g.jointAll.length)
+            g.jointAll = java.util.Arrays.copyOf(g.jointAll, g.jointAll.length * 2);
+        g.jointAll[g.jointAllCount * 2] = e.x0;
+        g.jointAll[g.jointAllCount * 2 + 1] = e.z0;
+        g.jointAllCount++;
         if (y0 != y1)
             g.jointSplit++;
         if (g.jointSampleCount < Grid.JOINT_SAMPLE) {
@@ -1861,6 +2930,7 @@ public final class ShoreScan {
                                           final int gx, final int gz) {
         final ShoreQuad q = out.next();
         q.tex = TEX_STRIP;
+        q.kind = 1;
         q.y = y;
         q.light = lightAt(level, g, gx, gz);
         q.rgb = FOAM_RGB;
@@ -1918,7 +2988,7 @@ public final class ShoreScan {
         return surfaceBase(g, gx, gz) + FOAM_LIFT;
     }
 
-    private static int lightAt(final Level level, final Grid g, final int x, final int z) {
+    static int lightAt(final Level level, final Grid g, final int x, final int z) {
         // Offline there is no world to ask. The offline simulator drives this very code
         // (see simulate) and does not care about light, so hand back full bright rather
         // than throwing - the geometry it is there to measure is unaffected.
@@ -1944,53 +3014,4 @@ public final class ShoreScan {
     // =====================================================================
     // Debug: solid blocks at the foam cells
     // =====================================================================
-
-    /**
-     * Throws away every question about texture, alpha, width and colour: one
-     * opaque magenta block per foam cell, a full block wide, floated half a
-     * block above the surface so nothing can bury it.
-     *
-     * <p>This exists because "the surf is somewhere else" and "the surf is too
-     * faint to see" are indistinguishable from the player's chair, and five
-     * rounds of reading logs did not separate them. If the magenta lands on the
-     * shoreline, geometry and transform are right and the problem is purely how
-     * faint the band is. If it lands on the horizon, under the player, or swings
-     * with the camera, the fault is upstream and no amount of alpha tuning will
-     * reach it.
-     */
-    public static void buildDebug(final Grid g, final Quads out) {
-        out.clear();
-        final int size = g.size;
-        for (int gz = 0; gz < size; gz++) {
-            for (int gx = 0; gx < size; gx++) {
-                final int gi = gz * size + gx;
-                if (g.ftype[gi] == F_NONE && g.filled[gi] != 1)
-                    continue;
-                final float x0 = g.ox + gx;
-                final float z0 = g.oz + gz;
-                final ShoreQuad q = out.next();
-                q.tex = TEX_FILM;
-                q.y = surfaceBase(g, gx, gz) + 0.5F;
-                q.light = 0x00F00000;
-                q.rgb = 0xFF00FF;
-                q.alpha = 255;
-                q.wx[0] = x0;
-                q.wz[0] = z0;
-                q.wx[1] = x0 + 1F;
-                q.wz[1] = z0;
-                q.wx[2] = x0 + 1F;
-                q.wz[2] = z0 + 1F;
-                q.wx[3] = x0;
-                q.wz[3] = z0 + 1F;
-                q.u[0] = 0F;
-                q.v[0] = 0F;
-                q.u[1] = 1F;
-                q.v[1] = 0F;
-                q.u[2] = 1F;
-                q.v[2] = 1F;
-                q.u[3] = 0F;
-                q.v[3] = 1F;
-            }
-        }
-    }
 }

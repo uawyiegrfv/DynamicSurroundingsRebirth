@@ -133,8 +133,30 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     private boolean broken = false;
     private int failures = 0;
     private long framesSeen = 0L;
+
+    /**
+     * Last {@link #auditVisibility} tally actually printed, as its own fields.
+     * Null until the first print; the audit only speaks when this changes.
+     */
+    private String lastAuditPrint;
     private long framesDrawn = 0L;
     private long lastRenderNanos = 0L;
+
+    /**
+     * Fingerprint of the GPU state this pass was handed, so it prints once per
+     * change rather than once per frame.
+     *
+     * <p>This is the part no offline harness can produce. Every number here is
+     * whatever the previous pass left in {@code RenderSystem} - the surf draws
+     * with the particle shader, and that shader reads its tint from
+     * {@code ColorModulator}, which nothing in this class has ever set or
+     * restored. RenderSystem state is static and shared across passes, so the
+     * surf inherits it. A shore drawn at night under a stale sky tint, or a band
+     * drawn with fog already closed inside its own range, looks like a geometry
+     * bug and is not one; both are invisible in the vertex data, because the
+     * vertex still says the colour the emitter chose.</p>
+     */
+    private String lastStatePrint;
 
     public ShoreWaveHandler(final Configuration config, final IModLog logger, final ITickCount tickCount) {
         super("ShoreWave", config, logger);
@@ -170,6 +192,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         this.broken = false;
         this.framesSeen = 0L;
         this.framesDrawn = 0L;
+        this.lastAuditPrint = null;
     }
 
     // =====================================================================
@@ -222,15 +245,12 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         }
 
         this.lastProgress = swellProgress(tick, this.config.shoreWaveOptions.wavePeriodTicks);
-        logFilmDebugColor();
+        // Read every build so the two emitters can be swapped without a rebuild.
+        ShoreScan.fieldSurf = this.config.shoreWaveOptions.shoreFieldSurf;
         final long mark = System.nanoTime();
         ShoreScan.build(this.grid, this.lastProgress, level, this.quads,
-                this.config.shoreWaveOptions.shoreFilmDebugColor,
                 this.config.shoreWaveOptions.enableShoreFilm,
                 this.config.shoreWaveOptions.shoreFoamFoldLine);
-        // Replaces the surf with opaque magenta blocks - see ShoreScan.buildDebug.
-        if (this.config.shoreWaveOptions.debugSolidBlocks)
-            ShoreScan.buildDebug(this.grid, this.quads);
         // Geometric self-check, on the quads themselves and not on the rules: any
         // quad that spans more than ShoreScan.MAX_QUAD_SPAN blocks, or that sits
         // further than MAX_QUAD_DISTANCE from the player, is dropped here with a
@@ -377,6 +397,19 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         this.sawTerrain = true;
     }
 
+    /** "0:12 1:3 2:0 ..." - only the buckets that actually fired. */
+    private static String histogram(final int[] h) {
+        final StringBuilder sb = new StringBuilder(48);
+        for (int i = 0; i < h.length; i++) {
+            if (h[i] == 0)
+                continue;
+            if (sb.length() > 0)
+                sb.append(' ');
+            sb.append(i).append(':').append(h[i]);
+        }
+        return sb.length() == 0 ? "(none)" : sb.toString();
+    }
+
     private void logBuild(final long tick, final ShoreScan.Grid g, final Player player,
                           final ShoreScan.Audit audit) {
         if (!logging())
@@ -398,6 +431,57 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 player.blockPosition().getX(), player.blockPosition().getY(), player.blockPosition().getZ(),
                 this.quads.count, g.filmQuads, g.stripQuads, g.capQuads, g.cornerQuads,
                 g.foamCells, g.filledCells, g.runCells, this.lastBuildNanos / 1_000_000D));
+        // Where the film goes. filled > 0 with film 0 means the front marked
+        // cells and the foam drew them, but the film emitted nothing - and
+        // until these four numbers existed that state was indistinguishable
+        // from "no water reached the shore". candidates 0 means the merge
+        // never offered a rectangle; rects all dropped means emitFilmRect's
+        // alpha test is the wall; a non-zero min alpha with drops to match
+        // means the wall is somewhere else entirely.
+        this.logger.info("[ShoreWave]   film path: candidates %d | rects %d | dropped %d"
+                        + " | min alpha %s | filled %d",
+                g.filmCandidates, g.filmRects, g.filmDropped,
+                g.filmMinAlpha == Integer.MAX_VALUE ? "n/a" : String.valueOf(g.filmMinAlpha),
+                g.filledCells);
+        // The shape of the lines the joint search runs on. "alone" counts an end
+        // with nothing else on its perpendicular line, but says nothing about
+        // WHY - a band that simply stops in the middle of a headland is correct
+        // as drawn, while one whose line ran out of window is a truncation. The
+        // two need opposite fixes, so they are counted apart before any rule is
+        // touched: an interior-heavy tally says the pairing is doing its job and
+        // the gaps are the shore's shape, and an edge-heavy one says RANGE is
+        // the thing to raise.
+        this.logger.info("[ShoreWave]   joint lines: %d total | largest %d | solo %d"
+                        + " (at window edge %d, interior %d)",
+                g.jointLines, g.jointLineSize, g.jointSoloLines,
+                g.jointSoloAtEdge, g.jointSoloInterior);
+        // Which way the bands were drawn. Cross-direction bands at zero meant
+        // those stretches of coast had no geometry of their own and existed
+        // only where a joint bridged them, so a number here is the direct
+        // measure of how much coast used to be able to vanish.
+        // mainAlongX is package-private in Grid, and the two edge counts are
+        // already printed by the coast-edges line above, so this one stays on
+        // what it is for: how many bands were drawn either side of the split.
+        this.logger.info("[ShoreWave]   bands drawn: main %d | cross %d | skipped (no beach) %d",
+                g.bandQuadsMain, g.bandQuadsCross, g.bandSkippedNoBeach);
+        // Distance-field mode. level is the run-up the contour was drawn at, cap
+        // the deepest beach the window offered, so a level pinned at the cap
+        // means the wave is as far up as this coast allows. Short chains are the
+        // only thing the level set drops, and they are counted rather than
+        // silently skipped.
+        this.logger.info("[ShoreWave]   field: %.2f of the beach crossed | chains %d | dropped as too short %d"
+                        + " | widest beach %d blocks",
+                g.fieldLevel, g.fieldChains, g.fieldShortChains, g.fieldFieldMax);
+        // Burial census. This is the one measurement that separates "the band was
+        // never made" from "the band was made and then the beach ate it": a
+        // negative gap means the quad is in the buffer, inside the frustum, at
+        // full alpha, and still absent from the picture because the sand in front
+        // of it won the depth test. quadsBuried should be zero.
+        this.logger.info("[ShoreWave]   burial: %d of %d band quads at or below ground"
+                        + " | worst gap %s at (%d,%d)",
+                g.quadsBuried, g.quads,
+                g.minGap == Float.MAX_VALUE ? "n/a" : String.format("%+.3f", g.minGap),
+                g.minGapAtX, g.minGapAtZ);
 
         this.logger.info("[ShoreWave] coast edges: alongX %d alongZ %d | grid id %d shuffle %d shoreEdgeCount %d",
                 g.edgeX, g.edgeZ, g.gridId, g.shuffle, g.shoreEdgeCount);
@@ -410,6 +494,71 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         this.logger.info("[ShoreWave] joints: emitted %d (split for height %d) | no band at A %d"
                         + " | no band at B %d (of those, only the same line %d) | both ends flat %d",
                 g.jointEmitted, g.jointSplit, g.jointNoBandA, g.jointNoBandB, g.jointSameLine, g.jointFlat);
+
+        // The other half of the question: not the joints that were drawn but the ends
+        // that were passed over. The joints are paired by mutual nearestness on each
+        // line, so an end with no joint is one of three things - nothing else on its
+        // line, something else but further than the reach, or a partner in reach that
+        // prefers somebody else. Those three have three different fixes, so they are
+        // counted apart, with the world cell of a few of them so a screenshot can be
+        // matched to a coordinate.
+        this.logger.info("[ShoreWave] ends with NO joint: alone %d | out of reach (>%d) %d"
+                        + " | in reach but not mutual %d  [of %d ends]",
+                g.endAlone, ShoreScan.JOINT_MAX_REACH, g.endTooFar, g.endNotMutual,
+                g.jointConsidered * 2);
+
+        // "A vertical with no horizontal beside it" cannot be produced by the
+        // pairing - a joint only exists between two band ends. So if it is on screen,
+        // either a band was skipped this frame (no beach at this phase) or the joint's
+        // end sits on a cell no band covered. Both are counted; together they say
+        // whether this is a drawing problem at all.
+        this.logger.info("[ShoreWave] bands skipped (no beach at this phase) %d"
+                        + " | joint ends landing on a cell with NO band %d  [of %d joint ends]",
+                g.bandSkippedNoBeach, g.jointEndUncovered, g.jointEmitted * 2);
+        for (int i = 0; i < Math.min(ShoreScan.Grid.JOINT_FAIL_SAMPLE, g.endMissCount); i++) {
+            final int o = i * 2;
+            final String why = switch (g.endMissWhy[i]) {
+                case 1 -> "out of reach";
+                case 2 -> "not mutual";
+                default -> "alone";
+            };
+            this.logger.info("[ShoreWave]   end %d with no joint: (%d,%d) [%s]",
+                    i, g.endMissInts[o], g.endMissInts[o + 1], why);
+        }
+
+        // The flicker census. The maintainer reports the verticals "very unstable, at
+        // random", and every counter above is a yes/no that cannot say WHY: a joint that
+        // missed the band by one cell and one that missed by six both read "no band at A".
+        // This is the number that separates them - how far the nearest band corner really
+        // was, at each end, with no tolerance limit. Clustered at 1-2 the fix is the
+        // tolerance; clustered at 6+ the band is simply not there and widening the search
+        // would draw joints across open water.
+        this.logger.info("[ShoreWave] joints: cross edges considered %d, failed %d (%.0f%%)",
+                g.jointConsidered, g.jointFailed,
+                g.jointConsidered == 0 ? 0D : 100D * g.jointFailed / g.jointConsidered);
+        this.logger.info("[ShoreWave] joint misses, distance to nearest band corner at the end that FAILED"
+                        + " (8 = none on that line) | A: %s | B: %s",
+                histogram(g.jointMissA), histogram(g.jointMissB));
+        this.logger.info("[ShoreWave] joints: %d of %d failures had a band WITHIN tolerance %d and were"
+                        + " refused anyway (a rejection, not a missing band)",
+                g.jointRefusedInRange, g.jointFailed, ShoreScan.CONNECTOR_TOLERANCE);
+        this.logger.info("[ShoreWave] joints: %d of those were blocked specifically by the same-line /"
+                        + " shared-corner exclusions (widening the tolerance would NOT bring them back)",
+                g.jointBlockedByExclude);
+        for (int i = 0; i < Math.min(ShoreScan.Grid.JOINT_FAIL_SAMPLE, g.jointFailed); i++) {
+            final int o = i * 6;
+            final String why = switch (g.jointFailWhy[i]) {
+                case 0 -> "no band at A";
+                case 1 -> "no band at B (same line only)";
+                case 2 -> "no band at B (nothing there)";
+                default -> "?";
+            };
+            this.logger.info("[ShoreWave]   joint FAIL %d: cross (%d,%d)-(%d,%d) [%s]"
+                            + " nearest corner at A %d, at B %d",
+                    i, g.jointFailInts[o], g.jointFailInts[o + 1],
+                    g.jointFailInts[o + 2], g.jointFailInts[o + 3], why,
+                    g.jointFailInts[o + 4], g.jointFailInts[o + 5]);
+        }
         for (int i = 0; i < g.jointSampleCount; i++) {
             final int o8 = i * 8;
             final int o4 = i * 4;
@@ -573,16 +722,11 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             pinPixelFilter();
             mc.gameRenderer.lightTexture().turnOnLightLayer();
             final Vec3 cam = event.getCamera().getPosition();
-            // Advanced per frame, in whole tiles per second, so the film drifts
-            // like the sea instead of sitting still between scans. Deliberately
-            // incommensurate between the two axes: equal rates on a square tile
-            // read as a diagonal slide, which is not what water does.
-            // One frame per FILM_FRAME_TICKS, the rate vanilla advances its own
-            // still water. Taken from the continuous clock, not from the scan
-            // cadence, so the film keeps moving between rebuilds.
-            this.filmFrame = (int) Math.floor(
-                    (level.getGameTime() + event.getPartialTick()) / FILM_FRAME_TICKS)
-                    % FILM_FRAMES;
+            // Read BEFORE the draw, while this pass's own state is installed:
+            // after the finally block these values are the frame's again and
+            // would describe the wrong moment.
+            if (logging())
+                auditGpuState();
             this.lastRenderNanos = System.nanoTime();
             draw(event, event.getCamera(), cam);
             this.lastRenderNanos = System.nanoTime() - this.lastRenderNanos;
@@ -633,27 +777,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
      */
     private static String fogPlane(final float value) {
         return value >= Float.MAX_VALUE * 0.5F ? "none" : String.format("%.1f", value);
-    }
-    /**
-     * One line when the film's debug colour is switched, so the switch cannot be
-     * silently ignored - the one thing a troubleshooting toggle must never do.
-     *
-     * <p>Not gated on {@code debugLogging} when it turns ON: the player flipped a
-     * switch whose whole purpose is to be looked at, and the confirmation is the
-     * only proof the build they launched actually contains it. Turning it off
-     * again is ordinary state and stays behind the gate.</p>
-     */
-    private void logFilmDebugColor() {
-        final boolean on = this.config.shoreWaveOptions.shoreFilmDebugColor;
-        if (on == this.loggedFilmDebugColor)
-            return;
-        this.loggedFilmDebugColor = on;
-        if (on)
-            this.logger.info("[ShoreWave] film debug color ON: rgb=FF00FF - the water film keeps its"
-                    + " geometry, height and alpha and paints solid magenta; back to normal the moment"
-                    + " the option is turned off");
-        else if (logging())
-            this.logger.info("[ShoreWave] film debug color OFF: the film is back to the biome water colour");
     }
 
     /**
@@ -746,6 +869,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             mv.setIdentity();
             mv.mulPoseMatrix(view);
             RenderSystem.applyModelViewMatrix();
+            auditVisibility(view, cam);
             drawQuads(buffer, tesselator, cam);
         } finally {
             mv.popPose();
@@ -753,6 +877,289 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         }
     }
 
+    /**
+     * Projects every quad the way the GPU will and says how many could actually
+     * reach the screen.
+     *
+     * <p>The maintainer reports the surf appearing and disappearing at random,
+     * strongly tied to player position, and the scan cannot produce that: quads
+     * are non-degenerate, above ground, and every joint end sits on foam. So the
+     * question moves to the pass - a quad that is emitted and never drawn looks
+     * exactly like a quad that was never emitted. Rather than paint the world
+     * magenta and ask a human to look, this asks the matrix: the same
+     * {@code projection * view} the vertices go through, counting the four ways a
+     * quad can be thrown away after it exists - behind the camera, off screen,
+     * outside the depth range, or collapsed to no pixels.</p>
+     */
+    private void auditVisibility(final Matrix4f view, final Vec3 cam) {
+        if (!logging())
+            return;
+        final Matrix4f pv = new Matrix4f(RenderSystem.getProjectionMatrix());
+        pv.mul(view);
+        final double cx = cam.x;
+        final double cy = cam.y;
+        final double cz = cam.z;
+        int behind = 0;
+        int offscreen = 0;
+        int outsideDepth = 0;
+        int collapsed = 0;
+        int drawable = 0;
+        int quads = 0;
+        // Opacity buckets, over the quads that reach the screen. A quad can be
+        // perfectly on-screen and still invisible, and "invisible" and "too
+        // faint" cannot be told apart by eye - so the geometry verdict above is
+        // not enough on its own, and this is the half that was missing when a
+        // frame said 57 of 90 drawable while the picture showed a third of that.
+        int faintLo = 0;
+        int faintMid = 0;
+        int faintHi = 0;
+        int faintByKind = 0;
+        // The buckets above only say "nothing is faint". That is a fact about
+        // the SET, and on its own it cannot tell a healthy pass from a pass
+        // whose alpha happens to be uniform - which is what the first run of
+        // this audit reported, and it was indistinguishable from "fine" until
+        // the per-kind extremes were printed. A max is enough for that: one
+        // number per slot says where the paint actually sits.
+        int filmMin = Integer.MAX_VALUE;
+        int filmMax = 0;
+        int bandMin = Integer.MAX_VALUE;
+        int bandMax = 0;
+        int joints = 0;
+        int jointMin = Integer.MAX_VALUE;
+        for (int i = 0; i < this.quads.count; i++) {
+            final ShoreScan.ShoreQuad q = this.quads.items[i];
+            quads++;
+            if (q.tex == ShoreScan.TEX_FILM) {
+                filmMin = Math.min(filmMin, q.alpha);
+                filmMax = Math.max(filmMax, q.alpha);
+            } else {
+                bandMin = Math.min(bandMin, q.alpha);
+                bandMax = Math.max(bandMax, q.alpha);
+            }
+            if (q.kind == 1) {
+                joints++;
+                jointMin = Math.min(jointMin, q.alpha);
+            }
+            double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
+            double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+            double minZ = Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
+            boolean anyBehind = false;
+            boolean anyInside = false;
+            boolean anyInDepth = false;
+            for (int k = 0; k < 4; k++) {
+                // JOML multiplies on the MATRIX: pv.transform(v) is P*view*v.
+                final Vector4f v = new Vector4f((float) (q.wx[k] - cx), (float) (q.y - cy), (float) (q.wz[k] - cz), 1F);
+                pv.transform(v);
+                if (v.w <= 0F) {
+                    anyBehind = true;
+                    break;
+                }
+                final double nx = v.x / v.w;
+                final double ny = v.y / v.w;
+                final double nz = v.z / v.w;
+                minX = Math.min(minX, nx);
+                maxX = Math.max(maxX, nx);
+                minY = Math.min(minY, ny);
+                maxY = Math.max(maxY, ny);
+                minZ = Math.min(minZ, nz);
+                maxZ = Math.max(maxZ, nz);
+                if (Math.abs(nx) <= 1D && Math.abs(ny) <= 1D)
+                    anyInside = true;
+                if (nz >= -1D && nz <= 1D)
+                    anyInDepth = true;
+            }
+            if (anyBehind)
+                behind++;
+            else if (!anyInside)
+                offscreen++;
+            else if (!anyInDepth)
+                outsideDepth++;
+            else if ((maxX - minX) * (maxY - minY) < 1.0E-8D)
+                collapsed++;
+            else {
+                drawable++;
+                // The texture multiplies the vertex alpha on top of it, so the
+                // bands (shore_foam_strip has four fully transparent rows) and
+                // the film are not judged by this number alone - it is the
+                // ceiling, and the film reaching it is what makes it suspicious.
+                if (q.alpha < 32)
+                    faintLo++;
+                else if (q.alpha < 128)
+                    faintMid++;
+                else
+                    faintHi++;
+                // Joints are the ones the maintainer reports vanishing; a
+                // population of on-screen joints at rock-bottom alpha is the
+                // signature of that, and it is invisible in the totals.
+                if (q.kind == 1 && q.alpha < 32)
+                    faintByKind++;
+            }
+        }
+        // Printed on change, not per frame. Measured on a real session: 24,494
+        // audit lines in about ninety seconds of standing on a beach, two per
+        // frame, which buries the rest of the log and costs string formatting on
+        // the render thread every frame. A count that only moves when the camera
+        // moves is worth exactly as much as the frame it last changed in.
+        final String fingerprint = quads + "/" + drawable + "/" + behind + "/" + offscreen
+                + "/" + outsideDepth + "/" + collapsed + "/" + faintLo + "/" + faintMid
+                + "/" + faintHi + "/" + faintByKind + "/" + filmMin + "/" + filmMax
+                + "/" + bandMin + "/" + bandMax + "/" + joints + "/" + jointMin;
+        if (!fingerprint.equals(this.lastAuditPrint) || this.framesSeen % 600 == 1L) {
+            this.lastAuditPrint = fingerprint;
+            this.logger.info("[ShoreWave] on-screen audit: %d quads | drawable %d | behind camera %d"
+                            + " | off screen %d | outside depth %d | collapsed %d",
+                    quads, drawable, behind, offscreen, outsideDepth, collapsed);
+            if (drawable > 0) {
+                this.logger.info("[ShoreWave]   on-screen alpha: <32 %d | 32-127 %d | >=128 %d"
+                                + " | joints under 32: %d",
+                        faintLo, faintMid, faintHi, faintByKind);
+                this.logger.info("[ShoreWave]   alpha range: film %d..%d | foam %d..%d"
+                                + " | joints %d of %d, min %d",
+                        filmMin == Integer.MAX_VALUE ? 0 : filmMin, filmMax,
+                        bandMin == Integer.MAX_VALUE ? 0 : bandMin, bandMax,
+                        joints, quads, jointMin == Integer.MAX_VALUE ? 0 : jointMin);
+            }
+            if (drawable < quads)
+                this.logger.info("[ShoreWave]   %d of %d quads cannot reach the screen this frame",
+                        quads - drawable, quads);
+        }
+    }
+
+    /**
+     * What the GPU is actually being handed this frame, plus how many quads went
+     * out under each texture.
+     *
+     * <p>Everything printed so far describes what this class <em>intended</em>:
+     * where it put the vertices, what alpha it wrote, whether the corners land
+     * inside the frustum. All of that is computed on this side of the API and
+     * none of it can see the draw call. Three failures live on the other side
+     * of it, and each of them reproduces the reported symptom exactly while
+     * leaving every number above looking correct:</p>
+     *
+     * <ul>
+     *   <li><b>ColorModulator.</b> The particle shader multiplies the vertex
+     *       colour by {@code ColorModulator}, which is RenderSystem state. This
+     *       class never sets it and never restores it, so the surf is tinted by
+     *       whichever pass ran last - vanilla's sky pass included. Reported once
+     *       already as "pale blue, no texture, turns orange when facing the
+     *       sun", and read twice as "the vertex colour is not applied".</li>
+     *   <li><b>Fog.</b> {@code particle.fsh} ends in {@code linear_fog()}: at or
+     *       past {@code fogEnd} it replaces the fragment RGB with FogColor and
+     *       leaves alpha alone - a flat pale sheet at exactly the right opacity.</li>
+     *   <li><b>Per-slot counts.</b> One {@code begin()} across all slots paints
+     *       every quad with whichever texture was bound last. That already
+     *       happened once here; the count per slot is what makes it visible
+     *       again, because a slot that emits nothing is indistinguishable from
+     *       a slot that emits and is then covered.</li>
+     * </ul>
+     *
+     * <p>Prints on change, not per frame: at 60fps an unthrottled version of
+     * this wrote ~24k lines in ninety seconds and buried the rest of the log.</p>
+     */
+    private void auditGpuState() {
+        final int[] perTex = new int[ShoreScan.TEX_COUNT];
+        int bandCount = 0;
+        int jointCount = 0;
+        for (int i = 0; i < this.quads.count; i++) {
+            final ShoreScan.ShoreQuad q = this.quads.items[i];
+            perTex[q.tex]++;
+            if (q.kind == 1)
+                jointCount++;
+            else
+                bandCount++;
+        }
+        // Read through GL, not through RenderSystem: this class knows what it
+        // ASKED for, and asking is not the question. RenderSystem keeps no
+        // getters for the enable flags in 1.20.1 (verified with javap - only
+        // enable*/disable*/depthMask, no isOn), so the only way to learn what
+        // the driver is actually holding is to ask it.
+        final boolean blendOn = glIsEnabled(GL_BLEND);
+        final boolean depthOn = glIsEnabled(GL_DEPTH_TEST);
+        final boolean cullOn = glIsEnabled(GL_CULL_FACE);
+        final boolean depthMask = glGetBoolean(GL_DEPTH_WRITEMASK);
+        final float[] tint = RenderSystem.getShaderColor();
+        final float fogStart = RenderSystem.getShaderFogStart();
+        final float fogEnd = RenderSystem.getShaderFogEnd();
+        final float fogShape = RenderSystem.getShaderFogShape().ordinal();
+        final boolean fogNeutralised = fogClosed(fogStart, fogEnd);
+        final StringBuilder slots = new StringBuilder();
+        for (int tex = 0; tex < ShoreScan.TEX_COUNT; tex++) {
+            if (perTex[tex] == 0)
+                continue;
+            if (slots.length() > 0)
+                slots.append(' ');
+            slots.append(slotName(tex)).append('=').append(perTex[tex]);
+        }
+        final String fingerprint = String.format(
+                "%s|%d|%d|%.3f,%.3f,%.3f,%.3f|%s|%s|%.0f|%b%b%b%b",
+                slots, bandCount, jointCount,
+                tint[0], tint[1], tint[2], tint[3],
+                fogPlane(fogStart), fogPlane(fogEnd), fogShape,
+                blendOn, depthOn, cullOn, depthMask);
+        if (fingerprint.equals(this.lastStatePrint) && this.framesSeen % 600 != 1L)
+            return;
+        this.lastStatePrint = fingerprint;
+        this.logger.info("[ShoreWave] gpu state: tint %.3f %.3f %.3f %.3f"
+                        + " | fog %s..%s shape %d%s | blend %b depthTest %b depthMask %b cull %b",
+                tint[0], tint[1], tint[2], tint[3],
+                fogPlane(fogStart), fogPlane(fogEnd), (int) fogShape,
+                fogNeutralised ? " [NEUTRALISED]" : "",
+                blendOn, depthOn, depthMask, cullOn);
+        this.logger.info("[ShoreWave]   emitting %d quads (bands %d, joints %d) | %s",
+                this.quads.count, bandCount, jointCount,
+                slots.length() == 0 ? "NO SLOTS BOUND" : slots);
+    }
+
+    /**
+     * GL capability enum values, written out rather than imported.
+     *
+     * <p>The obvious spelling - {@code com.mojang.blaze3d.platform.GL11} - does
+     * not exist in 1.20.1: that package only has {@code GLX} here (checked in
+     * the 1.20.1 client jar), and the wrapper class arrives in later versions.
+     * The four values below are fixed by the OpenGL spec and are the same
+     * numbers on every version, so naming them here keeps one diagnostic from
+     * needing three different imports.</p>
+     */
+    private static final int GL_BLEND = 0x0BE2;
+    private static final int GL_DEPTH_TEST = 0x0B71;
+    private static final int GL_CULL_FACE = 0x0B44;
+    private static final int GL_DEPTH_WRITEMASK = 0x0B72;
+
+    /**
+     * GL query, isolated. A diagnostic that throws inside the render path kills
+     * the feature it is measuring - the symptom then reads as "the surf has a
+     * bug", which is the one thing a probe must never cause.
+     */
+    private static boolean glIsEnabled(final int cap) {
+        try {
+            return RenderSystem.isOnRenderThread() && org.lwjgl.opengl.GL11.glIsEnabled(cap);
+        } catch (final Throwable t) {
+            return false;
+        }
+    }
+
+    private static boolean glGetBoolean(final int cap) {
+        try {
+            return RenderSystem.isOnRenderThread() && org.lwjgl.opengl.GL11.glGetBoolean(cap);
+        } catch (final Throwable t) {
+            return false;
+        }
+    }
+
+    /** Short name for a texture slot, for the per-slot emit count. */
+    private static String slotName(final int tex) {
+        if (tex == ShoreScan.TEX_FILM)
+            return "film";
+        if (tex == ShoreScan.TEX_STRIP)
+            return "strip";
+        if (tex == ShoreScan.TEX_CAP)
+            return "cap";
+        if (tex >= ShoreScan.TEX_CONVEX && tex <= ShoreScan.TEX_CONVEX + 3)
+            return "convex" + (tex - ShoreScan.TEX_CONVEX);
+        if (tex >= ShoreScan.TEX_CONCAVE && tex <= ShoreScan.TEX_CONCAVE + 3)
+            return "concave" + (tex - ShoreScan.TEX_CONCAVE);
+        return "slot" + tex;
+    }
     private void drawQuads(final BufferBuilder buffer, final Tesselator tesselator, final Vec3 cam) {
         // One begin/draw per texture slot. RenderSystem.setShaderTexture binds
         // immediately, but the draw happens at Tesselator.end() - so a single
@@ -814,14 +1221,22 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             float u = q.u[i];
             float v = q.v[i];
             if (q.tex == ShoreScan.TEX_FILM) {
+                // The film is ONE 16x16 tile of its own (shore_foam_film.png,
+                // uniformly opaque), not a frame of a 16x512 vanilla water
+                // sheet - the slot binds our own texture at TEXTURES[] above.
+                //
+                // It used to be folded into a 1/FILM_FRAMES window here, on the
+                // assumption that this slot sampled vanilla's water sprite. That
+                // assumption stopped being true when the film got its own tile,
+                // and nothing caught it because a uniformly opaque 16x16 still
+                // looks like a flat sheet through any UV - it just gets sampled
+                // out of a half-texel-tall band of the sheet instead of the whole
+                // thing, so the mip chain picked the wrong level and the film
+                // lost its grain and much of its opacity at distance. Only the
+                // fold is left, to keep a coordinate that can run past 1 (a
+                // merged rect spans w blocks) inside the tile.
                 u = wrap(u);
-                // The film tile is a 16x512 strip: 32 frames of 16x16 stacked
-                // vertically, exactly as vanilla's water is laid out. Pick the
-                // frame of the moment and keep the quad inside it - the frame
-                // window is one 32nd of the sheet, so v is folded first and then
-                // placed in that window. Stepping the frame here rather than at
-                // build time is what makes it animate between scans.
-                v = (this.filmFrame + wrap(v)) / FILM_FRAMES;
+                v = wrap(v);
             }
             buffer.vertex(q.wx[i] - cx, q.y - cy, q.wz[i] - cz)
                     .uv(u, v)
@@ -912,11 +1327,11 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // a pale sheet, this is the number that says whether the pass handed the
         // shader a colour at all.
         event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
-                "Shore fog: given %s/%s -> %s (pass bound %d, film debug %s)",
+                "Shore fog: given %s/%s -> %s (pass bound %d)",
                 fogPlane(this.frameFogStart), fogPlane(this.frameFogEnd),
                 this.loggedFogNeutralised ? "neutralised" : "kept",
                 ShoreScan.MAX_QUAD_DISTANCE,
-                this.config.shoreWaveOptions.shoreFilmDebugColor ? "ON rgb=FF00FF" : "off"));
+                "off"));
         event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
                 "Shore: q %d (f%d s%d c%d x%d) foam %d runs %d p %.2f %.1f/%.1fms%s",
                 this.quads.count,
@@ -965,55 +1380,33 @@ public class ShoreWaveHandler extends AbstractClientHandler {
      * Written down, it is a policy; assumed, it is a coincidence.</p>
      */
     // =====================================================================
-    // The film samples the vanilla water sprite
+    // What the film samples
     // =====================================================================
     //
-    // The film's own 16x16 PNG was pure white, and that was never an accident:
-    // its colour has to come from the biome water colour at the vertex, because
-    // that is exactly how vanilla paints the sea - a greyscale water texture
-    // multiplied by a tint. So the tile the film wants is not "a water-coloured
-    // texture"; it is "the vanilla water texture", and vanilla already has one.
+    // This used to be vanilla's water sprite, taken out of the BLOCK atlas, and
+    // the cost of that was threefold: the sampler had to be bound to the atlas
+    // object instead of to a file of ours, the quad's u/v had to be remapped into
+    // the sprite's window (or the sampler read whichever neighbour happened to
+    // sit at that position in the sheet), and the frame index had to be stepped
+    // at emit time because sprite frames are advanced by the atlas ticker while
+    // the quads are rebuilt on a scan cadence.
     //
-    // Sampling it costs three things this class has to own:
+    // None of that is true any more. TEXTURES[TEX_FILM] binds shore_foam_film.png,
+    // our own 16x16 tile, like every other slot in this pass - there is no atlas
+    // remap left in emit() and no frame index to step. The tile is pure white and
+    // that is still deliberate: the film's colour comes from the biome water
+    // colour at the vertex, which is exactly how vanilla paints the sea - a pale
+    // texture multiplied by a tint.
     //
-    //   1. the sprite lives in the BLOCK atlas, not in a file of ours, so the
-    //      sampler has to be bound to the atlas object and the quad's u/v are
-    //      then atlas coordinates rather than tile-local ones;
-    //   2. a tile-local u/v of 0..1 has to be remapped into the sprite's own
-    //      window inside the atlas, or the sampler reads whatever neighbour
-    //      happens to sit at that position in the sheet;
-    //   3. an atlas cannot be wrapped. The film's u/v run past 1 on the merged
-    //      rectangles by design (one texel per 1/16 block across a 4-block
-    //      tile), so they are folded back into 0..1 before the remap - wrapping
-    //      inside the sprite is fine, wrapping in the atlas is not.
-    //
-    // The animation is ours too, for the same reason: sprite frames are advanced
-    // by the atlas ticker and the quads are rebuilt on a scan cadence, not every
-    // frame, so a frame index baked in at build time would step. The offset is
-    // applied at emit time instead, which runs every frame.
-
-    /** The vanilla water sprite the film samples; null until the atlas is up. */
-    /** True once the sprite has been looked for, found or not. */
-    /** The atlas window for the slot now being built; null for our own tiles. */
-    /** Film animation frame for this draw, 0..{@link #FILM_FRAMES} - 1. */
-    private int filmFrame;
-
-    private static final net.minecraft.resources.ResourceLocation WATER_STILL =
-            new net.minecraft.resources.ResourceLocation("minecraft", "block/water_still");
-
-    /**
-     * How fast the film's texture drifts, in tile widths per second.
-     *
-     * <p>Vanilla's still water advances one texture every 32 ticks, i.e. 0.03125
-     * tile widths per second - far too slow to read as motion at the one-texel-
-     * per-1/16-block density the film uses. These are faster on purpose and not
-     * an even multiple of each other, so the two axes never line up into a
-     * repeating diagonal.</p>
-     */
-    /** Frames in the film tile, matching the sheet vanilla's water uses. */
-    private static final int FILM_FRAMES = 32;
-    /** Ticks per frame. Vanilla advances still water once every 32 ticks. */
-    private static final int FILM_FRAME_TICKS = 32;
+    // The trap this leaves behind, and the reason it is written down: a uniformly
+    // opaque tile looks correct through ANY uv, so nothing about the picture tells
+    // you the sampling is wrong. emit() kept folding v into a 1/32 window (the
+    // frame layout of the 16x512 sheet it no longer sampled), which squeezed the
+    // whole film into half a texel of height - wrong mip level, and the opacity
+    // and grain that came with it lost at distance, with no visible symptom at
+    // arm's length. A stale assumption about where a texture comes from is
+    // invisible until something measures it; the audit's alpha buckets are what
+    // finally did.
 
     /**
      * The atlas window of the water sprite, or null when the film keeps its own

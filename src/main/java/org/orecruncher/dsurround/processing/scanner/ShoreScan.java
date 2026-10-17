@@ -590,6 +590,15 @@ public final class ShoreScan {
          * identical in the quad count alone.
          */
         public int fieldChains = 0;
+        /** Distance-field diagnostics: why a segment of surf was not drawn. */
+        public int fieldEdges = 0;
+        public int fieldSegs = 0;
+        public int fieldSkipBounds = 0;
+        public int fieldSkipAlpha = 0;
+        public int fieldOpenChains = 0;
+        public int fieldBorderEnds = 0;
+        public float fieldFMin = 0F;
+        public float fieldFMax = 0F;
         public int fieldShortChains = 0;
         public float fieldLevel = 0F;
         public int fieldFieldMax = 0;

@@ -472,6 +472,14 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         this.logger.info("[ShoreWave]   field: %.2f of the beach crossed | chains %d | dropped as too short %d"
                         + " | widest beach %d blocks",
                 g.fieldLevel, g.fieldChains, g.fieldShortChains, g.fieldFieldMax);
+        // Which part of the coast did NOT become geometry this frame, and why. A
+        // segment that vanishes as the player walks is one of these two counts, or an
+        // open chain end sitting on the window border.
+        this.logger.info("[ShoreWave]   field geom: edges %d | segments %d | skipped bounds %d alpha %d"
+                        + " | open chains %d (ends at border %d) | f %.2f..%.2f",
+                g.fieldEdges, g.fieldSegs, g.fieldSkipBounds, g.fieldSkipAlpha,
+                g.fieldOpenChains, g.fieldBorderEnds,
+                g.fieldFMin == Float.MAX_VALUE ? 0F : g.fieldFMin, g.fieldFMax);
         // Burial census. This is the one measurement that separates "the band was
         // never made" from "the band was made and then the beach ate it": a
         // negative gap means the quad is in the buffer, inside the frustum, at

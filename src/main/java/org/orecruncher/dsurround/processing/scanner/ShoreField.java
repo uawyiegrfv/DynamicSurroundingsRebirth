@@ -61,11 +61,19 @@ final class ShoreField {
 
         int chains = 0;
         int widest = 0;
+        g.fieldSegs = 0;
+        g.fieldSkipBounds = 0;
+        g.fieldSkipAlpha = 0;
+        g.fieldOpenChains = 0;
+        g.fieldBorderEnds = 0;
+        g.fieldFMin = Float.MAX_VALUE;
+        g.fieldFMax = 0F;
         for (final List<float[]> chain : chains(edges)) {
             chains++;
             widest = Math.max(widest, emitChain(g, level, out, chain, f));
         }
         g.fieldChains = chains;
+        g.fieldEdges = edges.size();
         g.fieldFieldMax = widest;
     }
 
@@ -169,6 +177,16 @@ final class ShoreField {
             vz[i + 1] = chain.get(i)[3];
         }
         final boolean closed = Math.abs(vx[0] - vx[n]) < 1.0e-4F && Math.abs(vz[0] - vz[n]) < 1.0e-4F;
+        if (!closed) {
+            g.fieldOpenChains++;
+            // An open end close to the window border means the scan cut the coast, not
+            // that the coast ends there - the difference between a real dead end and a
+            // segment that flickers with the player's position.
+            if (nearBorder(g, vx[0], vz[0]))
+                g.fieldBorderEnds++;
+            if (nearBorder(g, vx[n], vz[n]))
+                g.fieldBorderEnds++;
+        }
 
         // Segment normals, pointing inland.
         final float[] nx = new float[n];
@@ -189,6 +207,8 @@ final class ShoreField {
             final float room = room(g, (vx[i] + vx[i + 1]) * 0.5F, (vz[i] + vz[i + 1]) * 0.5F, nx[i], nz[i]);
             widest = Math.max(widest, Math.round(room));
             fseg[i] = Math.max(0F, Math.min(f, room - 1F));
+            g.fieldFMin = Math.min(g.fieldFMin, fseg[i]);
+            g.fieldFMax = Math.max(g.fieldFMax, fseg[i]);
         }
         for (int pass = 0; pass < 2; pass++)
             for (int i = 1; i < n - 1; i++)
@@ -240,9 +260,14 @@ final class ShoreField {
                     : ShoreScan.edgeAlpha(g, gx, gz);
             final float segLen = (float) Math.hypot(s1x - s0x, s1z - s0z);
             if (alpha <= 0 || segLen < 1.0e-4F) {
+                if (gx < 0 || gz < 0 || gx >= g.size || gz >= g.size)
+                    g.fieldSkipBounds++;
+                else
+                    g.fieldSkipAlpha++;
                 along += segLen;
                 continue;
             }
+            g.fieldSegs++;
             final ShoreScan.ShoreQuad q = out.next();
             q.tex = ShoreScan.TEX_STRIP;
             q.kind = 0;
@@ -272,6 +297,12 @@ final class ShoreField {
             along += segLen;
         }
         return widest;
+    }
+
+    /** True when a point sits within two blocks of the scan window's edge. */
+    private static boolean nearBorder(final ShoreScan.Grid g, final float x, final float z) {
+        final int m = 2;
+        return x < m || z < m || x > g.size - 1 - m || z > g.size - 1 - m;
     }
 
     /** Beach depth under a coastal normal, in blocks, capped at 4. */

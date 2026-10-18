@@ -114,6 +114,35 @@ final class ShoreField {
             }
         }
 
+        // Bridge the diagonal steps. On a 45-degree shore the wet cells line up
+        // corner-to-corner, and two axis-aligned rectangles that only share a corner
+        // leave a gap - which is exactly the row of dashes the maintainer sees on a
+        // staircased coast. Filling ONE of the two cells between each such pair turns
+        // the diagonal into a staircase of quads that share edges, and it stays
+        // axis-aligned: the filler is an ordinary cell, not a special corner piece.
+        final boolean[] wet0 = wet.clone();
+        final byte[] orient0 = orient.clone();
+        for (int gz = 0; gz + 1 < size; gz++) {
+            for (int gx = 0; gx + 1 < size; gx++) {
+                final int a = gz * size + gx;
+                final int b = (gz + 1) * size + gx + 1;
+                final int c = gz * size + gx + 1;
+                final int e = (gz + 1) * size + gx;
+                if (wet0[a] && wet0[b] && !wet0[c] && !wet0[e]) {
+                    wet[c] = true;
+                    orient[c] = orient0[b];
+                }
+                final int a2 = gz * size + gx + 1;
+                final int b2 = (gz + 1) * size + gx;
+                final int c2 = gz * size + gx;
+                final int e2 = (gz + 1) * size + gx + 1;
+                if (wet0[a2] && wet0[b2] && !wet0[c2] && !wet0[e2]) {
+                    wet[e2] = true;
+                    orient[e2] = orient0[a2];
+                }
+            }
+        }
+
         // Consecutive collinear cells become ONE quad. Drawing them one per cell cut the
         // texture into quarters: the strip art repeats every four blocks, so a per-cell
         // u made every block show the same slice and the line read as a row of dashes.

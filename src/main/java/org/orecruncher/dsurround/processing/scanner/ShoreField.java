@@ -226,6 +226,23 @@ final class ShoreField {
             for (int i = 1; i < n - 1; i++)
                 fseg[i] = (fseg[i - 1] + 2F * fseg[i] + fseg[i + 1]) * 0.25F;
 
+        // Vertex = intersection of the two offset lines: C + nA*fA + nB*fB.
+        final float[] ox = new float[n + 1];
+        final float[] oz = new float[n + 1];
+        for (int v = 0; v <= n; v++) {
+            final int a = (v == 0) ? (closed ? n - 1 : 0) : v - 1;
+            final int b = (v == n) ? (closed ? 0 : n - 1) : v;
+            final boolean same = Math.abs(nx[a] - nx[b]) < 1.0e-4F && Math.abs(nz[a] - nz[b]) < 1.0e-4F;
+            if (same) {
+                final float fa = (fseg[a] + fseg[b]) * 0.5F;
+                ox[v] = vx[v] + nx[a] * fa;
+                oz[v] = vz[v] + nz[a] * fa;
+            } else {
+                ox[v] = vx[v] + nx[a] * fseg[a] + nx[b] * fseg[b];
+                oz[v] = vz[v] + nz[a] * fseg[a] + nz[b] * fseg[b];
+            }
+        }
+
         final float base = ShoreScan.BAND_WIDTH;
         float along = 0F;
         for (int i = 0; i < n; i++) {
@@ -257,17 +274,8 @@ final class ShoreField {
             final float inEz = nz[i];
             final float inFx = nx[i];
             final float inFz = nz[i];
-            // The piece is a full quad on its own segment: both ends moved by THIS
-            // segment's normal, never by a shared intersection point. Sharing one
-            // point per corner collapsed every one-block piece into a wedge, and on a
-            // 45-degree staircase - where every piece is one block and both ends are
-            // corners - that read as separate blobs instead of a line. Overlapping
-            // quads leave the small square at the corner, which is the picture the
-            // maintainer asked for.
-            final float o0x = vx[i] + nx[i] * fseg[i], o0z = vz[i] + nz[i] * fseg[i];
-            final float o1x = vx[i + 1] + nx[i] * fseg[i], o1z = vz[i + 1] + nz[i] * fseg[i];
-            final float s0x = o0x + ux * ps, s0z = o0z + uz * ps;
-            final float s1x = o1x - ux * pe, s1z = o1z - uz * pe;
+            final float s0x = ox[i] + ux * ps, s0z = oz[i] + uz * ps;
+            final float s1x = ox[i + 1] - ux * pe, s1z = oz[i + 1] - uz * pe;
             final int gx = (int) Math.floor((s0x + s1x) * 0.5F);
             final int gz = (int) Math.floor((s0z + s1z) * 0.5F);
             final int alpha = (gx < 0 || gz < 0 || gx >= g.size || gz >= g.size) ? 0

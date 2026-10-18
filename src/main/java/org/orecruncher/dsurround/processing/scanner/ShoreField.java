@@ -84,7 +84,6 @@ final class ShoreField {
         // leave wedges, and no amount of vertex tweaking fixes a set of independent
         // quads. A cell is either inside the wetted area or not, so the fill has no
         // seams at all - and since the water texture is uniform, cells are invisible.
-        emitFilm(g, level, out, f);
 
         g.fieldChains = chains;
         g.fieldEdges = edges.size();
@@ -122,62 +121,6 @@ final class ShoreField {
         return out;
     }
 
-    /** Fills every cell the swell has reached: d <= f, one quad per cell. */
-    private static void emitFilm(final ShoreScan.Grid g, final Level level, final ShoreScan.Quads out,
-                                 final float f) {
-        final int size = g.size;
-        final int reach = 4;
-        for (int gz = 0; gz < size; gz++) {
-            for (int gx = 0; gx < size; gx++) {
-                final int gi = gz * size + gx;
-                if (g.cls[gi] != ShoreScan.CLS_BEACH)
-                    continue;
-                // Distance to the nearest sea cell, capped at 'reach' so a wide beach
-                // costs nothing.
-                float best = reach + 1F;
-                for (int dz = -reach; dz <= reach; dz++) {
-                    for (int dx = -reach; dx <= reach; dx++) {
-                        final int nx2 = gx + dx, nz2 = gz + dz;
-                        if (nx2 < 0 || nz2 < 0 || nx2 >= size || nz2 >= size)
-                            continue;
-                        if (g.cls[nz2 * size + nx2] != ShoreScan.CLS_SEA)
-                            continue;
-                        // -1, not -0.5: the sea is a square, so the beach cell that
-                        // touches it must read 0. With -0.5 the first ring was still 0.5
-                        // away and the film only appeared once the swell passed half a
-                        // block, leaving the beach dry at low tide.
-                        final float dist = (float) Math.sqrt(dx * dx + dz * dz) - 1F;
-                        if (dist < best)
-                            best = dist;
-                    }
-                }
-                if (best > f || best < 0F)
-                    continue;
-                final int alpha = ShoreScan.edgeAlpha(g, gx, gz);
-                if (alpha <= 0)
-                    continue;
-                final ShoreScan.ShoreQuad q = out.next();
-                q.tex = ShoreScan.TEX_FILM;
-                q.kind = 0;
-                q.rgb = waterColour(level, g, gx, gz);
-                q.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT * 0.5F;
-                q.light = ShoreScan.lightAt(level, g, g.ox + gx, g.oz + gz);
-                q.alpha = alpha;
-                q.wx[0] = g.ox + gx;
-                q.wz[0] = g.oz + gz;
-                q.wx[1] = g.ox + gx + 1;
-                q.wz[1] = g.oz + gz;
-                q.wx[2] = g.ox + gx + 1;
-                q.wz[2] = g.oz + gz + 1;
-                q.wx[3] = g.ox + gx;
-                q.wz[3] = g.oz + gz + 1;
-                for (int k = 0; k < 4; k++) {
-                    q.u[k] = q.wx[k] - (float) Math.floor(q.wx[k]);
-                    q.v[k] = q.wz[k] - (float) Math.floor(q.wz[k]);
-                }
-            }
-        }
-    }
 
     /** Floods the sea into connected bodies; true where the body has enough cells. */
     private static boolean[] bigWaterBodies(final ShoreScan.Grid g) {
@@ -417,6 +360,32 @@ final class ShoreField {
                 continue;
             }
             g.fieldSegs++;
+            // Film first, one quad per segment, sharing both polyline vertices with its
+            // neighbours.
+            {
+                final ShoreScan.ShoreQuad fq = out.next();
+                fq.tex = ShoreScan.TEX_FILM;
+                fq.kind = 0;
+                fq.rgb = waterColour(level, g, gx, gz);
+                fq.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT * 0.5F;
+                fq.light = q0light;
+                fq.alpha = alpha;
+                fq.wx[0] = g.ox + vx[i];
+                fq.wz[0] = g.oz + vz[i];
+                fq.wx[1] = g.ox + vx[i + 1];
+                fq.wz[1] = g.oz + vz[i + 1];
+                // The foam's own mitred vertices, a hair inland: same vertices as the
+                // crest, so the film and the line cannot drift apart at a turn.
+                final float hair = ShoreScan.BAND_WIDTH * 0.35F;
+                fq.wx[2] = g.ox + ox[i + 1] + nx[i] * hair;
+                fq.wz[2] = g.oz + oz[i + 1] + nz[i] * hair;
+                fq.wx[3] = g.ox + ox[i] + nx[i] * hair;
+                fq.wz[3] = g.oz + oz[i] + nz[i] * hair;
+                for (int k = 0; k < 4; k++) {
+                    fq.u[k] = fq.wx[k] - (float) Math.floor(fq.wx[k]);
+                    fq.v[k] = fq.wz[k] - (float) Math.floor(fq.wz[k]);
+                }
+            }
             final ShoreScan.ShoreQuad q = out.next();
             q.tex = ShoreScan.TEX_STRIP;
             q.kind = 0;

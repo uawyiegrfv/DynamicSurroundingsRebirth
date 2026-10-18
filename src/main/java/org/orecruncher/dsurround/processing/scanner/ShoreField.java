@@ -200,8 +200,17 @@ final class ShoreField {
         q.wz[2] = g.oz + gz + dz * len + dx;
         q.wx[3] = g.ox + gx + dz;
         q.wz[3] = g.oz + gz + dx;
-        final float u0 = (dx == 0 ? gz : gx) / ShoreScan.STRIP_PERIOD;
-        final float u1 = u0 + len / ShoreScan.STRIP_PERIOD;
+        float u0 = (dx == 0 ? gz : gx) / ShoreScan.STRIP_PERIOD;
+        float u1 = u0 + len / ShoreScan.STRIP_PERIOD;
+        if (len < ShoreScan.STRIP_PERIOD) {
+            // A run shorter than the texture's four-block period can only show a slice
+            // of the artwork, and a random slice reads as a gap. Centre the motif on
+            // the piece instead, so every short piece carries a whole crest.
+            final float span = len / (float) ShoreScan.STRIP_PERIOD;
+            final float centre = (float) Math.floor(u0) + 0.5F;
+            u0 = centre - span * 0.5F;
+            u1 = u0 + span;
+        }
         q.u[0] = u0;
         q.u[1] = u1;
         q.u[2] = u1;

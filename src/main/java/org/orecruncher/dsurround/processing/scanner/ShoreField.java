@@ -248,7 +248,10 @@ final class ShoreField {
             // A run shorter than the texture's four-block period can only show a slice
             // of the artwork, and a random slice reads as a gap. Centre the motif on
             // the piece instead, so every short piece carries a whole crest.
-            final float span = len / (float) ShoreScan.STRIP_PERIOD;
+            // Stretch the WHOLE motif over the short piece instead of showing a slice of
+            // it. A one-block run then carries a complete crest, and a staircase reads as
+            // a run of crests rather than as a dashed line cut out of a longer wave.
+            final float span = 1F;
             final float centre = (float) Math.floor(u0) + 0.5F;
             u0 = centre - span * 0.5F;
             u1 = u0 + span;

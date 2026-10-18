@@ -578,7 +578,6 @@ public final class ShoreScan {
 
         public int runCells = 0;
         public int foamCells = 0;
-        public int filmQuads = 0;
         /**
          * Distance-field tallies: how many contour chains the level set broke
          * into, how many were dropped as too short to be a wave, and the level
@@ -619,8 +618,6 @@ public final class ShoreScan {
         public float filmBlocks = 0F;
         /** Quad tally from the last build, split by type. */
         public int stripQuads = 0;
-        public int capQuads = 0;
-        public int cornerQuads = 0;
         public int filledCells = 0;
 
         /**
@@ -1118,7 +1115,6 @@ public final class ShoreScan {
         Arrays.fill(g.fdir, (byte) 0);
         Arrays.fill(g.used, (byte) 0);
         g.foamCells = 0;
-        g.filmQuads = 0;
         g.lineTexels = 0F;
         g.lineBlocks = 0F;
         g.filmTexels = 0F;
@@ -1221,9 +1217,6 @@ public final class ShoreScan {
     private static void tallyQuads(final Grid g, final Quads out) {
         // There is one slot, so the tally is a count, not a partition.
         g.stripQuads = out.count;
-        g.capQuads = 0;
-        g.cornerQuads = 0;
-        g.filmQuads = 0;
         g.filledCells = 0;
         for (int i = 0; i < g.filled.length; i++)
             if (g.filled[i] == 1) g.filledCells++;

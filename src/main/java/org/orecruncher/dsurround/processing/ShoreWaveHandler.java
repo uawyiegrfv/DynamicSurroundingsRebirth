@@ -430,11 +430,11 @@ public class ShoreWaveHandler extends AbstractClientHandler {
 
         final StringBuilder detail = new StringBuilder(160);
         detail.append(String.format(
-                "[ShoreWave] tick %d p %.2f | player (%d,%d,%d) | quads %d (film %d strip %d cap %d corner %d)"
+                "[ShoreWave] tick %d p %.2f | player (%d,%d,%d) | quads %d"
                         + " | foam cells %d filled %d runs %d | build %.3fms",
                 tick, this.lastProgress,
                 player.blockPosition().getX(), player.blockPosition().getY(), player.blockPosition().getZ(),
-                this.quads.count, g.filmQuads, g.stripQuads, g.capQuads, g.cornerQuads,
+                this.quads.count,
                 g.foamCells, g.filledCells, g.runCells, this.lastBuildNanos / 1_000_000D));
         // Where the film goes. filled > 0 with film 0 means the front marked
         // cells and the foam drew them, but the film emitted nothing - and
@@ -1294,12 +1294,9 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 ShoreScan.MAX_QUAD_DISTANCE,
                 "off"));
         event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
-                "Shore: q %d (f%d s%d c%d x%d) foam %d runs %d p %.2f %.1f/%.1fms%s",
+                "Shore: q %d foam %d runs %d p %.2f %.1f/%.1fms%s",
                 this.quads.count,
-                this.grid == null ? 0 : this.grid.filmQuads,
                 this.grid == null ? 0 : this.grid.stripQuads,
-                this.grid == null ? 0 : this.grid.capQuads,
-                this.grid == null ? 0 : this.grid.cornerQuads,
                 this.lastFoamCells, this.lastRunCells, this.lastProgress,
                 this.lastScanNanos / 1_000_000D, this.lastBuildNanos / 1_000_000D,
                 this.broken ? " BROKEN" : ""));

@@ -34,7 +34,6 @@ final class ShoreField {
     private static final int[] DX = {1, -1, 0, 0};
     private static final int[] DZ = {0, 0, 1, -1};
 
-    private static net.minecraft.client.renderer.texture.TextureAtlasSprite water = null;
     private static float smoothed = -1F;
     private static long lastNanos = 0L;
 
@@ -54,7 +53,6 @@ final class ShoreField {
         if (edges.isEmpty())
             return;
 
-        water = waterSprite();
         final float target = Math.max(0F, Math.min(1F, p));
         final long now = System.nanoTime();
         if (smoothed < 0F) {
@@ -81,6 +79,13 @@ final class ShoreField {
             chains++;
             widest = Math.max(widest, emitChain(g, level, out, chain, f));
         }
+        // The film is filled from the FIELD, not from the line. Filling between
+        // segment quads cannot work: at a turn the quads fan out and either overlap or
+        // leave wedges, and no amount of vertex tweaking fixes a set of independent
+        // quads. A cell is either inside the wetted area or not, so the fill has no
+        // seams at all - and since the water texture is uniform, cells are invisible.
+        emitFilm(g, level, out, f);
+
         g.fieldChains = chains;
         g.fieldEdges = edges.size();
         g.fieldFieldMax = widest;
@@ -115,6 +120,63 @@ final class ShoreField {
             }
         }
         return out;
+    }
+
+    /** Fills every cell the swell has reached: d <= f, one quad per cell. */
+    private static void emitFilm(final ShoreScan.Grid g, final Level level, final ShoreScan.Quads out,
+                                 final float f) {
+        final int size = g.size;
+        final int reach = 4;
+        for (int gz = 0; gz < size; gz++) {
+            for (int gx = 0; gx < size; gx++) {
+                final int gi = gz * size + gx;
+                if (g.cls[gi] != ShoreScan.CLS_BEACH)
+                    continue;
+                // Distance to the nearest sea cell, capped at 'reach' so a wide beach
+                // costs nothing.
+                float best = reach + 1F;
+                for (int dz = -reach; dz <= reach; dz++) {
+                    for (int dx = -reach; dx <= reach; dx++) {
+                        final int nx2 = gx + dx, nz2 = gz + dz;
+                        if (nx2 < 0 || nz2 < 0 || nx2 >= size || nz2 >= size)
+                            continue;
+                        if (g.cls[nz2 * size + nx2] != ShoreScan.CLS_SEA)
+                            continue;
+                        // -1, not -0.5: the sea is a square, so the beach cell that
+                        // touches it must read 0. With -0.5 the first ring was still 0.5
+                        // away and the film only appeared once the swell passed half a
+                        // block, leaving the beach dry at low tide.
+                        final float dist = (float) Math.sqrt(dx * dx + dz * dz) - 1F;
+                        if (dist < best)
+                            best = dist;
+                    }
+                }
+                if (best > f || best < 0F)
+                    continue;
+                final int alpha = ShoreScan.edgeAlpha(g, gx, gz);
+                if (alpha <= 0)
+                    continue;
+                final ShoreScan.ShoreQuad q = out.next();
+                q.tex = ShoreScan.TEX_FILM;
+                q.kind = 0;
+                q.rgb = waterColour(level, g, gx, gz);
+                q.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT * 0.5F;
+                q.light = ShoreScan.lightAt(level, g, g.ox + gx, g.oz + gz);
+                q.alpha = alpha;
+                q.wx[0] = g.ox + gx;
+                q.wz[0] = g.oz + gz;
+                q.wx[1] = g.ox + gx + 1;
+                q.wz[1] = g.oz + gz;
+                q.wx[2] = g.ox + gx + 1;
+                q.wz[2] = g.oz + gz + 1;
+                q.wx[3] = g.ox + gx;
+                q.wz[3] = g.oz + gz + 1;
+                for (int k = 0; k < 4; k++) {
+                    q.u[k] = q.wx[k] - (float) Math.floor(q.wx[k]);
+                    q.v[k] = q.wz[k] - (float) Math.floor(q.wz[k]);
+                }
+            }
+        }
     }
 
     /** Floods the sea into connected bodies; true where the body has enough cells. */
@@ -355,50 +417,6 @@ final class ShoreField {
                 continue;
             }
             g.fieldSegs++;
-            // The film first: from the water line (vx, vz) to the foam's seaward edge
-            // (ox, oz). It is the SAME base line as the foam, so the film can never
-            // pass the foam and never leaves a strip of bare sand between them.
-            if (water != null) {
-                final ShoreScan.ShoreQuad fq = out.next();
-                fq.tex = ShoreScan.TEX_FILM;
-                fq.kind = 0;
-                fq.rgb = waterColour(level, g, gx, gz);
-                fq.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT * 0.5F;
-                fq.light = q0light;
-                fq.alpha = alpha;
-                // Rectangles straight off the coastline. The film used the corner
-                // INTERSECTION points before, and at a turn those are displaced along the
-                // run: the quad then stretched across the corner and crossed its
-                // neighbours - the tangle of triangles at every corner.
-                fq.wx[0] = g.ox + vx[i];
-                fq.wz[0] = g.oz + vz[i];
-                fq.wx[1] = g.ox + vx[i + 1];
-                fq.wz[1] = g.oz + vz[i + 1];
-                // Reaches a whole band INLAND, under the foam: the wave sheet has
-                // transparent parts, so stopping at the crest left a strip of bare sand
-                // between the film and the visible crest.
-                final float reach = fseg[i] + ShoreScan.BAND_WIDTH * 0.35F;
-                fq.wx[2] = g.ox + vx[i + 1] + nx[i] * reach;
-                fq.wz[2] = g.oz + vz[i + 1] + nz[i] * reach;
-                fq.wx[3] = g.ox + vx[i] + nx[i] * reach;
-                fq.wz[3] = g.oz + vz[i] + nz[i] * reach;
-                // Vanilla's mapping: one whole tile per block, then the shrink ratio
-                // pulls the corners towards the tile centre so the sampler never reads
-                // the neighbouring sprite in the atlas. Without the shrink the film came
-                // out as flat grey wallpaper.
-                final float u0s = water.getU(0F), v0s = water.getV(0F);
-                final float u1s = water.getU(16F), v1s = water.getV(16F);
-                final float cu = (u0s + u1s) * 0.5F, cv = (v0s + v1s) * 0.5F;
-                final float shrink = water.uvShrinkRatio();
-                for (int k = 0; k < 4; k++) {
-                    final float px = fq.wx[k] - (float) Math.floor(fq.wx[k]);
-                    final float pz = fq.wz[k] - (float) Math.floor(fq.wz[k]);
-                    float uu = u0s + (u1s - u0s) * px;
-                    float vv = v0s + (v1s - v0s) * pz;
-                    fq.u[k] = net.minecraft.util.Mth.lerp(shrink, uu, cu);
-                    fq.v[k] = net.minecraft.util.Mth.lerp(shrink, vv, cv);
-                }
-            }
             final ShoreScan.ShoreQuad q = out.next();
             q.tex = ShoreScan.TEX_STRIP;
             q.kind = 0;
@@ -442,12 +460,7 @@ final class ShoreField {
                 .value().getWaterColor() & 0xFFFFFF;
     }
 
-    /** Vanilla's water sprite, for the film's colour and its animation. */
-    private static net.minecraft.client.renderer.texture.TextureAtlasSprite waterSprite() {
-        return net.minecraft.client.Minecraft.getInstance()
-                .getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
-                .apply(net.minecraft.resources.ResourceLocation.withDefaultNamespace("block/water_still"));
-    }
+
 
     /** True when a point sits within two blocks of the scan window's edge. */
     private static boolean nearBorder(final ShoreScan.Grid g, final float x, final float z) {

@@ -1119,6 +1119,13 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     /** True once a draw threw with the builder open; cleared when a forced end works. */
     private boolean drawStuck = false;
 
+    /** Vanilla's still water sprite, from the block atlas. */
+    private static net.minecraft.client.renderer.texture.TextureAtlasSprite waterSprite() {
+        return net.minecraft.client.Minecraft.getInstance()
+                .getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
+                .apply(net.minecraft.resources.ResourceLocation.withDefaultNamespace("block/water_still"));
+    }
+
     private void drawQuads(final BufferBuilder buffer, final Tesselator tesselator, final Vec3 cam) {
         // One begin/draw per texture slot. RenderSystem.setShaderTexture binds
         // immediately, but the draw happens at Tesselator.end() - so a single
@@ -1220,8 +1227,21 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             // One texture, one rule: the strip's u runs along the band in blocks
             // (period 4), v is the cross-section, and both stay inside 0..1 by
             // construction. The film's extra wrap() died with the film slot.
+            float uu = q.u[i];
+            float vv = q.v[i];
+            if (q.tex == ShoreScan.TEX_FILM) {
+                // Vanilla's water mapping, applied where the atlas is bound: one whole
+                // tile per block, then the shrink ratio pulls the corners towards the
+                // tile centre so the sampler cannot read the sprite next door.
+                final net.minecraft.client.renderer.texture.TextureAtlasSprite sp = waterSprite();
+                final float u0s = sp.getU(0F), u1s = sp.getU(16F);
+                final float v0s = sp.getV(0F), v1s = sp.getV(16F);
+                final float shrink = sp.uvShrinkRatio();
+                uu = net.minecraft.util.Mth.lerp(shrink, u0s + (u1s - u0s) * uu, (u0s + u1s) * 0.5F);
+                vv = net.minecraft.util.Mth.lerp(shrink, v0s + (v1s - v0s) * vv, (v0s + v1s) * 0.5F);
+            }
             buffer.vertex(q.wx[i] - cx, q.y - cy, q.wz[i] - cz)
-                    .uv(q.u[i], q.v[i])
+                    .uv(uu, vv)
                     .color(r, g, b, q.alpha)
                     .uv2(block, sky)
                     .endVertex();

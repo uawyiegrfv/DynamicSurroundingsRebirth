@@ -40,8 +40,20 @@ final class ShoreField {
     private ShoreField() {
     }
 
+    /** A body of water smaller than this is a puddle, not a coast. */
+    private static final int MIN_SEA_CELLS = 100;
+
     static void build(final ShoreScan.Grid g, final Level level, final float p,
                       final ShoreScan.Quads out) {
+        // Only real water gets surf. A dug pool on the beach is CLS_SEA like the
+        // ocean, so it used to grow a ring of foam; requiring a hundred cells of
+        // water in the window keeps that out without asking about biomes.
+        int sea = 0;
+        for (int i = 0; i < g.cls.length; i++)
+            if (g.cls[i] == ShoreScan.CLS_SEA)
+                sea++;
+        if (sea < MIN_SEA_CELLS)
+            return;
         final List<float[]> edges = coastEdges(g);
         if (edges.isEmpty())
             return;

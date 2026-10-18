@@ -627,20 +627,6 @@ public final class ShoreScan {
          * Film bookkeeping, for the one question the code cannot answer by
          * reading: why does the water film emit nothing while the foam draws
          * thousands of quads from the same marked cells?
-         *
-         * <p>{@link #filmCandidates} counts rectangles the greedy merge offered,
-         * {@link #filmRects} how many reached {@code emitFilmRect},
-         * {@link #filmDropped} how many were thrown away on the alpha test, and
-         * {@link #filmMinAlpha} the smallest alpha any rectangle saw. Candidates
-         * with no rectangles means the merge never offered anything; rectangles
-         * all dropped means the alpha test is the wall; a non-zero
-         * {@code filmMinAlpha} with dropped rectangles to match would mean
-         * something else entirely.</p>
-         */
-        public int filmCandidates = 0;
-        public int filmRects = 0;
-        public int filmDropped = 0;
-        public int filmMinAlpha = Integer.MAX_VALUE;
 
         /**
          * Shape of the perpendicular lines the joint search runs on, taken
@@ -1152,10 +1138,6 @@ public final class ShoreScan {
         // state, and not in tallyQuads. See that method for what happens when
         // they do not: emitFilm and the joint pairing both fill these in before
         // it runs, so a reset there erases the build it was supposed to report.
-        g.filmCandidates = 0;
-        g.filmRects = 0;
-        g.filmDropped = 0;
-        g.filmMinAlpha = Integer.MAX_VALUE;
         g.jointLines = 0;
         g.jointSoloLines = 0;
         g.jointSoloAtEdge = 0;

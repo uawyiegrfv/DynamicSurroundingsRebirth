@@ -24,7 +24,7 @@ import net.minecraft.world.level.Level;
 final class ShoreField {
 
     /** How far a band runs past a corner, in band widths. Negative = short of it. */
-    public static float cornerGrow = 0F;
+    public static float cornerGrow = -0.25F;
     /** Extra width on a band that ends at a corner, in band widths. */
     public static float cornerWiden = 0.2F;
     /** Largest inland move of the crest, in blocks. */

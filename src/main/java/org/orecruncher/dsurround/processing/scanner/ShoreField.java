@@ -179,7 +179,10 @@ final class ShoreField {
         for (int gz = 0; gz < size; gz++) {
             for (int gx = 0; gx < size; gx++) {
                 final int gi = gz * size + gx;
-                if (g.cls[gi] != ShoreScan.CLS_BEACH || !wet[gi])
+                // The whole wetted area, not just the foam's own shell: the film runs
+                // from the water line (d = 0) up to the foam (d = f), so the foam is its
+                // inner edge by construction.
+                if (g.cls[gi] != ShoreScan.CLS_BEACH || d[gi] > f)
                     continue;
                 final int alpha = ShoreScan.edgeAlpha(g, gx, gz);
                 if (alpha <= 0)
@@ -187,7 +190,7 @@ final class ShoreField {
                 final ShoreScan.ShoreQuad q = out.next();
                 q.tex = ShoreScan.TEX_FILM;
                 q.kind = 0;
-                q.rgb = ShoreScan.FOAM_RGB;
+                q.rgb = waterColour(level, g, gx, gz);
                 q.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT * 0.5F;
                 q.light = ShoreScan.lightAt(level, g, g.ox + gx, g.oz + gz);
                 q.alpha = Math.min(alpha, 110);
@@ -259,6 +262,14 @@ final class ShoreField {
         q.v[2] = 0F;
         q.v[3] = 0F;
         g.stripQuads++;
+    }
+
+    /** The biome's own water colour, which is what vanilla paints the sea with. */
+    private static int waterColour(final Level level, final ShoreScan.Grid g, final int gx, final int gz) {
+        if (level == null)
+            return ShoreScan.FOAM_RGB;
+        return level.getBiome(new net.minecraft.core.BlockPos(g.ox + gx, g.waterTop, g.oz + gz))
+                .value().getWaterColor() & 0xFFFFFF;
     }
 
     /** Floods the sea into connected bodies; true where the body has enough cells. */

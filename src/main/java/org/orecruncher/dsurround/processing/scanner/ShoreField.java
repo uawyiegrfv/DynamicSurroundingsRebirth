@@ -283,7 +283,10 @@ final class ShoreField {
         for (int i = 0; i < n; i++) {
             final float room = room(g, (vx[i] + vx[i + 1]) * 0.5F, (vz[i] + vz[i + 1]) * 0.5F, nx[i], nz[i]);
             widest = Math.max(widest, Math.round(room));
-            fseg[i] = Math.max(0F, Math.min(f, room - 1F));
+            // Stop half a band short of the middle: when the neck is narrower than the
+            // swell, the two fronts touch and read as one line instead of passing
+            // through each other.
+            fseg[i] = Math.max(0F, Math.min(f, room - ShoreScan.BAND_WIDTH * 0.5F));
             g.fieldFMin = Math.min(g.fieldFMin, fseg[i]);
             g.fieldFMax = Math.max(g.fieldFMax, fseg[i]);
         }
@@ -389,8 +392,20 @@ final class ShoreField {
     /** Beach depth under a coastal normal, in blocks, capped at 4. */
     private static float room(final ShoreScan.Grid g, final float cx, final float cz,
                               final float nx, final float nz) {
+        // Both directions. A sand bar has water on BOTH sides, and the swell from each
+        // side advances towards the other; without measuring the far side the two
+        // fronts meet in the middle and cross - which is the ring of foam the maintainer
+        // saw wrapping around a narrow spit instead of running up the beach.
+        final float a = depth(g, cx, cz, nx, nz);
+        final float b = depth(g, cx, cz, -nx, -nz);
+        return Math.min(a, b);
+    }
+
+    /** How far sand continues from a point along a direction, in blocks. */
+    private static float depth(final ShoreScan.Grid g, final float cx, final float cz,
+                               final float nx, final float nz) {
         float r = 0F;
-        for (float d = 0.5F; d <= 4.0F; d += 0.5F) {
+        for (float d = 0.5F; d <= 8.0F; d += 0.5F) {
             final int gx = (int) Math.floor(cx + nx * d);
             final int gz = (int) Math.floor(cz + nz * d);
             if (gx < 0 || gz < 0 || gx >= g.size || gz >= g.size)

@@ -1144,8 +1144,11 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                     // (water_still is 16x512, frametime 2 ticks). Binding the block
                     // atlas instead gave the first frame only - no flow, and a palette
                     // that did not match the sea beside it.
+                    // The block atlas, exactly like the fluid renderer: the water sprite
+                    // is animated IN the atlas (water_still.mcmeta, frametime 2), so there
+                    // is no frame stepping to write by hand.
                     RenderSystem.setShaderTexture(0, tex == ShoreScan.TEX_FILM
-                            ? net.minecraft.resources.ResourceLocation.withDefaultNamespace("textures/block/water_still.png")
+                            ? net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS
                             : TEXTURES[tex]);
                         buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
                         building = true;

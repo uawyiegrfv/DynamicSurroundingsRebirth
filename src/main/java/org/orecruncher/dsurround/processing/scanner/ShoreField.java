@@ -362,7 +362,7 @@ final class ShoreField {
                 final ShoreScan.ShoreQuad fq = out.next();
                 fq.tex = ShoreScan.TEX_FILM;
                 fq.kind = 0;
-                fq.rgb = 0x3F76E4;
+                fq.rgb = waterColour(level, g, gx, gz);
                 fq.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT * 0.5F;
                 fq.light = q0light;
                 fq.alpha = alpha;
@@ -382,14 +382,21 @@ final class ShoreField {
                 fq.wz[2] = g.oz + vz[i + 1] + nz[i] * reach;
                 fq.wx[3] = g.ox + vx[i] + nx[i] * reach;
                 fq.wz[3] = g.oz + vz[i] + nz[i] * reach;
-                // 32 frames stacked vertically, 2 ticks each: the same sheet and the
-                // same timing vanilla uses, so the film flows with the sea.
-                final int frames = 32;
-                final int frame = (int) ((System.currentTimeMillis() / 100L) % frames);
+                // Vanilla's mapping: one whole tile per block, then the shrink ratio
+                // pulls the corners towards the tile centre so the sampler never reads
+                // the neighbouring sprite in the atlas. Without the shrink the film came
+                // out as flat grey wallpaper.
+                final float u0s = water.getU(0F), v0s = water.getV(0F);
+                final float u1s = water.getU(16F), v1s = water.getV(16F);
+                final float cu = (u0s + u1s) * 0.5F, cv = (v0s + v1s) * 0.5F;
+                final float shrink = water.uvShrinkRatio();
                 for (int k = 0; k < 4; k++) {
-                    final float px = fq.wx[k], pz = fq.wz[k];
-                    fq.u[k] = px - (float) Math.floor(px);
-                    fq.v[k] = (frame + (pz - (float) Math.floor(pz))) / frames;
+                    final float px = fq.wx[k] - (float) Math.floor(fq.wx[k]);
+                    final float pz = fq.wz[k] - (float) Math.floor(fq.wz[k]);
+                    float uu = u0s + (u1s - u0s) * px;
+                    float vv = v0s + (v1s - v0s) * pz;
+                    fq.u[k] = net.minecraft.util.Mth.lerp(shrink, uu, cu);
+                    fq.v[k] = net.minecraft.util.Mth.lerp(shrink, vv, cv);
                 }
             }
             final ShoreScan.ShoreQuad q = out.next();
@@ -425,6 +432,14 @@ final class ShoreField {
             along += segLen;
         }
         return widest;
+    }
+
+    /** The biome's own water colour - what vanilla tints the sea with. */
+    private static int waterColour(final Level level, final ShoreScan.Grid g, final int gx, final int gz) {
+        if (level == null)
+            return 0x3F76E4;
+        return level.getBiome(new net.minecraft.core.BlockPos(g.ox + gx, g.waterTop, g.oz + gz))
+                .value().getWaterColor() & 0xFFFFFF;
     }
 
     /** Vanilla's water sprite, for the film's colour and its animation. */

@@ -1204,38 +1204,15 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // taking a 0..3 coordinate straight into the sprite's window would walk
         // out of the sprite and into whatever is stitched beside it.
         for (int i = 0; i < 4; i++) {
-            float u = q.u[i];
-            float v = q.v[i];
-            if (q.tex == ShoreScan.TEX_FILM) {
-                // The film is ONE 16x16 tile of its own (shore_foam_film.png,
-                // uniformly opaque), not a frame of a 16x512 vanilla water
-                // sheet - the slot binds our own texture at TEXTURES[] above.
-                //
-                // It used to be folded into a 1/FILM_FRAMES window here, on the
-                // assumption that this slot sampled vanilla's water sprite. That
-                // assumption stopped being true when the film got its own tile,
-                // and nothing caught it because a uniformly opaque 16x16 still
-                // looks like a flat sheet through any UV - it just gets sampled
-                // out of a half-texel-tall band of the sheet instead of the whole
-                // thing, so the mip chain picked the wrong level and the film
-                // lost its grain and much of its opacity at distance. Only the
-                // fold is left, to keep a coordinate that can run past 1 (a
-                // merged rect spans w blocks) inside the tile.
-                u = wrap(u);
-                v = wrap(v);
-            }
+            // One texture, one rule: the strip's u runs along the band in blocks
+            // (period 4), v is the cross-section, and both stay inside 0..1 by
+            // construction. The film's extra wrap() died with the film slot.
             buffer.vertex(q.wx[i] - cx, q.y - cy, q.wz[i] - cz)
-                    .uv(u, v)
+                    .uv(q.u[i], q.v[i])
                     .color(r, g, b, q.alpha)
                     .uv2(block, sky)
                     .endVertex();
         }
-    }
-
-    /** Fold a coordinate that may run past 1 back into 0..1, positively. */
-    private static float wrap(final float value) {
-        final float f = value - (float) Math.floor(value);
-        return f;
     }
 
     /**

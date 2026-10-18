@@ -24,9 +24,9 @@ import net.minecraft.world.level.Level;
 final class ShoreField {
 
     /** How far a band runs past a corner, in band widths. Negative = short of it. */
-    public static float cornerGrow = 0F;
+    public static float cornerGrow = -0.5F;
     /** Extra width on a band that ends at a corner, in band widths. */
-    public static float cornerWiden = 0F;
+    public static float cornerWiden = 0.15F;
     /** Largest inland move of the crest, in blocks. */
     private static final float MAX_OFFSET = 1F;
     /** Time constant for the swell level, seconds. */
@@ -260,10 +260,14 @@ final class ShoreField {
             final float ux = el < 1.0e-4F ? 1F : dxs / el;
             final float uz = el < 1.0e-4F ? 0F : dzs / el;
             final float w = base * (1F + ((startTurn || endTurn) ? cornerWiden : 0F));
-            final float inEx = startTurn ? nx[i - 1] + nx[i] : nx[i];
-            final float inEz = startTurn ? nz[i - 1] + nz[i] : nz[i];
-            final float inFx = endTurn ? nx[i] + nx[i + 1] : nx[i];
-            final float inFz = endTurn ? nz[i] + nz[i + 1] : nz[i];
+            // Inner edge along the SEGMENT normal: every piece is a rectangle. The
+            // corner notch that leaves is covered by the crossing band instead (it runs
+            // half a band width past the turn and is slightly wider), which is the
+            // construction the maintainer drew: no slant, no gap, no extra square.
+            final float inEx = nx[i];
+            final float inEz = nz[i];
+            final float inFx = nx[i];
+            final float inFz = nz[i];
             final float s0x = ox[i] + ux * ps, s0z = oz[i] + uz * ps;
             final float s1x = ox[i + 1] - ux * pe, s1z = oz[i + 1] - uz * pe;
             final int gx = (int) Math.floor((s0x + s1x) * 0.5F);

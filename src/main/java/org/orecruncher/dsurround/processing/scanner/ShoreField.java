@@ -319,8 +319,12 @@ final class ShoreField {
     private static boolean surfBlock(final Level level, final ShoreScan.Grid g, final int gx, final int gz) {
         if (level == null)
             return true;   // headless previews have no world to ask
+        // One block BELOW the water surface: the cell at waterTop is the sea itself, so
+        // asking there always answered "water", the filter rejected every ordinary beach
+        // cell, and the surf survived only on the raised steps where sand reaches the
+        // water line - a long flat shore had no foam at all.
         final net.minecraft.world.level.block.state.BlockState st =
-                level.getBlockState(new net.minecraft.core.BlockPos(g.ox + gx, g.waterTop, g.oz + gz));
+                level.getBlockState(new net.minecraft.core.BlockPos(g.ox + gx, g.waterTop - 1, g.oz + gz));
         return st.is(net.minecraft.world.level.block.Blocks.SAND)
                 || st.is(net.minecraft.world.level.block.Blocks.GRAVEL)
                 || st.is(net.minecraft.world.level.block.Blocks.STONE)

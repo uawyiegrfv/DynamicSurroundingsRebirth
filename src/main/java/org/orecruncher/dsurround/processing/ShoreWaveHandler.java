@@ -71,6 +71,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // Only the strip is drawn. The film, cap and corner sheets belonged to the
         // per-cell renderer and are gone from the jar as well, so their slots stay
         // empty - an unbound slot is never drawn, and the draw loop already skips it.
+        TEXTURES[ShoreScan.TEX_FILM] = texture("shore_foam_film");
         TEXTURES[ShoreScan.TEX_STRIP] = texture("shore_foam_strip");
     }
 

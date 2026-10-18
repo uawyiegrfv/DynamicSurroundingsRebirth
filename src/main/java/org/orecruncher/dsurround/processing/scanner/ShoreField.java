@@ -172,6 +172,45 @@ final class ShoreField {
                 emitRun(g, level, out, gx, gz, len, 0, 1);
             }
         }
+        // The film: everything the water has reached, drawn as one flat sheet under the
+        // foam. It comes from the SAME field and the same f, so the foam line sits
+        // exactly on the film's inner edge - which is the "real connection" the shape
+        // needs, not a second geometry that has to be kept in step.
+        for (int gz = 0; gz < size; gz++) {
+            for (int gx = 0; gx < size; gx++) {
+                final int gi = gz * size + gx;
+                if (g.cls[gi] != ShoreScan.CLS_BEACH || !wet[gi])
+                    continue;
+                final int alpha = ShoreScan.edgeAlpha(g, gx, gz);
+                if (alpha <= 0)
+                    continue;
+                final ShoreScan.ShoreQuad q = out.next();
+                q.tex = ShoreScan.TEX_FILM;
+                q.kind = 0;
+                q.rgb = ShoreScan.FOAM_RGB;
+                q.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT * 0.5F;
+                q.light = ShoreScan.lightAt(level, g, g.ox + gx, g.oz + gz);
+                q.alpha = Math.min(alpha, 110);
+                q.wx[0] = g.ox + gx;
+                q.wz[0] = g.oz + gz;
+                q.wx[1] = g.ox + gx + 1;
+                q.wz[1] = g.oz + gz;
+                q.wx[2] = g.ox + gx + 1;
+                q.wz[2] = g.oz + gz + 1;
+                q.wx[3] = g.ox + gx;
+                q.wz[3] = g.oz + gz + 1;
+                final float uu = (gx + gz) / (float) ShoreScan.STRIP_PERIOD;
+                q.u[0] = uu;
+                q.u[1] = uu + 1F / ShoreScan.STRIP_PERIOD;
+                q.u[2] = q.u[1];
+                q.u[3] = uu;
+                q.v[0] = 0F;
+                q.v[1] = 0F;
+                q.v[2] = 1F;
+                q.v[3] = 1F;
+                g.stripQuads++;
+            }
+        }
         g.fieldChains = 0;
         g.fieldFieldMax = 0;
     }

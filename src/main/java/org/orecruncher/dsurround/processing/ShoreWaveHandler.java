@@ -871,8 +871,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // this audit reported, and it was indistinguishable from "fine" until
         // the per-kind extremes were printed. A max is enough for that: one
         // number per slot says where the paint actually sits.
-        int filmMin = Integer.MAX_VALUE;
-        int filmMax = 0;
         int bandMin = Integer.MAX_VALUE;
         int bandMax = 0;
         int joints = 0;
@@ -880,13 +878,10 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         for (int i = 0; i < this.quads.count; i++) {
             final ShoreScan.ShoreQuad q = this.quads.items[i];
             quads++;
-            if (q.tex == ShoreScan.TEX_FILM) {
-                filmMin = Math.min(filmMin, q.alpha);
-                filmMax = Math.max(filmMax, q.alpha);
-            } else {
-                bandMin = Math.min(bandMin, q.alpha);
-                bandMax = Math.max(bandMax, q.alpha);
-            }
+            // Every quad is the strip now; the film slot is gone, so there is no
+            // second population to tell apart.
+            bandMin = Math.min(bandMin, q.alpha);
+            bandMax = Math.max(bandMax, q.alpha);
             if (q.kind == 1) {
                 joints++;
                 jointMin = Math.min(jointMin, q.alpha);
@@ -953,7 +948,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // moves is worth exactly as much as the frame it last changed in.
         final String fingerprint = quads + "/" + drawable + "/" + behind + "/" + offscreen
                 + "/" + outsideDepth + "/" + collapsed + "/" + faintLo + "/" + faintMid
-                + "/" + faintHi + "/" + faintByKind + "/" + filmMin + "/" + filmMax
+                + "/" + faintHi + "/" + faintByKind
                 + "/" + bandMin + "/" + bandMax + "/" + joints + "/" + jointMin;
         if (!fingerprint.equals(this.lastAuditPrint) || this.framesSeen % 600 == 1L) {
             this.lastAuditPrint = fingerprint;
@@ -964,9 +959,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 this.logger.info("[ShoreWave]   on-screen alpha: <32 %d | 32-127 %d | >=128 %d"
                                 + " | joints under 32: %d",
                         faintLo, faintMid, faintHi, faintByKind);
-                this.logger.info("[ShoreWave]   alpha range: film %d..%d | foam %d..%d"
-                                + " | joints %d of %d, min %d",
-                        filmMin == Integer.MAX_VALUE ? 0 : filmMin, filmMax,
+                this.logger.info("[ShoreWave]   alpha range: %d..%d | joints %d of %d, min %d",
                         bandMin == Integer.MAX_VALUE ? 0 : bandMin, bandMax,
                         joints, quads, jointMin == Integer.MAX_VALUE ? 0 : jointMin);
             }

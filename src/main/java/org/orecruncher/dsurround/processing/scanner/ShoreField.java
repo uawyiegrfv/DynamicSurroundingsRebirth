@@ -251,9 +251,15 @@ final class ShoreField {
             // cornerGrow is NEGATIVE, so "pull" is the amount to walk back along this
             // band from the intersection, towards its own interior: that is the
             // maintainer's "cover only half of the band you cross".
+            // Only a LONG piece retracts at a turn. On a staircased coast every
+            // segment is one block and both ends are turns, so retracting by a fixed
+            // distance took a third out of every piece and the line came out dashed
+            // in game while the long-segment test scene looked perfect. A one-block
+            // piece stays full length and does the work of joining the staircase.
             final float pull = -cornerGrow * base;
-            final float ps = startTurn ? pull : 0F;
-            final float pe = endTurn ? pull : 0F;
+            final boolean longPiece = Math.hypot(vx[i + 1] - vx[i], vz[i + 1] - vz[i]) > 1.5F;
+            final float ps = (startTurn && longPiece) ? pull : 0F;
+            final float pe = (endTurn && longPiece) ? pull : 0F;
             final float dxs = vx[i + 1] - vx[i];
             final float dzs = vz[i + 1] - vz[i];
             final float el = (float) Math.hypot(dxs, dzs);

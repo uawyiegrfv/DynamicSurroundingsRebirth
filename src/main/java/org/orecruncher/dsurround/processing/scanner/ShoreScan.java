@@ -163,8 +163,11 @@ public final class ShoreScan {
     public static final int EDGE_PROXIMITY = 2;
 
     /**
-     * There is one emitter: the contour renderer in {@link ShoreContour}. The flag is
-     * kept only so old configs still parse; nothing reads it to choose a picture.
+     * Which emitter draws the surf: the old per-edge band plus joints
+     * ({@code false}), or the distance-field contour ({@link ShoreField},
+     * {@code true}). Set from the config every build so the two can be
+     * compared in game without rebuilding - the old path is left intact on
+     * purpose, it is the reference picture, not dead code.
      */
     public static boolean fieldSurf = true;
 
@@ -1189,12 +1192,7 @@ public final class ShoreScan {
         // behind this flag are gone: two renderers meant two sets of placement rules
         // and a state machine, and every regression in this feature came from
         // whichever one was not currently active.
-        // The contour renderer: the band is a stroked contour of the distance to the
-        // sea. The per-edge emitters that came before it are gone - on a 45-degree
-        // coast every segment is one block long, and offsetting a one-block segment by
-        // up to a block crosses the offset onto itself, which is why the line kept
-        // coming out as separate dots whatever the corner knobs were set to.
-        ShoreContour.build(g, level, p, out);
+        ShoreField.build(g, level, p, out);
         tallyQuads(g, out);
         return;
     }

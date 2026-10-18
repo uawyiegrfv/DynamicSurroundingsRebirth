@@ -248,9 +248,19 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // Read every build so the two emitters can be swapped without a rebuild.
         ShoreScan.fieldSurf = this.config.shoreWaveOptions.shoreFieldSurf;
         final long mark = System.nanoTime();
-        ShoreScan.build(this.grid, this.lastProgress, level, this.quads,
-                this.config.shoreWaveOptions.enableShoreFilm,
-                this.config.shoreWaveOptions.shoreFoamFoldLine);
+        try {
+            ShoreScan.build(this.grid, this.lastProgress, level, this.quads,
+                    this.config.shoreWaveOptions.enableShoreFilm,
+                    this.config.shoreWaveOptions.shoreFoamFoldLine);
+        } catch (final Throwable t) {
+            // A build that throws must cost ONE frame, not the feature: the buffer is
+            // left empty (so nothing stale is ever drawn), the failure is counted, and
+            // the next tick tries again. Before this, an exception here left whatever
+            // the buffer happened to hold and the picture stopped matching the log.
+            this.quads.clear();
+            if (this.buildFailures++ < 5)
+                this.logger.warn("[ShoreWave] build failed, frame skipped: {}", t.toString());
+        }
         // Geometric self-check, on the quads themselves and not on the rules: any
         // quad that spans more than ShoreScan.MAX_QUAD_SPAN blocks, or that sits
         // further than MAX_QUAD_DISTANCE from the player, is dropped here with a
@@ -1171,6 +1181,8 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             return "concave" + (tex - ShoreScan.TEX_CONCAVE);
         return "slot" + tex;
     }
+    /** How many build failures have been reported this session. */
+    private int buildFailures = 0;
     /** How many draw-side failures have been reported this session. */
     private int drawFailures = 0;
 

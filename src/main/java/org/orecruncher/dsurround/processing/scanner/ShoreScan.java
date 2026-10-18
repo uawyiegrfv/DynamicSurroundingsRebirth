@@ -163,11 +163,8 @@ public final class ShoreScan {
     public static final int EDGE_PROXIMITY = 2;
 
     /**
-     * Which emitter draws the surf: the old per-edge band plus joints
-     * ({@code false}), or the distance-field contour ({@link ShoreField},
-     * {@code true}). Set from the config every build so the two can be
-     * compared in game without rebuilding - the old path is left intact on
-     * purpose, it is the reference picture, not dead code.
+     * There is one emitter: the contour renderer in {@link ShoreContour}. The flag is
+     * kept only so old configs still parse; nothing reads it to choose a picture.
      */
     public static boolean fieldSurf = true;
 

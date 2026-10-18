@@ -24,9 +24,9 @@ import net.minecraft.world.level.Level;
 final class ShoreField {
 
     /** How far a band runs past a corner, in band widths. Negative = short of it. */
-    public static float cornerGrow = -0.25F;
+    public static float cornerGrow = 0F;
     /** Extra width on a band that ends at a corner, in band widths. */
-    public static float cornerWiden = 0.2F;
+    public static float cornerWiden = 0F;
     /** Largest inland move of the crest, in blocks. */
     private static final float MAX_OFFSET = 1F;
     /** Time constant for the swell level, seconds. */
@@ -251,29 +251,19 @@ final class ShoreField {
             // cornerGrow is NEGATIVE, so "pull" is the amount to walk back along this
             // band from the intersection, towards its own interior: that is the
             // maintainer's "cover only half of the band you cross".
-            // Only a LONG piece retracts at a turn. On a staircased coast every
-            // segment is one block and both ends are turns, so retracting by a fixed
-            // distance took a third out of every piece and the line came out dashed
-            // in game while the long-segment test scene looked perfect. A one-block
-            // piece stays full length and does the work of joining the staircase.
             final float pull = -cornerGrow * base;
-            final boolean longPiece = Math.hypot(vx[i + 1] - vx[i], vz[i + 1] - vz[i]) > 1.5F;
-            final float ps = (startTurn && longPiece) ? pull : 0F;
-            final float pe = (endTurn && longPiece) ? pull : 0F;
+            final float ps = startTurn ? pull : 0F;
+            final float pe = endTurn ? pull : 0F;
             final float dxs = vx[i + 1] - vx[i];
             final float dzs = vz[i + 1] - vz[i];
             final float el = (float) Math.hypot(dxs, dzs);
             final float ux = el < 1.0e-4F ? 1F : dxs / el;
             final float uz = el < 1.0e-4F ? 0F : dzs / el;
             final float w = base * (1F + ((startTurn || endTurn) ? cornerWiden : 0F));
-            // Inner edge along the SEGMENT normal: every piece is a rectangle. The
-            // corner notch that leaves is covered by the crossing band instead (it runs
-            // half a band width past the turn and is slightly wider), which is the
-            // construction the maintainer drew: no slant, no gap, no extra square.
-            final float inEx = nx[i];
-            final float inEz = nz[i];
-            final float inFx = nx[i];
-            final float inFz = nz[i];
+            final float inEx = startTurn ? nx[i - 1] + nx[i] : nx[i];
+            final float inEz = startTurn ? nz[i - 1] + nz[i] : nz[i];
+            final float inFx = endTurn ? nx[i] + nx[i + 1] : nx[i];
+            final float inFz = endTurn ? nz[i] + nz[i + 1] : nz[i];
             final float s0x = ox[i] + ux * ps, s0z = oz[i] + uz * ps;
             final float s1x = ox[i + 1] - ux * pe, s1z = oz[i + 1] - uz * pe;
             final int gx = (int) Math.floor((s0x + s1x) * 0.5F);

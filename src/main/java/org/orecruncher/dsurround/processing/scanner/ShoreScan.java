@@ -633,17 +633,6 @@ public final class ShoreScan {
          * before pairing so the geometry is still visible.
          *
          * <p>The "alone" end counter cannot answer the question that matters:
-         * a line holding one end is either a real dead end or a line the scan
-         * window sliced in half, and the two need opposite fixes - one is
-         * correct as drawn, the other is a truncation that gets wider the
-         * further you look. {@link #jointSoloAtEdge} and
-         * {@link #jointSoloInterior} are that distinction, counted.</p>
-         */
-        public int jointLines = 0;
-        public int jointSoloLines = 0;
-        public int jointSoloAtEdge = 0;
-        public int jointSoloInterior = 0;
-        public int jointLineSize = 0;
 
         /**
          * Bands split by which side of the main direction they came from. Before
@@ -1138,11 +1127,6 @@ public final class ShoreScan {
         // state, and not in tallyQuads. See that method for what happens when
         // they do not: emitFilm and the joint pairing both fill these in before
         // it runs, so a reset there erases the build it was supposed to report.
-        g.jointLines = 0;
-        g.jointSoloLines = 0;
-        g.jointSoloAtEdge = 0;
-        g.jointSoloInterior = 0;
-        g.jointLineSize = 0;
         g.bandQuadsMain = 0;
         g.bandQuadsCross = 0;
         g.quads = 0;
@@ -1224,7 +1208,7 @@ public final class ShoreScan {
      *
      * <p><b>This only tallies. It used to reset as well, and that made every
      * instrument in this file report zero.</b> The resets were here while
-     * {@link #filmCandidates} and {@link #Grid#jointLines} were being filled in
+     * the counters were being filled in
      * {@code emitFilm} and the joint pairing - both of which run BEFORE this
      * method - so each build accumulated a real count and then wiped it on the
      * same line, one statement later. The symptom was not a crash but a

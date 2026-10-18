@@ -373,7 +373,7 @@ final class ShoreField {
                 // Reaches a whole band INLAND, under the foam: the wave sheet has
                 // transparent parts, so stopping at the crest left a strip of bare sand
                 // between the film and the visible crest.
-                final float over = ShoreScan.BAND_WIDTH * 1.1F;
+                final float over = ShoreScan.BAND_WIDTH * 0.35F;   // just enough to close the seam
                 fq.wx[2] = g.ox + ox[i + 1] + nx[i] * over;
                 fq.wz[2] = g.oz + oz[i + 1] + nz[i] * over;
                 fq.wx[3] = g.ox + ox[i] + nx[i] * over;

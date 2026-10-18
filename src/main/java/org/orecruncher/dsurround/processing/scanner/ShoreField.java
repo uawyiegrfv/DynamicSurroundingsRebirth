@@ -283,10 +283,12 @@ final class ShoreField {
         for (int i = 0; i < n; i++) {
             final float room = room(g, (vx[i] + vx[i + 1]) * 0.5F, (vz[i] + vz[i + 1]) * 0.5F, nx[i], nz[i]);
             widest = Math.max(widest, Math.round(room));
-            // Stop half a band short of the middle: when the neck is narrower than the
-            // swell, the two fronts touch and read as one line instead of passing
-            // through each other.
-            fseg[i] = Math.max(0F, Math.min(f, room - ShoreScan.BAND_WIDTH * 0.5F));
+            // Half the sand width, minus half a band: the swell from one shore stops just
+            // short of the middle, so the swell from the other shore meets it there and
+            // the two read as ONE line. On a wide beach this is far beyond the one-block
+            // limit and changes nothing; it only bites where the bar is narrower than the
+            // swell, which is exactly the neck the maintainer drew.
+            fseg[i] = Math.max(0F, Math.min(f, room * 0.5F - ShoreScan.BAND_WIDTH * 0.5F));
             g.fieldFMin = Math.min(g.fieldFMin, fseg[i]);
             g.fieldFMax = Math.max(g.fieldFMax, fseg[i]);
         }
@@ -392,13 +394,12 @@ final class ShoreField {
     /** Beach depth under a coastal normal, in blocks, capped at 4. */
     private static float room(final ShoreScan.Grid g, final float cx, final float cz,
                               final float nx, final float nz) {
-        // Both directions. A sand bar has water on BOTH sides, and the swell from each
-        // side advances towards the other; without measuring the far side the two
-        // fronts meet in the middle and cross - which is the ring of foam the maintainer
-        // saw wrapping around a narrow spit instead of running up the beach.
-        final float a = depth(g, cx, cz, nx, nz);
-        final float b = depth(g, cx, cz, -nx, -nz);
-        return Math.min(a, b);
+        // Inland only. Measuring the seaward side as well returns zero everywhere (the
+        // very next cell in that direction is water), which froze the swell at f = 0 -
+        // the surf stopped moving completely. The width of a sand bar is already what
+        // this returns: it walks inland until the sand ends, and on a bar that end is the
+        // water on the far side.
+        return depth(g, cx, cz, nx, nz);
     }
 
     /** How far sand continues from a point along a direction, in blocks. */

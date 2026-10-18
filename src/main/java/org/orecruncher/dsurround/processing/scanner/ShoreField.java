@@ -370,16 +370,22 @@ final class ShoreField {
                 fq.wz[0] = g.oz + vz[i];
                 fq.wx[1] = g.ox + vx[i + 1];
                 fq.wz[1] = g.oz + vz[i + 1];
-                fq.wx[2] = g.ox + ox[i + 1];
-                fq.wz[2] = g.oz + oz[i + 1];
-                fq.wx[3] = g.ox + ox[i];
-                fq.wz[3] = g.oz + oz[i];
-                final float du = water.getU1() - water.getU0();
-                final float dv = water.getV1() - water.getV0();
+                // Reaches a whole band INLAND, under the foam: the wave sheet has
+                // transparent parts, so stopping at the crest left a strip of bare sand
+                // between the film and the visible crest.
+                final float over = ShoreScan.BAND_WIDTH * 1.1F;
+                fq.wx[2] = g.ox + ox[i + 1] + nx[i] * over;
+                fq.wz[2] = g.oz + oz[i + 1] + nz[i] * over;
+                fq.wx[3] = g.ox + ox[i] + nx[i] * over;
+                fq.wz[3] = g.oz + oz[i] + nz[i] * over;
+                // 32 frames stacked vertically, 2 ticks each: the same sheet and the
+                // same timing vanilla uses, so the film flows with the sea.
+                final int frames = 32;
+                final int frame = (int) ((System.currentTimeMillis() / 100L) % frames);
                 for (int k = 0; k < 4; k++) {
                     final float px = fq.wx[k], pz = fq.wz[k];
-                    fq.u[k] = water.getU0() + (px - (float) Math.floor(px)) * du;
-                    fq.v[k] = water.getV0() + (pz - (float) Math.floor(pz)) * dv;
+                    fq.u[k] = px - (float) Math.floor(px);
+                    fq.v[k] = (frame + (pz - (float) Math.floor(pz))) / frames;
                 }
             }
             final ShoreScan.ShoreQuad q = out.next();

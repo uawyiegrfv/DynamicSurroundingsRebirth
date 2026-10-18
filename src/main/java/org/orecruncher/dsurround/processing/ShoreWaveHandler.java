@@ -1139,8 +1139,13 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                         // The film uses the BLOCK ATLAS so it samples vanilla's animated
                     // water sprite: same colour source, same frame stepper, no copy of
                     // the art and no separate animation of our own.
+                    // Vanilla's own water sheet, bound as a plain texture so its 32
+                    // frames can be stepped by hand exactly like vanilla does it
+                    // (water_still is 16x512, frametime 2 ticks). Binding the block
+                    // atlas instead gave the first frame only - no flow, and a palette
+                    // that did not match the sea beside it.
                     RenderSystem.setShaderTexture(0, tex == ShoreScan.TEX_FILM
-                            ? net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS
+                            ? net.minecraft.resources.ResourceLocation.withDefaultNamespace("textures/block/water_still.png")
                             : TEXTURES[tex]);
                         buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
                         building = true;

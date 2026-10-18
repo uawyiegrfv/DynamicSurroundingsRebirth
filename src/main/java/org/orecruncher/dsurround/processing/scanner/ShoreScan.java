@@ -1234,93 +1234,13 @@ public final class ShoreScan {
         }
 
         // ---- the foam line ----
-        if (foldLine) {
-            if (fieldSurf) {
-                // The distance-field contour: no per-edge placement, no joints,
-                // no main direction. See ShoreField for why the old path's three
-                // symptoms cannot arise here - they are properties of the
-                // construction, not settings.
-                ShoreField.build(g, level, p, out);
-                tallyQuads(g, out);
-                return;
-            }
-            collectShoreEdges(g);
-            emitShoreLine(g, level, p, out);
-            tallyQuads(g, out);
-            return;
-        }
-        final int size = g.size;
-        for (int gz = 0; gz < size; gz++) {
-            for (int gx = 0; gx < size; gx++) {
-                final int gi = gz * size + gx;
-                if (!inUnion(g, gi))
-                    continue;
-                int mask = 0;
-                int count = 0;
-                for (int k = 0; k < 4; k++) {
-                    final int nx = gx + DIR_X[k];
-                    final int nz = gz + DIR_Z[k];
-                    if (nx < 0 || nx >= size || nz < 0 || nz >= size)
-                        continue;
-                    if (!inUnion(g, nz * size + nx)) {
-                        mask |= 1 << k;
-                        count++;
-                    }
-                }
-                if (count == 0)
-                    continue;
-                g.foamCells++;
-                if (count == 1) {
-                    g.ftype[gi] = F_STRAIGHT;
-                    g.fdir[gi] = (byte) mask;
-                } else {
-                    final int[] pair = orthogonalPair(mask);
-                    if (pair == null) {
-                        // Two opposite dry neighbours: a one-cell channel. Both
-                        // banks are drawn by their own runs; nothing to add.
-                        continue;
-                    }
-                    g.fdir[gi] = (byte) cornerIndex((1 << pair[0]) | (1 << pair[1]));
-                    // The diagonal decides convex from concave: dry diagonal is a
-                    // headland the water wraps around, wet diagonal is a notch the
-                    // water sits inside. Unit-checked against two hand-drawn
-                    // answers in the twin; concave simply never showed up in the
-                    // synthetic maps.
-                    final int cx2 = gx + DIR_X[pair[0]] + DIR_X[pair[1]];
-                    final int cz2 = gz + DIR_Z[pair[0]] + DIR_Z[pair[1]];
-                    final boolean diagonalDry = !g.inGrid(cx2, cz2) || !inUnion(g, cz2 * size + cx2);
-                    g.ftype[gi] = diagonalDry ? F_CONVEX : F_CONCAVE;
-                }
-            }
-        }
-
-        // ---- emit: the water film first (it lies under the foam) ----
-        emitFilm(g, level, out);
-        for (int gz = 0; gz < size; gz++) {
-            for (int gx = 0; gx < size; gx++) {
-                final int gi = gz * size + gx;
-                final byte t = g.ftype[gi];
-                if (t == F_NONE || !g.inRenderArea(g.ox + gx, g.oz + gz))
-                    continue;
-                if (t == F_STRAIGHT) {
-                    final int li = dirIndex(g.fdir[gi]);
-                    final int ux = -DIR_Z[li];
-                    final int uz = DIR_X[li];
-                    // Only the first cell of a run of straights draws the strip;
-                    // the rest are swallowed by its length.
-                    if (isDrawnStraight(g, gx - ux, gz - uz, li))
-                        continue;
-                    int len = 1;
-                    while (isDrawnStraight(g, gx + len * ux, gz + len * uz, li))
-                        len++;
-                    emitStrip(g, level, gx, gz, li, ux, uz, len, out);
-                } else {
-                    emitCorner(g, level, gx, gz, t == F_CONVEX, g.fdir[gi], out);
-                }
-            }
-        }
-
+        // One renderer. The per-cell band and the fold-line variant that used to live
+        // behind this flag are gone: two renderers meant two sets of placement rules
+        // and a state machine, and every regression in this feature came from
+        // whichever one was not currently active.
+        ShoreField.build(g, level, p, out);
         tallyQuads(g, out);
+        return;
     }
 
     /**

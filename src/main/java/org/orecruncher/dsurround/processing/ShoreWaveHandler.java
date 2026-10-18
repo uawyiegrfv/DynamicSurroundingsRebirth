@@ -448,11 +448,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // never offered a rectangle; rects all dropped means emitFilmRect's
         // alpha test is the wall; a non-zero min alpha with drops to match
         // means the wall is somewhere else entirely.
-        this.logger.info("[ShoreWave]   film path: candidates %d | rects %d | dropped %d"
-                        + " | min alpha %s | filled %d",
-                g.filmCandidates, g.filmRects, g.filmDropped,
-                g.filmMinAlpha == Integer.MAX_VALUE ? "n/a" : String.valueOf(g.filmMinAlpha),
-                g.filledCells);
         // The shape of the lines the joint search runs on. "alone" counts an end
         // with nothing else on its perpendicular line, but says nothing about
         // WHY - a band that simply stops in the middle of a headland is correct
@@ -461,10 +456,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // touched: an interior-heavy tally says the pairing is doing its job and
         // the gaps are the shore's shape, and an edge-heavy one says RANGE is
         // the thing to raise.
-        this.logger.info("[ShoreWave]   joint lines: %d total | largest %d | solo %d"
-                        + " (at window edge %d, interior %d)",
-                g.jointLines, g.jointLineSize, g.jointSoloLines,
-                g.jointSoloAtEdge, g.jointSoloInterior);
         // Which way the bands were drawn. Cross-direction bands at zero meant
         // those stretches of coast had no geometry of their own and existed
         // only where a joint bridged them, so a number here is the direct
@@ -472,8 +463,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // mainAlongX is package-private in Grid, and the two edge counts are
         // already printed by the coast-edges line above, so this one stays on
         // what it is for: how many bands were drawn either side of the split.
-        this.logger.info("[ShoreWave]   bands drawn: main %d | cross %d | skipped (no beach) %d",
-                g.bandQuadsMain, g.bandQuadsCross, g.bandSkippedNoBeach);
         // Distance-field mode. level is the run-up the contour was drawn at, cap
         // the deepest beach the window offered, so a level pinned at the cap
         // means the wave is as far up as this coast allows. Short chains are the
@@ -509,9 +498,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // they are emitted: the cross edge that triggered them, the two band corners they
         // were given, the two ends that came out, and what cell each end landed on. Read
         // this against the screenshot and the offset is measurable rather than guessed.
-        this.logger.info("[ShoreWave] joints: emitted %d (split for height %d) | no band at A %d"
-                        + " | no band at B %d (of those, only the same line %d) | both ends flat %d",
-                g.jointEmitted, g.jointSplit, g.jointNoBandA, g.jointNoBandB, g.jointSameLine, g.jointFlat);
 
         // The other half of the question: not the joints that were drawn but the ends
         // that were passed over. The joints are paired by mutual nearestness on each
@@ -520,19 +506,12 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // prefers somebody else. Those three have three different fixes, so they are
         // counted apart, with the world cell of a few of them so a screenshot can be
         // matched to a coordinate.
-        this.logger.info("[ShoreWave] ends with NO joint: alone %d | out of reach (>%d) %d"
-                        + " | in reach but not mutual %d  [of %d ends]",
-                g.endAlone, ShoreScan.JOINT_MAX_REACH, g.endTooFar, g.endNotMutual,
-                g.jointConsidered * 2);
 
         // "A vertical with no horizontal beside it" cannot be produced by the
         // pairing - a joint only exists between two band ends. So if it is on screen,
         // either a band was skipped this frame (no beach at this phase) or the joint's
         // end sits on a cell no band covered. Both are counted; together they say
         // whether this is a drawing problem at all.
-        this.logger.info("[ShoreWave] bands skipped (no beach at this phase) %d"
-                        + " | joint ends landing on a cell with NO band %d  [of %d joint ends]",
-                g.bandSkippedNoBeach, g.jointEndUncovered, g.jointEmitted * 2);
         for (int i = 0; i < Math.min(ShoreScan.Grid.JOINT_FAIL_SAMPLE, g.endMissCount); i++) {
             final int o = i * 2;
             final String why = switch (g.endMissWhy[i]) {
@@ -540,8 +519,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 case 2 -> "not mutual";
                 default -> "alone";
             };
-            this.logger.info("[ShoreWave]   end %d with no joint: (%d,%d) [%s]",
-                    i, g.endMissInts[o], g.endMissInts[o + 1], why);
         }
 
         // The flicker census. The maintainer reports the verticals "very unstable, at
@@ -551,18 +528,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         // was, at each end, with no tolerance limit. Clustered at 1-2 the fix is the
         // tolerance; clustered at 6+ the band is simply not there and widening the search
         // would draw joints across open water.
-        this.logger.info("[ShoreWave] joints: cross edges considered %d, failed %d (%.0f%%)",
-                g.jointConsidered, g.jointFailed,
-                g.jointConsidered == 0 ? 0D : 100D * g.jointFailed / g.jointConsidered);
-        this.logger.info("[ShoreWave] joint misses, distance to nearest band corner at the end that FAILED"
-                        + " (8 = none on that line) | A: %s | B: %s",
-                histogram(g.jointMissA), histogram(g.jointMissB));
-        this.logger.info("[ShoreWave] joints: %d of %d failures had a band WITHIN tolerance %d and were"
-                        + " refused anyway (a rejection, not a missing band)",
-                g.jointRefusedInRange, g.jointFailed, ShoreScan.CONNECTOR_TOLERANCE);
-        this.logger.info("[ShoreWave] joints: %d of those were blocked specifically by the same-line /"
-                        + " shared-corner exclusions (widening the tolerance would NOT bring them back)",
-                g.jointBlockedByExclude);
         for (int i = 0; i < Math.min(ShoreScan.Grid.JOINT_FAIL_SAMPLE, g.jointFailed); i++) {
             final int o = i * 6;
             final String why = switch (g.jointFailWhy[i]) {
@@ -571,25 +536,10 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 case 2 -> "no band at B (nothing there)";
                 default -> "?";
             };
-            this.logger.info("[ShoreWave]   joint FAIL %d: cross (%d,%d)-(%d,%d) [%s]"
-                            + " nearest corner at A %d, at B %d",
-                    i, g.jointFailInts[o], g.jointFailInts[o + 1],
-                    g.jointFailInts[o + 2], g.jointFailInts[o + 3], why,
-                    g.jointFailInts[o + 4], g.jointFailInts[o + 5]);
         }
         for (int i = 0; i < g.jointSampleCount; i++) {
             final int o8 = i * 8;
             final int o4 = i * 4;
-            this.logger.info("[ShoreWave]   joint %d: cross (%d,%d)-(%d,%d) corners (%d,%d)+(%d,%d)"
-                            + " -> ends (%.2f,%.2f)[%s]-(%.2f,%.2f)[%s] len %.2f",
-                    i, g.jointInts[o8], g.jointInts[o8 + 1], g.jointInts[o8 + 2], g.jointInts[o8 + 3],
-                    g.jointInts[o8 + 4], g.jointInts[o8 + 5], g.jointInts[o8 + 6], g.jointInts[o8 + 7],
-                    g.jointFloats[o4], g.jointFloats[o4 + 1],
-                    ShoreScan.cellName(g, g.jointFloats[o4], g.jointFloats[o4 + 1]),
-                    g.jointFloats[o4 + 2], g.jointFloats[o4 + 3],
-                    ShoreScan.cellName(g, g.jointFloats[o4 + 2], g.jointFloats[o4 + 3]),
-                    Math.hypot(g.jointFloats[o4 + 2] - g.jointFloats[o4],
-                            g.jointFloats[o4 + 3] - g.jointFloats[o4 + 1]));
         }
 
         // World vs camera-space sample: the fastest way to tell "nothing is

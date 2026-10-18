@@ -1170,6 +1170,8 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     }
     /** How many draw-side failures have been reported this session. */
     private int drawFailures = 0;
+    /** True once a draw threw with the builder open; cleared when a forced end works. */
+    private boolean drawStuck = false;
 
     private void drawQuads(final BufferBuilder buffer, final Tesselator tesselator, final Vec3 cam) {
         // One begin/draw per texture slot. RenderSystem.setShaderTexture binds
@@ -1195,19 +1197,29 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                     emit(buffer, q, cam);
                 }
             } catch (final Throwable t) {
-                // Tesselator is process-wide: a begin() that never reaches end()
-                // leaves its builder mid-batch, and from then on every pass adds to a
-                // buffer that is never drawn - which looks exactly like "whole
-                // stretches of surf vanish, it spreads, and only restarting the game
-                // brings it back". Always close the batch, then report once.
-                if (this.drawFailures++ < 3)
+                // Tesselator is process-wide and has no reset. If begin() itself throws
+                // (or anything throws before "building" is set) the builder is left
+                // mid-batch and every later pass writes into a buffer that is never
+                // drawn: whole stretches of surf stop appearing, new stretches stop as
+                // the buffer grows, and it follows you into other worlds because the
+                // builder lives in the process. Only a game restart clears it.
+                this.drawStuck = true;
+                if (this.drawFailures++ < 5)
                     this.logger.warn("[ShoreWave] draw aborted for texture {}: {}", tex, t.toString());
+                // Close the batch by force - that is the only way back to a usable
+                // builder without restarting the game.
+                try {
+                    tesselator.end();
+                } catch (final Throwable t2) {
+                    if (this.drawFailures < 8)
+                        this.logger.warn("[ShoreWave] forced end failed too: {}", t2.toString());
+                }
             } finally {
                 if (building) {
                     try {
                         tesselator.end();
                     } catch (final Throwable t) {
-                        if (this.drawFailures++ < 3)
+                        if (this.drawFailures++ < 8)
                             this.logger.warn("[ShoreWave] tesselator.end failed: {}", t.toString());
                     }
                 }

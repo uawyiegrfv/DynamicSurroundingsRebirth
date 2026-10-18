@@ -1236,7 +1236,10 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 final net.minecraft.client.renderer.texture.TextureAtlasSprite sp = waterSprite();
                 final float u0s = sp.getU(0F), u1s = sp.getU(16F);
                 final float v0s = sp.getV(0F), v1s = sp.getV(16F);
-                final float shrink = sp.uvShrinkRatio();
+                // NO shrink: lerping towards the tile centre with the sprite's shrink
+                // ratio collapsed every vertex onto one texel, which is why the film was
+                // a flat band with no texture at all.
+                final float shrink = 0F;
                 uu = net.minecraft.util.Mth.lerp(shrink, u0s + (u1s - u0s) * uu, (u0s + u1s) * 0.5F);
                 vv = net.minecraft.util.Mth.lerp(shrink, v0s + (v1s - v0s) * vv, (v0s + v1s) * 0.5F);
             }

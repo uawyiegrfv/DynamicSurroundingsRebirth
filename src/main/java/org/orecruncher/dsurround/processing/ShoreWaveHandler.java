@@ -1023,12 +1023,10 @@ public class ShoreWaveHandler extends AbstractClientHandler {
      * this wrote ~24k lines in ninety seconds and buried the rest of the log.</p>
      */
     private void auditGpuState() {
-        final int[] perTex = new int[ShoreScan.TEX_COUNT];
         int bandCount = 0;
         int jointCount = 0;
         for (int i = 0; i < this.quads.count; i++) {
             final ShoreScan.ShoreQuad q = this.quads.items[i];
-            perTex[q.tex]++;
             if (q.kind == 1)
                 jointCount++;
             else
@@ -1048,17 +1046,9 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         final float fogEnd = RenderSystem.getShaderFogEnd();
         final float fogShape = RenderSystem.getShaderFogShape().ordinal();
         final boolean fogNeutralised = fogClosed(fogStart, fogEnd);
-        final StringBuilder slots = new StringBuilder();
-        for (int tex = 0; tex < ShoreScan.TEX_COUNT; tex++) {
-            if (perTex[tex] == 0)
-                continue;
-            if (slots.length() > 0)
-                slots.append(' ');
-            slots.append(slotName(tex)).append('=').append(perTex[tex]);
-        }
         final String fingerprint = String.format(
-                "%s|%d|%d|%.3f,%.3f,%.3f,%.3f|%s|%s|%.0f|%b%b%b%b",
-                slots, bandCount, jointCount,
+                "%d|%d|%.3f,%.3f,%.3f,%.3f|%s|%s|%.0f|%b%b%b%b",
+                bandCount, jointCount,
                 tint[0], tint[1], tint[2], tint[3],
                 fogPlane(fogStart), fogPlane(fogEnd), fogShape,
                 blendOn, depthOn, cullOn, depthMask);
@@ -1071,9 +1061,8 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 fogPlane(fogStart), fogPlane(fogEnd), (int) fogShape,
                 fogNeutralised ? " [NEUTRALISED]" : "",
                 blendOn, depthOn, depthMask, cullOn);
-        this.logger.info("[ShoreWave]   emitting %d quads (bands %d, joints %d) | %s",
-                this.quads.count, bandCount, jointCount,
-                slots.length() == 0 ? "NO SLOTS BOUND" : slots);
+        this.logger.info("[ShoreWave]   emitting %d quads (bands %d, joints %d)",
+                this.quads.count, bandCount, jointCount);
     }
 
     /**
@@ -1112,20 +1101,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         }
     }
 
-    /** Short name for a texture slot, for the per-slot emit count. */
-    private static String slotName(final int tex) {
-        if (tex == ShoreScan.TEX_FILM)
-            return "film";
-        if (tex == ShoreScan.TEX_STRIP)
-            return "strip";
-        if (tex == ShoreScan.TEX_CAP)
-            return "cap";
-        if (tex >= ShoreScan.TEX_CONVEX && tex <= ShoreScan.TEX_CONVEX + 3)
-            return "convex" + (tex - ShoreScan.TEX_CONVEX);
-        if (tex >= ShoreScan.TEX_CONCAVE && tex <= ShoreScan.TEX_CONCAVE + 3)
-            return "concave" + (tex - ShoreScan.TEX_CONCAVE);
-        return "slot" + tex;
-    }
+    
     /** How many build failures have been reported this session. */
     private int buildFailures = 0;
     /** How many draw-side failures have been reported this session. */

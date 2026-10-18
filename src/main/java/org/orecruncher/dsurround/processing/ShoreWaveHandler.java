@@ -588,21 +588,6 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         }
         this.logger.info(detail.toString());
     }
-    /** Names for the log, same order as the texture slots. */
-    private static final String[] TEX_NAMES = buildTexNames();
-
-    private static String[] buildTexNames() {
-        final String[] n = new String[ShoreScan.TEX_COUNT];
-        n[ShoreScan.TEX_FILM] = "film";
-        n[ShoreScan.TEX_STRIP] = "strip";
-        n[ShoreScan.TEX_CAP] = "cap";
-        for (int w = 0; w < 4; w++) {
-            n[ShoreScan.TEX_CONVEX + w] = "convex" + w;
-            n[ShoreScan.TEX_CONCAVE + w] = "concave" + w;
-        }
-        return n;
-    }
-
     private boolean isShoreBiome(final Level level, final ShoreScan.Run run) {
         final Biome biome = level.getBiome(BLOCK_POS.set(run.startX, level.getSeaLevel(), run.startZ)).value();
         return TAG_LIBRARY.is(BiomeTags.IS_BEACH, biome)

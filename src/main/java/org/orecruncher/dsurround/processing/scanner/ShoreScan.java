@@ -536,7 +536,6 @@ public final class ShoreScan {
         /** Joint ends whose cell carries no band - a joint with nothing to join. */
         public int jointEndUncovered;
         /** Band edges skipped because the run-up came out zero (no beach). */
-        public int bandSkippedNoBeach;
         public int endAlone;
         public int endTooFar;
         public int endNotMutual;

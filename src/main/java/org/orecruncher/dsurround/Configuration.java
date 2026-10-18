@@ -776,6 +776,10 @@ public class Configuration extends ConfigurationData {
         public boolean shoreFieldSurf = true;
 
         @Property
+        @Comment("Diagnostic only. Draw every surf quad as flat opaque magenta with the texture ignored and the depth test off. If the missing stretches appear in this mode the geometry is fine and the fault is in the texture/sprite; if they are still missing the vertices themselves are wrong. Turn OFF for normal play")
+        public boolean shoreDebugSolid = false;
+
+        @Property
         @Comment("Draw the translucent water film that lies under the foam. Turn OFF to leave only the foam (surf band) on its own - used to tell whether a colour problem belongs to the film or to the foam, since the foam is opaque white and the film is a half-transparent sheet whose final colour is mostly whatever is behind it. Turn back ON for normal play")
         public boolean enableShoreFilm = true;
     }

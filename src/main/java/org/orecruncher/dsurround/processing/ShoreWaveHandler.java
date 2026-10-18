@@ -878,7 +878,10 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             mv.mulPoseMatrix(view);
             RenderSystem.applyModelViewMatrix();
             auditVisibility(view, cam);
-            drawQuads(buffer, tesselator, cam);
+            if (this.config.shoreWaveOptions.shoreDebugSolid)
+                drawSolid(buffer, tesselator, cam);
+            else
+                drawQuads(buffer, tesselator, cam);
         } finally {
             mv.popPose();
             RenderSystem.applyModelViewMatrix();
@@ -1170,6 +1173,38 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     }
     /** How many draw-side failures have been reported this session. */
     private int drawFailures = 0;
+
+    /**
+     * Diagnostic draw: every quad as flat opaque magenta, no texture, no depth
+     * test. It answers one question and nothing else - are the vertices of the
+     * missing stretches in the buffer at all? Textured and solid modes disagreeing
+     * means the geometry is fine and the fault is in the texture/sprite path;
+     * agreeing means the vertices themselves never made it.
+     */
+    private void drawSolid(final BufferBuilder buffer, final Tesselator tesselator, final Vec3 cam) {
+        RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionColorShader);
+        RenderSystem.disableDepthTest();
+        try {
+            buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+            for (int i = 0; i < this.quads.count; i++) {
+                final ShoreScan.ShoreQuad q = this.quads.items[i];
+                for (int k = 0; k < 4; k++)
+                    buffer.vertex(q.wx[k] - cam.x, q.y - cam.y, q.wz[k] - cam.z)
+                            .color(1F, 0F, 1F, 1F)
+                            .endVertex();
+            }
+            tesselator.end();
+        } catch (final Throwable t) {
+            this.logger.warn("[ShoreWave] solid debug draw failed: {}", t.toString());
+            try {
+                tesselator.end();
+            } catch (final Throwable ignored) {
+                // nothing else to do
+            }
+        } finally {
+            RenderSystem.enableDepthTest();
+        }
+    }
     /** True once a draw threw with the builder open; cleared when a forced end works. */
     private boolean drawStuck = false;
 

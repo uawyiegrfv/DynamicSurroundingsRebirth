@@ -366,6 +366,10 @@ final class ShoreField {
                 fq.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT * 0.5F;
                 fq.light = q0light;
                 fq.alpha = alpha;
+                // Rectangles straight off the coastline. The film used the corner
+                // INTERSECTION points before, and at a turn those are displaced along the
+                // run: the quad then stretched across the corner and crossed its
+                // neighbours - the tangle of triangles at every corner.
                 fq.wx[0] = g.ox + vx[i];
                 fq.wz[0] = g.oz + vz[i];
                 fq.wx[1] = g.ox + vx[i + 1];
@@ -373,11 +377,11 @@ final class ShoreField {
                 // Reaches a whole band INLAND, under the foam: the wave sheet has
                 // transparent parts, so stopping at the crest left a strip of bare sand
                 // between the film and the visible crest.
-                final float over = ShoreScan.BAND_WIDTH * 0.35F;   // just enough to close the seam
-                fq.wx[2] = g.ox + ox[i + 1] + nx[i] * over;
-                fq.wz[2] = g.oz + oz[i + 1] + nz[i] * over;
-                fq.wx[3] = g.ox + ox[i] + nx[i] * over;
-                fq.wz[3] = g.oz + oz[i] + nz[i] * over;
+                final float reach = fseg[i] + ShoreScan.BAND_WIDTH * 0.35F;
+                fq.wx[2] = g.ox + vx[i + 1] + nx[i] * reach;
+                fq.wz[2] = g.oz + vz[i + 1] + nz[i] * reach;
+                fq.wx[3] = g.ox + vx[i] + nx[i] * reach;
+                fq.wz[3] = g.oz + vz[i] + nz[i] * reach;
                 // 32 frames stacked vertically, 2 ticks each: the same sheet and the
                 // same timing vanilla uses, so the film flows with the sea.
                 final int frames = 32;

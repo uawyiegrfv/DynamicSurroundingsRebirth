@@ -68,13 +68,10 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     private static final ResourceLocation[] TEXTURES = new ResourceLocation[ShoreScan.TEX_COUNT];
 
     static {
-        TEXTURES[ShoreScan.TEX_FILM] = texture("shore_foam_film");
+        // Only the strip is drawn. The film, cap and corner sheets belonged to the
+        // per-cell renderer and are gone from the jar as well, so their slots stay
+        // empty - an unbound slot is never drawn, and the draw loop already skips it.
         TEXTURES[ShoreScan.TEX_STRIP] = texture("shore_foam_strip");
-        TEXTURES[ShoreScan.TEX_CAP] = texture("shore_foam_cap");
-        for (int w = 0; w < 4; w++) {
-            TEXTURES[ShoreScan.TEX_CONVEX + w] = texture("shore_foam_corner_convex_w" + w);
-            TEXTURES[ShoreScan.TEX_CONCAVE + w] = texture("shore_foam_corner_concave_w" + w);
-        }
     }
 
     private static final ITagLibrary TAG_LIBRARY = ContainerManager.resolve(ITagLibrary.class);

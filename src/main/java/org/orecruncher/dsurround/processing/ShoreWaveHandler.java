@@ -249,9 +249,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
         ShoreScan.fieldSurf = this.config.shoreWaveOptions.shoreFieldSurf;
         final long mark = System.nanoTime();
         try {
-            ShoreScan.build(this.grid, this.lastProgress, level, this.quads,
-                    this.config.shoreWaveOptions.enableShoreFilm,
-                    this.config.shoreWaveOptions.shoreFoamFoldLine);
+            ShoreScan.build(this.grid, this.lastProgress, level, this.quads);
         } catch (final Throwable t) {
             // A build that throws must cost ONE frame, not the feature: the buffer is
             // left empty (so nothing stale is ever drawn), the failure is counted, and

@@ -1122,10 +1122,7 @@ public final class ShoreScan {
      * drawable quads. No block reads: everything here is arithmetic over the
      * snapshot, so it is cheap enough to run every tick.
      */
-    public static void build(final Grid g, final float p, final Level level, final Quads out) {
-        build(g, p, level, out, false);
-    }
-
+    
     /**
      * As {@link #build(Grid, float, Level, Quads)}, with the film's vertex colour
      * optionally forced to {@link #FILM_DEBUG_RGB}.
@@ -1137,12 +1134,10 @@ public final class ShoreScan {
      */
     public static void build(final Grid g, final float p, final Level level, final Quads out,
                              final boolean filmEnabled) {
-        build(g, p, level, out, filmEnabled, true);
+        build(g, p, level, out);
     }
 
-    public static void build(final Grid g, final float p, final Level level, final Quads out,
-                             final boolean filmEnabled,
-                             final boolean foldLine) {
+    public static void build(final Grid g, final float p, final Level level, final Quads out) {
         out.clear();
         Arrays.fill(g.filled, (byte) 0);
         Arrays.fill(g.cov, 0F);

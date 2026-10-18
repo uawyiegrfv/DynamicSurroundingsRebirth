@@ -768,10 +768,6 @@ public class Configuration extends ConfigurationData {
         public boolean debugLogging = true;
 
         @Property
-        @Comment("Draw the foam band as a polyline that follows the shoreline, with the wave front placed at a fractional distance inland, instead of as whole grid cells. ON is the new path: the front then advances continuously instead of stepping a block at a time, and corners need no corner tiles. Turn OFF to fall back to the older cell-based band")
-        public boolean shoreFoamFoldLine = true;
-
-        @Property
         @Comment("Rebuilt surf: draw the wave line as the contour of the distance to the sea (a level set) instead of a band per coast edge stitched by joints. ON is the rebuild - the line is continuous by construction, follows bends and islands, never ends up in the water and cannot fold when the run-up grows. Turn OFF to fall back to the per-edge bands, which is the picture to compare against")
         public boolean shoreFieldSurf = true;
 

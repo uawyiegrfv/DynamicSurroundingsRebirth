@@ -1192,7 +1192,12 @@ public final class ShoreScan {
         // behind this flag are gone: two renderers meant two sets of placement rules
         // and a state machine, and every regression in this feature came from
         // whichever one was not currently active.
-        ShoreField.build(g, level, p, out);
+        // The contour renderer: the band is a stroked contour of the distance to the
+        // sea. The per-edge emitters that came before it are gone - on a 45-degree
+        // coast every segment is one block long, and offsetting a one-block segment by
+        // up to a block crosses the offset onto itself, which is why the line kept
+        // coming out as separate dots whatever the corner knobs were set to.
+        ShoreContour.build(g, level, p, out);
         tallyQuads(g, out);
         return;
     }

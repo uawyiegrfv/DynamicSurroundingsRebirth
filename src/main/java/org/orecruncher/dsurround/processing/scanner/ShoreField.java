@@ -34,6 +34,7 @@ final class ShoreField {
     private static final int[] DX = {1, -1, 0, 0};
     private static final int[] DZ = {0, 0, 1, -1};
 
+    private static net.minecraft.client.renderer.texture.TextureAtlasSprite water = null;
     private static float smoothed = -1F;
     private static long lastNanos = 0L;
 
@@ -53,6 +54,7 @@ final class ShoreField {
         if (edges.isEmpty())
             return;
 
+        water = waterSprite();
         final float target = Math.max(0F, Math.min(1F, p));
         final long now = System.nanoTime();
         if (smoothed < 0F) {
@@ -342,6 +344,7 @@ final class ShoreField {
             final int gz = (int) Math.floor((s0z + s1z) * 0.5F);
             final int alpha = (gx < 0 || gz < 0 || gx >= g.size || gz >= g.size) ? 0
                     : ShoreScan.edgeAlpha(g, gx, gz);
+            final int q0light = ShoreScan.lightAt(level, g, g.ox + gx, g.oz + gz);
             final float segLen = (float) Math.hypot(s1x - s0x, s1z - s0z);
             if (alpha <= 0 || segLen < 1.0e-4F) {
                 if (gx < 0 || gz < 0 || gx >= g.size || gz >= g.size)
@@ -352,6 +355,33 @@ final class ShoreField {
                 continue;
             }
             g.fieldSegs++;
+            // The film first: from the water line (vx, vz) to the foam's seaward edge
+            // (ox, oz). It is the SAME base line as the foam, so the film can never
+            // pass the foam and never leaves a strip of bare sand between them.
+            if (water != null) {
+                final ShoreScan.ShoreQuad fq = out.next();
+                fq.tex = ShoreScan.TEX_FILM;
+                fq.kind = 0;
+                fq.rgb = 0x3F76E4;
+                fq.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT * 0.5F;
+                fq.light = q0light;
+                fq.alpha = alpha;
+                fq.wx[0] = g.ox + vx[i];
+                fq.wz[0] = g.oz + vz[i];
+                fq.wx[1] = g.ox + vx[i + 1];
+                fq.wz[1] = g.oz + vz[i + 1];
+                fq.wx[2] = g.ox + ox[i + 1];
+                fq.wz[2] = g.oz + oz[i + 1];
+                fq.wx[3] = g.ox + ox[i];
+                fq.wz[3] = g.oz + oz[i];
+                final float du = water.getU1() - water.getU0();
+                final float dv = water.getV1() - water.getV0();
+                for (int k = 0; k < 4; k++) {
+                    final float px = fq.wx[k], pz = fq.wz[k];
+                    fq.u[k] = water.getU0() + (px - (float) Math.floor(px)) * du;
+                    fq.v[k] = water.getV0() + (pz - (float) Math.floor(pz)) * dv;
+                }
+            }
             final ShoreScan.ShoreQuad q = out.next();
             q.tex = ShoreScan.TEX_STRIP;
             q.kind = 0;
@@ -385,6 +415,13 @@ final class ShoreField {
             along += segLen;
         }
         return widest;
+    }
+
+    /** Vanilla's water sprite, for the film's colour and its animation. */
+    private static net.minecraft.client.renderer.texture.TextureAtlasSprite waterSprite() {
+        return net.minecraft.client.Minecraft.getInstance()
+                .getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
+                .apply(net.minecraft.resources.ResourceLocation.withDefaultNamespace("block/water_still"));
     }
 
     /** True when a point sits within two blocks of the scan window's edge. */

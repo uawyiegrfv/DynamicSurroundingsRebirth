@@ -1136,7 +1136,12 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                         // one of our own PNGs - the colour still comes from the vertex,
                         // the same way vanilla paints the sea. See the section above
                         // waterSprite() for the three things that costs.
-                        RenderSystem.setShaderTexture(0, TEXTURES[tex]);
+                        // The film uses the BLOCK ATLAS so it samples vanilla's animated
+                    // water sprite: same colour source, same frame stepper, no copy of
+                    // the art and no separate animation of our own.
+                    RenderSystem.setShaderTexture(0, tex == ShoreScan.TEX_FILM
+                            ? net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS
+                            : TEXTURES[tex]);
                         buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.PARTICLE);
                         building = true;
                     }

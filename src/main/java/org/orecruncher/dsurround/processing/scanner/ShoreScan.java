@@ -203,8 +203,10 @@ public final class ShoreScan {
      * gone - their sheets are no longer in the jar either, so a slot constant for
      * them would name a texture that cannot be loaded.
      */
-    public static final int TEX_STRIP = 0;
-    public static final int TEX_COUNT = 1;
+    /** The film samples the vanilla water sprite; the foam is our own sheet. */
+    public static final int TEX_FILM = 0;
+    public static final int TEX_STRIP = 1;
+    public static final int TEX_COUNT = 2;
 
     /**
      * Vertex colour for every foam quad: the identity, and it has to stay that

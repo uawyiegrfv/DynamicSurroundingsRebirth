@@ -45,16 +45,11 @@ final class ShoreField {
 
     static void build(final ShoreScan.Grid g, final Level level, final float p,
                       final ShoreScan.Quads out) {
-        // Only real water gets surf. A dug pool on the beach is CLS_SEA like the
-        // ocean, so it used to grow a ring of foam; requiring a hundred cells of
-        // water in the window keeps that out without asking about biomes.
-        int sea = 0;
-        for (int i = 0; i < g.cls.length; i++)
-            if (g.cls[i] == ShoreScan.CLS_SEA)
-                sea++;
-        if (sea < MIN_SEA_CELLS)
-            return;
-        final List<float[]> edges = coastEdges(g);
+        // Water is counted per CONNECTED BODY, not over the whole window: the window
+        // almost always holds a hundred cells of ocean somewhere, so a one-block puddle
+        // dug in the sand still passed the old check and grew a ring of foam.
+        final boolean[] bigSea = bigWaterBodies(g);
+        final List<float[]> edges = coastEdges(g, level, bigSea);
         if (edges.isEmpty())
             return;
 
@@ -90,7 +85,7 @@ final class ShoreField {
     }
 
     /** Every unit edge where a sea cell touches a beach cell, beach on the right. */
-    private static List<float[]> coastEdges(final ShoreScan.Grid g) {
+    private static List<float[]> coastEdges(final ShoreScan.Grid g, final Level level, final boolean[] bigSea) {
         final int size = g.size;
         final List<float[]> out = new ArrayList<>(256);
         for (int gz = 0; gz < size; gz++) {
@@ -103,6 +98,13 @@ final class ShoreField {
                         continue;
                     if (g.cls[az * size + ax] != ShoreScan.CLS_BEACH)
                         continue;
+                    // The sea must belong to a real body of water, the sand must be sand
+                    // (not a roof or a path), and the shore must be a beach or ocean
+                    // biome. Checked per edge so a puddle inside a beach produces none.
+                    if (!bigSea[gz * size + gx])
+                        continue;
+                    if (!surfBlock(level, g, ax, az) || !surfBiome(level, g, gx, gz))
+                        continue;
                     final float cx = gx + 0.5F, cz = gz + 0.5F;
                     final float mx = cx + DX[k] * 0.5F, mz = cz + DZ[k] * 0.5F;
                     final float hx = -DZ[k] * 0.5F, hz = DX[k] * 0.5F;
@@ -111,6 +113,76 @@ final class ShoreField {
             }
         }
         return out;
+    }
+
+    /** Floods the sea into connected bodies; true where the body has enough cells. */
+    private static boolean[] bigWaterBodies(final ShoreScan.Grid g) {
+        final int size = g.size;
+        final int n = size * size;
+        final int[] id = new int[n];
+        java.util.Arrays.fill(id, -1);
+        final int[] bodyCells = new int[n];
+        final int[] stack = new int[n];
+        int bodies = 0;
+        for (int start = 0; start < n; start++) {
+            if (g.cls[start] != ShoreScan.CLS_SEA || id[start] >= 0)
+                continue;
+            int sp = 0;
+            int cells = 0;
+            stack[sp++] = start;
+            id[start] = bodies;
+            while (sp > 0) {
+                final int cur = stack[--sp];
+                cells++;
+                final int cx = cur % size, cz = cur / size;
+                for (int k = 0; k < 4; k++) {
+                    final int nx2 = cx + (k == 0 ? 1 : k == 1 ? -1 : 0);
+                    final int nz2 = cz + (k == 2 ? 1 : k == 3 ? -1 : 0);
+                    if (nx2 < 0 || nz2 < 0 || nx2 >= size || nz2 >= size)
+                        continue;
+                    final int ni = nz2 * size + nx2;
+                    if (g.cls[ni] != ShoreScan.CLS_SEA || id[ni] >= 0)
+                        continue;
+                    id[ni] = bodies;
+                    stack[sp++] = ni;
+                }
+            }
+            bodyCells[bodies++] = cells;
+        }
+        final boolean[] big = new boolean[n];
+        for (int i = 0; i < n; i++)
+            big[i] = id[i] >= 0 && bodyCells[id[i]] >= MIN_SEA_CELLS;
+        return big;
+    }
+
+    /** Foam only forms over sand, gravel, stone, sandstone or grass. */
+    private static boolean surfBlock(final Level level, final ShoreScan.Grid g, final int gx, final int gz) {
+        if (level == null)
+            return true;
+        // BELOW the surface: at waterTop the beach cell is the sea itself, so asking
+        // there answered "water" for every normal shore and the surf survived only on
+        // the raised steps where sand reaches the water line.
+        final net.minecraft.world.level.block.state.BlockState st =
+                level.getBlockState(new net.minecraft.core.BlockPos(g.ox + gx, g.waterTop - 1, g.oz + gz));
+        return st.is(net.minecraft.world.level.block.Blocks.SAND)
+                || st.is(net.minecraft.world.level.block.Blocks.GRAVEL)
+                || st.is(net.minecraft.world.level.block.Blocks.STONE)
+                || st.is(net.minecraft.world.level.block.Blocks.SANDSTONE)
+                || st.is(net.minecraft.world.level.block.Blocks.GRASS_BLOCK);
+    }
+
+    /** ...and only in a beach or ocean biome. */
+    private static boolean surfBiome(final Level level, final ShoreScan.Grid g, final int gx, final int gz) {
+        if (level == null)
+            return true;
+        final net.minecraft.world.level.biome.Biome b =
+                level.getBiome(new net.minecraft.core.BlockPos(g.ox + gx, g.waterTop, g.oz + gz)).value();
+        final var key = level.registryAccess()
+                .registryOrThrow(net.minecraft.core.registries.Registries.BIOME).getResourceKey(b);
+        return key.map(k -> {
+            final String path = k.location().getPath();
+            return path.contains("beach") || path.contains("ocean") || path.contains("shore");
+        }).orElse(false);
     }
 
     /** Joins edges that share an endpoint exactly into chains. */

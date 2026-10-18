@@ -50,10 +50,6 @@ final class ShoreField {
         // ocean somewhere, so a one-block puddle on the beach still grew a ring of
         // foam. This floods the sea into connected bodies and marks the big ones.
         final boolean[] bigSea = bigWaterBodies(g);
-        final List<float[]> edges = coastEdges(g, level, bigSea);
-        if (edges.isEmpty())
-            return;
-
         final float target = Math.max(0F, Math.min(1F, p));
         final long now = System.nanoTime();
         if (smoothed < 0F) {
@@ -64,25 +60,128 @@ final class ShoreField {
             smoothed += (target - smoothed) * k;
         }
         lastNanos = now;
-        final float f = Math.min(MAX_OFFSET, Math.max(0F, smoothed) * MAX_OFFSET);
+        final float f = Math.max(0F, Math.min(MAX_OFFSET, smoothed * MAX_OFFSET));
         g.fieldLevel = f;
 
-        int chains = 0;
-        int widest = 0;
-        g.fieldSegs = 0;
-        g.fieldSkipBounds = 0;
-        g.fieldSkipAlpha = 0;
-        g.fieldOpenChains = 0;
-        g.fieldBorderEnds = 0;
-        g.fieldFMin = Float.MAX_VALUE;
-        g.fieldFMax = 0F;
-        for (final List<float[]> chain : chains(edges)) {
-            chains++;
-            widest = Math.max(widest, emitChain(g, level, out, chain, f));
+        // Distance to the sea at every cell centre, in blocks, water line at 0.
+        final int size = g.size;
+        final float[] d = new float[size * size];
+        java.util.Arrays.fill(d, 99F);
+        for (int cz = 0; cz < size; cz++) {
+            for (int cx = 0; cx < size; cx++) {
+                if (g.cls[cz * size + cx] != ShoreScan.CLS_SEA)
+                    continue;
+                for (int vz = 0; vz < size; vz++) {
+                    for (int vx = 0; vx < size; vx++) {
+                        final float dx = vx - cx, dz = vz - cz;
+                        // -1: the sea is a square, so the beach cell that touches it must
+                        // read 0, not 0.5. With -0.5 the first row of sand was still 0.5
+                        // away and the surf only appeared once the swell passed half a
+                        // block - which is why nothing showed at low p.
+                        final float dist = Math.max(0F, (float) Math.sqrt(dx * dx + dz * dz) - 1F);
+                        if (dist < d[vz * size + vx])
+                            d[vz * size + vx] = dist;
+                    }
+                }
+            }
         }
-        g.fieldChains = chains;
-        g.fieldEdges = edges.size();
-        g.fieldFieldMax = widest;
+
+        // Which cells the water has reached: one cell thick, sitting on the level
+        // line d = f. The set comes from the FIELD, so a narrow neck closes by itself
+        // - once f passes the neck's own distance both shores are inside the band and
+        // the line reads as one, with no merging code anywhere.
+        final boolean[] wet = new boolean[size * size];
+        final byte[] orient = new byte[size * size];   // 1 = runs along z, 2 = along x
+        for (int gz = 0; gz < size; gz++) {
+            for (int gx = 0; gx < size; gx++) {
+                final int gi = gz * size + gx;
+                if (g.cls[gi] != ShoreScan.CLS_BEACH)
+                    continue;
+                if (d[gi] > f || d[gi] <= f - ShoreScan.BAND_WIDTH)
+                    continue;
+                if (!surfBiome(level, g, gx, gz))
+                    continue;
+                if (!surfBlock(level, g, gx, gz))
+                    continue;
+                float best = d[gi];
+                int inl = 1;
+                if (gx + 1 < size && d[gi + 1] > best) { best = d[gi + 1]; inl = 1; }
+                if (gx > 0 && d[gi - 1] > best) { best = d[gi - 1]; inl = -1; }
+                if (gz + 1 < size && d[gi + size] > best) { best = d[gi + size]; inl = 2; }
+                if (gz > 0 && d[gi - size] > best) { best = d[gi - size]; inl = -2; }
+                wet[gi] = true;
+                orient[gi] = (byte) (Math.abs(inl) == 1 ? 1 : 2);
+            }
+        }
+
+        // Consecutive collinear cells become ONE quad. Drawing them one per cell cut the
+        // texture into quarters: the strip art repeats every four blocks, so a per-cell
+        // u made every block show the same slice and the line read as a row of dashes.
+        for (int gz = 0; gz < size; gz++) {
+            for (int gx = 0; gx < size; gx++) {
+                final int gi = gz * size + gx;
+                if (!wet[gi] || orient[gi] != 2)
+                    continue;
+                if (gx > 0 && wet[gi - 1] && orient[gi - 1] == 2)
+                    continue;
+                int len = 0;
+                while (gx + len < size && wet[gi + len] && orient[gi + len] == 2)
+                    len++;
+                emitRun(g, level, out, gx, gz, len, 1, 0);
+            }
+        }
+        for (int gx = 0; gx < size; gx++) {
+            for (int gz = 0; gz < size; gz++) {
+                final int gi = gz * size + gx;
+                if (!wet[gi] || orient[gi] != 1)
+                    continue;
+                if (gz > 0 && wet[gi - size] && orient[gi - size] == 1)
+                    continue;
+                int len = 0;
+                while (gz + len < size && wet[gi + len * size] && orient[gi + len * size] == 1)
+                    len++;
+                emitRun(g, level, out, gx, gz, len, 0, 1);
+            }
+        }
+        g.fieldChains = 0;
+        g.fieldFieldMax = 0;
+    }
+
+    /** One quad for a run of {@code len} wet cells, u spread across its whole length. */
+    private static void emitRun(final ShoreScan.Grid g, final Level level, final ShoreScan.Quads out,
+                                final int gx, final int gz, final int len,
+                                final int dx, final int dz) {
+        final int cx = gx + (dx * len) / 2;
+        final int cz = gz + (dz * len) / 2;
+        final int alpha = ShoreScan.edgeAlpha(g, cx, cz);
+        if (alpha <= 0 || len <= 0)
+            return;
+        final ShoreScan.ShoreQuad q = out.next();
+        q.tex = ShoreScan.TEX_STRIP;
+        q.kind = 0;
+        q.rgb = ShoreScan.FOAM_RGB;
+        q.y = g.waterTop + 1F + ShoreScan.FOAM_LIFT;
+        q.light = ShoreScan.lightAt(level, g, g.ox + cx, g.oz + cz);
+        q.alpha = alpha;
+        q.wx[0] = g.ox + gx;
+        q.wz[0] = g.oz + gz;
+        q.wx[1] = g.ox + gx + dx * len;
+        q.wz[1] = g.oz + gz + dz * len;
+        q.wx[2] = g.ox + gx + dx * len + dz;
+        q.wz[2] = g.oz + gz + dz * len + dx;
+        q.wx[3] = g.ox + gx + dz;
+        q.wz[3] = g.oz + gz + dx;
+        final float u0 = (dx == 0 ? gz : gx) / ShoreScan.STRIP_PERIOD;
+        final float u1 = u0 + len / ShoreScan.STRIP_PERIOD;
+        q.u[0] = u0;
+        q.u[1] = u1;
+        q.u[2] = u1;
+        q.u[3] = u0;
+        q.v[0] = 0.7F;
+        q.v[1] = 0.7F;
+        q.v[2] = 0F;
+        q.v[3] = 0F;
+        g.stripQuads++;
     }
 
     /** Floods the sea into connected bodies; true where the body has enough cells. */
@@ -127,6 +226,8 @@ final class ShoreField {
 
     /** Foam only forms over sand, stone or grass - not over a dirt path or a roof. */
     private static boolean surfBlock(final Level level, final ShoreScan.Grid g, final int gx, final int gz) {
+        if (level == null)
+            return true;   // headless previews have no world to ask
         final net.minecraft.world.level.block.state.BlockState st =
                 level.getBlockState(new net.minecraft.core.BlockPos(g.ox + gx, g.waterTop, g.oz + gz));
         return st.is(net.minecraft.world.level.block.Blocks.SAND)
@@ -138,6 +239,8 @@ final class ShoreField {
 
     /** ...and only in a beach or ocean biome. */
     private static boolean surfBiome(final Level level, final ShoreScan.Grid g, final int gx, final int gz) {
+        if (level == null)
+            return true;
         final net.minecraft.world.level.biome.Biome b =
                 level.getBiome(new net.minecraft.core.BlockPos(g.ox + gx, g.waterTop, g.oz + gz)).value();
         final var key = level.registryAccess()

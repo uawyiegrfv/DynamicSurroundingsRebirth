@@ -1266,10 +1266,8 @@ public class ShoreWaveHandler extends AbstractClientHandler {
             final double filmDensity = this.grid.filmBlocks <= 0F
                     ? 0D : this.grid.filmTexels / this.grid.filmBlocks;
             event.add(CollectDiagnosticsEvent.Section.Systems, String.format(
-                    "Shore foam uv density=%.1f texel/block | film alpha p50=%d | foam alpha p50=%d"
-                            + " | order=%s | film uv density=%.1f texel/block (%d quads)",
-                    foamDensity, medianAlpha(ShoreScan.TEX_FILM, true), medianAlpha(ShoreScan.TEX_FILM, false),
-                    ShoreScan.DRAW_ORDER, filmDensity, this.quads.count));
+                    "Shore foam uv density=%.1f texel/block | order=%s | %d quads",
+                    foamDensity, ShoreScan.DRAW_ORDER, this.quads.count));
         }
         // The geometric check's own tally, beside the uv density line: the bounds
         // that are compiled in, the widest span actually emitted, the box the
@@ -1307,28 +1305,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
                 this.broken ? " BROKEN" : ""));
     }
 
-    /**
-     * Median vertex alpha of one side of the pass, 0 when that side is empty.
-     *
-     * @param film true selects the film ({@link ShoreScan#TEX_FILM}), false the
-     *             whole foam line - strip, caps and corner tiles.
-     */
-    private int medianAlpha(final int filmSlot, final boolean film) {
-        final int n = this.quads.count;
-        if (n == 0)
-            return 0;
-        final int[] sorted = new int[n];
-        int k = 0;
-        for (int i = 0; i < n; i++) {
-            final ShoreScan.ShoreQuad q = this.quads.items[i];
-            if ((q.tex == filmSlot) == film)
-                sorted[k++] = q.alpha;
-        }
-        if (k == 0)
-            return 0;
-        java.util.Arrays.sort(sorted, 0, k);
-        return sorted[k / 2];
-    }
+    
 
     /**
      * Pins the eleven surf textures to NEAREST/NEAREST with no mip chain, once.
@@ -1354,7 +1331,7 @@ public class ShoreWaveHandler extends AbstractClientHandler {
     // at emit time because sprite frames are advanced by the atlas ticker while
     // the quads are rebuilt on a scan cadence.
     //
-    // None of that is true any more. TEXTURES[TEX_FILM] binds shore_foam_film.png,
+    // None of that is true any more: the one remaining slot binds its own sheet,
     // our own 16x16 tile, like every other slot in this pass - there is no atlas
     // remap left in emit() and no frame index to step. The tile is pure white and
     // that is still deliberate: the film's colour comes from the biome water

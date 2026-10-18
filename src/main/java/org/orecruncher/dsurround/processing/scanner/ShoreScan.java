@@ -198,15 +198,13 @@ public final class ShoreScan {
     public static final byte F_CONCAVE = 3;
 
     /**
-     * Quad texture slots; the renderer owns the matching ResourceLocations.
-     * Slot order is draw order: the film lies under the foam, so it goes first.
+     * Quad texture slot. There is exactly one: the surf strip. The film, the end
+     * caps and the eight corner tiles belonged to the per-cell renderer, which is
+     * gone - their sheets are no longer in the jar either, so a slot constant for
+     * them would name a texture that cannot be loaded.
      */
-    public static final int TEX_FILM = 0;
-    public static final int TEX_STRIP = 1;
-    public static final int TEX_CAP = 2;
-    public static final int TEX_CONVEX = 3;   // + w (0..3)
-    public static final int TEX_CONCAVE = 7;  // + w (0..3)
-    public static final int TEX_COUNT = 12;
+    public static final int TEX_STRIP = 0;
+    public static final int TEX_COUNT = 1;
 
     /**
      * Vertex colour for every foam quad: the identity, and it has to stay that
@@ -311,7 +309,7 @@ public final class ShoreScan {
 
     /**
      * The lift and the slot order together are what keeps the foam on top of the
-     * film. Slots are drawn ascending ({@code TEX_FILM} = 0 first), and the foam
+     * water. There is one slot, drawn with its own sheet, and the foam
      * rides 14 mm above the film, so neither the order nor the depth test can
      * put the film over the crest. Reported verbatim in the diagnostics line so
      * a future reorder cannot be silent.

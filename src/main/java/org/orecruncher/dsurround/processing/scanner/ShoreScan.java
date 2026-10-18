@@ -1085,32 +1085,35 @@ public final class ShoreScan {
         public final float[] v = new float[4];
     }
 
-    /** A reusable quad buffer. Cleared and refilled every rebuild. */
+    /**
+     * The per-frame geometry buffer.
+     *
+     * <p><b>Deliberately not a pool any more.</b> It used to hand back recycled
+     * {@link ShoreQuad} objects, with {@code clear()} doing nothing but setting
+     * {@code count = 0}. That made every quad's contents depend on what had been
+     * written into that slot on an earlier frame, and any path that left the count
+     * out of step with the contents (a throw halfway through a build, a build that
+     * returned early) could draw last frame's geometry - or draw nothing at all for
+     * a stretch. The surf kept "vanishing in whole stretches, spreading, surviving
+     * a world reload and only clearing on a game restart", which is exactly the
+     * signature of stale state in a reused buffer. A fresh array per build costs a
+     * few dozen short-lived objects and removes the entire class of bug.</p>
+     */
     public static final class Quads {
         public ShoreQuad[] items = new ShoreQuad[256];
         public int count = 0;
 
         public void clear() {
             this.count = 0;
+            if (this.items.length > 512)
+                this.items = new ShoreQuad[256];
         }
 
         public ShoreQuad next() {
             if (this.count >= this.items.length)
                 this.items = Arrays.copyOf(this.items, this.items.length * 2);
-            ShoreQuad q = this.items[this.count];
-            if (q == null) {
-                q = new ShoreQuad();
-                this.items[this.count] = q;
-            }
-            // No colour/alpha reset here on purpose. The pool is shared, so a
-            // reset would silently become the foam's colour - and it is not the
-            // foam's colour to state: every emitter sets both fields on the quad
-            // it takes (foam FOAM_RGB, film the biome water colour, debug
-            // magenta), which is the only way a slot can never recolour a quad.
-            // Do not "restore" a white reset here: with 0xFFFFFF being the
-            // identity the on-screen result is identical, so a reset buys
-            // nothing and hides which emitter owns the colour.
-            this.count++;
+            final ShoreQuad q = new ShoreQuad();
+            this.items[this.count++] = q;
             return q;
         }
     }

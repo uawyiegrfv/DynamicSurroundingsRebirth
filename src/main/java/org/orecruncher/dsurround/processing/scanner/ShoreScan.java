@@ -1255,18 +1255,12 @@ public final class ShoreScan {
      * before anything fills them in.</p>
      */
     private static void tallyQuads(final Grid g, final Quads out) {
-        g.stripQuads = 0;
+        // There is one slot, so the tally is a count, not a partition.
+        g.stripQuads = out.count;
         g.capQuads = 0;
         g.cornerQuads = 0;
         g.filmQuads = 0;
         g.filledCells = 0;
-        for (int i = 0; i < out.count; i++) {
-            final int tex = out.items[i].tex;
-            if (tex == TEX_STRIP) g.stripQuads++;
-            else if (tex == TEX_CAP) g.capQuads++;
-            else if (tex == TEX_FILM) g.filmQuads++;
-            else g.cornerQuads++;
-        }
         for (int i = 0; i < g.filled.length; i++)
             if (g.filled[i] == 1) g.filledCells++;
     }

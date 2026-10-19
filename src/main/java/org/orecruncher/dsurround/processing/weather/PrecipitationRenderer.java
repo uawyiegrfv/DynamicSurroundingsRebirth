@@ -464,6 +464,8 @@ public final class PrecipitationRenderer {
     private static final int RANGE = 10;
 
     private static final long CACHE_TTL = 40L;
+    private static final int PURGE_SLICES = 8;
+    private static int purgeStep = 8;
 
     private static final Random columnRandom = new Random();
     private static final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
@@ -1255,7 +1257,24 @@ public final class PrecipitationRenderer {
             cacheDimension = dim;
             clearCaches(ticks);
         } else if (ticks - cacheTick >= CACHE_TTL) {
-            clearCaches(ticks);
+            cacheTick = ticks;
+            purgeStep = 0;
+        }
+        if (purgeStep < PURGE_SLICES) {
+            final int perSlice = Math.max(1, (2 * RANGE + 1) * (2 * RANGE + 1) / PURGE_SLICES);
+            evict(surfaceCache, perSlice);
+            evict(phaseCache, perSlice);
+            evict(lightCache, perSlice);
+            purgeStep++;
+        }
+    }
+
+    /** Drops up to {@code count} entries; the frame loop refills what it needs. */
+    private static void evict(final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap map, final int count) {
+        final var it = map.long2IntEntrySet().iterator();
+        for (int i = 0; i < count && it.hasNext(); i++) {
+            it.next();
+            it.remove();
         }
     }
 

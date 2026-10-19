@@ -83,6 +83,7 @@ public class FoliageSnowHandler extends AbstractClientHandler {
      */
     private static final int TOPUP_TICKS = 200;
     private static final int STALE_CHECK_TICKS = 2;
+    private static final int KEEP_BLOCK_CHECK = 5;
     /**
      * How far a plant may drift before its snow is let go (round 7: "I have to
      * be right on top of a plant before it gets any snow, but it keeps the
@@ -265,6 +266,7 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     private Level lastWorld;
     private long lastScanTick = -1000L;
     private long lastStaleCheck = -1000L;
+    private int blockCheckPhase = 0;
     private int lastChunkX = Integer.MIN_VALUE;
     private int lastChunkZ = Integer.MIN_VALUE;
     /**
@@ -1124,6 +1126,8 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     }
 
     private void checkStale(final Level world, final BlockPos playerPos) {
+        this.blockCheckPhase = (this.blockCheckPhase + 1) % KEEP_BLOCK_CHECK;
+        final boolean checkBlocks = this.blockCheckPhase == 0;
         for (final Iterator<Map.Entry<Long, PlantSnow>> it = this.plants.entrySet().iterator(); it.hasNext(); ) {
             final PlantSnow plant = it.next().getValue();
             for (final Iterator<SnowUnit> uIt = plant.units.iterator(); uIt.hasNext(); ) {
@@ -1147,7 +1151,7 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                 // at 1.2s and the last at 3.1s. Nothing is holding the snow
                 // up the moment the block is gone, so let go on the tick we
                 // notice and let the whole coat come off together.
-                if (world.getBlockState(unit.pos()).getBlock() != plant.block()) {
+                if (checkBlocks && world.getBlockState(unit.pos()).getBlock() != plant.block()) {
                     unit.particle().beginFall();
                     uIt.remove();
                 }

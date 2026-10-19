@@ -509,7 +509,6 @@
   "dsrebirth.text.quickvolume.empty": "No subtitled sounds recently",
   "dsrebirth.text.quickvolume.hint": "Up/Down select - Wheel/Arrows +/-1% - Release to close",
   "dsrebirth.text.quickvolume.title": "Quick Sound Volume",
-  "dsrebirth.text.reloadassets": "[%1$s§r] §aReloaded configurations",
   "dsrebirth.text.seasons.spring": "Spring",
   "dsrebirth.text.soundconfig.block": "Block",
   "dsrebirth.text.soundconfig.block.help": "Enabling Block will prevent sounds with the resource ID from playing. Blocking also applies to Dynamic Surrounding sounds. Will only apply to sounds played through the Minecraft sound engine.",

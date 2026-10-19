@@ -462,7 +462,6 @@
   "dsrebirth.text.quickvolume.empty": "Brak ostatnio napisanych dźwięków",
   "dsrebirth.text.quickvolume.hint": "Góra/dół wybór — kółko/strzałki +/-1% — zwolnij, aby zamknąć",
   "dsrebirth.text.quickvolume.title": "Szybka regulacja głośności dźwięku",
-  "dsrebirth.text.reloadassets": "[%1$s§r] §aPrzeładowane konfiguracje",
   "dsrebirth.text.seasons.spring": "Wiosna",
   "dsrebirth.text.soundconfig.block": "Blokuj",
   "dsrebirth.text.soundconfig.block.help": "Włączenie opcji Blokuj uniemożliwi odtwarzanie dźwięków z danym identyfikatorem zasobu. Blokowanie dotyczy również dźwięków Dynamic Surroundings. Dotyczy tylko dźwięków odtwarzanych przez silnik dźwiękowy Minecrafta.",

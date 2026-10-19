@@ -509,7 +509,6 @@
   "dsrebirth.text.quickvolume.empty": "最近没有字幕声音",
   "dsrebirth.text.quickvolume.hint": "↑↓ 选择 · ←→/滚轮 ±1% · 松开关闭",
   "dsrebirth.text.quickvolume.title": "声音快捷调节",
-  "dsrebirth.text.reloadassets": "[%1$s§r] §a重新加载的配置",
   "dsrebirth.text.seasons.spring": "春季",
   "dsrebirth.text.soundconfig.block": "音效限制",
   "dsrebirth.text.soundconfig.block.help": "启用 '音效剔除' 将阻止具有该资源 ID 的声音播放。阻止也适用于动态环境的声音\n仅适用于通过 Minecraft 声音引擎播放的声音。",

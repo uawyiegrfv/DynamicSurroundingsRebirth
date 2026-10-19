@@ -87,8 +87,11 @@ public final class SoundFXProcessor {
     private static final Singleton<ExecutorService> threadPool = new Singleton<>(() -> {
         var config = ContainerManager.resolve(Configuration.EnhancedSounds.class);
         int threads = config.backgroundThreadWorkers;
-        if (threads == 0)
+        // @IntegerRange is GUI-only: a hand-written negative reached
+        // newFixedThreadPool(-1) and threw inside this Singleton supplier.
+        if (threads <= 0)
             threads = 2;
+        threads = Math.min(threads, 8);
         LOGGER.info("Threads allocated to enhanced sound processor: %d", threads);
         final AtomicInteger counter = new AtomicInteger(1);
         return Executors.newFixedThreadPool(threads, r -> {

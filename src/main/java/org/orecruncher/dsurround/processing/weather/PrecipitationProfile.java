@@ -278,6 +278,9 @@ public enum PrecipitationProfile {
     /** Centre of the intensity distribution, indexed by {@link PrecipitationSeason}. */
     private final float[] seasonalMode;
     /** Width of the intensity distribution, 0..1. */
+    /** The mode the most recent {@link #sampleBase} drew around. */
+    private float lastSampleMode = 0F;
+
     public final float spread;
     /** How much this profile favours thunder on top of the intensity roll, 0..1. */
     public final float thunderBias;
@@ -448,6 +451,12 @@ public enum PrecipitationProfile {
         final float mode = season == PrecipitationSeason.VANILLA
                 ? vanillaMode(random)
                 : modeFor(season);
+        // Recorded because this is not always modeFor(season): on VANILLA the draw
+        // picks one of the four temperate columns, so the caller that needs "the mode
+        // this event was rolled at" (rollMode, which feeds the location shift) must use
+        // the drawn column rather than the mean. Using the mean there made the shift
+        // reference a centre the event was never rolled around.
+        this.lastSampleMode = mode;
 
         // Outlier storms, drawn before the shape.
         //
@@ -497,6 +506,11 @@ public enum PrecipitationProfile {
      */
     public float gustAmplitudeAt(float base) {
         return this.gustResponse.amplitudeAt(base, this.gustAmplitude);
+    }
+
+    /** The mode the last {@link #sampleBase} drew around, for rollMode bookkeeping. */
+    public float lastSampleMode() {
+        return this.lastSampleMode;
     }
 
     /** Whether this profile ships a curve rather than the legacy triangle. */

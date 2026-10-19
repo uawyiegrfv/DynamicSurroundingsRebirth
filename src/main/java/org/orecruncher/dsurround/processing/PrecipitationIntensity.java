@@ -2071,7 +2071,7 @@ public final class PrecipitationIntensity {
                 // them is non-zero is the proof the idle path still fires with
                 // an event running - the one regression this design had to
                 // rule out. See SkyEventScheduler.
-                logger.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
+                logger.debug("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
                         PrecipitationRenderer.hookCalls(),
                         PrecipitationRenderer.tickHooks(),
                         PrecipitationRenderer.renderCalls(),
@@ -2351,11 +2351,11 @@ public final class PrecipitationIntensity {
                 if (++stateLogCounter >= STATE_LOG_INTERVAL) {
                     stateLogCounter = 0;
                     idleLogCounter = 0;
-                    log.info("[PRECIP] %s", diagnosticText());
+                    log.debug("[PRECIP] %s", diagnosticText());
                 }
             } else if (++idleLogCounter >= IDLE_LOG_INTERVAL) {
                 idleLogCounter = 0;
-                logger.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
+                logger.debug("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
                         PrecipitationRenderer.hookCalls(),
                         PrecipitationRenderer.tickHooks(),
                         PrecipitationRenderer.renderCalls(),

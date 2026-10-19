@@ -42,13 +42,13 @@ public class EntityEffectLibrary implements IEntityEffectLibrary {
         this.version++;
 
         if (scope == IReloadEvent.Scope.TAGS) {
-            this.logger.info("[EntityEffectLibrary] received tag update notification; version is now %d", this.version);
+            this.logger.debug("[EntityEffectLibrary] received tag update notification; version is now %d", this.version);
             return;
         }
 
         this.entityEffects.clear();
         this.defaultInfo = EntityEffectInfo.createDefault(this.version);
-        this.logger.info("[EntityEffectLibrary] Configured; version is now %d", this.version);
+        this.logger.debug("[EntityEffectLibrary] Configured; version is now %d", this.version);
     }
 
     @Override

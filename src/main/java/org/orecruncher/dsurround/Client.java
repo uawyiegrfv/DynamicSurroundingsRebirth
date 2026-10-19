@@ -91,18 +91,18 @@ public final class Client {
     }
 
     public void construct() {
-        this.logger.info("[%s] Bootstrapping", Constants.MOD_ID);
+        this.logger.debug("[%s] Bootstrapping", Constants.MOD_ID);
 
         Library.initialize();
 
         // Register the Minecraft sound manager using a factory. Avoids issue with ModernUI and their dinger.
         ContainerManager.getRootContainer().registerFactory(SoundManager.class, GameUtils::getSoundManager);
 
-        this.logger.info("[%s] Boostrap completed", Constants.MOD_ID);
+        this.logger.debug("[%s] Boostrap completed", Constants.MOD_ID);
     }
 
     public void initializeClient() {
-        this.logger.info("[%s] Client initializing", Constants.MOD_ID);
+        this.logger.debug("[%s] Client initializing", Constants.MOD_ID);
         if (Client.Config.logging.registerCommands) {
             if (!Platform.isModLoaded(Constants.QUILTED_LOADER))
                 ClientCommandRegistrationEvent.EVENT.register(Commands::register);
@@ -167,7 +167,7 @@ public final class Client {
         // silent by nature (see CompatReport), so they are stated rather than inferred.
         org.orecruncher.dsurround.compat.CompatReport.logStartupSummary();
 
-        this.logger.info("[%s] Client initialization complete", Constants.MOD_ID);
+        this.logger.debug("[%s] Client initialization complete", Constants.MOD_ID);
     }
 
     public void onComplete(Minecraft client) {
@@ -198,7 +198,7 @@ public final class Client {
         }, HandlerPriority.HIGH);
 
         ClientState.TAG_SYNC.register(event -> {
-            this.logger.info("Tag sync event received - reloading libraries");
+            this.logger.debug("Tag sync event received - reloading libraries");
             var resourceUtilities = ResourceUtilities.createForCurrentState();
             AssetLibraryEvent.RELOAD.raise().onReload(resourceUtilities, IReloadEvent.Scope.TAGS);
         }, HandlerPriority.VERY_HIGH);

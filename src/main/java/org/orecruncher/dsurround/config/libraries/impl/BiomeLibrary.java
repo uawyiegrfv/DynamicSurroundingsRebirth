@@ -60,7 +60,7 @@ public final class BiomeLibrary implements IBiomeLibrary {
         this.version++;
 
         if (scope == IReloadEvent.Scope.TAGS) {
-            this.logger.info("[BiomeLibrary] received tag update notification; version is now %d", this.version);
+            this.logger.debug("[BiomeLibrary] received tag update notification; version is now %d", this.version);
             return;
         }
 
@@ -79,7 +79,7 @@ public final class BiomeLibrary implements IBiomeLibrary {
         for (var b : SyntheticBiome.values())
             initializeSyntheticBiome(b);
 
-        this.logger.info("[BiomeLibrary] %d biome configs loaded; version is now %d", this.biomeConfigs.size(), this.version);
+        this.logger.debug("[BiomeLibrary] %d biome configs loaded; version is now %d", this.biomeConfigs.size(), this.version);
     }
 
     private void initializeSyntheticBiome(SyntheticBiome biome) {

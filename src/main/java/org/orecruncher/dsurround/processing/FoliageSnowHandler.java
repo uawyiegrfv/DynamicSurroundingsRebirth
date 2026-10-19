@@ -84,6 +84,11 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     private static final int TOPUP_TICKS = 200;
     private static final int STALE_CHECK_TICKS = 2;
     /**
+     * How many staleness passes between block lookups (5 -> once per 10 ticks). The
+     * cheap checks (removed particle, distance) still run every pass.
+     */
+    private static final int KEEP_BLOCK_CHECK = 5;
+    /**
      * How far a plant may drift before its snow is let go (round 7: "I have to
      * be right on top of a plant before it gets any snow, but it keeps the
      * snow until I am miles away"). The scan only looks foliageScanRange
@@ -265,6 +270,7 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     private Level lastWorld;
     private long lastScanTick = -1000L;
     private long lastStaleCheck = -1000L;
+    private int blockCheckPhase = 0;
     private int lastChunkX = Integer.MIN_VALUE;
     private int lastChunkZ = Integer.MIN_VALUE;
     /**
@@ -1125,6 +1131,14 @@ public class FoliageSnowHandler extends AbstractClientHandler {
     }
 
     private void checkStale(final Level world, final BlockPos playerPos) {
+        // Whether the plant block is still there is checked on every KEEP_BLOCK_CHECK-th
+        // pass instead of every pass. The per-unit cost of this pass was one
+        // getBlockState per snow unit - up to MAX_PLANTS * MAX_UNITS_PER_PLANT (4480)
+        // lookups every STALE_CHECK_TICKS (2) ticks on the render thread, for the sole
+        // purpose of noticing a broken plant. Falling half a second later is invisible;
+        // 44k block lookups a second are not.
+        this.blockCheckPhase = (this.blockCheckPhase + 1) % KEEP_BLOCK_CHECK;
+        final boolean checkBlocks = this.blockCheckPhase == 0;
         for (final Iterator<Map.Entry<Long, PlantSnow>> it = this.plants.entrySet().iterator(); it.hasNext(); ) {
             final PlantSnow plant = it.next().getValue();
             for (final Iterator<SnowUnit> uIt = plant.units.iterator(); uIt.hasNext(); ) {
@@ -1148,7 +1162,7 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                 // at 1.2s and the last at 3.1s. Nothing is holding the snow
                 // up the moment the block is gone, so let go on the tick we
                 // notice and let the whole coat come off together.
-                if (world.getBlockState(unit.pos()).getBlock() != plant.block()) {
+                if (checkBlocks && world.getBlockState(unit.pos()).getBlock() != plant.block()) {
                     unit.particle().beginFall();
                     uIt.remove();
                 }

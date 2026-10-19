@@ -102,6 +102,8 @@ public abstract class MixinBiome implements IBiomeExtended {
     private static long fogBaseStamp = Long.MIN_VALUE;
     @Unique
     private static ITagLibrary fogTagLibrary = null;
+    @Unique
+    private static Object fogBaseLevel = null;
 
     /**
      * The fog colour for the player's <em>surroundings</em>: the configured
@@ -125,6 +127,18 @@ public abstract class MixinBiome implements IBiomeExtended {
                     && org.orecruncher.dsurround.Client.Config.weatherOptions.enableDesertSandstorm;
             if (dustOn && fogTagLibrary == null)
                 fogTagLibrary = ContainerManager.resolve(ITagLibrary.class);
+
+            // Per-world state. The base colour is a static because the mixin cannot
+            // own an instance, and without this a new world started from the previous
+            // world's horizon and spent ~0.4 s easing out of it. Same rule the
+            // precipitation caches follow: nothing keyed to a world survives it.
+            if (level != fogBaseLevel) {
+                fogBaseLevel = level;
+                fogBaseR = -1F;
+                fogBaseG = 0F;
+                fogBaseB = 0F;
+                fogBaseStamp = Long.MIN_VALUE;
+            }
 
             float sr = 0F, sg = 0F, sb = 0F;
             final BlockPos origin = player.blockPosition();

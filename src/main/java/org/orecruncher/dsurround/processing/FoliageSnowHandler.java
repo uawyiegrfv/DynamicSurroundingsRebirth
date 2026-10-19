@@ -420,7 +420,7 @@ public class FoliageSnowHandler extends AbstractClientHandler {
             // the gate goes in: the phase the column is shedding, whether the shader switch has
             // the plant layers down, how much of the plant budget is spoken for, and how stale
             // the last look around is. None of it changes behaviour.
-            this.logger.info("[FoliageSnow] gate snowing=%s raining=%s potential=%s plantLayersOff=%s force=%s"
+            this.logger.debug("[FoliageSnow] gate snowing=%s raining=%s potential=%s plantLayersOff=%s force=%s"
                             + " | progress=%.2f base=%.2f plants=%d/%d units=%d sinceScan=%d | %s",
                     snowingHere, world.isRaining(), PrecipitationIntensity.potentialPhase(pos),
                     plantLayersOff, DEBUG_FORCE, progress, this.base, this.plants.size(), MAX_PLANTS,
@@ -430,8 +430,8 @@ public class FoliageSnowHandler extends AbstractClientHandler {
             // skipped entirely while the diag switch is off, so a normal run's log is
             // exactly what it was.
             if (FoliageScan.WINDOW_DIAG) {
-                this.logger.info("[FoliageSnow] window " + FoliageScan.windowLine());
-                this.logger.info("[FoliageSnow] pool " + this.poolLine(pos));
+                this.logger.debug("[FoliageSnow] window " + FoliageScan.windowLine());
+                this.logger.debug("[FoliageSnow] pool " + this.poolLine(pos));
             }
         }
 

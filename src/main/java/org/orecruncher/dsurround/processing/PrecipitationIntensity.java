@@ -1273,7 +1273,7 @@ public final class PrecipitationIntensity {
             rgbJumpCooldown--;
         if (++rgbFrameCounter >= 120) {
             rgbFrameCounter = 0;
-            log.info("[DARKEN-FRAME] %.4f camBiome=%s playerBiome=%s %s",
+            log.debug("[DARKEN-FRAME] %.4f camBiome=%s playerBiome=%s %s",
                     v, cameraBiomeId(level), playerBiomeId(level), skyContext());
         }
         lastDarkenOut = v;
@@ -1296,7 +1296,7 @@ public final class PrecipitationIntensity {
             rgbJumpCooldown--;
         if (++rgbFrameCounter >= 120) {
             rgbFrameCounter = 0;
-            log.info("[" + tag + "-FRAME] %.3f,%.3f,%.3f camBiome=%s playerBiome=%s %s",
+            log.debug("[" + tag + "-FRAME] %.3f,%.3f,%.3f camBiome=%s playerBiome=%s %s",
                     r, g, b,
                     cameraBiomeId(level), playerBiomeId(level), biomeColorDetail(level));
         }
@@ -2315,7 +2315,7 @@ public final class PrecipitationIntensity {
                 // them is non-zero is the proof the idle path still fires with
                 // an event running - the one regression this design had to
                 // rule out. See SkyEventScheduler.
-                logger.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
+                logger.debug("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
                         PrecipitationRenderer.hookCalls(),
                         PrecipitationRenderer.tickHooks(),
                         PrecipitationRenderer.renderCalls(),
@@ -2595,11 +2595,11 @@ public final class PrecipitationIntensity {
                 if (++stateLogCounter >= STATE_LOG_INTERVAL) {
                     stateLogCounter = 0;
                     idleLogCounter = 0;
-                    log.info("[PRECIP] %s", diagnosticText());
+                    log.debug("[PRECIP] %s", diagnosticText());
                 }
             } else if (++idleLogCounter >= IDLE_LOG_INTERVAL) {
                 idleLogCounter = 0;
-                log.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
+                log.debug("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
                         PrecipitationRenderer.hookCalls(),
                         PrecipitationRenderer.tickHooks(),
                         PrecipitationRenderer.renderCalls(),

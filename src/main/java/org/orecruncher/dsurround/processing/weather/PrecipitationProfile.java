@@ -451,6 +451,7 @@ public enum PrecipitationProfile {
         final float mode = season == PrecipitationSeason.VANILLA
                 ? vanillaMode(random)
                 : modeFor(season);
+        this.lastSampleMode = mode;
 
         // Outlier storms, drawn before the shape.
         //

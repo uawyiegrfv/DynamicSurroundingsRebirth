@@ -212,13 +212,13 @@ public final class SoundFXUtils {
     /**
      * Number of rays to project when doing reverb calculations.
      */
-    private static final int REVERB_RAYS = CONFIG.reverbRays;
+    private static final int REVERB_RAYS = Math.max(8, Math.min(128, CONFIG.reverbRays));
     /**
      * Number of bounces a sound wave will make when projecting. Clamped to at least 4:
      * the zone gain math indexes bounceRatio[0..3], so a smaller config value would
      * throw out of bounds and silently disable reverb for every sound.
      */
-    private static final int REVERB_RAY_BOUNCES = Math.max(4, CONFIG.reverbBounces);
+    private static final int REVERB_RAY_BOUNCES = Math.max(4, Math.min(16, CONFIG.reverbBounces));
     /**
      * Maximum distance to trace a reverb ray segment before stopping.
      */

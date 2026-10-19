@@ -800,5 +800,6 @@ public final class PrecipitationResponse {
                 ? 1F
                 : (float) (1D - Math.exp(-dtSeconds / this.fallSeconds));
         this.current += (target - this.current) * alpha;
+        this.current = Math.max(0F, Math.min(1F, this.current));
     }
 }

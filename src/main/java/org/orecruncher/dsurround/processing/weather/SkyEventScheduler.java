@@ -380,22 +380,27 @@ public final class SkyEventScheduler {
     private static void tryRoll(IModLog logger, BiomeTraits traits) {
         final var profile = PrecipitationProfile.resolve(traits);
         final var season = PrecipitationIntensity.seasonFor(profile);
-        final float overcast = overcastAllowed() ? profile.overcastChanceFor(season) : 0F;
+        final float overcast = overcastAllowed() ? sanitiseChance(profile.overcastChanceFor(season)) : 0F;
         // Capped so a pathological pairing of weights can never make the two
         // events together more likely than not on any single roll.
-        final float clear = clearAllowed()
-                ? Math.min(profile.clearChanceFor(season),
-                        Math.max(0F, ROLL_CHANCE_CAP - overcast))
-                : 0F;
+        final float clear = clearAllowed() ? sanitiseChance(profile.clearChanceFor(season)) : 0F;
+        final float overcastChance = Math.min(overcast, ROLL_CHANCE_CAP);
+        final float clearChance = Math.min(clear, Math.max(0F, ROLL_CHANCE_CAP - overcastChance));
         final float roll = RANDOM.nextFloat();
-        if (roll < overcast)
+        if (roll < overcastChance)
             beginEvent(logger, PrecipitationResponse.OVERCAST, profile, season, "rolled");
-        else if (roll < overcast + clear)
+        else if (roll < overcastChance + clearChance)
             beginEvent(logger, PrecipitationResponse.CLEAR, profile, season, "rolled");
         else
             logTrace(logger, "roll came up nothing (overcast %.3f clear %.3f profile=%s season=%s)",
-                    overcast, clear, profile.name(),
+                    overcastChance, clearChance, profile.name(),
                     season == null ? "vanilla" : season.name().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    private static float sanitiseChance(final float v) {
+        if (Float.isNaN(v) || Float.isInfinite(v) || v <= 0F)
+            return 0F;
+        return Math.min(1F, v);
     }
 
     private static void beginEvent(IModLog logger, PrecipitationResponse which,

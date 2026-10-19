@@ -1734,7 +1734,7 @@ public final class PrecipitationIntensity {
         // predates the detector still has a baseline to compare against.
         if (++skyFrameLogCounter >= 120) {
             skyFrameLogCounter = 0;
-            log.info("[SKY-FRAME] out=%.3f SKY=%.3f owner=%s ramp=%.3f graded=%.3f ambient=%.3f loc=%.3f roll=%.3f camBiome=%s playerBiome=%s samples=%s",
+            log.debug("[SKY-FRAME] out=%.3f SKY=%.3f owner=%s ramp=%.3f graded=%.3f ambient=%.3f loc=%.3f roll=%.3f camBiome=%s playerBiome=%s samples=%s",
                     out, PrecipitationResponse.SKY.value(), owner,
                     level == null ? -1F : level.getRainLevel(partialTick),
                     graded, ambient, locationMode, rollMode,

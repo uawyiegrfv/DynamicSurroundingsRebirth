@@ -71,10 +71,6 @@ public class Configuration extends ConfigurationData {
     public final AuroraOptions auroraOptions = new AuroraOptions();
 
     @Property
-    @Comment("Configuration options for the surf band along ocean shorelines")
-    public final ShoreWaveOptions shoreWaveOptions = new ShoreWaveOptions();
-
-    @Property
     @Comment("Configuration options for other things")
     public final OtherOptions otherOptions = new OtherOptions();
 
@@ -751,34 +747,7 @@ public class Configuration extends ConfigurationData {
         public boolean enableAurora = true;
     }
 
-    public static class ShoreWaveOptions {
-        @Property
-        @Comment("Enable/disable the surf band that washes up and down along ocean shorelines")
-        public boolean enableShoreWaves = true;
-
-        @Property
-        @IntegerRange(min = 40, max = 400)
-        @Comment("Ticks for one wave to run up the beach and fall back (20 ticks = 1 second). "
-                + "Raised from 90 at the maintainer's request - the travel is now a fraction of the "
-                + "beach rather than all of it, so it needed to be slower to read as water washing")
-        public int wavePeriodTicks = 180;
-
-        @Property
-        @Comment("Write surf scan/render detail to the log (terrain tally, quad counts, world vs camera-space sample). Turn off once it looks right")
-        public boolean debugLogging = true;
-
-        @Property
-        @Comment("Rebuilt surf: draw the wave line as the contour of the distance to the sea (a level set) instead of a band per coast edge stitched by joints. ON is the rebuild - the line is continuous by construction, follows bends and islands, never ends up in the water and cannot fold when the run-up grows. Turn OFF to fall back to the per-edge bands, which is the picture to compare against")
-        public boolean shoreFieldSurf = true;
-
-        @Property
-        @Comment("Diagnostic only. Draw every surf quad as flat opaque magenta with the texture ignored and the depth test off. If the missing stretches appear in this mode the geometry is fine and the fault is in the texture/sprite; if they are still missing the vertices themselves are wrong. Turn OFF for normal play")
-        public boolean shoreDebugSolid = false;
-
-        @Property
-        @Comment("Draw the translucent water film that lies under the foam. Turn OFF to leave only the foam (surf band) on its own - used to tell whether a colour problem belongs to the film or to the foam, since the foam is opaque white and the film is a half-transparent sheet whose final colour is mostly whatever is behind it. Turn back ON for normal play")
-        public boolean enableShoreFilm = true;
-    }
+    
 
     public static class SpeechBubbles {
 

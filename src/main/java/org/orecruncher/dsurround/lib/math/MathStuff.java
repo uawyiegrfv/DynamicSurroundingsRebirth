@@ -83,6 +83,12 @@ public class MathStuff {
      * @return Number clamped between 0 and 1
      */
     public static float clamp1(final float num) {
+        // NaN has to be answered here: "NaN <= 0" is false and Math.min(NaN, 1) is NaN,
+        // so a single non-finite value anywhere upstream would travel straight through a
+        // helper whose whole job is to bound it - and this one sits on the acoustic path,
+        // where the result ends up in an OpenAL filter.
+        if (Float.isNaN(num))
+            return 0F;
         return num <= 0 ? 0F : Math.min(num, 1F);
     }
 
@@ -93,7 +99,9 @@ public class MathStuff {
      * @return Number clamped between 0 and 1
      */
     public static double clamp1(final double num) {
-        return num <= 0 ? 0F : Math.min(num, 1F);
+        if (Double.isNaN(num))
+            return 0D;
+        return num <= 0 ? 0D : Math.min(num, 1D);
     }
 
 }

@@ -752,6 +752,8 @@ public final class PrecipitationResponse {
     }
 
     private void easeTo(float target, float dtSeconds) {
+        if (!(dtSeconds > 0F))
+            dtSeconds = 0F;
         // A lock is applied, not approached. Easing towards it would make a
         // pinned channel indistinguishable from one that is simply slow, which
         // is exactly the confusion a lock exists to remove.

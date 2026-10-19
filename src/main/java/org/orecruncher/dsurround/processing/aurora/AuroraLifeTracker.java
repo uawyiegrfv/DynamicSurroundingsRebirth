@@ -15,7 +15,7 @@ class AuroraLifeTracker {
     protected boolean isFading = false;
 
     public AuroraLifeTracker(final int peakAge, final int ageDelta) {
-        this.peakAge = peakAge;
+        this.peakAge = Math.max(1, peakAge);
         this.ageDelta = ageDelta;
     }
 

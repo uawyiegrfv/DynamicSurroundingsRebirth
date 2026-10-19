@@ -89,9 +89,16 @@ public final class SoundFXProcessor {
     // sound system teardown (the pool itself is cached in a Singleton and reused) never blocks JVM shutdown.
     private static final Singleton<ExecutorService> threadPool = new Singleton<>(() -> {
         var config = ContainerManager.resolve(Configuration.EnhancedSounds.class);
+        // Clamped here, not only by the config screen's @IntegerRange(0, 8): that
+        // annotation is enforced by the GUI, so a hand-written -1 reached
+        // Executors.newFixedThreadPool(-1), which throws IllegalArgumentException inside
+        // this Singleton supplier - i.e. the enhanced sound processor would fail to
+        // start. 0 still means "pick a default"; anything above the declared maximum is
+        // a typo that would only steal threads from the game.
         int threads = config.backgroundThreadWorkers;
-        if (threads == 0)
+        if (threads <= 0)
             threads = 2;
+        threads = Math.min(threads, 8);
         LOGGER.info("Threads allocated to enhanced sound processor: %d", threads);
         final AtomicInteger counter = new AtomicInteger(1);
         return Executors.newFixedThreadPool(threads, r -> {

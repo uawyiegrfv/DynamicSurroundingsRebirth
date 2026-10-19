@@ -1,33 +1,23 @@
 package org.orecruncher.dsurround.config.libraries;
 
-import net.minecraft.network.chat.Component;
-import org.orecruncher.dsurround.Configuration;
-import org.orecruncher.dsurround.lib.GameUtils;
-import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.events.EventingFactory;
-import org.orecruncher.dsurround.lib.events.HandlerPriority;
 import org.orecruncher.dsurround.lib.events.IPhasedEvent;
 import org.orecruncher.dsurround.lib.resources.ResourceUtilities;
 
+/**
+ * Holder for the asset-library reload event.
+ *
+ * <p>There used to be a chat line here ("Reloaded configurations") sent after every
+ * reload when debug logging was on. The libraries also reload on world join, so that
+ * line appeared in chat every time a world loaded - which is not what it was for, and
+ * the /dsreload command already reports its own result. The event stays; the message
+ * does not.</p>
+ */
 public class AssetLibraryEvent {
 
-    private static final Configuration CONFIG = ContainerManager.resolve(Configuration.class);
-    public static final IPhasedEvent<IReloadEvent> RELOAD = EventingFactory.createPrioritizedEvent(callbacks -> (resourceUtilities, scope) ->  {
+    public static final IPhasedEvent<IReloadEvent> RELOAD = EventingFactory.createPrioritizedEvent(callbacks -> (resourceUtilities, scope) -> {
         for (var callback : callbacks) {
             callback.onReload(resourceUtilities, scope);
         }
     });
-
-    static {
-        RELOAD.register(AssetLibraryEvent::afterReload, HandlerPriority.VERY_LOW);
-    }
-
-    private static void afterReload(ResourceUtilities resourceUtilities, IReloadEvent.Scope scope) {
-        // Only want to send a message if debug logging is enabled
-        if (CONFIG.logging.enableDebugLogging) {
-            var msg = Component.translatable("dsrebirth.text.reloadassets", Component.translatable("dsrebirth.modname"));
-            GameUtils.getPlayer().ifPresent(p -> p.sendSystemMessage(msg));
-        }
-    }
-
 }

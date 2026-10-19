@@ -1127,9 +1127,10 @@ public class FootstepGenerator extends AbstractClientHandler {
         int zMin = Mth.floor(feetBox.minZ);
         int zMax = Mth.floor(feetBox.maxZ - 1.0E-3D);
         int feetY = pos.getY() + 1;
+        final BlockPos.MutableBlockPos cellPos = new BlockPos.MutableBlockPos();
         for (int x = xMin; x <= xMax; x++) {
             for (int z = zMin; z <= zMax; z++) {
-                var cellPos = new BlockPos(x, feetY, z);
+                cellPos.set(x, feetY, z);
                 var cell = level.getBlockState(cellPos);
                 if (!isNotSolidSurface(cell)
                         && isStandingOn(entity, level, cellPos, cell)

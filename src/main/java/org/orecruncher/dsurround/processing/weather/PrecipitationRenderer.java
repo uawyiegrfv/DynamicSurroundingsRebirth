@@ -457,12 +457,13 @@ public final class PrecipitationRenderer {
 
     private static final Random columnRandom = new Random();
     private static final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-    private static final it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<long[]> surfaceCache =
-            new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>();
+    private static final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap surfaceCache =
+            new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
     private static final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap phaseCache =
             new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
     private static final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap lightCache =
             new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+    private static final byte[] phaseMask = new byte[(2 * RANGE + 1) * (2 * RANGE + 1)];
     private static long cacheTick = Long.MIN_VALUE;
     private static net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> cacheDimension;
 
@@ -875,18 +876,19 @@ public final class PrecipitationRenderer {
         for (int gridZ = playerZ - range; gridZ <= playerZ + range; gridZ++) {
             for (int gridX = playerX - range; gridX <= playerX + range; gridX++) {
                 long colKey = BlockPos.asLong(gridX, 0, gridZ);
-                long[] col = surfaceCache.get(colKey);
-                if (col == null) {
-                    int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, gridX, gridZ);
-                    col = new long[] { surface };
-                    surfaceCache.put(colKey, col);
+                int surface = surfaceCache.getOrDefault(colKey, Integer.MIN_VALUE);
+                if (surface == Integer.MIN_VALUE) {
+                    surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, gridX, gridZ);
+                    surfaceCache.put(colKey, surface);
                 }
-                final int surface = (int) col[0];
                 final int k2 = Math.max(playerY - range, surface);
                 final int l2 = Math.max(playerY + range, surface);
                 if (k2 >= l2)
                     continue;
 
+                final int maskIndex = (gridZ - playerZ + range) * (2 * range + 1) + (gridX - playerX + range);
+                if (want == Biome.Precipitation.SNOW && phaseMask[maskIndex] != (byte) wanted)
+                    continue;
                 long phaseKey = BlockPos.asLong(gridX, k2, gridZ);
                 if (ignorePhase) {
                     // Locked: phase() would answer NONE everywhere because the
@@ -894,14 +896,18 @@ public final class PrecipitationRenderer {
                     // instead. Not cached - a lock is a diagnostics tool and the
                     // lookup is per column per frame only while one is held.
                     cursor.set(gridX, k2, gridZ);
-                    if (PrecipitationIntensity.potentialPhase(cursor).ordinal() != wanted)
+                    final int actual = PrecipitationIntensity.potentialPhase(cursor).ordinal();
+                    phaseMask[maskIndex] = (byte) actual;
+                    if (actual != wanted)
                         continue;
                 } else {
                     if (!phaseCache.containsKey(phaseKey)) {
                         cursor.set(gridX, k2, gridZ);
                         phaseCache.put(phaseKey, PrecipitationIntensity.phase(cursor).ordinal());
                     }
-                    if (phaseCache.get(phaseKey) != wanted)
+                    final int actual = phaseCache.get(phaseKey);
+                    phaseMask[maskIndex] = (byte) actual;
+                    if (actual != wanted)
                         continue;
                 }
 

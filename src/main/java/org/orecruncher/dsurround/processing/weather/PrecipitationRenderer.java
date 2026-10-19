@@ -486,6 +486,13 @@ public final class PrecipitationRenderer {
             new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
     private static final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap lightCache =
             new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+    /**
+     * Per-frame phase of every column, filled by the rain pass and read by the snow
+     * pass. Both passes walk the same (2R+1)^2 grid; without this the second one
+     * repeats the column lookup - two hash gets and a heightmap probe per column -
+     * only to find that almost every column belongs to the other phase.
+     */
+    private static final byte[] phaseMask = new byte[(2 * RANGE + 1) * (2 * RANGE + 1)];
     private static long cacheTick = Long.MIN_VALUE;
     private static net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> cacheDimension;
 
@@ -922,6 +929,13 @@ public final class PrecipitationRenderer {
                 if (k2 >= l2)
                     continue;
 
+                final int maskIndex = (gridZ - playerZ + range) * (2 * range + 1) + (gridX - playerX + range);
+                // Rain is drawn first and fills the mask; the snow pass then answers
+                // "is this column mine" from one byte read instead of re-deriving the
+                // column's phase (two hash gets plus a heightmap probe on a miss).
+                if (want == Biome.Precipitation.SNOW && phaseMask[maskIndex] != (byte) wanted)
+                    continue;
+
                 long phaseKey = BlockPos.asLong(gridX, k2, gridZ);
                 if (ignorePhase) {
                     // Locked: phase() would answer NONE everywhere because the
@@ -929,14 +943,18 @@ public final class PrecipitationRenderer {
                     // instead. Not cached - a lock is a diagnostics tool and the
                     // lookup is per column per frame only while one is held.
                     cursor.set(gridX, k2, gridZ);
-                    if (PrecipitationIntensity.potentialPhase(cursor).ordinal() != wanted)
+                    final int actual = PrecipitationIntensity.potentialPhase(cursor).ordinal();
+                    phaseMask[maskIndex] = (byte) actual;
+                    if (actual != wanted)
                         continue;
                 } else {
                     if (!phaseCache.containsKey(phaseKey)) {
                         cursor.set(gridX, k2, gridZ);
                         phaseCache.put(phaseKey, PrecipitationIntensity.phase(cursor).ordinal());
                     }
-                    if (phaseCache.get(phaseKey) != wanted)
+                    final int actual = phaseCache.get(phaseKey);
+                    phaseMask[maskIndex] = (byte) actual;
+                    if (actual != wanted)
                         continue;
                 }
 

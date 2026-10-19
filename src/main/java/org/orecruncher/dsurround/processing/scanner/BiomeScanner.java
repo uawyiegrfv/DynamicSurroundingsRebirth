@@ -24,6 +24,9 @@ public final class BiomeScanner extends AbstractScanner {
     private static final int SURVEY_HORIZONTAL_OFFSET = SURVEY_HORIZONTAL_DIMENSION / 2 - 1;
     private static final int SURVEY_VERTICAL_DIMENSION = 16;
     private static final int SURVEY_VERTICAL_OFFSET = SURVEY_VERTICAL_DIMENSION / 4 - 1;
+    /** Sampling stride of the survey: 2 blocks horizontally, 4 vertically. */
+    private static final int STRIDE_XZ = 2;
+    private static final int STRIDE_Y = 4;
     private static final int MAX_SURVEY_VOLUME = SURVEY_HORIZONTAL_DIMENSION * SURVEY_HORIZONTAL_DIMENSION * SURVEY_VERTICAL_DIMENSION;
 
     private ResourceLocation surveyedDimension;
@@ -88,7 +91,7 @@ public final class BiomeScanner extends AbstractScanner {
             this.surveyedPosition = position;
             this.surveyedDimension = this.dimensionInformation.name();
 
-            this.weights = new Reference2IntOpenHashMap<>(8);
+            this.weights.clear();
 
             // If the player is underwater, underwater effects will rule over everything else
             this.isUnderWater = submerged;
@@ -112,17 +115,17 @@ public final class BiomeScanner extends AbstractScanner {
 
             this.logicalBiomeInfo = this.resolveBiome(biomes, position);
 
-            for (int z = 0; z < SURVEY_HORIZONTAL_DIMENSION; z++) {
+            for (int z = 0; z < SURVEY_HORIZONTAL_DIMENSION; z += STRIDE_XZ) {
                 var dZ = z - SURVEY_HORIZONTAL_OFFSET + this.surveyedPosition.getZ();
                 this.mutable.setZ(dZ);
-                for (int x = 0; x < SURVEY_HORIZONTAL_DIMENSION; x++) {
+                for (int x = 0; x < SURVEY_HORIZONTAL_DIMENSION; x += STRIDE_XZ) {
                     var dX = x - SURVEY_HORIZONTAL_OFFSET + this.surveyedPosition.getX();
                     this.mutable.setX(dX);
-                    for (int y = 0; y < SURVEY_VERTICAL_DIMENSION; y++) {
+                    for (int y = 0; y < SURVEY_VERTICAL_DIMENSION; y += STRIDE_Y) {
                         var dY = y - SURVEY_VERTICAL_OFFSET + this.surveyedPosition.getY();
                         this.mutable.setY(dY);
                         var info = this.resolveBiome(biomes, this.mutable);
-                        this.weights.addTo(info, 1);
+                        this.weights.addTo(info, STRIDE_XZ * STRIDE_XZ * STRIDE_Y);
                     }
                 }
             }

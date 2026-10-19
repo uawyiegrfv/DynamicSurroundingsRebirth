@@ -282,6 +282,9 @@ public class WeatherStormHandler extends AbstractClientHandler {
         this.netherTint = 0F;
         this.fullscreenTint = 0F;
         this.horizonWeight = 0F;
+        this.horizonR = 1F;
+        this.horizonG = 1F;
+        this.horizonB = 1F;
     }
 
     @Override
@@ -290,6 +293,9 @@ public class WeatherStormHandler extends AbstractClientHandler {
         this.netherTint = 0F;
         this.fullscreenTint = 0F;
         this.horizonWeight = 0F;
+        this.horizonR = 1F;
+        this.horizonG = 1F;
+        this.horizonB = 1F;
         // Per-world state: caches keyed by dimension + game time, session flags,
         // and the precipitation statics. Without this, weather from one world
         // bleeds into the next (and a stale TTL freezes the column cache).

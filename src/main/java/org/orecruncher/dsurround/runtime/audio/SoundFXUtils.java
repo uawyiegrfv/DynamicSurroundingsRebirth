@@ -217,13 +217,21 @@ public final class SoundFXUtils {
     /**
      * Number of rays to project when doing reverb calculations.
      */
-    private static final int REVERB_RAYS = CONFIG.reverbRays;
+    // Clamped HERE as well as by the config screen's @IntegerRange. That annotation is
+    // enforced by the GUI, not when the JSON is edited by hand - and this number sizes
+    // two arrays, feeds a 1/(RAYS*BOUNCES) divisor and is the denominator of four
+    // bounce ratios. A hand-written 0 made every ratio infinite; a negative one threw
+    // NegativeArraySizeException while the class initialised, i.e. on the first sound.
+    private static final int REVERB_RAYS = Math.max(8, Math.min(128, CONFIG.reverbRays));
     /**
      * Number of bounces a sound wave will make when projecting. Clamped to at least 4:
      * the zone gain math indexes bounceRatio[0..3], so a smaller config value would
      * throw out of bounds and silently disable reverb for every sound.
      */
-    private static final int REVERB_RAY_BOUNCES = Math.max(4, CONFIG.reverbBounces);
+    // Same for the bounce count. Four is the floor because the zone gain is indexed by
+    // the first four bounces; the ceiling keeps a hand-edited 1000 from turning one
+    // source evaluation into 128000 raycasts.
+    private static final int REVERB_RAY_BOUNCES = Math.max(4, Math.min(16, CONFIG.reverbBounces));
     /**
      * Maximum distance to trace a reverb ray segment before stopping.
      */

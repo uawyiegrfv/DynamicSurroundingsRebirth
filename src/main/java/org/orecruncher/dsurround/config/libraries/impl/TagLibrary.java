@@ -147,7 +147,7 @@ public class TagLibrary implements ITagLibrary {
     public void reload(ResourceUtilities resourceUtilities, IReloadEvent.Scope scope) {
         this.tagLoader.setResourceUtilities(resourceUtilities);
 
-        this.logger.info("[TagLibrary] Cache has %d elements", this.tagCache.size());
+        this.logger.debug("[TagLibrary] Cache has %d elements", this.tagCache.size());
 
         // If we are connected to a server, and we get a reload something triggered it
         // like a /dsreload, resource pack change, etc.
@@ -198,12 +198,12 @@ public class TagLibrary implements ITagLibrary {
         // Bootstrap the tag cache. We do this by zipping through our tags
         // and forcing the cache to initialize.
         var stopwatch = this.systemClock.getStopwatch();
-        this.logger.info("Repopulating tag cache");
+        this.logger.debug("Repopulating tag cache");
         this.tagCache.clear();
         this.tagLoader.clear();
         for (var tagKey : ModTags.getModTags())
             this.tagCache.computeIfAbsent(tagKey, this.tagLoader::getMembers);
-        this.logger.info("Tag cache initialization complete; %d tags cached, %dmillis", this.tagCache.size(), stopwatch.elapsed(TimeUnit.MILLISECONDS));
+        this.logger.debug("Tag cache initialization complete; %d tags cached, %dmillis", this.tagCache.size(), stopwatch.elapsed(TimeUnit.MILLISECONDS));
     }
 
     private boolean isInCache(TagKey<?> tagKey, ResourceLocation entry) {

@@ -27,14 +27,14 @@ public final class Library {
      * Initializes key functionality of library logic during startup.
      */
     public static void initialize() {
-        LOGGER.info("Library initializing");
+        LOGGER.debug("Library initializing");
 
         // Do this first so the rest of the library can get dependencies
         configureServiceDependencies();
 
         // Hook server lifecycle so logs get emitted
-        ClientState.STARTED.register((ignore -> LOGGER.info("Client starting")), HandlerPriority.VERY_HIGH);
-        ClientState.STOPPING.register(ignore -> LOGGER.info("Client stopping"), HandlerPriority.VERY_HIGH);
+        ClientState.STARTED.register((ignore -> LOGGER.debug("Client starting")), HandlerPriority.VERY_HIGH);
+        ClientState.STOPPING.register(ignore -> LOGGER.debug("Client stopping"), HandlerPriority.VERY_HIGH);
     }
 
     private static void configureServiceDependencies() {

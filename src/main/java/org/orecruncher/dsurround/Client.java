@@ -85,18 +85,18 @@ public final class Client {
     }
 
     public void construct() {
-        this.logger.info("[%s] Bootstrapping", Constants.MOD_ID);
+        this.logger.debug("[%s] Bootstrapping", Constants.MOD_ID);
 
         Library.initialize();
 
         // Register the Minecraft sound manager using a factory. Avoids issue with ModernUI and their dinger.
         ContainerManager.getRootContainer().registerFactory(SoundManager.class, GameUtils::getSoundManager);
 
-        this.logger.info("[%s] Boostrap completed", Constants.MOD_ID);
+        this.logger.debug("[%s] Boostrap completed", Constants.MOD_ID);
     }
 
     public void initializeClient() {
-        this.logger.info("[%s] Client initializing", Constants.MOD_ID);
+        this.logger.debug("[%s] Client initializing", Constants.MOD_ID);
 
         // (The drip particle's type is registered from Forge's RegisterEvent,
         // wired in DSurround - a built-in registry cannot be written to from
@@ -178,7 +178,7 @@ public final class Client {
         // silent by nature (see CompatReport), so they are stated rather than inferred.
         org.orecruncher.dsurround.compat.CompatReport.logStartupSummary();
 
-        this.logger.info("[%s] Client initialization complete", Constants.MOD_ID);
+        this.logger.debug("[%s] Client initialization complete", Constants.MOD_ID);
     }
 
     public void onComplete(Minecraft client) {
@@ -202,7 +202,7 @@ public final class Client {
         // pushes updated tags (26.1 parity; previously there were 0 TAG_SYNC registrations,
         // so libraries with a Scope.TAGS branch never refreshed their caches).
         ClientState.TAG_SYNC.register(event -> {
-            this.logger.info("Tag sync event received - reloading libraries");
+            this.logger.debug("Tag sync event received - reloading libraries");
             AssetLibraryEvent.RELOAD.raise()
                     .onReload(org.orecruncher.dsurround.lib.resources.ResourceUtilities.createForCurrentState(),
                             org.orecruncher.dsurround.config.libraries.IReloadEvent.Scope.TAGS);

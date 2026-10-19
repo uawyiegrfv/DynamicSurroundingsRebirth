@@ -130,7 +130,7 @@ public final class DataDiagnostics {
         final List<Finding> notes = toList(NOTES);
 
         if (problems.isEmpty()) {
-            LOGGER.info("Data self-check: no problems found%s",
+            LOGGER.debug("Data self-check: no problems found%s",
                     notes.isEmpty() ? "" : String.format(" (%d note(s))", notes.size()));
         } else {
             // ONE line. Itemising every problem here duplicated the self-check that runs
@@ -150,6 +150,6 @@ public final class DataDiagnostics {
         }
 
         for (final Finding f : notes)
-            LOGGER.info("  note: %s", f);
+            LOGGER.debug("  note: %s", f);
     }
 }

@@ -190,12 +190,12 @@ public final class AudioUtilities {
 
             final int frequency = ALC11.alcGetInteger(devicePointer, ALC11.ALC_FREQUENCY);
 
-            LOGGER.info("Vendor: %s", vendor);
-            LOGGER.info("Version: %s", version);
-            LOGGER.info("Renderer: %s", renderer);
-            LOGGER.info("Frequency: %d", frequency);
-            LOGGER.info("AuxSends: %d", MAX_AUX_SENDS);
-            LOGGER.info("Extensions: %s", extensions);
+            LOGGER.debug("Vendor: %s", vendor);
+            LOGGER.debug("Version: %s", version);
+            LOGGER.debug("Renderer: %s", renderer);
+            LOGGER.debug("Frequency: %d", frequency);
+            LOGGER.debug("AuxSends: %d", MAX_AUX_SENDS);
+            LOGGER.debug("Extensions: %s", extensions);
 
         } catch (final Throwable t) {
             LOGGER.warn(t.getMessage());

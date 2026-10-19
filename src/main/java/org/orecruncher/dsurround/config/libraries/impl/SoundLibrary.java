@@ -154,9 +154,9 @@ public final class SoundLibrary implements ISoundLibrary {
         var soundMappings = resourceUtilities.findModResources(SOUND_MAPPING_CODEC, SOUND_MAPPING_JSON, true);
         soundMappings.forEach(this::registerSoundRemappings);
 
-        this.logger.info("Number of SoundEvents cached: %d", this.myRegistry.size());
-        this.logger.info("Number of factories cached: %d", this.soundFactories.size());
-        this.logger.info("Number of sound remappings cached: %d", this.soundRemappings.size());
+        this.logger.debug("Number of SoundEvents cached: %d", this.myRegistry.size());
+        this.logger.debug("Number of factories cached: %d", this.soundFactories.size());
+        this.logger.debug("Number of sound remappings cached: %d", this.soundRemappings.size());
     }
 
     @Override

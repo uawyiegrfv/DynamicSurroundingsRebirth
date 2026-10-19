@@ -36,7 +36,7 @@ public final class DimensionLibrary implements IDimensionLibrary {
         this.version++;
 
         if (scope == IReloadEvent.Scope.TAGS) {
-            this.logger.info("[DimensionLibrary] received tag update notification; version is now %d", this.version);
+            this.logger.debug("[DimensionLibrary] received tag update notification; version is now %d", this.version);
             return;
         }
         
@@ -46,7 +46,7 @@ public final class DimensionLibrary implements IDimensionLibrary {
         var findResults = resourceUtilities.findModResources(CODEC, FILE_NAME, true);
         findResults.forEach(result -> this.dimensionRules.addAll(result.resourceContent()));
 
-        this.logger.info("[DimensionLibrary] %d dimension rules loaded; version is now %d", this.dimensionRules.size(), this.version);
+        this.logger.debug("[DimensionLibrary] %d dimension rules loaded; version is now %d", this.dimensionRules.size(), this.version);
     }
 
     @Override

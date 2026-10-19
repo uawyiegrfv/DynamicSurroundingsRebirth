@@ -1490,7 +1490,9 @@ public final class PrecipitationIntensity {
         // predates the detector still has a baseline to compare against.
         if (++skyFrameLogCounter >= 120) {
             skyFrameLogCounter = 0;
-            log.debug("[SKY-FRAME] out=%.3f SKY=%.3f owner=%s ramp=%.3f graded=%.3f ambient=%.3f loc=%.3f roll=%.3f camBiome=%s playerBiome=%s samples=%s",
+            if (log.isDebugging())
+                if (log.isDebugging())
+                log.debug("[SKY-FRAME] out=%.3f SKY=%.3f owner=%s ramp=%.3f graded=%.3f ambient=%.3f loc=%.3f roll=%.3f camBiome=%s playerBiome=%s samples=%s",
                     out, PrecipitationResponse.SKY.value(), owner,
                     level == null ? -1F : level.getRainLevel(partialTick),
                     graded, ambient, locationMode, rollMode,
@@ -2351,7 +2353,9 @@ public final class PrecipitationIntensity {
                 if (++stateLogCounter >= STATE_LOG_INTERVAL) {
                     stateLogCounter = 0;
                     idleLogCounter = 0;
-                    log.debug("[PRECIP] %s", diagnosticText());
+                    if (log.isDebugging())
+                        if (log.isDebugging())
+                        log.debug("[PRECIP] %s", diagnosticText());
                 }
             } else if (++idleLogCounter >= IDLE_LOG_INTERVAL) {
                 idleLogCounter = 0;

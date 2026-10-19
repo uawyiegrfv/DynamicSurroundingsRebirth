@@ -480,8 +480,8 @@ public final class PrecipitationRenderer {
 
     private static final Random columnRandom = new Random();
     private static final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-    private static final it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<long[]> surfaceCache =
-            new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>();
+    private static final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap surfaceCache =
+            new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
     private static final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap phaseCache =
             new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
     private static final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap lightCache =
@@ -908,14 +908,15 @@ public final class PrecipitationRenderer {
 
         for (int gridZ = playerZ - range; gridZ <= playerZ + range; gridZ++) {
             for (int gridX = playerX - range; gridX <= playerX + range; gridX++) {
+                // Primitive map and a sentinel instead of a long[1] per column: the old
+                // form allocated one array for every column it first saw, which is up to
+                // 441 allocations per frame while walking into new ground.
                 long colKey = BlockPos.asLong(gridX, 0, gridZ);
-                long[] col = surfaceCache.get(colKey);
-                if (col == null) {
-                    int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, gridX, gridZ);
-                    col = new long[] { surface };
-                    surfaceCache.put(colKey, col);
+                int surface = surfaceCache.getOrDefault(colKey, Integer.MIN_VALUE);
+                if (surface == Integer.MIN_VALUE) {
+                    surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING, gridX, gridZ);
+                    surfaceCache.put(colKey, surface);
                 }
-                final int surface = (int) col[0];
                 final int k2 = Math.max(playerY - range, surface);
                 final int l2 = Math.max(playerY + range, surface);
                 if (k2 >= l2)

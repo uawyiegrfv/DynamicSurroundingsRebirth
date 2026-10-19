@@ -25,6 +25,9 @@ public final class BiomeScanner extends AbstractScanner {
     private static final int SURVEY_VERTICAL_DIMENSION = 16;
     private static final int SURVEY_VERTICAL_OFFSET = SURVEY_VERTICAL_DIMENSION / 4 - 1;
     private static final int MAX_SURVEY_VOLUME = SURVEY_HORIZONTAL_DIMENSION * SURVEY_HORIZONTAL_DIMENSION * SURVEY_VERTICAL_DIMENSION;
+    /** Sampling stride of the survey: 2 blocks horizontally, 4 vertically. */
+    private static final int STRIDE_XZ = 2;
+    private static final int STRIDE_Y = 4;
 
     private ResourceLocation surveyedDimension;
     private boolean isUnderWater;
@@ -88,7 +91,7 @@ public final class BiomeScanner extends AbstractScanner {
             this.surveyedPosition = position;
             this.surveyedDimension = this.dimensionInformation.name();
 
-            this.weights = new Reference2IntOpenHashMap<>(8);
+            this.weights.clear();
 
             // If the player is underwater, underwater effects will rule over everything else
             this.isUnderWater = submerged;

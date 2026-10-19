@@ -2190,7 +2190,7 @@ public final class PrecipitationIntensity {
                 attackStartTick = level.getGameTime();
                 // Squalls belong to the event, so they start over with it.
                 resetSqualls();
-                rollMode = profile.modeFor(season);
+                rollMode = profile.lastSampleMode();
                 locationMode = rollMode;
                 gustPhase = RANDOM.nextDouble() * TWO_PI;
                 // WIND：统一风系统的阵风形状也属于这场事件 —— 每场重摇周期、相位
@@ -2585,6 +2585,7 @@ public final class PrecipitationIntensity {
             obj.addProperty("world", worldKey(level));
             obj.addProperty("startTick", attackStartTick);
             obj.addProperty("base", rolled);
+        obj.addProperty("rollMode", rollMode);
             obj.addProperty("gustiness", gustiness);
             obj.addProperty("gustPhase", gustPhase);
             obj.addProperty("gustPeriodA", gustPeriodA);
@@ -2709,7 +2710,7 @@ public final class PrecipitationIntensity {
             windEventSeed = obj.has("windEventSeed") ? obj.get("windEventSeed").getAsLong() : RANDOM.nextLong();
             rollWindShape();
             gustAmplitude = profile.gustAmplitudeAt(rolled) * gustiness;
-            rollMode = profile.modeFor(currentSeason);
+            rollMode = obj.has("rollMode") ? obj.get("rollMode").getAsFloat() : profile.modeFor(currentSeason);
             locationMode = rollMode;
             lastEnvelope = 0F;
             warmStart = true;

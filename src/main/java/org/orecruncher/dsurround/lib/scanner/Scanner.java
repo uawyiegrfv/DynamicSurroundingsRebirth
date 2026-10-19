@@ -11,6 +11,17 @@ import org.orecruncher.dsurround.lib.random.Randomizer;
 public abstract class Scanner {
 
     private final static int MAX_BLOCKS_TICK = 6000;
+    /**
+     * Wall clock ceiling for one scanner tick, in nanoseconds (1.5 ms).
+     *
+     * <p>The block count alone does not bound the cost: a range of 16 is a 33^3
+     * volume, so {@code volume / 20} allows ~1800 block lookups in a single tick,
+     * and every one of them also runs the system's own classification. That is a
+     * frame spike on the render thread, not a smooth cost. The count stays as the
+     * upper bound; this stops the pass early when the work has already taken
+     * longer than any single tick should on this thread.</p>
+     */
+    private final static long TICK_BUDGET_NANOS = 1_500_000L;
 
     protected final String name;
 
@@ -72,7 +83,12 @@ public abstract class Scanner {
 
     public void tick() {
         var world = this.locus.getWorld();
+        final long start = System.nanoTime();
         for (int count = 0; count < this.blocksPerTick; count++) {
+            // Sampled every 64 blocks: reading the clock per block costs more than
+            // the block itself.
+            if ((count & 63) == 63 && System.nanoTime() - start > TICK_BUDGET_NANOS)
+                break;
             final BlockPos pos = nextPos(this.workingPos, this.random);
             if (pos == null)
                 break;

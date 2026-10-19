@@ -11,6 +11,8 @@ import org.orecruncher.dsurround.lib.random.Randomizer;
 public abstract class Scanner {
 
     private final static int MAX_BLOCKS_TICK = 6000;
+    /** Wall clock ceiling for one scanner tick, in nanoseconds (1.5 ms). */
+    private final static long TICK_BUDGET_NANOS = 1_500_000L;
 
     protected final String name;
 
@@ -72,7 +74,10 @@ public abstract class Scanner {
 
     public void tick() {
         var world = this.locus.getWorld();
+        final long start = System.nanoTime();
         for (int count = 0; count < this.blocksPerTick; count++) {
+            if ((count & 63) == 63 && System.nanoTime() - start > TICK_BUDGET_NANOS)
+                break;
             final BlockPos pos = nextPos(this.workingPos, this.random);
             if (pos == null)
                 break;

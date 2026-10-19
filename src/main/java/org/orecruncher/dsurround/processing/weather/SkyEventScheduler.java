@@ -380,22 +380,34 @@ public final class SkyEventScheduler {
     private static void tryRoll(IModLog logger, BiomeTraits traits) {
         final var profile = PrecipitationProfile.resolve(traits);
         final var season = PrecipitationIntensity.seasonFor(profile);
-        final float overcast = overcastAllowed() ? profile.overcastChanceFor(season) : 0F;
-        // Capped so a pathological pairing of weights can never make the two
-        // events together more likely than not on any single roll.
+        // BOTH chances are clamped, not just the second. The clear chance was capped
+        // against ROLL_CHANCE_CAP while the overcast chance went through raw, so a
+        // profile with a large base chance multiplied by a 1.6 seasonal factor could
+        // exceed the cap on its own - and above 1.0 the lottery stops being a lottery
+        // (every roll starts an overcast). NaN from a bad data file is caught by the
+        // same clamp: Mth.clamp(NaN, ..) is not NaN-safe, so the test is explicit.
+        final float overcast = overcastAllowed() ? sanitiseChance(profile.overcastChanceFor(season)) : 0F;
         final float clear = clearAllowed()
-                ? Math.min(profile.clearChanceFor(season),
-                        Math.max(0F, ROLL_CHANCE_CAP - overcast))
+                ? sanitiseChance(profile.clearChanceFor(season))
                 : 0F;
+        final float overcastChance = Math.min(overcast, ROLL_CHANCE_CAP);
+        final float clearChance = Math.min(clear, Math.max(0F, ROLL_CHANCE_CAP - overcastChance));
         final float roll = RANDOM.nextFloat();
-        if (roll < overcast)
+        if (roll < overcastChance)
             beginEvent(logger, PrecipitationResponse.OVERCAST, profile, season, "rolled");
-        else if (roll < overcast + clear)
+        else if (roll < overcastChance + clearChance)
             beginEvent(logger, PrecipitationResponse.CLEAR, profile, season, "rolled");
         else
             logTrace(logger, "roll came up nothing (overcast %.3f clear %.3f profile=%s season=%s)",
-                    overcast, clear, profile.name(),
+                    overcastChance, clearChance, profile.name(),
                     season == null ? "vanilla" : season.name().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** A chance is a probability: NaN, infinity and out-of-range all become 0. */
+    private static float sanitiseChance(final float v) {
+        if (Float.isNaN(v) || Float.isInfinite(v) || v <= 0F)
+            return 0F;
+        return Math.min(1F, v);
     }
 
     private static void beginEvent(IModLog logger, PrecipitationResponse which,

@@ -7,12 +7,12 @@
     },
     {
       "type": "minecraft:single",
-      "resource": "dsrebirth:particles/pixel_ripples",
+      "resource": "dsrebirth:particle/pixel_ripples",
       "sprite": "dsrebirth:particle/pixel_ripples"
     },
     {
       "type": "minecraft:single",
-      "resource": "dsrebirth:particles/footprint",
+      "resource": "dsrebirth:particle/footprint",
       "sprite": "dsrebirth:particle/footprint"
     },
     {

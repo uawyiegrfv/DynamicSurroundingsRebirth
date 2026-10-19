@@ -1271,10 +1271,14 @@ public final class PrecipitationIntensity {
         }
         if (rgbJumpCooldown > 0)
             rgbJumpCooldown--;
+        // The arguments are evaluated before the call, so without this gate the
+        // biome lookups and the detail strings were built every 120 frames even with
+        // debugging off - paying for a log line nobody would ever see.
         if (++rgbFrameCounter >= 120) {
             rgbFrameCounter = 0;
-            log.debug("[DARKEN-FRAME] %.4f camBiome=%s playerBiome=%s %s",
-                    v, cameraBiomeId(level), playerBiomeId(level), skyContext());
+            if (log.isDebugging())
+                log.debug("[DARKEN-FRAME] %.4f camBiome=%s playerBiome=%s %s",
+                        v, cameraBiomeId(level), playerBiomeId(level), skyContext());
         }
         lastDarkenOut = v;
     }
@@ -1296,9 +1300,10 @@ public final class PrecipitationIntensity {
             rgbJumpCooldown--;
         if (++rgbFrameCounter >= 120) {
             rgbFrameCounter = 0;
-            log.debug("[" + tag + "-FRAME] %.3f,%.3f,%.3f camBiome=%s playerBiome=%s %s",
-                    r, g, b,
-                    cameraBiomeId(level), playerBiomeId(level), biomeColorDetail(level));
+            if (log.isDebugging())
+                log.debug("[" + tag + "-FRAME] %.3f,%.3f,%.3f camBiome=%s playerBiome=%s %s",
+                        r, g, b,
+                        cameraBiomeId(level), playerBiomeId(level), biomeColorDetail(level));
         }
     }
 
@@ -1734,7 +1739,11 @@ public final class PrecipitationIntensity {
         // predates the detector still has a baseline to compare against.
         if (++skyFrameLogCounter >= 120) {
             skyFrameLogCounter = 0;
-            log.debug("[SKY-FRAME] out=%.3f SKY=%.3f owner=%s ramp=%.3f graded=%.3f ambient=%.3f loc=%.3f roll=%.3f camBiome=%s playerBiome=%s samples=%s",
+            // sampleBiomeSummary() walks the biome samples and formats them; it was
+            // being built every 120 frames for a line that prints nothing unless
+            // debugging is on.
+            if (log.isDebugging())
+                log.debug("[SKY-FRAME] out=%.3f SKY=%.3f owner=%s ramp=%.3f graded=%.3f ambient=%.3f loc=%.3f roll=%.3f camBiome=%s playerBiome=%s samples=%s",
                     out, PrecipitationResponse.SKY.value(), owner,
                     level == null ? -1F : level.getRainLevel(partialTick),
                     graded, ambient, locationMode, rollMode,
@@ -2595,7 +2604,8 @@ public final class PrecipitationIntensity {
                 if (++stateLogCounter >= STATE_LOG_INTERVAL) {
                     stateLogCounter = 0;
                     idleLogCounter = 0;
-                    log.debug("[PRECIP] %s", diagnosticText());
+                    if (log.isDebugging())
+                        log.debug("[PRECIP] %s", diagnosticText());
                 }
             } else if (++idleLogCounter >= IDLE_LOG_INTERVAL) {
                 idleLogCounter = 0;

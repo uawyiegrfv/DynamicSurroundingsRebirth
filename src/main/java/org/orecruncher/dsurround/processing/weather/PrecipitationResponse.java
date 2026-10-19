@@ -752,6 +752,13 @@ public final class PrecipitationResponse {
     }
 
     private void easeTo(float target, float dtSeconds) {
+        // The channel represents an intensity in 0..1; hold that invariant here rather
+        // than trusting every target and every dt. A negative dt (a clock that went
+        // backwards, a paused-frame artifact) turns alpha negative in the head branch,
+        // which moves AWAY from the target - the channel would drift outside its range
+        // and the sky/fog reading it would be asked for a colour it cannot produce.
+        if (!(dtSeconds > 0F))
+            dtSeconds = 0F;
         // A lock is applied, not approached. Easing towards it would make a
         // pinned channel indistinguishable from one that is simply slow, which
         // is exactly the confusion a lock exists to remove.
@@ -798,5 +805,6 @@ public final class PrecipitationResponse {
                 ? 1F
                 : (float) (1D - Math.exp(-dtSeconds / this.fallSeconds));
         this.current += (target - this.current) * alpha;
+        this.current = Math.max(0F, Math.min(1F, this.current));
     }
 }

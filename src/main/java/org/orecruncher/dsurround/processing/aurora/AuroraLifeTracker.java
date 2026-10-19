@@ -15,7 +15,8 @@ class AuroraLifeTracker {
     protected boolean isFading = false;
 
     public AuroraLifeTracker(final int peakAge, final int ageDelta) {
-        this.peakAge = peakAge;
+        // getAge() divides by this; a zero peak age would make every sample infinite.
+        this.peakAge = Math.max(1, peakAge);
         this.ageDelta = ageDelta;
     }
 

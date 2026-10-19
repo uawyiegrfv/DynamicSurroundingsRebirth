@@ -60,7 +60,7 @@ public class ItemLibrary implements IItemLibrary {
     public void reload(ResourceUtilities resourceUtilities, IReloadEvent.Scope scope) {
         this.version++;
         if (scope == IReloadEvent.Scope.TAGS) {
-            this.logger.info("[ItemLibrary] received tag update notification; version is now %d", this.version);
+            this.logger.debug("[ItemLibrary] received tag update notification; version is now %d", this.version);
             return;
         }
         this.itemEquipFactories.clear();
@@ -69,7 +69,7 @@ public class ItemLibrary implements IItemLibrary {
         this.itemSoundRules.clear();
         var findResults = resourceUtilities.findModResources(ITEM_SOUND_CODEC, ITEM_SOUND_FILE, true);
         findResults.forEach(result -> this.itemSoundRules.addAll(result.resourceContent()));
-        this.logger.info("[ItemLibrary] %d item sound overrides loaded; version is now %d", this.itemSoundRules.size(), this.version);
+        this.logger.debug("[ItemLibrary] %d item sound overrides loaded; version is now %d", this.itemSoundRules.size(), this.version);
     }
 
     @Override

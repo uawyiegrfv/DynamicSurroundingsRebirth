@@ -542,15 +542,15 @@ public class IcicleHandler extends AbstractClientHandler {
             final StringBuilder hist = new StringBuilder();
             for (int i = 0; i < DripScanner.STAT_COUNT; i++)
                 hist.append(' ').append(DripScanner.STAT_NAMES[i]).append('=').append(DripScanner.STATS[i]);
-            this.logger.info("[IcicleHandler] snowing but the scan found 0 eave candidates near (%d,%d,%d)%s",
+            this.logger.debug("[IcicleHandler] snowing but the scan found 0 eave candidates near (%d,%d,%d)%s",
                     center.getX(), center.getY(), center.getZ(), hist);
         } else if (spawned > 0) {
-            this.logger.info("[IcicleHandler] growing %d new icicles (cone=%d knife=%d wedge=%d, %d attached, %d failed) near (%d,%d,%d)",
+            this.logger.debug("[IcicleHandler] growing %d new icicles (cone=%d knife=%d wedge=%d, %d attached, %d failed) near (%d,%d,%d)",
                     spawned, shapes[0], shapes[1], shapes[2], this.attached.size(), failed,
                     center.getX(), center.getY(), center.getZ());
         } else if (failed > 0 && tick - this.lastEmptyLog >= 100) {
             this.lastEmptyLog = tick;
-            this.logger.info("[IcicleHandler] %d icicle spawns failed (particle provider missing?) near (%d,%d,%d)",
+            this.logger.debug("[IcicleHandler] %d icicle spawns failed (particle provider missing?) near (%d,%d,%d)",
                     failed, center.getX(), center.getY(), center.getZ());
         }
     }
@@ -838,7 +838,7 @@ public class IcicleHandler extends AbstractClientHandler {
         // One INFO line per release: a break is player-initiated and rare,
         // and this pins the released particle's exact tip - the "lifted up"
         // report needs the numbers to chase.
-        this.logger.info("[IcicleHandler] released tier=%d tip=(%.2f,%.2f,%.2f) root=%.2f fall=%d",
+        this.logger.debug("[IcicleHandler] released tier=%d tip=(%.2f,%.2f,%.2f) root=%.2f fall=%d",
                 a.tier, a.particle.tipX(), a.particle.tipY(), a.particle.tipZ(),
                 a.point.roof().getY() + a.point.undersideY(), a.point.fall());
     }

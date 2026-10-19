@@ -62,7 +62,7 @@ public class BlockLibrary implements IBlockLibrary {
         this.version++;
 
         if (scope == IReloadEvent.Scope.TAGS) {
-            this.logger.info("[BlockLibrary] received tag update notification; version is now %d", this.version);
+            this.logger.debug("[BlockLibrary] received tag update notification; version is now %d", this.version);
             return;
         }
 
@@ -71,7 +71,7 @@ public class BlockLibrary implements IBlockLibrary {
         var findResults = resourceUtilities.findModResources(CODEC, FILE_NAME, true);
         findResults.forEach(result -> this.blockConfigs.addAll(result.resourceContent()));
 
-        this.logger.info("[BlockLibrary] %d block configs loaded; version is now %d", blockConfigs.size(), version);
+        this.logger.debug("[BlockLibrary] %d block configs loaded; version is now %d", blockConfigs.size(), version);
     }
 
     @Override

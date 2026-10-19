@@ -1490,7 +1490,7 @@ public final class PrecipitationIntensity {
         // predates the detector still has a baseline to compare against.
         if (++skyFrameLogCounter >= 120) {
             skyFrameLogCounter = 0;
-            log.info("[SKY-FRAME] out=%.3f SKY=%.3f owner=%s ramp=%.3f graded=%.3f ambient=%.3f loc=%.3f roll=%.3f camBiome=%s playerBiome=%s samples=%s",
+            log.debug("[SKY-FRAME] out=%.3f SKY=%.3f owner=%s ramp=%.3f graded=%.3f ambient=%.3f loc=%.3f roll=%.3f camBiome=%s playerBiome=%s samples=%s",
                     out, PrecipitationResponse.SKY.value(), owner,
                     level == null ? -1F : level.getRainLevel(partialTick),
                     graded, ambient, locationMode, rollMode,
@@ -2078,7 +2078,7 @@ public final class PrecipitationIntensity {
                 // them is non-zero is the proof the idle path still fires with
                 // an event running - the one regression this design had to
                 // rule out. See SkyEventScheduler.
-                logger.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
+                logger.debug("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
                         PrecipitationRenderer.hookCalls(),
                         PrecipitationRenderer.tickHooks(),
                         PrecipitationRenderer.renderCalls(),
@@ -2358,11 +2358,11 @@ public final class PrecipitationIntensity {
                 if (++stateLogCounter >= STATE_LOG_INTERVAL) {
                     stateLogCounter = 0;
                     idleLogCounter = 0;
-                    log.info("[PRECIP] %s", diagnosticText());
+                    log.debug("[PRECIP] %s", diagnosticText());
                 }
             } else if (++idleLogCounter >= IDLE_LOG_INTERVAL) {
                 idleLogCounter = 0;
-                log.info("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
+                log.debug("[PRECIP-IDLE] hook=%d tick=%d render=%d broken=%s color=%d/%d/%d storm=%d config=%s oc=%.2f clr=%.2f",
                         PrecipitationRenderer.hookCalls(),
                         PrecipitationRenderer.tickHooks(),
                         PrecipitationRenderer.renderCalls(),

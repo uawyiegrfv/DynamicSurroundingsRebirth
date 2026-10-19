@@ -424,7 +424,7 @@ public class FoliageSnowHandler extends AbstractClientHandler {
             // No FoliageScan.statsLine() here: the scan histogram was only added to the
             // 1.20.1 scanner. Capping the plants prints next to the budget on purpose -
             // "plants=224/224" is the whole answer to "why do only the flowers have snow".
-            this.logger.info("[FoliageSnow] gate snowing=%s raining=%s potential=%s plantLayersOff=%s force=%s"
+            this.logger.debug("[FoliageSnow] gate snowing=%s raining=%s potential=%s plantLayersOff=%s force=%s"
                             + " | progress=%.2f base=%.2f plants=%d/%d units=%d sinceScan=%d",
                     snowingHere, world.isRaining(), PrecipitationIntensity.potentialPhase(pos),
                     plantLayersOff, DEBUG_FORCE, progress, this.base, this.plants.size(), MAX_PLANTS,
@@ -436,8 +436,8 @@ public class FoliageSnowHandler extends AbstractClientHandler {
             // skipped entirely while the diag switch is off, so a normal run's log is
             // exactly what it was.
             if (FoliageScan.WINDOW_DIAG) {
-                this.logger.info("[FoliageSnow] window " + FoliageScan.windowLine());
-                this.logger.info("[FoliageSnow] pool " + this.poolLine(pos));
+                this.logger.debug("[FoliageSnow] window " + FoliageScan.windowLine());
+                this.logger.debug("[FoliageSnow] pool " + this.poolLine(pos));
             }
         }
 

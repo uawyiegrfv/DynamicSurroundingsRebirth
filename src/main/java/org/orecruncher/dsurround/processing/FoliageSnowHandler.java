@@ -705,6 +705,15 @@ public class FoliageSnowHandler extends AbstractClientHandler {
                 continue;
             if (this.seenPlants.size() < SEEN_CAP)
                 this.seenPlants.add(key);
+            // Mark the chunk the PLANT is in, not just the one the player is in. The sweep
+            // is a box around the player, so half of what it returns lies in a neighbouring
+            // chunk - and only the player's own chunk used to be marked as swept. The test
+            // above asks about the plant's chunk, so a plant placed two blocks past a chunk
+            // border was never protected: it was re-dressed during the melt as if it had
+            // stood in the snow all along. Sugar cane made this visible because it is planted
+            // at the water's edge, usually from the far side of a border.
+            if (this.scannedChunks.size() < SEEN_CAP)
+                this.scannedChunks.add(chunkKey(spot.pos()));
             final PlantSnow existing = this.plants.get(key);
             // A plant at the far edge wears a thinner coat, so the budget reaches further out
             // than it could otherwise. The tier is remembered per plant and only moves when the

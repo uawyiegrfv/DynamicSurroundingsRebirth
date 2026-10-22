@@ -120,6 +120,17 @@ public final class Client {
         ClientState.STARTED.register(this::onComplete, HandlerPriority.VERY_HIGH);
         ClientState.ON_CONNECT.register(this::onConnect, HandlerPriority.LOW);
 
+        // The server-pushed caches must not survive the connection that filled them.
+        // WeatherSyncState had no reset at all: leave a server whose overworld was
+        // raining while you stood in the Nether, join one whose server does not run
+        // DS, and the Nether dust played forever because nothing was left to correct
+        // the flag. The map centres had the same problem, plus unbounded growth.
+        ClientState.ON_DISCONNECT.register(client -> {
+            org.orecruncher.dsurround.network.WeatherSyncState.reset();
+            org.orecruncher.dsurround.network.MapCenterCache.reset();
+            org.orecruncher.dsurround.network.BubbleSyncState.clear();
+        });
+
         // Register core services
         ContainerManager.getRootContainer()
                 .registerSingleton(Config)

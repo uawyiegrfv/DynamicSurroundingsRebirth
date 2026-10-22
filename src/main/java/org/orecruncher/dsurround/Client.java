@@ -119,6 +119,16 @@ public final class Client {
         ClientState.STARTED.register(this::onComplete, HandlerPriority.VERY_HIGH);
         ClientState.ON_CONNECT.register(this::onConnect, HandlerPriority.LOW);
 
+        // The server-pushed state must not survive the connection that filled it.
+        // WeatherSyncState had no reset at all: leave a server whose overworld was
+        // raining while you stood in the Nether, join one whose server does not run
+        // DS, and the Nether dust played forever because nothing was left to correct
+        // the flag.
+        ClientState.ON_DISCONNECT.register(client -> {
+            org.orecruncher.dsurround.network.WeatherSyncState.reset();
+            org.orecruncher.dsurround.network.BubbleSyncState.clear();
+        });
+
         // Register core services
         ContainerManager.getRootContainer()
                 .registerSingleton(Config)

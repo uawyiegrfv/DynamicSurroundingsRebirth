@@ -66,6 +66,20 @@ public interface ISoundFactory {
     ISoundFactory scaled(float volumeScale);
 
     /**
+     * A twin whose pitch is fixed to ONE sample of this factory's own pitch range.
+     *
+     * <p>The landing composition plays the same layer twice, once per foot. Each call
+     * to {@code createAtLocation*} samples the pitch again, so the two feet land on two
+     * DIFFERENT pitches and are heard as two thuds instead of one heavier one - the
+     * landing then reads as three hits (two feet plus the echo) where the data asks for
+     * two. Locking the pitch before the pair is built fuses them back together without
+     * giving up the per-voice summation that makes a landing heavier than a step.</p>
+     */
+    default ISoundFactory withLockedPitch() {
+        return this;
+    }
+
+    /**
      * Creates a sound instance that has no attenuation and that will repeat without any
      * delays.
      */

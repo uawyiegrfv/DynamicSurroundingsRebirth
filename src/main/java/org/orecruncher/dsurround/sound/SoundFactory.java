@@ -179,6 +179,25 @@ public record SoundFactory(
     }
 
     @Override
+    public ISoundFactory withLockedPitch() {
+        // One sample, then fixed: both feet of a landing are built from the same factory.
+        return new SoundFactory(
+                this.location,
+                this.soundEvent,
+                this.volume,
+                ConstantFloat.of(this.getPitch()),
+                this.category,
+                this.isRepeatable,
+                this.repeatDelay,
+                this.global,
+                this.attenuation,
+                this.musicSettings,
+                this.land,
+                this.wander,
+                this.jump);
+    }
+
+    @Override
     public SimpleSoundInstance createAtLocation(double posX, double posY, double posZ, float volumeScale) {
         return new SimpleSoundInstance(
                 this.soundEvent.getLocation(),

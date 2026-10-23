@@ -934,6 +934,13 @@ public final class PrecipitationRenderer {
                 final int l2 = Math.max(playerY + range, surface);
                 if (k2 >= l2)
                     continue;
+                // A column with no chunk behind it (render-distance edge, teleport already
+                // committed but chunks not yet filled) or above the build limit has no light
+                // data: getBrightness answers 0, the uv2 packed from it is (0,0) - the black
+                // corner of the lightmap - and the curtain is drawn black. Nothing should be
+                // drawn there at all.
+                if (level.isOutsideBuildHeight(k2) || !level.hasChunk(gridX >> 4, gridZ >> 4))
+                    continue;
 
                 final int maskIndex = (gridZ - playerZ + range) * (2 * range + 1) + (gridX - playerX + range);
                 // Rain is drawn first and fills the mask; the snow pass then answers
@@ -1131,6 +1138,11 @@ public final class PrecipitationRenderer {
                     // ((x * 3 + 240) / 4 per axis, 1.20.1
                     // LevelRenderer.renderSnowAndRain); rain keeps none. We do not
                     // copy it - switching it on is a look decision, not a fix.
+                    // Still black after the upward retry: the sample is inside something
+                    // that cannot be lit. Drawing it would paint the column black, so leave
+                    // the column out - an unlit curtain is what the eye already expects there.
+                    if (raw == 0)
+                        continue;
                     light = raw;
                     lightCache.put(phaseKey, light);
                 }

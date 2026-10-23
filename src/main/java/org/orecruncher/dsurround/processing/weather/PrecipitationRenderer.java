@@ -889,6 +889,11 @@ public final class PrecipitationRenderer {
                 final int l2 = Math.max(playerY + range, surface);
                 if (k2 >= l2)
                     continue;
+                // No chunk behind the column (render-distance edge, teleport) or above the
+                // build limit: getBrightness answers 0, uv2 becomes (0,0) - the black corner
+                // of the lightmap - and the curtain is drawn black. Nothing belongs there.
+                if (level.isOutsideBuildHeight(k2) || !level.hasChunk(gridX >> 4, gridZ >> 4))
+                    continue;
 
                 final int maskIndex = (gridZ - playerZ + range) * (2 * range + 1) + (gridX - playerX + range);
                 if (want == Biome.Precipitation.SNOW && phaseMask[maskIndex] != (byte) wanted)
@@ -1080,6 +1085,10 @@ public final class PrecipitationRenderer {
                     // ((x * 3 + 240) / 4 per axis, 1.20.1
                     // LevelRenderer.renderSnowAndRain); rain keeps none. We do not
                     // copy it - switching it on is a look decision, not a fix.
+                    // Still black after the upward retry: the sample sits inside something
+                    // that cannot be lit. Omit the column instead of painting it black.
+                    if (raw == 0)
+                        continue;
                     light = raw;
                     lightCache.put(phaseKey, light);
                 }

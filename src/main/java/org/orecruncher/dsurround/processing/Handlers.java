@@ -41,6 +41,8 @@ public class Handlers {
 
     private final ObjectArray<AbstractClientHandler> effectHandlers = new ObjectArray<>();
     private final LoggingTimerEMA handlerTimer = new LoggingTimerEMA("Handlers");
+    /** Ticks since the last [PERF] report. */
+    private int perfTick;
     private boolean isConnected = false;
     private boolean startupSoundPlayed = false;
 
@@ -209,6 +211,17 @@ public class Handlers {
             handler.updateTimer(System.nanoTime() - mark);
         }
         this.handlerTimer.end();
+
+        // Opt-in cost report: one greppable line per module, every 10 s, only with
+        // debug logging on.
+        if (this.logger.isDebugging() && ++this.perfTick >= PerfStats.REPORT_INTERVAL_TICKS) {
+            this.perfTick = 0;
+            final java.util.List<org.orecruncher.dsurround.lib.math.TimerEMA> timers =
+                    new java.util.ArrayList<>(this.effectHandlers.size());
+            for (final AbstractClientHandler handler : this.effectHandlers)
+                timers.add(handler.getTimer());
+            PerfStats.report(this.logger, this.handlerTimer, timers, tick);
+        }
     }
 
     private void handleStartupSound() {

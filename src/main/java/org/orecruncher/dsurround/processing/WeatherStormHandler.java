@@ -588,7 +588,12 @@ public class WeatherStormHandler extends AbstractClientHandler {
         if (this.veilBroken)
             return;
         try {
-            this.renderVeil(event);
+            final long perfMark = org.orecruncher.dsurround.processing.PerfStats.mark();
+            try {
+                this.renderVeil(event);
+            } finally {
+                org.orecruncher.dsurround.processing.PerfStats.record("weather.veil", perfMark);
+            }
         } catch (Throwable t) {
             // One deterministic failure must not hit the event bus every frame -
             // degrade to vanilla for the session, same philosophy as the

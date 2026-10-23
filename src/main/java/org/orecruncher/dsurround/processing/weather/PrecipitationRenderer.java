@@ -711,6 +711,7 @@ public final class PrecipitationRenderer {
             renderCalls++;
             if (!active())
                 return;
+            final long perfMark = org.orecruncher.dsurround.processing.PerfStats.mark();
             try {
                 render(event.getCamera(), event.getPartialTick().getGameTimeDeltaPartialTick(false));
             } catch (Throwable t) {
@@ -742,6 +743,7 @@ public final class PrecipitationRenderer {
                     // Reporting must never be the reason the layer stays broken.
                 }
             }
+            org.orecruncher.dsurround.processing.PerfStats.record("weather.rain", perfMark);
         }
 
         private static volatile boolean broken = false;

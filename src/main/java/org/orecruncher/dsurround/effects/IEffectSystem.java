@@ -19,6 +19,17 @@ public interface IEffectSystem {
     boolean isEnabled();
 
     /**
+     * Whether {@link #blockScan} can do anything for this state, judged from the STATE
+     * ALONE (no world, no neighbours). The scanner caches the answer per BlockState and
+     * skips the call when it is false, which is what keeps a 65^3 sweep affordable: the
+     * great majority of blocks are stone, dirt and air, and none of them can ever start
+     * a steam jet or a waterfall.
+     */
+    default boolean blockScanRelevant(BlockState state) {
+        return true;
+    }
+
+    /**
      * Invoked when a new block comes into the scan area
      */
     void blockScan(Level world, BlockState state, BlockPos pos);

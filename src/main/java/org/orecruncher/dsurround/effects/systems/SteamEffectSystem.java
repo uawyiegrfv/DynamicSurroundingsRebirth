@@ -28,6 +28,11 @@ public class SteamEffectSystem extends AbstractEffectSystem implements IEffectSy
     }
 
     @Override
+    public boolean blockScanRelevant(BlockState state) {
+        // The state half of canSteamSpawn(): only a steam producer can start one.
+        return TAG_LIBRARY.is(BlockEffectTags.STEAM_PRODUCERS, state);
+    }
+
     public void blockScan(Level world, BlockState state, BlockPos pos) {
         if (!this.isEnabled())
             return;

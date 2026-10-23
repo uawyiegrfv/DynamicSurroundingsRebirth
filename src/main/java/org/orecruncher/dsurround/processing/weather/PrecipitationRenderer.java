@@ -761,6 +761,7 @@ public final class PrecipitationRenderer {
         renderCalls++;
         if (!active())
             return;
+        final long perfMark = org.orecruncher.dsurround.processing.PerfStats.mark();
         try {
             render(event.getCamera(), event.getPartialTick());
         } catch (Throwable t) {
@@ -785,6 +786,8 @@ public final class PrecipitationRenderer {
                 note("tesselator cleanup failed (%s) - a later renderer may throw 'Already building'",
                         cleanupFailure);
             }
+        } finally {
+            org.orecruncher.dsurround.processing.PerfStats.record("weather.rain", perfMark);
         }
     }
 

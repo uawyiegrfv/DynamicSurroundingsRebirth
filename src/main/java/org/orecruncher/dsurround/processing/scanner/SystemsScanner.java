@@ -48,8 +48,83 @@ public class SystemsScanner extends CuboidScanner {
         this.systems.forEach(IEffectSystem::clear);
     }
 
+    // ---- view-direction fan -------------------------------------------------
+    //
+    // The sweep used to be a 65^3 box centred on the player, so 50% of it was behind
+    // them: block effects (steam jets, waterfalls) are things you walk towards, and the
+    // half you cannot see was re-scanned on every step. This is the same trick the
+    // foliage scan already uses - a horizontal ellipse around the facing - with the
+    // block-effect numbers: 1.35x range forward, 0.90x sideways, 0.35x behind. The
+    // vertical extent is untouched because steam rises and waterfalls fall.
+    private static final float FAN_FORWARD = 1.35F;
+    private static final float FAN_SIDE = 0.90F;
+    private static final float FAN_BACK = 0.35F;
+    /** Turning further than this re-aims the cone and restarts the sweep. */
+    private static final float FAN_RESWEEP_DEGREES = 30F;
+
+    private float fanX;
+    private float fanZ;
+    private float fanYaw = Float.NaN;
+
+    private void updateFan() {
+        final var player = GameUtils.getPlayer().orElse(null);
+        if (player == null) {
+            this.fanX = 0F;
+            this.fanZ = 0F;
+            return;
+        }
+        final float yaw = player.getYRot();
+        if (!Float.isNaN(this.fanYaw)
+                && Math.abs(net.minecraft.util.Mth.wrapDegrees(yaw - this.fanYaw)) < FAN_RESWEEP_DEGREES)
+            return;
+        this.fanYaw = yaw;
+        final double rad = Math.toRadians(yaw);
+        this.fanX = (float) -Math.sin(rad);
+        this.fanZ = (float) Math.cos(rad);
+        // A sweep in progress used the old cone; restart it or the region the player
+        // just turned towards is never visited.
+        if (!this.scanFinished)
+            this.resetFullScan();
+    }
+
+    private boolean insideFan(final BlockPos pos) {
+        if (this.fanX == 0F && this.fanZ == 0F)
+            return true;  // no player: plain box
+        final var centre = this.locus.getScanCenter();
+        final float dx = pos.getX() - centre.getX();
+        final float dz = pos.getZ() - centre.getZ();
+        final float forward = dx * this.fanX + dz * this.fanZ;
+        final float side = dx * -this.fanZ + dz * this.fanX;
+        final float range = Math.max(1, this.config.blockEffects.blockEffectRange);
+        final float a = (forward >= 0F ? FAN_FORWARD : FAN_BACK) * range;
+        final float b = FAN_SIDE * range;
+        return (forward * forward) / (a * a) + (side * side) / (b * b) <= 1F;
+    }
+
+    /**
+     * Skips the points outside the cone without paying getBlockState or a system call
+     * for them. The iterator itself is unchanged - only the positions it hands back.
+     */
+    @Override
+    protected BlockPos nextPos(final BlockPos.MutableBlockPos workingPos, final IRandomizer rand) {
+        if (this.scanFinished)
+            return null;
+        int checked = 0;
+        BlockPos point;
+        while ((point = this.fullRange.peek()) != null) {
+            this.fullRange.next();
+            if (!this.locus.isOutOfHeightLimit(point.getY()) && this.insideFan(point))
+                return point;
+            if (++checked >= this.blocksPerTick)
+                return null;
+        }
+        this.scanFinished = true;
+        return null;
+    }
+
     @Override
     public void tick() {
+        this.updateFan();
         super.tick();
 
         // If the range changed, we need to reset all effects in process

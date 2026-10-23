@@ -110,6 +110,12 @@ public class RandomBlockEffectSystem extends AbstractEffectSystem {
     }
 
     @Override
+    public boolean blockScanRelevant(BlockState state) {
+        // blockScan does nothing here - the whole system runs from tick().
+        return false;
+    }
+
+    @Override
     public void blockScan(Level world, BlockState state, BlockPos pos) {
         // Do nothing - everything is in the tick
     }

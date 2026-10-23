@@ -262,6 +262,11 @@ public class WaterfallEffectSystem extends AbstractEffectSystem implements IEffe
     }
 
     @Override
+    public boolean blockScanRelevant(BlockState state) {
+        return TAG_LIBRARY.is(FluidTags.WATERFALL_SOURCE, state.getFluidState());
+    }
+
+    @Override
     public void blockScan(Level world, BlockState state, BlockPos pos) {
         // Steam jet can form if the blockState in question is a fluid block, there is an air block
         // above, and there is a hot block adjacent.

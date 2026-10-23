@@ -19,6 +19,14 @@ public interface IEffectSystem {
     boolean isEnabled();
 
     /**
+     * Whether blockScan can do anything for this state, judged from the STATE ALONE.
+     * The scanner caches the answer per BlockState and skips the call when false.
+     */
+    default boolean blockScanRelevant(BlockState state) {
+        return true;
+    }
+
+    /**
      * Invoked when a new block comes into the scan area
      */
     void blockScan(Level world, BlockState state, BlockPos pos);

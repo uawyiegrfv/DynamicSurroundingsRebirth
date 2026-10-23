@@ -98,9 +98,34 @@ public class SystemsScanner extends CuboidScanner {
         return true;
     }
 
+    /**
+     * Systems that can act on a given BlockState, cached by state identity. Almost every
+     * block in a 65^3 sweep is stone, dirt or air and cannot start anything; the old code
+     * still paid two virtual calls and their fluid/tag lookups per block for no result.
+     */
+    private final java.util.IdentityHashMap<BlockState, java.util.List<IEffectSystem>> relevantByState =
+            new java.util.IdentityHashMap<>();
+
+    private java.util.List<IEffectSystem> relevantSystems(final BlockState state) {
+        var cached = this.relevantByState.get(state);
+        if (cached != null)
+            return cached;
+        final java.util.List<IEffectSystem> list = new java.util.ArrayList<>(this.systems.size());
+        for (var system : this.systems)
+            if (system.blockScanRelevant(state))
+                list.add(system);
+        this.relevantByState.put(state, list);
+        return list;
+    }
+
     @Override
     public void blockScan(Level world, BlockState state, BlockPos pos, IRandomizer rand) {
-        this.processIfEnabled(false, system -> system.blockScan(world, state, pos));
+        final var relevant = this.relevantSystems(state);
+        for (int k = 0; k < relevant.size(); k++) {
+            final var system = relevant.get(k);
+            if (system.isEnabled())
+                system.blockScan(world, state, pos);
+        }
     }
 
     @Override

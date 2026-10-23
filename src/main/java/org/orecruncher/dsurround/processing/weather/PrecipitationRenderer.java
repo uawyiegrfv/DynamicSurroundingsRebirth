@@ -782,6 +782,7 @@ public final class PrecipitationRenderer {
     }
 
     private static void onAfterWeather(RenderLevelStageEvent.AfterWeather event) {
+        final long perfMark = org.orecruncher.dsurround.processing.PerfStats.mark();
         // Counted before the active() gate so the diagnostics can tell "the stage never
         // fires" (stays 0) apart from "the stage fires but we decline to draw".
         renderCalls++;
@@ -797,6 +798,7 @@ public final class PrecipitationRenderer {
                     .resolve(org.orecruncher.dsurround.lib.logging.IModLog.class)
                     .error(t, "PrecipitationRenderer threw while rendering precipitation");
         }
+        org.orecruncher.dsurround.processing.PerfStats.record("weather.rain", perfMark);
     }
 
     private static void render() {

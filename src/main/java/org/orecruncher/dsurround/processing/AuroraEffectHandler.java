@@ -153,17 +153,20 @@ public class AuroraEffectHandler extends AbstractClientHandler {
     }
 
     public void doRender(final RenderLevelStageEvent.AfterSky event) {
-        // Both renderers need the level-render PoseStack; dispatch on the
-        // concrete type since IAurora.render(partialTick) cannot carry it.
+
         final float partialTick = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
 
-        if (this.current instanceof AuroraShader shader) {
-            shader.render(event.getPoseStack(), partialTick);
-        } else if (this.current instanceof AuroraClassic classic) {
-            classic.render(event.getPoseStack(), partialTick);
+        final long perfMark = org.orecruncher.dsurround.processing.PerfStats.mark();
+        try {
+            if (this.current instanceof AuroraShader shader) {
+                shader.render(event.getPoseStack(), partialTick);
+            } else if (this.current instanceof AuroraClassic classic) {
+                classic.render(event.getPoseStack(), partialTick);
+            }
+        } finally {
+            org.orecruncher.dsurround.processing.PerfStats.record("aurora", perfMark);
         }
     }
-
     @Override
     protected void gatherDiagnostics(CollectDiagnosticsEvent event) {
         var text = "Aurora: " + (this.current == null ? "NONE" : this.current.toString());

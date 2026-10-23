@@ -902,16 +902,18 @@ public class FootstepGenerator extends AbstractClientHandler {
             // Per-foot playback of the material composition: primary thud x2 + walk@50
             // layer x2 + delayed echo x2, exactly like playMultifoot + the 1.12.2 land
             // entries in mcp.json.
-            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary().get());
+            // withLockedPitch(): one pitch per layer, so the two feet fuse into one hit
+            // instead of landing on two different pitches (heard as left + right + echo).
+            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(comp.primary().get()).withLockedPitch();
             this.audioPlayer.play(primary.createAtLocationNoAttenuation(leftFoot, scale));
             this.audioPlayer.play(primary.createAtLocationNoAttenuation(rightFoot, scale));
             comp.secondary().ifPresent(loc -> {
-                var secondary = SOUND_LIBRARY.getSoundFactoryOrDefault(loc);
+                var secondary = SOUND_LIBRARY.getSoundFactoryOrDefault(loc).withLockedPitch();
                 this.audioPlayer.play(secondary.createAtLocationNoAttenuation(leftFoot, comp.secondaryScale() * scale));
                 this.audioPlayer.play(secondary.createAtLocationNoAttenuation(rightFoot, comp.secondaryScale() * scale));
             });
             comp.echo().ifPresent(loc -> {
-                var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(loc);
+                var echo = SOUND_LIBRARY.getSoundFactoryOrDefault(loc).withLockedPitch();
                 this.pendingEchoes.add(new PendingEcho(echo.createAtLocationNoAttenuation(leftFoot, comp.echoVolume() * scale), this.tickCount + echoDelay));
                 this.pendingEchoes.add(new PendingEcho(echo.createAtLocationNoAttenuation(rightFoot, comp.echoVolume() * scale), this.tickCount + echoDelay));
             });
@@ -932,11 +934,11 @@ public class FootstepGenerator extends AbstractClientHandler {
             } else if (landLoc.getPath().endsWith("_run")) {
                 baseLoc = Identifier.fromNamespaceAndPath(landLoc.getNamespace(), landLoc.getPath().substring(0, landLoc.getPath().length() - 4));
             }
-            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(landLoc);
+            var primary = SOUND_LIBRARY.getSoundFactoryOrDefault(landLoc).withLockedPitch();
             this.audioPlayer.play(primary.createAtLocationNoAttenuation(leftFoot, scale));
             this.audioPlayer.play(primary.createAtLocationNoAttenuation(rightFoot, scale));
             if (!baseLoc.equals(landLoc)) {
-                var base = SOUND_LIBRARY.getSoundFactoryOrDefault(baseLoc);
+                var base = SOUND_LIBRARY.getSoundFactoryOrDefault(baseLoc).withLockedPitch();
                 this.audioPlayer.play(base.createAtLocationNoAttenuation(leftFoot, 0.5F * scale));
                 this.audioPlayer.play(base.createAtLocationNoAttenuation(rightFoot, 0.5F * scale));
             }

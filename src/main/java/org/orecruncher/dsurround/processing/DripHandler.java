@@ -445,13 +445,17 @@ public class DripHandler {
             // of seconds. They bypass the shared budget because they ARE one
             // spot letting go - the budget decides how much of the eave is
             // going at once, not how fast a single thread runs.
-            if (tick < spot.steadyUntil && tick >= spot.nextSteadyTick) {
+            // One drop per spot per tick: the steady thread and the burst are independent
+            // clocks on the same spot and could both come due on one tick, booking two
+            // landings for one instant (heard as a double plip on top of vanilla's own).
+            if (tick < spot.steadyUntil && tick >= spot.nextSteadyTick && spot.lastFire != tick) {
                 spot.nextSteadyTick = tick + spot.steadyInterval;
                 spot.lastFire = tick;
                 this.fireSpot(world, player, spot, tick, value);
             }
-            if (spot.burstLeft > 0 && tick >= spot.nextBurstTick) {
+            if (spot.burstLeft > 0 && tick >= spot.nextBurstTick && spot.lastFire != tick) {
                 spot.burstLeft--;
+                spot.lastFire = tick;
                 this.fireSpot(world, player, spot, tick, value);
                 if (this.random.nextFloat() < BURST_EXTEND_CHANCE)
                     // Also intensity-paced: a storm's sheet lets go in a

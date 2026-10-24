@@ -33,10 +33,28 @@ public final class EchoService extends AbstractClientHandler {
     /** Re-solve the taps this often even without a detection, so the log has a steady sample. */
     private static final int REPORT_INTERVAL_TICKS = 200;
 
-    private static final ResourceLocation TNT_EXPLODE = new ResourceLocation("minecraft", "entity.generic.explode");
-    /** Stage 2: one event only, and the switch defaults to off. */
+    /**
+     * Stage 3 is a BLACKLIST, not a whitelist: modded guns, cannons and aircraft cannot be
+     * enumerated, so unknown events default to eligible and the known-bad families are excluded.
+     */
+    private static final String[] BLACKLIST_PREFIXES = {
+            "ambient.weather",      // rain / wind beds
+            "ambient.cave",         // cave ambience
+            "music.", "ui.",        // music and interface
+            "block.bubble_column",  // underwater loop
+            "entity.ender_dragon.ambient", // long, low, would only smear
+    };
+    /** Event-name fragments that mark a continuous / repetitive family rather than a transient. */
+    private static final String[] BLACKLIST_FRAGMENTS = {
+            ".step", ".footstep", ".swim", ".splash", ".ambient", ".loop", ".breath", ".idle",
+    };
     private static final float MIN_ELIGIBLE_VOLUME = 0.15F;
     private static final int MAX_ECHOES_PER_SECOND = 4;
+    /** A sound event repeating faster than this is a bed, not a transient. */
+    private static final int REPEAT_LIMIT = 3;
+    private static final long REPEAT_WINDOW_MS = 1000L;
+    /** Echoes are suppressed while the rain/wind bed is loud: they would be masked anyway. */
+    private static final float MASKING_AMBIENT = 0.6F;
     private static final Configuration.EnhancedSounds ECHO_CONFIG =
             ContainerManager.resolve(Configuration.EnhancedSounds.class);
 
@@ -121,14 +139,21 @@ public final class EchoService extends AbstractClientHandler {
     public static void onSoundPlay(final SoundInstance sound) {
         if (!ECHO_CONFIG.enableCanyonEcho || sound instanceof EchoSoundInstance)
             return;
-        // Only the explosion event for now. Broadening this is stage 3's job (a blacklist, not a
-        // whitelist: modded guns and cannons cannot be enumerated).
-        if (!TNT_EXPLODE.equals(sound.getLocation()))
+        if (sound.isRelative() || sound.isLooping())
             return;
-        if (sound.isRelative() || sound.getSource() == SoundSource.MUSIC
-                || sound.getSource() == SoundSource.MASTER)
+        final SoundSource source = sound.getSource();
+        if (source == SoundSource.MUSIC || source == SoundSource.MASTER)
             return;
         if (sound.getVolume() < MIN_ELIGIBLE_VOLUME)
+            return;
+        if (!isEligible(sound))
+            return;
+        // Thunder is a WEATHER sound and is deliberately allowed: a long rumble does not make a
+        // distinct echo, but the valley's answer to it is a "roll", handled by the roll mode below.
+        final boolean thunder = source == SoundSource.WEATHER || isThunder(sound);
+        // While the rain/wind bed is loud an echo is masked; thunder is the exception because it
+        // happens during the rain by definition.
+        if (!thunder && org.orecruncher.dsurround.processing.PrecipitationIntensity.ambient() > MASKING_AMBIENT)
             return;
         final var service = INSTANCE;
         final var walls = currentWalls;
@@ -141,28 +166,66 @@ public final class EchoService extends AbstractClientHandler {
                 new Vec3(sound.getX(), sound.getY(), sound.getZ()), player.getEyePosition());
         if (taps.isEmpty() || !takeBudget())
             return;
-        if (INSTANCE.logger.isDebugging()) {
+        // A roll: one tap, quieter and darker than a transient echo.
+        final int count = thunder ? 1 : Math.min(2, taps.size());
+        final float gainScale = (float) (thunder ? 0.5F : 1.0F) * (float) ECHO_CONFIG.canyonEchoVolume;
+        final float cutoffScale = thunder ? 0.7F : 1.0F;
+        if (service.logger.isDebugging()) {
             final EchoTap first = taps.get(0);
-            INSTANCE.logger.debug("[Echo] TNT echo: %d tap(s) walls=%d delay=%.0fms gain=%.2f cut=%.2f at (%.1f,%.1f,%.1f)",
-                    taps.size(), walls.size(), first.delayMs(), first.gain(), first.cutoff(),
+            service.logger.debug("[Echo] %s: %d tap(s) walls=%d delay=%.0fms gain=%.2f cut=%.2f at (%.1f,%.1f,%.1f)",
+                    thunder ? "thunder roll" : sound.getLocation(), taps.size(), walls.size(),
+                    first.delayMs(), first.gain(), first.cutoff(),
                     first.reflection().x, first.reflection().y, first.reflection().z);
         }
-        // One, or at most two taps even in a canyon: more than that reads as reverberation, which
-        // the EFX sends already provide.
-        final int count = Math.min(2, taps.size());
         for (int i = 0; i < count; i++) {
             final EchoTap tap = taps.get(i);
             final int delayTicks = Math.max(1, Math.round(tap.delayMs() / 50.0F));
-            final float volume = (float) Math.min(1.0F,
-                    sound.getVolume() * tap.gain() * ECHO_CONFIG.canyonEchoVolume);
+            final float volume = Math.min(1.0F, sound.getVolume() * tap.gain() * gainScale);
             if (volume < 0.02F)
                 continue;
             Minecraft.getInstance().getSoundManager().play(new EchoSoundInstance(
-                    sound.getLocation(), sound.getSource(), volume, sound.getPitch(),
+                    sound.getLocation(), source, volume, sound.getPitch(),
                     org.orecruncher.dsurround.lib.random.Randomizer.current(), delayTicks,
-                    tap.reflection().x, tap.reflection().y, tap.reflection().z, tap.cutoff()));
+                    tap.reflection().x, tap.reflection().y, tap.reflection().z,
+                    Math.max(0.1F, tap.cutoff() * cutoffScale)));
         }
     }
+
+    /** Blacklist + repeat-rate gate. Unknown events pass: a modded gun should echo. */
+    private static boolean isEligible(final SoundInstance sound) {
+        final ResourceLocation id = sound.getLocation();
+        final String path = id.getPath();
+        for (final String prefix : BLACKLIST_PREFIXES)
+            if (path.startsWith(prefix))
+                return false;
+        for (final String fragment : BLACKLIST_FRAGMENTS)
+            if (path.contains(fragment))
+                return false;
+        return !isBed(id);
+    }
+
+    /** A sound event arriving more than {@link #REPEAT_LIMIT} times a second is a bed or a loop. */
+    private static boolean isBed(final ResourceLocation id) {
+        final long now = System.currentTimeMillis();
+        final long[] entry = REPEATS.computeIfAbsent(id, k -> new long[]{now, 0L});
+        synchronized (entry) {
+            if (now - entry[0] >= REPEAT_WINDOW_MS) {
+                entry[0] = now;
+                entry[1] = 0L;
+            }
+            entry[1]++;
+            if (entry[1] > REPEAT_LIMIT)
+                return true;
+        }
+        return false;
+    }
+
+    private static boolean isThunder(final SoundInstance sound) {
+        final String path = sound.getLocation().getPath();
+        return path.contains("thunder") || path.contains("lightning");
+    }
+
+    private static final java.util.Map<ResourceLocation, long[]> REPEATS = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** At most {@link #MAX_ECHOES_PER_SECOND} echoes a second, so a barrage cannot turn into a chorus. */
     private static boolean takeBudget() {

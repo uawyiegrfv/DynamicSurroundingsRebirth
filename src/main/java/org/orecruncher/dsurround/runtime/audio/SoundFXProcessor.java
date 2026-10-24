@@ -271,6 +271,10 @@ public final class SoundFXProcessor {
             return;
         }
 
+        // Canyon echo: consider a delayed, darkened copy. An echo instance is recognised and
+        // skipped inside, so this cannot recurse.
+        org.orecruncher.dsurround.processing.EchoService.onSoundPlay(sound);
+
         if (shouldIgnoreSound(sound)) {
             if (dsrDiagStamp != 0L)
                 SoundDiag.mainThreadSoundPlay(System.nanoTime() - dsrDiagStamp);

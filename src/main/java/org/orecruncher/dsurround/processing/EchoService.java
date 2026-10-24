@@ -1,15 +1,22 @@
 package org.orecruncher.dsurround.processing;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import org.orecruncher.dsurround.Configuration;
 import org.orecruncher.dsurround.config.libraries.IBlockLibrary;
 import org.orecruncher.dsurround.eventing.CollectDiagnosticsEvent;
+import org.orecruncher.dsurround.lib.GameUtils;
+import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
 import org.orecruncher.dsurround.processing.echo.EchoDetector;
 import org.orecruncher.dsurround.processing.echo.EchoSolver;
 import org.orecruncher.dsurround.processing.echo.EchoTap;
 import org.orecruncher.dsurround.processing.echo.EchoWall;
+import org.orecruncher.dsurround.sound.EchoSoundInstance;
 
 import java.util.List;
 
@@ -26,6 +33,19 @@ public final class EchoService extends AbstractClientHandler {
     /** Re-solve the taps this often even without a detection, so the log has a steady sample. */
     private static final int REPORT_INTERVAL_TICKS = 200;
 
+    private static final ResourceLocation TNT_EXPLODE = ResourceLocation.fromNamespaceAndPath("minecraft", "entity.generic.explode");
+    /** Stage 2: one event only, and the switch defaults to off. */
+    private static final float MIN_ELIGIBLE_VOLUME = 0.15F;
+    private static final int MAX_ECHOES_PER_SECOND = 4;
+    private static final Configuration.EnhancedSounds ECHO_CONFIG =
+            ContainerManager.resolve(Configuration.EnhancedSounds.class);
+
+    /** Published for the sound-play hook, which runs outside this handler's thread context. */
+    private static volatile EchoService INSTANCE;
+    private static volatile List<EchoWall> currentWalls = List.of();
+    private static long budgetWindowStart;
+    private static int budgetUsed;
+
     private final IBlockLibrary blocks;
 
     private int tickCounter;
@@ -37,12 +57,14 @@ public final class EchoService extends AbstractClientHandler {
     public EchoService(final Configuration config, final IModLog logger, final IBlockLibrary blocks) {
         super("Echo", config, logger);
         this.blocks = blocks;
+        INSTANCE = this;
     }
 
     @Override
     public void onDisconnect() {
         this.walls = List.of();
         this.taps = List.of();
+        currentWalls = List.of();
         this.lastReport = "";
     }
 
@@ -59,6 +81,7 @@ public final class EchoService extends AbstractClientHandler {
         // a diagnostic walk should be judging.
         final Vec3 ear = player.getEyePosition();
         this.walls = new EchoDetector(player.level(), ear, this.blocks).detect();
+        currentWalls = this.walls;
         this.taps = EchoSolver.plan(this.walls, player.position(), ear);
 
         if (++this.reportCounter >= REPORT_INTERVAL_TICKS / DETECT_INTERVAL_TICKS) {
@@ -88,6 +111,64 @@ public final class EchoService extends AbstractClientHandler {
                     tap.reflection().x, tap.reflection().y, tap.reflection().z));
         }
         return sb.toString();
+    }
+
+    /**
+     * Called for every sound the enhanced pipeline accepts. Stage 2 answers only for a TNT
+     * explosion: it is the one event in vanilla that is short, loud and rare enough for a canyon
+     * echo to be heard over the ambience, and it gives a clean A/B against the switch.
+     */
+    public static void onSoundPlay(final SoundInstance sound) {
+        if (!ECHO_CONFIG.enableCanyonEcho || sound instanceof EchoSoundInstance)
+            return;
+        // Only the explosion event for now. Broadening this is stage 3's job (a blacklist, not a
+        // whitelist: modded guns and cannons cannot be enumerated).
+        if (!TNT_EXPLODE.equals(sound.getLocation()))
+            return;
+        if (sound.isRelative() || sound.getSource() == SoundSource.MUSIC
+                || sound.getSource() == SoundSource.MASTER)
+            return;
+        if (sound.getVolume() < MIN_ELIGIBLE_VOLUME)
+            return;
+        final var service = INSTANCE;
+        final var walls = currentWalls;
+        if (service == null || walls.isEmpty())
+            return;
+        final var player = GameUtils.getPlayer().orElse(null);
+        if (player == null)
+            return;
+        final List<EchoTap> taps = EchoSolver.plan(walls,
+                new Vec3(sound.getX(), sound.getY(), sound.getZ()), player.getEyePosition());
+        if (taps.isEmpty() || !takeBudget())
+            return;
+        // One, or at most two taps even in a canyon: more than that reads as reverberation, which
+        // the EFX sends already provide.
+        final int count = Math.min(2, taps.size());
+        for (int i = 0; i < count; i++) {
+            final EchoTap tap = taps.get(i);
+            final int delayTicks = Math.max(1, Math.round(tap.delayMs() / 50.0F));
+            final float volume = (float) Math.min(1.0F,
+                    sound.getVolume() * tap.gain() * ECHO_CONFIG.canyonEchoVolume);
+            if (volume < 0.02F)
+                continue;
+            Minecraft.getInstance().getSoundManager().play(new EchoSoundInstance(
+                    sound.getLocation(), sound.getSource(), volume, sound.getPitch(),
+                    org.orecruncher.dsurround.lib.random.Randomizer.current(), delayTicks,
+                    tap.reflection().x, tap.reflection().y, tap.reflection().z, tap.cutoff()));
+        }
+    }
+
+    /** At most {@link #MAX_ECHOES_PER_SECOND} echoes a second, so a barrage cannot turn into a chorus. */
+    private static boolean takeBudget() {
+        final long now = System.currentTimeMillis();
+        if (now - budgetWindowStart >= 1000L) {
+            budgetWindowStart = now;
+            budgetUsed = 0;
+        }
+        if (budgetUsed >= MAX_ECHOES_PER_SECOND)
+            return false;
+        budgetUsed++;
+        return true;
     }
 
     @Override

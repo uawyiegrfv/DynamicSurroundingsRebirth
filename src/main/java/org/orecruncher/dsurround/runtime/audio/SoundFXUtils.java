@@ -556,6 +556,14 @@ public final class SoundFXUtils {
         directCutoff = Math.max(directCutoff, reverb.directCutoffFloor);
         directHfCutoff = Math.max(directHfCutoff, reverb.directCutoffFloor);
 
+        // A canyon echo is a reflection off a distant face: it has crossed air and a wall, so it is
+        // darker than the direct sound no matter how clear the line is. Applied AFTER the reverb's
+        // brightness floor, otherwise the floor would undo it.
+        if (this.source.getSound() instanceof org.orecruncher.dsurround.sound.EchoSoundInstance echo) {
+            directCutoff *= echo.cutoff();
+            directHfCutoff *= echo.cutoff();
+        }
+
         // ------------------------------------------------------------------ the early reflection
         //
         // The early reflection is set here, ONCE, from two measurements the ray trace above already made.

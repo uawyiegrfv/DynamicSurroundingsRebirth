@@ -46,7 +46,7 @@ public final class EchoService extends AbstractClientHandler {
     };
     /** Event-name fragments that mark a continuous / repetitive family rather than a transient. */
     private static final String[] BLACKLIST_FRAGMENTS = {
-            ".step", ".footstep", ".swim", ".splash", ".ambient", ".loop", ".breath", ".idle",
+            ".step", ".footstep", ".swim", ".splash", ".loop", ".breath", ".idle",
     };
     private static final float MIN_ELIGIBLE_VOLUME = 0.15F;
     private static final int MAX_ECHOES_PER_SECOND = 4;
@@ -146,11 +146,11 @@ public final class EchoService extends AbstractClientHandler {
             return;
         if (sound.getVolume() < MIN_ELIGIBLE_VOLUME)
             return;
-        if (!isEligible(sound))
-            return;
         // Thunder is a WEATHER sound and is deliberately allowed: a long rumble does not make a
         // distinct echo, but the valley's answer to it is a "roll", handled by the roll mode below.
         final boolean thunder = source == SoundSource.WEATHER || isThunder(sound);
+        if (!thunder && !isEligible(sound))
+            return;
         // While the rain/wind bed is loud an echo is masked; thunder is the exception because it
         // happens during the rain by definition.
         if (!thunder && org.orecruncher.dsurround.processing.PrecipitationIntensity.ambient() > MASKING_AMBIENT)

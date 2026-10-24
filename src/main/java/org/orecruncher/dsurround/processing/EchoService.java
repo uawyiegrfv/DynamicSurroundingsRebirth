@@ -100,7 +100,14 @@ public final class EchoService extends AbstractClientHandler {
         final Vec3 ear = player.getEyePosition();
         this.walls = new EchoDetector(player.level(), ear, this.blocks).detect();
         currentWalls = this.walls;
-        this.taps = EchoSolver.plan(this.walls, player.position(), ear);
+        // Probe from a realistic source position, NOT the player's feet: the foot position has the
+        // same x/z as the ear, so a == e and the mirror condition (e > a) rejects every wall. That
+        // made the diagnostic read taps=0 everywhere while a real sound a few blocks away would
+        // have echoed. Prefer the last sound that played; otherwise two blocks ahead of the eyes.
+        Vec3 probe = lastSoundPos;
+        if (probe == null || probe.distanceTo(ear) > 64.0D)
+            probe = ear.add(player.getLookAngle().scale(2.0D));
+        this.taps = EchoSolver.plan(this.walls, probe, ear);
 
         if (++this.reportCounter >= REPORT_INTERVAL_TICKS / DETECT_INTERVAL_TICKS) {
             this.reportCounter = 0;
@@ -139,42 +146,48 @@ public final class EchoService extends AbstractClientHandler {
     public static void onSoundPlay(final SoundInstance sound) {
         if (!ECHO_CONFIG.enableCanyonEcho || sound instanceof EchoSoundInstance)
             return;
+        final SoundSource source = sound.getSource();
+        final boolean thunder = source == SoundSource.WEATHER || isThunder(sound);
+        lastSoundPos = new Vec3(sound.getX(), sound.getY(), sound.getZ());
         if (sound.isRelative() || sound.isLooping())
             return;
-        final SoundSource source = sound.getSource();
         if (source == SoundSource.MUSIC || source == SoundSource.MASTER)
             return;
         if (sound.getVolume() < MIN_ELIGIBLE_VOLUME)
             return;
-        // Thunder is a WEATHER sound and is deliberately allowed: a long rumble does not make a
-        // distinct echo, but the valley's answer to it is a "roll", handled by the roll mode below.
-        final boolean thunder = source == SoundSource.WEATHER || isThunder(sound);
         if (!thunder && !isEligible(sound))
-            return;
-        // While the rain/wind bed is loud an echo is masked; thunder is the exception because it
-        // happens during the rain by definition.
-        if (!thunder && org.orecruncher.dsurround.processing.PrecipitationIntensity.ambient() > MASKING_AMBIENT)
             return;
         final var service = INSTANCE;
         final var walls = currentWalls;
-        if (service == null || walls.isEmpty())
+        if (service == null || walls.isEmpty()) {
+            reject(sound, "no-walls");
             return;
+        }
         final var player = GameUtils.getPlayer().orElse(null);
         if (player == null)
             return;
-        final List<EchoTap> taps = EchoSolver.plan(walls,
-                new Vec3(sound.getX(), sound.getY(), sound.getZ()), player.getEyePosition());
-        if (taps.isEmpty() || !takeBudget())
+        final List<EchoTap> taps = EchoSolver.plan(walls, lastSoundPos, player.getEyePosition());
+        if (taps.isEmpty()) {
+            reject(sound, "no-tap");
             return;
-        // A roll: one tap, quieter and darker than a transient echo.
+        }
+        if (!takeBudget()) {
+            reject(sound, "budget");
+            return;
+        }
+        // Rain and wind DO mask an echo, but suppressing it entirely meant nothing ever fired while
+        // it was raining - and that is exactly when thunder happens. Scale it instead.
+        final float ambient = org.orecruncher.dsurround.processing.PrecipitationIntensity.ambient();
+        final float mask = thunder ? 1.0F
+                : Math.max(0.35F, Math.min(1.0F, 1.0F - 0.5F * ambient));
         final int count = thunder ? 1 : Math.min(2, taps.size());
-        final float gainScale = (float) (thunder ? 0.5F : 1.0F) * (float) ECHO_CONFIG.canyonEchoVolume;
+        final float gainScale = (float) (thunder ? 0.5F : 1.0F) * (float) ECHO_CONFIG.canyonEchoVolume * mask;
         final float cutoffScale = thunder ? 0.7F : 1.0F;
         if (service.logger.isDebugging()) {
             final EchoTap first = taps.get(0);
-            service.logger.debug("[Echo] %s: %d tap(s) walls=%d delay=%.0fms gain=%.2f cut=%.2f at (%.1f,%.1f,%.1f)",
+            service.logger.debug("[Echo] %s: %d tap(s) walls=%d delay=%.0fms gain=%.2f cut=%.2f mask=%.2f at (%.1f,%.1f,%.1f)",
                     thunder ? "thunder roll" : sound.getIdentifier(), taps.size(), walls.size(),
-                    first.delayMs(), first.gain(), first.cutoff(),
+                    first.delayMs(), first.gain(), first.cutoff(), mask,
                     first.reflection().x, first.reflection().y, first.reflection().z);
         }
         for (int i = 0; i < count; i++) {
@@ -190,6 +203,22 @@ public final class EchoService extends AbstractClientHandler {
                     Math.max(0.1F, tap.cutoff() * cutoffScale)));
         }
     }
+
+    /** Why a candidate produced no echo. Rate-limited: one line a second at debug level. */
+    private static void reject(final SoundInstance sound, final String reason) {
+        final long now = System.currentTimeMillis();
+        if (now - lastRejectLog < 1000L)
+            return;
+        lastRejectLog = now;
+        final var service = INSTANCE;
+        if (service != null && service.logger.isDebugging())
+            service.logger.debug("[Echo] skip %s reason=%s walls=%d ambient=%.2f",
+                    sound.getIdentifier(), reason, currentWalls.size(),
+                    org.orecruncher.dsurround.processing.PrecipitationIntensity.ambient());
+    }
+
+    private static volatile Vec3 lastSoundPos;
+    private static long lastRejectLog;
 
     /** Blacklist + repeat-rate gate. Unknown events pass: a modded gun should echo. */
     private static boolean isEligible(final SoundInstance sound) {

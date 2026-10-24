@@ -148,6 +148,15 @@ public class Configuration extends ConfigurationData {
         public boolean enableChannelReaper = false;
 
         @Property
+        @Comment("Enable the canyon echo: a delayed, darkened copy of a loud transient reflected by a distant wall. Off by default because it is only audible in narrow, steep terrain (a wall more than ~26 blocks away) and it is an artistic exaggeration of a very quiet physical effect")
+        public boolean enableCanyonEcho = false;
+
+        @Property
+        @DoubleRange(min = 0D, max = 2D)
+        @Comment("Volume multiplier for canyon echoes (1.0 = default)")
+        public double canyonEchoVolume = 1.0D;
+
+        @Property
         @Comment("Enable/disable sound occlusion processing (sound muffling behind blocks). On by default: it is the point of the enhanced audio path, and the model behind it (first Fresnel zone clear fraction, wavelength dependent, multi-plane) is measured rather than guessed. Turning it off restores plain distance attenuation")
         public boolean enableOcclusionProcessing = true;
 

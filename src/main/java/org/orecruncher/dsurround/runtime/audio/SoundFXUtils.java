@@ -546,6 +546,14 @@ public final class SoundFXUtils {
         directCutoff = Math.max(directCutoff, reverb.directCutoffFloor);
         directHfCutoff = Math.max(directHfCutoff, reverb.directCutoffFloor);
 
+        // A canyon echo is a reflection off a distant face: darker than the direct sound no matter
+        // how clear the line is. Applied after the reverb's brightness floor so the floor cannot
+        // undo it.
+        if (this.source.getSound() instanceof org.orecruncher.dsurround.sound.EchoSoundInstance echo) {
+            directCutoff *= echo.cutoff();
+            directHfCutoff *= echo.cutoff();
+        }
+
         // The edge path is already part of the occlusion (see calculateOcclusion), so there is nothing to
         // restore here. This used to run a second, ring-based diffraction probe over the top of it, which
         this.source.smoothDiffraction(0F, snap);

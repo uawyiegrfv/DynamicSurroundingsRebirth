@@ -141,6 +141,12 @@ public final class EchoService extends AbstractClientHandler {
                 new Vec3(sound.getX(), sound.getY(), sound.getZ()), player.getEyePosition());
         if (taps.isEmpty() || !takeBudget())
             return;
+        if (INSTANCE.logger.isDebugging()) {
+            final EchoTap first = taps.get(0);
+            INSTANCE.logger.debug("[Echo] TNT echo: %d tap(s) walls=%d delay=%.0fms gain=%.2f cut=%.2f at (%.1f,%.1f,%.1f)",
+                    taps.size(), walls.size(), first.delayMs(), first.gain(), first.cutoff(),
+                    first.reflection().x, first.reflection().y, first.reflection().z);
+        }
         // One, or at most two taps even in a canyon: more than that reads as reverberation, which
         // the EFX sends already provide.
         final int count = Math.min(2, taps.size());

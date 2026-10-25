@@ -284,10 +284,6 @@ public final class SoundFXProcessor {
             return;
         }
 
-        // Canyon echo: consider a delayed, darkened copy. An echo instance is recognised and
-        // skipped inside, so this cannot recurse.
-        org.orecruncher.dsurround.processing.EchoService.onSoundPlay(sound);
-
 
         ISourceContext source = (ISourceContext)(((IChannelHandle) entry).dsurround_getSource());
         assert source != null;

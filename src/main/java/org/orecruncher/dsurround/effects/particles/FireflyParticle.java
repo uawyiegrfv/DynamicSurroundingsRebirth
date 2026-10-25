@@ -26,7 +26,7 @@ public class FireflyParticle extends SingleQuadParticle {
         super(world, x, y, z, 0.0, 0.0, 0.0, spriteProvider.first());
         this.speedUpWhenYMotionIsBlocked = true;
         this.friction = 0.96F;
-        this.quadSize *= 0.75F;
+        this.quadSize *= 1.35F;
 
         // Flicker in from nothing like the vanilla firefly
         this.lifetime = 120 + this.random.nextInt(80);

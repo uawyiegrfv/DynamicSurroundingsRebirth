@@ -22,7 +22,7 @@ public class DustParticle extends SingleQuadParticle {
         // Small, dust-like particle that falls.
         this.gravity = 1.0F;
         this.friction = 0.98F;
-        this.quadSize *= 0.3F;
+        this.quadSize *= 0.54F;
         this.lifetime = 50 + this.random.nextInt(30);
         this.setColor(0.62F, 0.5F, 0.32F);  // dirt brown
         this.setAlpha(0.9F);

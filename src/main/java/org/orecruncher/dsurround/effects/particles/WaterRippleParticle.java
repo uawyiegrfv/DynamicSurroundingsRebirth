@@ -46,11 +46,11 @@ public class WaterRippleParticle extends SingleQuadParticle {
 
         if (rippleStyle.doScaling()) {
             this.growthRate = this.lifetime / 500F;
-            this.quadSize = this.growthRate;
+            this.quadSize = this.growthRate * 1.8F;
             this.scaledWidth = this.quadSize * TEX_SIZE_HALF;
         } else {
             this.growthRate = 0F;
-            this.quadSize = 1F;
+            this.quadSize = 1.8F;
             this.scaledWidth = 0.5F;
         }
 

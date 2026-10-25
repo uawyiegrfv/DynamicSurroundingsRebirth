@@ -18,7 +18,7 @@ public class BreathBubbleParticle extends SingleQuadParticle {
         super(world, x, y, z, 0.0D, 0.0D, 0.0D,
                 ParticleUtils.getSpriteProvider(ParticleTypes.BUBBLE).first());
 
-        this.quadSize = 0.06F;
+        this.quadSize = 0.11F;
         this.setAlpha(0.35F);
         this.xd = 0.0D;
         this.yd = 0.05D;

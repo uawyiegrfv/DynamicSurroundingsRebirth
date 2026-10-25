@@ -50,14 +50,16 @@ public class FootprintParticle extends SingleQuadParticle {
         this.lifetime = LIFETIME;
         // Guard against a nonsense scale from a hand-edited variators.json: a zero or negative print
         // would be invisible or inverted, and nothing would report it.
-        // D1: 0.12 -> 0.25. The other two versions draw a 0.25 x 0.5 quad and map the
-        // whole 32-row cell onto it, so the PRINT (the sprite's content, rows 8..23 of
-        // the 32) lands at 0.25 x 0.25 world units. This version draws a square quad and
-        // samples exactly those rows (8.5..23.5), so the quad size IS the print size and
-        // 0.12 made every 26.1 footprint half the size of the same print on 1.20.1/1.21.1.
-        // Measured from footprint.png: content rows 8..23, content columns ~1..16 of the
-        // 32px cell - the crop itself is correct and loses nothing; only the size was off.
-        this.quadSize = 0.25F * (scale > 0.01F ? scale : 1.0F);
+        // 0.12, NOT 0.25. quadSize is a HALF-extent in this pipeline (the quad is built at
+        // +-quadSize, same as 1.21.1's renderVertex), so 0.12 draws a 0.24 world-unit square.
+        // The other two versions draw a 0.25 x 0.5 quad over the whole 32-row cell, and the
+        // print content is 15 of those rows/columns - the visible print is therefore about
+        // 0.117 x 0.234, i.e. 0.234 long. 0.24 matches that length; 0.25 drew 0.5, which was
+        // 2.1x too long and 4.3x too wide (the earlier "half the size" note compared quad
+        // sizes and missed both the 1:2 crop and the half-extent). A square quad cannot be
+        // 1:2, so the width is still 2x the original; the length is the dimension a footprint
+        // is read by.
+        this.quadSize = 0.12F * (scale > 0.01F ? scale : 1.0F);
         this.alpha = 0.4F;
         this.yaw = yaw;
 

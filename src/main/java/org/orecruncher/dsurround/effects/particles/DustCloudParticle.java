@@ -25,7 +25,7 @@ public class DustCloudParticle extends SingleQuadParticle {
         this.gravity = 0.0F;
         this.friction = 0.94F;
         // Fixed, generous size - no birth-shrink, no grow-over-time.
-        this.quadSize = 0.5F * scale * (0.8F + this.random.nextFloat() * 0.4F);
+        this.quadSize = 0.9F * scale * (0.8F + this.random.nextFloat() * 0.4F);
         this.lifetime = 30 + this.random.nextInt(20);
         this.setColor(r, g, b);
         this.setAlpha(0.65F);

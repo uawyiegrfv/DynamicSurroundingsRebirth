@@ -7,6 +7,35 @@
 
 ---
 
+## 1.4.2
+
+**Supported targets**
+
+| File | Minecraft | Loader | Java |
+|---|---|---|---|
+| `DynamicSurroundingsRebirth-1.20.1-1.4.2.jar` | 1.20.1 | Forge 47.4.23+ | 17 |
+| `DynamicSurroundingsRebirth-1.21.1-1.4.2.jar` | 1.21.1 | NeoForge 21.1.84+ | 21 |
+| `DynamicSurroundingsRebirth-26.1.2-1.4.2.jar` | 26.1.2 | NeoForge 26.1.2.78+ | 25 |
+
+This is a maintenance release: **performance work, bug fixes, code clean-up and stability
+improvements**. No new features, no config migration — drop-in replacement for 1.3.2/1.4.1.
+
+**Performance**
+- Area Block Effects now only asks the systems that can act on a given block state, and scans a view-direction cone instead of the whole surrounding cube. Measured about -31% in that module and about -15% on the total handler tick.
+
+**Bug fixes**
+- 26.1.2 particle sizes: footprints, water ripples, dust, dust clouds, fireflies and breath bubbles were too small (or, for footprints, too large) after the port.
+- Heavy rain/snow could draw black columns.
+- Player landing could play three thuds instead of one (pitch sampled per foot).
+
+**Code & stability**
+- Removed the unfinished canyon-echo experiment from the release branches.
+- Hardened config reload and weather-event parsing (malformed values are clamped or repaired instead of accepted).
+
+**Upgrade**: replace the jar. Existing configuration files are compatible.
+
+---
+
 ## 1.3.2
 
 **Supported targets**

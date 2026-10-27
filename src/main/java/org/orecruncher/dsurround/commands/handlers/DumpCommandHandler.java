@@ -137,7 +137,7 @@ public class DumpCommandHandler {
                 if (d == 1) ends++;
                 else if (d >= 3) junctions++;
             }
-            LOGGER.info("[ShoreDump] p=%.3f | {} | segs={} nodes={} ends={} junctions={} diag={}",
+            LOGGER.info("[ShoreDump] p={} | {} | segs={} nodes={} ends={} junctions={} diag={}",
                     phase, window.stats(), r.segs().size(), nodes.size(), ends, junctions, diag);
 
             final List<String> lines = window.csv(phase);

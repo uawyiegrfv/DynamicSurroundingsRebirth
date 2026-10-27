@@ -755,9 +755,9 @@ public class Configuration extends ConfigurationData {
         public double runup = 3.0D;
 
         @Property
-        @DoubleRange(min = 0.02D, max = 0.50D)
-        @Comment("Debug line height above the ground, in blocks. Too small and the line z-fights with the sand and looks broken")
-        public double debugLift = 0.10D;
+        @DoubleRange(min = 0.01D, max = 0.20D)
+        @Comment("Debug line height above the waterline, in blocks. Keep small: the line must stay on the water layer, not climb the beach")
+        public double debugLift = 0.02D;
     }
 
     public static class OtherOptions {

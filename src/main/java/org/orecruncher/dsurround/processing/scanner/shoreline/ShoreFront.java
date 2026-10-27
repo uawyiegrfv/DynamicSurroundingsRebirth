@@ -72,7 +72,9 @@ public final class ShoreFront {
 
         final double s = p * runup;
         final int k = (int) Math.floor(s);
-        final double f = s - k;
+        // Never let the front touch the cell boundary: at f = 1 the step face would cut the
+        // line in half and it would look buried in the one-block-higher block.
+        final double f = Math.min(s - k, 0.90D);
         final boolean[][] flooded = new boolean[H][W];
         int fc = 0, fr = 0;
         for (int z = 0; z < H; z++)

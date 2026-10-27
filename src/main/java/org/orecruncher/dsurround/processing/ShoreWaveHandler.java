@@ -67,38 +67,14 @@ public final class ShoreWaveHandler extends AbstractClientHandler {
 
         final List<Draw> world = new ArrayList<>(r.segs().size());
         for (final ShoreFront.Seg s : r.segs()) {
-            final double mx = (s.x0() + s.x1()) * 0.5D + window.originX();
-            final double mz = (s.z0() + s.z1()) * 0.5D + window.originZ();
             world.add(new Draw(s.x0() + window.originX(), s.z0() + window.originZ(),
                     s.x1() + window.originX(), s.z1() + window.originZ(),
-                    surfaceY(window, mx, mz)));
+                    this.seaLevel + (float) this.options.debugLift));
         }
         this.segments = world;
 
         if (this.logger.isDebugging())
             this.logger.debug("[Shore] p=%.2f segs=%d | %s", p, world.size(), window.stats());
-    }
-
-    /**
-     * Foam sits on the beach, not at a global sea level: the ground under the segment is the
-     * only height that cannot bury the line in a one-block step or leave it hanging over water.
-     * Sampling a 3x3 around the midpoint and taking the highest beach cell keeps the line on
-     * the sand at corners, where the offset point can drift into a neighbouring cell.
-     */
-    private float surfaceY(final ShoreWindow window, final double wx, final double wz) {
-        final int lx = (int) Math.floor(wx) - window.originX();
-        final int lz = (int) Math.floor(wz) - window.originZ();
-        int max = Integer.MIN_VALUE;
-        for (int ox = -1; ox <= 1; ox++)
-            for (int oz = -1; oz <= 1; oz++) {
-                final int k = window.kind(lx + ox, lz + oz);
-                if (k == ShoreFront.BEACH || k == ShoreFront.LAND) {
-                    final int gy = window.groundY(lx + ox, lz + oz);
-                    if (gy > max) max = gy;
-                }
-            }
-        final int base = max == Integer.MIN_VALUE ? this.seaLevel - 1 : max;
-        return base + 1.0F + (float) this.options.debugLift;
     }
 
     public void doRender(final RenderLevelStageEvent event) {

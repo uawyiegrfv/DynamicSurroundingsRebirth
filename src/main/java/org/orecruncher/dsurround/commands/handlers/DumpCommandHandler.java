@@ -2,6 +2,7 @@ package org.orecruncher.dsurround.commands.handlers;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import org.orecruncher.dsurround.processing.ShoreWaveHandler;
 import org.orecruncher.dsurround.processing.scanner.shoreline.ShoreFront;
 import org.orecruncher.dsurround.processing.scanner.shoreline.ShoreWindow;
 
@@ -117,7 +118,8 @@ public class DumpCommandHandler {
             if (player == null)
                 return Component.literal("[Shore] no player");
             final ShoreWindow window = ShoreWindow.capture(player.level(), player.blockPosition(), 64);
-            final ShoreFront.Result r = ShoreFront.build(window, 0.5, 3.0);
+            final double phase = ShoreWaveHandler.lastP();
+            final ShoreFront.Result r = ShoreFront.build(window, phase, 3.0);
 
             final Set<String> nodes = new HashSet<>();
             final java.util.Map<String, Integer> deg = new java.util.HashMap<>();
@@ -135,10 +137,10 @@ public class DumpCommandHandler {
                 if (d == 1) ends++;
                 else if (d >= 3) junctions++;
             }
-            LOGGER.info("[ShoreDump] {} | segs={} nodes={} ends={} junctions={} diag={}",
-                    window.stats(), r.segs().size(), nodes.size(), ends, junctions, diag);
+            LOGGER.info("[ShoreDump] p=%.3f | {} | segs={} nodes={} ends={} junctions={} diag={}",
+                    phase, window.stats(), r.segs().size(), nodes.size(), ends, junctions, diag);
 
-            final List<String> lines = window.csv();
+            final List<String> lines = window.csv(phase);
             final var file = directories.getModDumpDirectory().resolve("shorescan.csv");
             Files.write(file, lines);
             return Component.literal("[Shore] segs=" + r.segs().size()

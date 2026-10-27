@@ -99,9 +99,9 @@ public final class ShoreWindow implements ShoreFront.World {
     public int seaLevel() { return this.seaLevel; }
 
     /** One line per row, S/B/L/U; the first line is "originX,originZ,size,seaLevel". */
-    public List<String> csv() {
+    public List<String> csv(final double p) {
         final List<String> lines = new ArrayList<>(this.size + 1);
-        lines.add(this.originX + "," + this.originZ + "," + this.size + "," + this.seaLevel);
+        lines.add(this.originX + "," + this.originZ + "," + this.size + "," + this.seaLevel + "," + p);
         for (int z = 0; z < this.size; z++) {
             final StringBuilder sb = new StringBuilder(this.size);
             for (int x = 0; x < this.size; x++)

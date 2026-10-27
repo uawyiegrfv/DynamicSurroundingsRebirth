@@ -34,6 +34,7 @@ public final class ShoreWaveHandler extends AbstractClientHandler {
 
     private List<Draw> segments = List.of();
     private int seaLevel = 63;
+    private static volatile double lastP = 0.5D;
     private int counter;
 
     public ShoreWaveHandler(final Configuration config, final Configuration.ShoreWaveOptions options,
@@ -48,6 +49,8 @@ public final class ShoreWaveHandler extends AbstractClientHandler {
         return ++this.counter >= REBUILD_TICKS;
     }
 
+    public static double lastP() { return lastP; }
+
     @Override
     public void process(final Player player) {
         this.counter = 0;
@@ -59,6 +62,7 @@ public final class ShoreWaveHandler extends AbstractClientHandler {
         this.seaLevel = window.seaLevel();
         final double phase = (System.currentTimeMillis() % PERIOD_MS) / (double) PERIOD_MS;
         final double p = 0.55D + 0.40D * Math.sin(phase * Math.PI * 2.0D);
+        lastP = p;
         final ShoreFront.Result r = ShoreFront.build(window, p, this.options.runup);
 
         final List<Draw> world = new ArrayList<>(r.segs().size());

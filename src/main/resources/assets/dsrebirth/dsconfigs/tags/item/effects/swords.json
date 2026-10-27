@@ -3,6 +3,8 @@
   "values": [
     "#minecraft:swords",
     "#c:tools/melee_weapon",
+    { "id": "#c:swords", "required": false },
+    { "id": "#c:tools/swords", "required": false },
     { "id": "#spartan_weaponry_unofficial:dagger",          "required": false },
     { "id": "#spartan_weaponry_unofficial:parrying_dagger", "required": false },
     { "id": "#spartan_weaponry_unofficial:longsword",       "required": false },

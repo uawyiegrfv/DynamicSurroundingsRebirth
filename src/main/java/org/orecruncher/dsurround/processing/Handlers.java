@@ -81,6 +81,7 @@ public class Handlers {
 
         // Aurora renders on AfterSky; per-tick it just maintains spawn/fade state.
         this.register(AuroraEffectHandler.class);
+        this.register(ShoreWaveHandler.class);
 
         // Not per-tick handlers - resolve to force construction so their NeoForge
         // event listeners (crafting sound, potion particle suppression) are registered.
@@ -286,6 +287,7 @@ public class Handlers {
             .registerSingleton(WeatherStormHandler.class)
             .registerSingleton(FallDustCloudHandler.class)
             .registerSingleton(AuroraEffectHandler.class)
+            .registerSingleton(ShoreWaveHandler.class)
             .registerSingleton(Handlers.class);
     }
 }

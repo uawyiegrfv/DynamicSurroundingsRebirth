@@ -26,13 +26,15 @@ public final class ShoreWindow implements ShoreFront.World {
 
     private final int originX, originZ, size, seaLevel;
     private final byte[] kind;
+    private final short[] groundY;
 
-    private ShoreWindow(int originX, int originZ, int size, int seaLevel, byte[] kind) {
+    private ShoreWindow(int originX, int originZ, int size, int seaLevel, byte[] kind, short[] groundY) {
         this.originX = originX;
         this.originZ = originZ;
         this.size = size;
         this.seaLevel = seaLevel;
         this.kind = kind;
+        this.groundY = groundY;
     }
 
     public static ShoreWindow capture(final Level level, final BlockPos center, final int size) {
@@ -42,6 +44,7 @@ public final class ShoreWindow implements ShoreFront.World {
         final int seaLevel = level.getSeaLevel();
         final int waterTop = seaLevel - 1;
         final byte[] kind = new byte[size * size];
+        final short[] groundY = new short[size * size];
         final BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int z = 0; z < size; z++) {
             for (int x = 0; x < size; x++) {
@@ -70,9 +73,10 @@ public final class ShoreWindow implements ShoreFront.World {
                 else if (ground > waterTop) k = ShoreFront.LAND;
                 else k = isSea ? ShoreFront.SEA : ShoreFront.UNKNOWN;
                 kind[z * size + x] = (byte) k;
+                groundY[z * size + x] = (short) (ground == Integer.MIN_VALUE ? waterTop : ground);
             }
         }
-        return new ShoreWindow(originX, originZ, size, seaLevel, kind);
+        return new ShoreWindow(originX, originZ, size, seaLevel, kind, groundY);
     }
 
     @Override public int width() { return this.size; }
@@ -83,6 +87,11 @@ public final class ShoreWindow implements ShoreFront.World {
         if (x < 0 || z < 0 || x >= this.size || z >= this.size)
             return ShoreFront.UNKNOWN;
         return this.kind[z * this.size + x];
+    }
+
+    public int groundY(final int x, final int z) {
+        if (x < 0 || z < 0 || x >= this.size || z >= this.size) return 0;
+        return this.groundY[z * this.size + x];
     }
 
     public int originX() { return this.originX; }

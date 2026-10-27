@@ -94,7 +94,7 @@ public final class ShoreWaveHandler extends AbstractClientHandler {
                 }
             }
         final int base = max == Integer.MIN_VALUE ? this.seaLevel - 1 : max;
-        return base + 1.02F;
+        return base + 1.0F + (float) this.options.debugLift;
     }
 
     public void doRender(final RenderLevelStageEvent event) {

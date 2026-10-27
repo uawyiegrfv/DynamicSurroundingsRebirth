@@ -753,6 +753,11 @@ public class Configuration extends ConfigurationData {
         @DoubleRange(min = 1D, max = 6D)
         @Comment("Maximum run-up of the wave front, in blocks")
         public double runup = 3.0D;
+
+        @Property
+        @DoubleRange(min = 0.02D, max = 0.50D)
+        @Comment("Debug line height above the ground, in blocks. Too small and the line z-fights with the sand and looks broken")
+        public double debugLift = 0.10D;
     }
 
     public static class OtherOptions {

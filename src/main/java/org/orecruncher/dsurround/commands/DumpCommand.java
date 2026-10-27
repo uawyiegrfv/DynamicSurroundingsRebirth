@@ -22,6 +22,7 @@ class DumpCommand extends AbstractClientCommand {
     private static final String STEPS = "steps";
     private static final String BRUSH = "brush";
     private static final String VALIDATE = "validate";
+    private static final String SHORE = "shore";
 
     public void register(CommandDispatcher<ClientCommandRegistrationEvent.ClientCommandSourceStack> dispatcher, CommandBuildContext registryAccess) {
         dispatcher.register(ClientCommandRegistrationEvent.literal(COMMAND)
@@ -39,6 +40,7 @@ class DumpCommand extends AbstractClientCommand {
                 .then(subCommand(STEPS, DumpCommandHandler::dumpStepTrace))
                 .then(subCommand(BRUSH, DumpCommandHandler::dumpBrushTrace))
                 .then(subCommand(VALIDATE, DumpCommandHandler::validateData))
+                .then(subCommand(SHORE, DumpCommandHandler::dumpShore))
         );
     }
 }

@@ -1,6 +1,14 @@
 package org.orecruncher.dsurround.commands.handlers;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import org.orecruncher.dsurround.processing.scanner.shoreline.ShoreFront;
+import org.orecruncher.dsurround.processing.scanner.shoreline.ShoreWindow;
+
+import java.nio.file.Files;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import org.orecruncher.dsurround.config.libraries.*;
 import org.orecruncher.dsurround.lib.di.ContainerManager;
 import org.orecruncher.dsurround.lib.logging.IModLog;
@@ -95,6 +103,51 @@ public class DumpCommandHandler {
         if (player == null)
             return Component.literal("dsdump brush: no client player");
         return Component.literal(String.join("\n", org.orecruncher.dsurround.effects.entity.StepThroughBrushEffect.dumpBrushTrace(player)));
+    }
+
+    /**
+     * Captures a 64x64 shore window, runs the flood-front line builder on it and
+     * writes the classification grid to a CSV. The grid is what the offline model
+     * is replayed from, so a "works in the sim, not in game" report can be checked
+     * without another round trip.
+     */
+    public static Component dumpShore() {
+        try {
+            final var player = Minecraft.getInstance().player;
+            if (player == null)
+                return Component.literal("[Shore] no player");
+            final ShoreWindow window = ShoreWindow.capture(player.level(), player.blockPosition(), 64);
+            final ShoreFront.Result r = ShoreFront.build(window, 0.5, 3.0);
+
+            final Set<String> nodes = new HashSet<>();
+            final java.util.Map<String, Integer> deg = new java.util.HashMap<>();
+            int diag = 0;
+            for (final ShoreFront.Seg s : r.segs()) {
+                if (!s.axisAligned()) diag++;
+                for (final double[] p : new double[][]{{s.x0(), s.z0()}, {s.x1(), s.z1()}}) {
+                    final String k = String.format("%.3f,%.3f", p[0], p[1]);
+                    deg.merge(k, 1, Integer::sum);
+                    nodes.add(k);
+                }
+            }
+            int ends = 0, junctions = 0;
+            for (final int d : deg.values()) {
+                if (d == 1) ends++;
+                else if (d >= 3) junctions++;
+            }
+            LOGGER.info("[ShoreDump] {} | segs={} nodes={} ends={} junctions={} diag={}",
+                    window.stats(), r.segs().size(), nodes.size(), ends, junctions, diag);
+
+            final List<String> lines = window.csv();
+            final var file = directories.getModDumpDirectory().resolve("shorescan.csv");
+            Files.write(file, lines);
+            return Component.literal("[Shore] segs=" + r.segs().size()
+                    + " ends=" + ends + " diag=" + diag + " | " + window.stats()
+                    + " | " + file);
+        } catch (final Throwable t) {
+            LOGGER.error(t, "Shore dump failed");
+            return Component.literal("[Shore] failed: " + t.getMessage());
+        }
     }
 
     private static Component handle(final String operation, final Supplier<Stream<String>> supplier) {

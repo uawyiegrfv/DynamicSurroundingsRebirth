@@ -71,10 +71,6 @@ public class Configuration extends ConfigurationData {
     public final AuroraOptions auroraOptions = new AuroraOptions();
 
     @Property
-    @Comment("Configuration options for the shore wave front (development)")
-    public final ShoreWaveOptions shoreWaveOptions = new ShoreWaveOptions();
-
-    @Property
     @Comment("Configuration options for other things")
     public final OtherOptions otherOptions = new OtherOptions();
 
@@ -737,27 +733,6 @@ public class Configuration extends ConfigurationData {
         @DoubleRange(min = 0.25D, max = 4D)
         @Comment("Scales weather (rain) fog density (1.0 = default; higher = denser/closer fog)")
         public double weatherFogDensity = 1.0D;
-    }
-
-    public static class ShoreWaveOptions {
-        @Property
-        @Comment("Draw the shore wave front as debug lines (development build, no texture yet)")
-        public boolean renderDebugLines = true;
-
-        @Property
-        @IntegerRange(min = 32, max = 96)
-        @Comment("Shore scan window size, in blocks (square)")
-        public int windowSize = 64;
-
-        @Property
-        @DoubleRange(min = 1D, max = 6D)
-        @Comment("Maximum run-up of the wave front, in blocks")
-        public double runup = 3.0D;
-
-        @Property
-        @DoubleRange(min = 0.01D, max = 0.20D)
-        @Comment("Debug line height above the waterline, in blocks. Keep small: the line must stay on the water layer, not climb the beach")
-        public double debugLift = 0.02D;
     }
 
     public static class OtherOptions {

@@ -145,7 +145,6 @@ public final class Client {
                 .registerSingleton(Config.compassAndClockOptions)
                 .registerSingleton(Config.fogOptions)
                 .registerSingleton(Config.otherOptions)
-            .registerSingleton(Config.shoreWaveOptions)
                 .registerSingleton(IConditionEvaluator.class, ConditionEvaluator.class)
                 .registerSingleton(IVersionChecker.class, VersionChecker.class)
                 .registerSingleton(ITagLibrary.class, TagLibrary.class)
